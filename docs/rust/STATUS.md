@@ -5,20 +5,20 @@ audience: software-engineer
 ---
 # Rust migration status
 
-**Status: native foundation implemented, independently reviewed, and locally verified. Not a complete rewrite.** The source baseline is upstream `9aed3a8012cb5eb22c0128b14d525039f95fea7a`. Existing Python source, fixtures, and notices remain intact. Rust never invokes Python at runtime.
+**Status: full-rewrite completion loop is active; not complete.** The previously published foundation passed 455 tests. Continue through [the completion gates](LOOP.md); neither that milestone nor a partial benchmark is a stopping condition. The source baseline is upstream `9aed3a8012cb5eb22c0128b14d525039f95fea7a`. Existing Python source, fixtures, and notices remain intact. Rust never invokes Python at runtime.
 
 ## Bounded contexts
 
 | Crate | Implemented scope | Not yet implemented |
 | --- | --- | --- |
-| `sk-kernel` | Validated ASCII identifiers, project discovery, contained path resolution, bounded reads, no-op-stable atomic replacement | Complete kernel parity, shared locks, Windows identity equivalence, metadata-preserving/directory-durable writes |
+| `sk-kernel` | Identifiers/discovery, bounded/no-follow reads, thread-bound process locks, durable mode-preserving replacement, generic locked append with rollback, clocks/digests (local checks passed; review hardening in progress) | Complete per-family lock/topology parity, Windows durability/identity equivalence, owner/ACL/xattr preservation and external-service handover |
 | `sk-git` | Read-only repository, branch, commit, status and worktree inspection; bounded subprocesses and lossless Unix path storage (CLI display strings have raw-byte hex companions) | Remote operations, destructive Git policies, branch/worktree allocation |
-| `sk-mission` | Canonical ULID identity, strict selectors, metadata inventory, Markdown frontmatter reads, dependency DAG and explicit-state readiness | Creation, authoritative status reconstruction, owned checkouts, artifact placement, Mission acceptance |
+| `sk-mission` | ULID identity/selectors, inventory, frontmatter and dependency DAG/readiness; new planning-artifact creation/authoring/finalization substrate awaiting integration/review | Full CLI creation, workspace/status allocation, acceptance/consolidation/recovery and migrations |
 | `sk-charter` | Kind vocabulary, config and charter bundle inspection, pack roots/descriptors, asset catalogs and contained resolution | Activation, synthesis, full frozen offering API, DRG evaluation, downloading and pin verification, core-version compatibility evaluation |
 | `sk-glossary` | Seed validation, typed terms/senses, deterministic scope ordering, lookup/conflict output | Event replay, extraction pipeline, middleware, activation, seed mutations |
-| `sk-status` | Lane FSM conformance and bounded read-only event inspection | Canonical shared reducer, snapshot/archive byte parity, event writes and transactional coordination |
-| `sk-runtime` | Pure DAG planner, validated templates/workflows, exhaustive decision payloads, pure result application and stale-plan checks | Persistent runs/cursor locking, full audit significance policy, authorized answers, prompt files, full governed `next` |
-| `sk-cli` | Native read-only command adapter and binary acceptance tests | Complete upstream command tree; unsupported commands must fail, not report success |
+| `sk-status` | FSM and event inspection; canonical consumer replay, schema-aware snapshots and bounded golden archive parity (local checks passed; review pending) | Mutation preparation/writes, full audit/drift and transactional coordination/service handover |
+| `sk-runtime` | Pure planner/stale-plan checks plus significance, RACI, answer authorization, workflow discovery and differential goldens (integration/review pending) | Persistent run and prompt integration, full governed `next`, retrospective execution and remaining wire differences |
+| `sk-cli` | Published read-only adapter and binary acceptance tests | Integration of new mutation libraries, complete upstream command/option tree and end-to-end workflows |
 
 The available crate READMEs and public API documentation describe individual compatibility differences. A serializable inspection result is not evidence that upstream mutation protocols have been ported. In particular, event inspection does **not** claim to compute authoritative current lanes.
 
@@ -36,14 +36,14 @@ These are design improvements, not measured performance claims. Cross-platform C
 
 ## Verification policy
 
-Only the coordinator runs whole-workspace checks, with `CARGO_BUILD_JOBS=2` on this shared machine. Implementers run their crate tests. Independent reviewers examine fixed completed surfaces, and the coordinator reproduces and fixes findings. The aggregate Linux run passes **455 tests**, including 3 compile-only doctests; strict workspace Clippy and formatting checks pass, and the release binary builds. Individual subagent results are not a substitute for that aggregate run. See [verification evidence](VERIFICATION.md).
+Only the coordinator runs whole-workspace checks, with `CARGO_BUILD_JOBS=2` on this shared machine. Implementers run their crate tests. Independent reviewers examine fixed completed surfaces, and the coordinator reproduces and fixes findings. The last published aggregate Linux run passed **455 tests** at the foundation checkpoint, including 3 compile-only doctests; that checkpoint also passed strict workspace Clippy, formatting and release build. Ongoing uncommitted tranches need a fresh aggregate run and review before their results replace that evidence. Individual subagent results are not a substitute for that aggregate run. See [verification evidence](VERIFICATION.md).
 
 The FSM tests consume the checked-in upstream conformance corpus; the runtime planner tests reproduce two upstream next-decision fixtures. Neither is blanket upstream compatibility. Existing Python suites have not been claimed green by virtue of Rust checks.
 
 ## Remaining delivery sequence
 
-1. Publish the reviewed foundation as an incomplete draft, retaining its limitations and remaining work.
-2. Publish a draft PR for this foundation; do not merge automatically.
+1. Run the inventory-driven completion loop in `LOOP.md`; integrate, test, review, benchmark and continue while any required behavior or speed gate remains pending.
+2. Refresh existing draft PR #1 with verified tranches and explicit remaining scope; do not merge automatically.
 3. Implement the external events/read/write-service client against pinned contracts and fixture tests; establish canonical reduction and archive conformance before claiming status parity.
 4. Add persistent runtime storage with shared process locks, atomic/fsync semantics, stale-plan CAS, authorized human decisions, audit policy and real prompt-file generation.
 5. Implement Mission creation, lane/worktree/coordination allocation and ownership/placement using validated transactional plans, with recovery tests.
