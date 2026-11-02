@@ -448,11 +448,13 @@ CARGO_BUILD_JOBS=2 cargo clippy -p sk-kernel --all-targets -- -D warnings
 cargo fmt -p sk-kernel -- --check
 ```
 
-The suite contains **186 tests** (unit + integration + doctests). Differential
-tests use the pinned interpreter
-`/home/exedev/.local/share/uv/tools/spec-kitty-cli/bin/python` with
-`PYTHONPATH=<repo>/src` (override with `SK_KERNEL_PYTHON`). They skip with a
-printed note if the oracle is absent; Git-oracle legs still run.
+Differential tests require `.venv-rust-oracle/bin/python` (Windows:
+`Scripts/python.exe`), with `PYTHONPATH=<repo>/src`. Provision it using
+`UV_PROJECT_ENVIRONMENT=.venv-rust-oracle uv sync --frozen --no-dev --python 3.11`.
+`SK_KERNEL_PYTHON` may select another interpreter, but every selection must pass
+`scripts/rust/verify_oracle.py`: pinned installed versions and the complete active
+runtime dependency closure. Missing/drifted oracles **fail**, never silently skip.
+The preinstalled uv-tool environment is not a certification oracle.
 
 Coverage highlights:
 
@@ -482,11 +484,27 @@ Coverage highlights:
   framing, short-write and readback rollback, failed-rollback
   `AppendRollbackFailed`/`mutation_may_have_committed`, worktree `commondir`
   placement, multi-process appends, lock timeout.
-- `locks`: multi-process timeout/serialization, killed holder, fork/inherited
-  guard refusal, non-LIFO reentrancy, planted symlink/FIFO refusal.
+- `locks`: multi-process timeout/serialization, killed holder, simulated
+  inherited-PID guard refusal, non-LIFO reentrancy, planted symlink/FIFO refusal.
 - `durability`/`io`/`special_files`/`containment`/`discovery_env`: atomic
   commit indeterminacy, bounded/no-follow reads, containment escape/loops,
   environment-sensitive project discovery.
 
-Development probes under `/tmp/kprobe` (not committed) reproduced the prior
-fork/topology hazards and were used while building the parity fixtures.
+An exploratory `/tmp/kprobe` is not committed regression evidence. The committed
+PID/TLS tests are simulations; a reproducible real-fork test is not claimed.
+
+### Writer authority restrictions
+
+Raw topology probes retain Git/Python environment parity. Writer lock boundaries
+instead refuse inherited GIT_DIR, GIT_COMMON_DIR, GIT_OBJECT_DIRECTORY,
+GIT_WORK_TREE, GIT_CEILING_DIRECTORIES and GIT_DISCOVERY_ACROSS_FILESYSTEM. The
+Git adapter selects an explicit checkout and strips those selectors; using both
+policies without a shared captured repository context previously split lock
+namespace from mutation authority. Refusal is a documented fail-closed restriction,
+not full environment-override mutation support. Explicit low-level lock paths are
+unchanged; they do not discover repository authority.
+
+With no inherited selectors, the status-family common-dir probe retains baseline
+fallback on unusable Git topology (.git, then .kittify, then .spec-kitty). Generic
+event-log locking remains stricter and refuses a HEAD-bearing invalid marker.
+These are distinct family policies, not a uniform corruption-recovery guarantee.

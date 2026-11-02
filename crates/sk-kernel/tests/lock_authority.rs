@@ -53,18 +53,28 @@ fn env_override_child() {
     let root = PathBuf::from(std::env::var_os(ENV_ROOT).expect("root"));
     let log = root.join("events.jsonl");
     match case.to_string_lossy().as_ref() {
-        "git_dir" => assert_eq!(
-            event_log_lock_path(&log).unwrap().parent().unwrap(),
-            root.join("other.git/spec-kitty-locks/event-logs")
-        ),
-        "git_common_dir" => assert_eq!(
-            event_log_lock_path(&log).unwrap().parent().unwrap(),
-            root.join("shared.git/spec-kitty-locks/event-logs")
-        ),
-        "git_object_directory" => assert_eq!(
-            event_log_lock_path(&log).unwrap().parent().unwrap(),
-            root.join(".git/spec-kitty-locks/event-logs")
-        ),
+        "git_dir" | "git_common_dir" | "git_object_directory" => {
+            let expected = match case.to_string_lossy().as_ref() {
+                "git_dir" => root.join("other.git"),
+                "git_common_dir" => root.join("shared.git"),
+                _ => root.join(".git"),
+            };
+            // Read-only Git parity remains; composed mutation is explicitly
+            // refused until it can share the adapter's repository context.
+            assert_eq!(
+                sk_kernel::git_topology::git_common_dir(&root).unwrap(),
+                expected
+            );
+            assert!(matches!(
+                event_log_lock_path(&log),
+                Err(KernelError::LockUnavailable { .. })
+            ));
+            assert!(
+                append_event_log_lines(&log, &["never-written"], &EventLogAppendOptions::default())
+                    .is_err()
+            );
+            assert!(!log.exists());
+        }
         "invalid_git_dir" | "invalid_git_common_dir" => assert!(matches!(
             event_log_lock_path(&log),
             Err(KernelError::LockUnavailable { .. })
@@ -104,7 +114,7 @@ fn other_repository(root: &Path) {
 }
 
 #[test]
-fn git_dir_env_selects_the_same_authority_as_git() {
+fn git_dir_env_preserves_read_parity_but_refuses_writer_authority() {
     let temp = tempfile::tempdir().unwrap();
     repository(temp.path());
     other_repository(temp.path());
@@ -117,7 +127,7 @@ fn git_dir_env_selects_the_same_authority_as_git() {
 }
 
 #[test]
-fn git_common_dir_env_selects_the_shared_common_directory() {
+fn git_common_dir_env_preserves_read_parity_but_refuses_writer_authority() {
     let temp = tempfile::tempdir().unwrap();
     repository(temp.path());
     other_repository(temp.path());
@@ -138,7 +148,7 @@ fn git_common_dir_env_selects_the_shared_common_directory() {
 }
 
 #[test]
-fn git_object_directory_does_not_change_lock_authority() {
+fn object_directory_env_is_not_silently_mixed_with_the_git_adapter() {
     let temp = tempfile::tempdir().unwrap();
     repository(temp.path());
     let output = run_child(

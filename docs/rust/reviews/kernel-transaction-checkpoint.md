@@ -10,7 +10,7 @@ Independent review found normal local-repository interop: Python/Rust lock paths
 ## Coordinator fixes after review
 
 - Guards are statically `!Send`/`!Sync` and `must_use`; same-thread reentrancy cannot be invalidated by moving a guard.
-- Per-process ownership checks reject inherited TLS reentrancy after fork; inherited guards do not truncate/unlock their parent's holder. A real fork probe now reports child refusal; a safe unit test pins stale-process rejection and non-truncation.
+- Per-process ownership checks reject inherited TLS reentrancy after fork; inherited guards do not truncate/unlock their parent's holder. Committed safe unit tests simulate stale-process rejection and non-truncation. Earlier out-of-tree exploratory probes are not reproducible regression evidence; no committed real-fork test is claimed.
 - Unimplemented `GIT_DIR` / `GIT_COMMON_DIR` / `GIT_OBJECT_DIRECTORY` handling refuses rather than choosing a different lock from Git/Python. This fence is pending full environment-aware topology support, not full parity.
 - Claimed Git markers validate HEAD/objects/refs; a bogus nested HEAD-only marker refuses rather than silently winning. A marker with no HEAD entry is ignored as Git ignores it. Symlinked Git directories are followed for directory detection.
 - `atomic_write` reports `AtomicCommitIndeterminate` after a successful rename followed by failed directory fsync. `KernelError::mutation_may_have_committed()` exposes this explicitly; a fault-injection test confirms the new data is visible. Consumers must recover/read back, not assume error means no mutation.

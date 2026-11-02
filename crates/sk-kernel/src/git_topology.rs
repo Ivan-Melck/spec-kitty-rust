@@ -165,6 +165,7 @@ pub fn discover_git_layout(path: &Path) -> Result<Option<GitLayout>, KernelError
 /// is [`KernelError::LockUnavailable`], never a silent fallback to a sibling
 /// lock or to a different repository. No marker with a HEAD entry is ignored.
 pub(crate) fn strict_git_common_dir(start: &Path) -> Result<Option<PathBuf>, KernelError> {
+    ensure_writer_git_environment(start)?;
     let resolved = resolve(start)?;
     let start = probe_directory(&resolved);
     match discover(&start, DiscoveryMode::Strict) {
@@ -184,6 +185,34 @@ pub(crate) fn strict_git_common_dir(start: &Path) -> Result<Option<PathBuf>, Ker
         }),
         Err(error) => Err(error),
     }
+}
+
+/// Refuse inherited repository selectors at writer authority boundaries.
+///
+/// Read-only parity probes intentionally follow Git's environment. The bounded
+/// Git adapter instead selects its explicitly opened checkout. Until a shared
+/// captured repository context owns both, writers must not derive a lock from
+/// one selection and mutate through the other. This is an explicit fail-closed
+/// restriction, not a claim of environment-override mutation parity.
+pub fn ensure_writer_git_environment(path: &Path) -> Result<(), KernelError> {
+    for variable in [
+        ENV_GIT_DIR,
+        ENV_GIT_COMMON_DIR,
+        ENV_GIT_OBJECT_DIRECTORY,
+        ENV_GIT_WORK_TREE,
+        ENV_GIT_CEILING,
+        ENV_DISCOVERY_ACROSS_FILESYSTEM,
+    ] {
+        if env_value(variable).is_some() {
+            return Err(KernelError::LockUnavailable {
+                path: path.to_path_buf(),
+                reason: format!(
+                    "inherited {variable} can disagree with the explicitly opened Git adapter; clear repository-selection variables before writing (lock authority divergence)"
+                ),
+            });
+        }
+    }
+    Ok(())
 }
 
 fn probe<T>(

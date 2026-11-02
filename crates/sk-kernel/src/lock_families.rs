@@ -184,6 +184,7 @@ pub fn describe_status_lock_holder(holder: Option<&StatusLockHolder>) -> String 
 ///
 /// This never creates a directory and never probes with a subprocess.
 pub fn status_lock_common_dir(repo_root: &Path) -> Result<PathBuf, KernelError> {
+    crate::git_topology::ensure_writer_git_environment(repo_root)?;
     match crate::git_topology::git_common_dir(repo_root) {
         Ok(common) => Ok(common),
         Err(KernelError::NotAGitRepository { .. } | KernelError::GitTopologyUnavailable { .. }) => {
@@ -256,8 +257,8 @@ pub const CHECKOUT_CLAIM_DIGEST_ALGORITHM: AnchorDigestAlgorithm = AnchorDigestA
 
 thread_local! {
     /// Per-thread outer-acquire depths for status-family locks, keyed by the
-    /// supplied path string (upstream's bookkeeping key).
-    static HELD_STATUS: RefCell<(u32, HashMap<String, usize>)> =
+    /// canonical lock identity, shared with FileLock (including aliased paths).
+    static HELD_STATUS: RefCell<(u32, HashMap<PathBuf, usize>)> =
         RefCell::new((std::process::id(), HashMap::new()));
 }
 
@@ -271,7 +272,7 @@ thread_local! {
 pub struct StatusLock {
     owner_pid: u32,
     path: PathBuf,
-    key: String,
+    key: PathBuf,
     _lock: FileLock,
 }
 
@@ -283,7 +284,7 @@ impl StatusLock {
     /// [`KernelError::StatusLockTimeout`], including the `.holder` sidecar text
     /// when one is readable.
     pub fn acquire(path: &Path, wait: LockWait) -> Result<Self, KernelError> {
-        let key = path.to_string_lossy().into_owned();
+        let key = crate::locks::canonical_lock_key(path)?;
         let depth = held_depth(&key);
         let options = LockOptions {
             wait,
@@ -386,7 +387,7 @@ pub fn acquire_checkout_claim_lock(
     wait: LockWait,
 ) -> Result<StatusLock, KernelError> {
     let path = checkout_claim_lock_path(write_checkout, common_dir)?;
-    let key = path.to_string_lossy().into_owned();
+    let key = crate::locks::canonical_lock_key(&path)?;
     if held_depth(&key) == 0 {
         let foreign = held_foreign_keys(&key);
         if !foreign.is_empty() {
@@ -407,7 +408,7 @@ fn status_timeout(path: &Path, timeout: Duration) -> KernelError {
     }
 }
 
-fn with_held_status<T>(f: impl FnOnce(&mut HashMap<String, usize>) -> T) -> T {
+fn with_held_status<T>(f: impl FnOnce(&mut HashMap<PathBuf, usize>) -> T) -> T {
     HELD_STATUS.with(|state| {
         let mut state = state.borrow_mut();
         let pid = std::process::id();
@@ -419,29 +420,29 @@ fn with_held_status<T>(f: impl FnOnce(&mut HashMap<String, usize>) -> T) -> T {
     })
 }
 
-fn held_depth(key: &str) -> usize {
+fn held_depth(key: &Path) -> usize {
     with_held_status(|held| held.get(key).copied().unwrap_or(0))
 }
 
-fn set_held_depth(key: &str, depth: usize) {
+fn set_held_depth(key: &Path, depth: usize) {
     with_held_status(|held| {
         held.insert(key.to_owned(), depth);
     });
 }
 
-fn remove_held(key: &str) {
+fn remove_held(key: &Path) {
     with_held_status(|held| {
         held.remove(key);
     });
 }
 
-fn held_foreign_keys(checkout_key: &str) -> Vec<String> {
+fn held_foreign_keys(checkout_key: &Path) -> Vec<String> {
     with_held_status(|held| {
         let mut keys: Vec<String> = held
             .iter()
-            .filter(|(key, depth)| **depth > 0 && key.as_str() != checkout_key)
-            .filter(|(key, _)| !is_checkout_claim_lock_key(key))
-            .map(|(key, _)| key.clone())
+            .filter(|(key, depth)| **depth > 0 && key.as_path() != checkout_key)
+            .filter(|(key, _)| !is_checkout_claim_lock_key(&key.to_string_lossy()))
+            .map(|(key, _)| key.to_string_lossy().into_owned())
             .collect();
         keys.sort();
         keys
@@ -502,10 +503,10 @@ mod tests {
         HELD_STATUS.with(|state| {
             let mut state = state.borrow_mut();
             state.0 = std::process::id().wrapping_add(1);
-            state.1.insert("parent.status.lock".to_owned(), 1);
+            state.1.insert(PathBuf::from("parent.status.lock"), 1);
         });
-        assert_eq!(held_depth("parent.status.lock"), 0);
-        assert!(held_foreign_keys("__checkout-child__.status.lock").is_empty());
+        assert_eq!(held_depth(Path::new("parent.status.lock")), 0);
+        assert!(held_foreign_keys(Path::new("__checkout-child__.status.lock")).is_empty());
     }
 
     #[test]

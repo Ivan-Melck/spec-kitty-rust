@@ -18,13 +18,12 @@ use sk_kernel::locks::{
     AnchorDigestAlgorithm, AnchoredLockName, anchored_lock_path, anchored_lock_path_with,
 };
 
-const PINNED_PYTHON: &str = "/home/exedev/.local/share/uv/tools/spec-kitty-cli/bin/python";
+#[path = "support/oracle.rs"]
+mod oracle_support;
 
 fn python() -> Option<PathBuf> {
-    let path = std::env::var_os("SK_KERNEL_PYTHON")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(PINNED_PYTHON));
-    path.is_file().then_some(path)
+    // Missing or drifted oracles panic; None must never certify zero comparisons.
+    Some(oracle_support::python())
 }
 
 fn repo_root() -> PathBuf {

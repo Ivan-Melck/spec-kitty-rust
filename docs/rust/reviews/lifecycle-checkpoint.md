@@ -47,8 +47,13 @@ validating the whole score. Full model validation is on the medium soft-gate
 write path, not every low/high authorization. The fix follows that source
 boundary rather than introducing an undisclosed stronger policy everywhere.
 
-Open: D5 nested-repository destructive classification; D7 live protection
-revalidation at apply; D8 committed-but-unreadable mutation outcomes; D9 stale
+D5 now has a nondestructive refusal for detected embedded/bare repositories,
+including ignored subtrees and expanded bare-repository paths. The bounded scan
+runs during classification at plan and apply; 36 lifecycle tests pass, including
+real nested histories and histories appearing after planning. This is not a
+sandbox against hostile concurrent filesystem swaps.
+
+Open: D7 live protection revalidation at apply; D8 committed-but-unreadable mutation outcomes; D9 stale
 Git module documentation; Python-title-case details; CLI template drift/protection
 and recovery end-to-end gates; kernel/Git topology agreement and platform CI.
 

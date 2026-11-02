@@ -28,6 +28,9 @@ The release build precedes subsequent CLI lock integration; rerun all gates and
 bind benchmark evidence to the resulting binary/source before publication.
 The previously published 455-test foundation remains historical evidence only.
 No full upstream Python-suite pass or macOS/Windows success is claimed.
+The kernel's former optional-oracle defaults were subsequently found unsound;
+required comparisons now select and verify the lock-exact oracle and fail on
+absence/drift. Re-run aggregate evidence after these and ongoing feature changes.
 
 ## Oracle and committed conformance evidence
 
@@ -99,6 +102,11 @@ status-lock bookkeeping. Passing those tests is not a new independent approval.
 - Generic kernel O_APPEND is **not** used for either canonical status log.
   Status/lifecycle writers use whole-file replacement and readback. External
   event/tracker service delivery, handover and fan-out are still incomplete.
+- Raw topology reads honor Git selectors, but writer authority boundaries now
+  refuse inherited repository-selection variables until one captured context
+  owns both lock discovery and the explicitly opened Git adapter. This prevents
+  split-authority writes; it is not full override-mutation parity. Status-family
+  corrupt-topology fallback and generic-journal strict refusal remain distinct.
 - Git bounds captures and kills/reaps the direct child, not an entire remote
   helper process tree. Protection is supplied by the application; safe commit,
   complete live protection resolution and all recovery paths remain gates.

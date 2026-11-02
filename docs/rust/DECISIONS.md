@@ -21,6 +21,15 @@ Initial bounded contexts are kernel, Git adapter, charter/pack reads, glossary r
 
 Upstream is moving event writes behind separately released service contracts. The initial foundation is read-only; this is a migration fence, not permission to omit writes from the full rewrite. The operator's continuation request requires native mutations too. Lift that fence only after implementing the actual pinned-baseline wire format, canonical writer/lock authority, validation, durable batch/readback, recovery and interoperability contracts with conformance and concurrency tests. Never silently invent a replacement protocol or add an uncoordinated second writer. External services remain external contract dependencies, not vendored reimplementations. Explicitly distinct experimental formats cannot count as upstream write parity. Read-only compatibility is not write parity.
 
+Writer repository selection must be coherent with the Git adapter. Raw topology
+queries retain inherited Git-environment semantics, but current writer authority
+boundaries explicitly refuse inherited repository selectors rather than silently
+splitting lock and mutation namespaces. This is a temporary fail-closed supported-
+input restriction, not complete environment-override mutation parity. A shared,
+captured repository context is required before lifting it. Required development
+oracle comparisons likewise fail on missing or drifted dependencies; they must
+never turn an unavailable reference into a passing zero-comparison test.
+
 User-authored YAML and Markdown are never reserialized merely to inspect them. This avoids losing comments and formatting through a non-round-trip YAML serializer. Pack content is not bundled from the maintainer-only internal tier. Paths supplied by packs and users are untrusted; traversal and symlink escape must be rejected at the owning boundary.
 
 ## Delivery and verification

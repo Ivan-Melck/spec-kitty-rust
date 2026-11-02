@@ -863,6 +863,94 @@ fn symlinked_ancestors_cannot_hide_git_metadata_allocation_targets() {
 }
 
 #[test]
+fn discard_policies_never_erase_embedded_or_bare_repository_history() {
+    for (location, policy, bare) in [
+        ("nested", WorktreeDiscardPolicy::AllowUntracked, false),
+        ("cache/nested", WorktreeDiscardPolicy::AllowAll, false),
+        ("cache/bare.git", WorktreeDiscardPolicy::AllowAll, true),
+    ] {
+        let repo = TestRepo::new();
+        commit_file(&repo, ".gitignore", "cache/\n", "ignore fixture cache");
+        let git = GitRepository::open(&repo.path).unwrap();
+        let path = repo.temp.path().join("with-repository");
+        worktree_add(&repo, &path, "feature");
+        let nested = path.join(location);
+        let reference = if bare {
+            fs::create_dir_all(nested.parent().unwrap()).unwrap();
+            git_ok(
+                &repo.path,
+                &["init", "--bare", "--quiet", nested.to_str().unwrap()],
+            );
+            git_ok(
+                &repo.path,
+                &[
+                    "push",
+                    "--quiet",
+                    nested.to_str().unwrap(),
+                    "HEAD:refs/heads/main",
+                ],
+            );
+            "refs/heads/main"
+        } else {
+            init_empty_repo_at(&nested);
+            git_ok(
+                &nested,
+                &["commit", "--allow-empty", "--quiet", "-m", "nested history"],
+            );
+            "HEAD"
+        };
+        let before = git_ok(&nested, &["rev-parse", reference]);
+        let error = git
+            .plan_worktree_removal(&path, None, None, policy)
+            .unwrap_err();
+        assert!(
+            matches!(error, GitError::UnsafePath { .. }),
+            "{location}: {error:?}"
+        );
+        assert_eq!(git_ok(&nested, &["rev-parse", reference]), before);
+        assert!(path.is_dir());
+    }
+}
+
+#[test]
+fn a_repository_added_inside_ignored_content_after_planning_refuses_removal() {
+    let repo = TestRepo::new();
+    commit_file(&repo, ".gitignore", "cache/\n", "ignore fixture cache");
+    let git = GitRepository::open(&repo.path).unwrap();
+    let path = repo.temp.path().join("changing-ignored-content");
+    worktree_add(&repo, &path, "feature");
+    fs::create_dir_all(path.join("cache")).unwrap();
+    fs::write(path.join("cache/scratch"), b"discardable scratch").unwrap();
+    let plan = git
+        .plan_worktree_removal(&path, None, None, WorktreeDiscardPolicy::AllowAll)
+        .unwrap();
+    let nested = path.join("cache/nested.git");
+    git_ok(
+        &repo.path,
+        &["init", "--bare", "--quiet", nested.to_str().unwrap()],
+    );
+    git_ok(
+        &repo.path,
+        &[
+            "push",
+            "--quiet",
+            nested.to_str().unwrap(),
+            "HEAD:refs/heads/main",
+        ],
+    );
+    let before = git_ok(&nested, &["rev-parse", "refs/heads/main"]);
+    let result = git.apply_worktree_removal(&plan);
+    assert!(
+        matches!(
+            result,
+            Err(GitError::UnsafePath { .. } | GitError::PlanStale { .. })
+        ),
+        "{result:?}"
+    );
+    assert_eq!(git_ok(&nested, &["rev-parse", "refs/heads/main"]), before);
+}
+
+#[test]
 fn worktree_removal_is_guarded_by_policy_and_fingerprint() {
     let repo = TestRepo::new();
     let git = GitRepository::open(&repo.path).unwrap();

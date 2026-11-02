@@ -3,9 +3,9 @@ name: Rust workspace
 on:
   push:
     branches: [rust/rewrite]
-    paths: ['crates/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', '.github/workflows/rust.yml', 'tests/status/fsm_parity_baseline.jsonl']
+    paths: ['crates/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'pyproject.toml', 'uv.lock', 'scripts/rust/**', '.github/workflows/rust.yml', 'tests/status/fsm_parity_baseline.jsonl']
   pull_request:
-    paths: ['crates/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', '.github/workflows/rust.yml', 'tests/status/fsm_parity_baseline.jsonl']
+    paths: ['crates/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'pyproject.toml', 'uv.lock', 'scripts/rust/**', '.github/workflows/rust.yml', 'tests/status/fsm_parity_baseline.jsonl']
   workflow_dispatch:
 
 permissions:
@@ -25,11 +25,22 @@ jobs:
     timeout-minutes: 20
     env:
       CARGO_BUILD_JOBS: 2
+      CARGO_INCREMENTAL: 0
       CARGO_TERM_COLOR: always
+      UV_PROJECT_ENVIRONMENT: .venv-rust-oracle
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Install pinned toolchain
         run: rustup show active-toolchain
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Provision lock-exact development oracle
+        run: uv sync --frozen --no-dev --python 3.11
+      - name: Verify oracle dependency closure
+        run: uv run --no-sync python scripts/rust/verify_oracle.py
+      - name: Sync verified oracle assets
+        uses: ./.github/actions/sync-packs
+      - name: Oracle and completion-checker regression tests
+        run: uv run --no-sync python -m unittest discover -s scripts/rust/tests -p "test_*.py"
       - name: Formatting
         run: cargo fmt --all -- --check
       - name: Lint

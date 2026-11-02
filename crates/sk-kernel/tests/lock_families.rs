@@ -92,6 +92,32 @@ fn unbounded_wait_across_threads_acquires_after_release() {
     handle.join().unwrap();
 }
 
+#[cfg(unix)]
+#[test]
+fn aliased_nested_status_locks_keep_the_outer_holders_sidecar() {
+    let temp = temp();
+    let common = temp.path().join(".git");
+    std::fs::create_dir_all(&common).unwrap();
+    let alias = temp.path().join("git-alias");
+    std::os::unix::fs::symlink(&common, &alias).unwrap();
+    let path = feature_status_lock_path(&common, "mission-01ABCDEF").unwrap();
+    let aliased = feature_status_lock_path(&alias, "mission-01ABCDEF").unwrap();
+    let outer = StatusLock::acquire_bounded(&path, Duration::from_secs(2)).unwrap();
+    let recorded = StatusLockHolder::read(&path).unwrap();
+    {
+        let _inner = StatusLock::acquire_bounded(&aliased, Duration::from_secs(2)).unwrap();
+        assert_eq!(StatusLockHolder::read(&aliased), Some(recorded.clone()));
+    }
+    assert_eq!(StatusLockHolder::read(&path), Some(recorded));
+    assert!(matches!(
+        FileLock::acquire_with(&path, LockOptions::nonblocking().non_reentrant()),
+        Err(KernelError::LockNotAcquired { .. })
+    ));
+    drop(outer);
+    assert!(StatusLockHolder::read(&path).is_none());
+    assert!(FileLock::try_acquire(&path).unwrap().is_some());
+}
+
 #[test]
 fn status_sidecar_is_written_once_and_cleared_by_the_outermost_guard() {
     let temp = temp();

@@ -651,7 +651,7 @@ fn anchor_identity(resolved: &Path) -> Vec<u8> {
     resolved.to_string_lossy().to_lowercase().into_bytes()
 }
 
-fn canonical_lock_key(path: &Path) -> Result<PathBuf, KernelError> {
+pub(crate) fn canonical_lock_key(path: &Path) -> Result<PathBuf, KernelError> {
     let resolved =
         resolve_non_strict(path).map_err(|failure| map_resolve_failure(path, failure))?;
     #[cfg(windows)]

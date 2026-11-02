@@ -17,6 +17,7 @@
 //! application concern. This module validates the path it is given but does not
 //! decide the layout.
 
+use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
@@ -605,6 +606,7 @@ fn classify_dirty(
 ) -> Result<Vec<String>, GitError> {
     let mut refused = Vec::new();
     let mut discarded = Vec::new();
+    let mut checked_directories = BTreeSet::new();
     for entry in entries {
         let display = entry.display_lossy();
         let allowed = if entry.is_ignored() {
@@ -615,6 +617,7 @@ fn classify_dirty(
             false
         };
         if allowed {
+            refuse_nested_repositories(path, entry, &mut checked_directories)?;
             discarded.push(display);
         } else {
             refused.push(display);
@@ -627,6 +630,111 @@ fn classify_dirty(
         });
     }
     Ok(discarded)
+}
+
+/// Git may collapse an embedded repository or an ignored subtree to one status
+/// entry. Discard permission for ordinary files must not erase another repo's
+/// history. Check ancestors too: bare repositories can be expanded into files.
+fn refuse_nested_repositories(
+    checkout: &Path,
+    entry: &StatusEntry,
+    checked: &mut BTreeSet<PathBuf>,
+) -> Result<(), GitError> {
+    let path = checkout.join(entry.path().to_path_buf());
+    let directory = if entry.is_directory() {
+        path.as_path()
+    } else {
+        path.parent().unwrap_or(checkout)
+    };
+    for ancestor in directory
+        .ancestors()
+        .take_while(|ancestor| *ancestor != checkout)
+    {
+        check_nested_repository(ancestor, checked)?;
+    }
+    if !entry.is_directory() {
+        return Ok(());
+    }
+    let mut pending = vec![(path, 0usize)];
+    let mut visited_entries = 0usize;
+    while let Some((directory, depth)) = pending.pop() {
+        if depth > 64 {
+            return Err(GitError::UnsafePath {
+                path: directory,
+                detail: "nested-repository safety scan exceeds 64 levels; nothing removed"
+                    .to_owned(),
+            });
+        }
+        let metadata = fs::symlink_metadata(&directory).map_err(|source| GitError::Io {
+            context: "inspect a discardable directory",
+            source,
+        })?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            continue;
+        }
+        check_nested_repository(&directory, checked)?;
+        for child in fs::read_dir(&directory).map_err(|source| GitError::Io {
+            context: "scan a discardable directory",
+            source,
+        })? {
+            visited_entries += 1;
+            if visited_entries > 16_384 {
+                return Err(GitError::UnsafePath {
+                    path: directory,
+                    detail: "nested-repository safety scan exceeds 16384 entries; nothing removed"
+                        .to_owned(),
+                });
+            }
+            let child = child.map_err(|source| GitError::Io {
+                context: "read a discardable entry",
+                source,
+            })?;
+            if child
+                .file_type()
+                .map_err(|source| GitError::Io {
+                    context: "inspect a discardable entry",
+                    source,
+                })?
+                .is_dir()
+            {
+                pending.push((child.path(), depth + 1));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn check_nested_repository(
+    directory: &Path,
+    checked: &mut BTreeSet<PathBuf>,
+) -> Result<(), GitError> {
+    if !checked.insert(directory.to_path_buf()) {
+        return Ok(());
+    }
+    if checked.len() > 16_384 {
+        return Err(GitError::UnsafePath {
+            path: directory.to_path_buf(),
+            detail: "nested-repository safety scan exceeds 16384 directories; nothing removed"
+                .to_owned(),
+        });
+    }
+    let exists = |name: &str| match fs::symlink_metadata(directory.join(name)) {
+        Ok(_) => Ok(true),
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(source) => Err(GitError::Io {
+            context: "inspect nested repository metadata",
+            source,
+        }),
+    };
+    if exists(".git")? || (exists("HEAD")? && exists("objects")? && exists("refs")?) {
+        return Err(GitError::UnsafePath {
+            path: directory.to_path_buf(),
+            detail:
+                "nested repository history cannot be discarded by an untracked/ignored-file policy"
+                    .to_owned(),
+        });
+    }
+    Ok(())
 }
 
 fn describe_fingerprint_change(
