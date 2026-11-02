@@ -5,14 +5,16 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Read-only Mission inventory, work-package dependency graph, and readiness for the Rust Spec Kitty implementation"
+description = "Mission inventory, dependency planning, typed creation, canonical-template authoring, and tasks finalization for the Rust Spec Kitty implementation"
 
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true
 thiserror.workspace = true
+ulid.workspace = true
 sk-kernel = { path = "../sk-kernel" }
+sk-status = { path = "../sk-status" }
 
 [dev-dependencies]
 tempfile.workspace = true

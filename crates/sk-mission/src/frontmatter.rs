@@ -24,6 +24,18 @@ pub struct Frontmatter<'a> {
     pub body: &'a str,
 }
 
+/// Byte spans of a frontmatter document, relative to the source with any
+/// leading UTF-8 BOM removed.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub(crate) struct FrontmatterSpans {
+    /// First byte of the YAML payload (after the opening delimiter line).
+    pub(crate) yaml_start: usize,
+    /// One past the last byte of the YAML payload (start of the closing line).
+    pub(crate) yaml_end: usize,
+    /// First byte after the closing delimiter's line ending.
+    pub(crate) body_start: usize,
+}
+
 /// Split a Markdown document into YAML frontmatter and body.
 ///
 /// Accepted shape (the shape every real `kitty-specs/*/tasks/WP*.md` uses):
@@ -41,12 +53,23 @@ pub struct Frontmatter<'a> {
 /// without the source ever being rewritten.
 pub fn split_frontmatter(source: &str) -> Result<Frontmatter<'_>, FrontmatterError> {
     let source_without_bom = source.strip_prefix('\u{feff}').unwrap_or(source);
+    let spans = split_frontmatter_spans(source_without_bom)?;
+    Ok(Frontmatter {
+        yaml: &source_without_bom[spans.yaml_start..spans.yaml_end],
+        body: &source_without_bom[spans.body_start..],
+    })
+}
 
+/// Locate the frontmatter and body byte spans without borrowing either slice.
+///
+/// `source` must not carry a leading BOM; callers that need to preserve one
+/// strip it first and restore it when rebuilding the document.
+pub(crate) fn split_frontmatter_spans(source: &str) -> Result<FrontmatterSpans, FrontmatterError> {
     let mut offset = 0usize;
     let mut opening_closed = false;
     let mut yaml_start = 0usize;
 
-    for line in source_without_bom.split_inclusive('\n') {
+    for line in source.split_inclusive('\n') {
         let line_start = offset;
         offset += line.len();
         let trimmed = line
@@ -63,9 +86,10 @@ pub fn split_frontmatter(source: &str) -> Result<Frontmatter<'_>, FrontmatterErr
         }
 
         if trimmed == "---" || trimmed == "..." {
-            return Ok(Frontmatter {
-                yaml: &source_without_bom[yaml_start..line_start],
-                body: &source_without_bom[offset..],
+            return Ok(FrontmatterSpans {
+                yaml_start,
+                yaml_end: line_start,
+                body_start: offset,
             });
         }
     }

@@ -1,0 +1,1 @@
+{"actor":"agent-1","at":"2026-01-01T00:00:01Z","event_id":"01J00000000000000000000001","execution_mode":"worktree","force":false,"from_lane":"planned","mission_slug":"900-float-schema","policy_metadata":{"agent":"impl-a"},"to_lane":"claimed","wp_id":"WP01"}

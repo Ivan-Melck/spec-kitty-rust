@@ -1,0 +1,15 @@
+{
+  "baseline_commit": "9aed3a8012cb5eb22c0128b14d525039f95fea7a",
+  "command": "PYTHONPATH=src .venv-rust-oracle/bin/python crates/sk-status/tests/fixtures/mutation/generate_fixtures.py",
+  "generated_by": "crates/sk-status/tests/fixtures/mutation/generate_fixtures.py",
+  "note": "Expected artifacts are produced only by the pinned Python implementation; the Rust writer is compared against them byte-for-byte.",
+  "python": "3.11.15",
+  "records": [
+    "status_append: store.append_raw_rows_atomic + reducer.materialize",
+    "emit_sequence: emit.emit_status_transition (ULID/time monkeypatched)",
+    "lifecycle_project: lifecycle_events.emit_project_initialized (id/time monkeypatched)",
+    "lifecycle_mission: lifecycle_events.persist_lifecycle_event_local (id/time monkeypatched)",
+    "migration: migrate_lifecycle_envelope.migrate_lifecycle_envelope (node id monkeypatched)"
+  ],
+  "spec_kitty_events": "11.3.0"
+}

@@ -1,0 +1,44 @@
+{
+  "event_count": 4,
+  "last_event_id": "01K9M0R3WQDGZVBWD9ZCG7T0H5",
+  "materialized_at": "2026-11-02T09:00:04+00:00",
+  "mission_number": "34",
+  "mission_slug": "034-mutation-fixture",
+  "mission_type": "software-dev",
+  "schema_version": 2,
+  "summary": {
+    "approved": 0,
+    "blocked": 0,
+    "canceled": 1,
+    "claimed": 0,
+    "done": 0,
+    "for_review": 0,
+    "in_progress": 1,
+    "in_review": 0,
+    "planned": 0
+  },
+  "work_packages": {
+    "WP01": {
+      "actor": "claude",
+      "agent": "claude",
+      "force_count": 0,
+      "implementer_of_record": "claude",
+      "lane": "in_progress",
+      "last_event_id": "01K9M0R3WPCFZVAWC8YBF6S9GX",
+      "last_transition_at": "2026-11-02T09:00:03+00:00",
+      "shell_pid": 4242,
+      "subtasks": {
+        "T001": "done"
+      }
+    },
+    "WP02": {
+      "actor": "operator",
+      "cancellation_reason": "operator canceled",
+      "force_count": 1,
+      "lane": "canceled",
+      "last_event_id": "01K9M0R3WQDGZVBWD9ZCG7T0H5",
+      "last_transition_at": "2026-11-02T09:00:04+00:00",
+      "reason_source": "operator"
+    }
+  }
+}

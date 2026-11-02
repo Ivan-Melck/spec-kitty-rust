@@ -5,12 +5,13 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Read-only Git adapter for Spec Kitty Rust"
+description = "Bounded Git lifecycle adapter for Spec Kitty Rust"
 publish = false
 
 [dependencies]
 thiserror.workspace = true
 tempfile.workspace = true
+sk-kernel = { path = "../sk-kernel" }
 
 [lints]
 workspace = true

@@ -1,0 +1,29 @@
+{
+  "event_count": 4,
+  "last_event_id": "01K9M0R3WNBEYT9TB7XAE5R8F3",
+  "materialized_at": "2026-11-02T09:00:03+00:00",
+  "mission_number": "34",
+  "mission_slug": "034-mutation-fixture",
+  "mission_type": "software-dev",
+  "schema_version": 2,
+  "summary": {
+    "approved": 0,
+    "blocked": 0,
+    "canceled": 0,
+    "claimed": 0,
+    "done": 0,
+    "for_review": 1,
+    "in_progress": 0,
+    "in_review": 0,
+    "planned": 0
+  },
+  "work_packages": {
+    "WP01": {
+      "actor": "claude",
+      "force_count": 0,
+      "lane": "for_review",
+      "last_event_id": "01K9M0R3WNBEYT9TB7XAE5R8F3",
+      "last_transition_at": "2026-11-02T09:00:03+00:00"
+    }
+  }
+}

@@ -75,13 +75,29 @@ pub enum RuntimeError {
     #[error("step {step_id:?}: {message}")]
     RaciOverrideReason { step_id: String, message: String },
 
-    /// A declared execution policy has not yet been implemented.
+    /// An explicit template RACI block violates the P0 invariants.
+    #[error("Invalid explicit RACI for step '{step_id}': {message}")]
+    InvalidExplicitRaci { step_id: String, message: String },
+
+    /// A significance declaration or evaluation input is malformed.
+    #[error("invalid significance input: {message}")]
+    InvalidSignificanceInput { message: String },
+
+    /// A mission policy extra is present but not valid.
+    #[error("invalid mission policy: {message}")]
+    InvalidPolicy { message: String },
+
+    /// A required RACI role could not be resolved from the runtime inputs.
     #[error(
-        "step {step_id:?} requires unsupported runtime policy {policy}; no decision was issued"
+        "RACI escalation for step '{}': Cannot resolve {} actor: '{}' not found in inputs",
+        step_id,
+        role,
+        input_key
     )]
-    UnsupportedPolicy {
+    RaciEscalation {
         step_id: String,
-        policy: &'static str,
+        role: String,
+        input_key: String,
     },
 
     /// An audit significance declaration is malformed.
@@ -106,6 +122,22 @@ pub enum RuntimeError {
     /// Two workflows share an id.
     #[error("duplicate workflow id {workflow_id:?}")]
     DuplicateWorkflow { workflow_id: String },
+
+    /// A workflow id cannot be interpolated into a workflow path.
+    #[error(
+        "invalid workflow id {workflow_id:?}: must match [a-z0-9][a-z0-9-]* (no path traversal, uppercase, spaces, or special characters)"
+    )]
+    InvalidWorkflowId { workflow_id: String },
+
+    /// A workflow file declares a different id than the one requested.
+    #[error(
+        "workflow file {path} declares workflow_id {declared:?} but was requested as {requested:?}"
+    )]
+    WorkflowIdMismatch {
+        path: PathBuf,
+        declared: String,
+        requested: String,
+    },
 
     /// A workflow contains no actions.
     #[error("workflow {workflow_id:?} has no actions")]

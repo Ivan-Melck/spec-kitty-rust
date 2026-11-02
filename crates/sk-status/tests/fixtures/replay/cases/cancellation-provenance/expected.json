@@ -1,0 +1,74 @@
+{
+  "event_count": 7,
+  "last_event_id": "01J00000000000000000000007",
+  "materialized_at": "2026-01-01T00:00:07Z",
+  "mission_number": "42",
+  "mission_slug": "900-cancellation-provenance",
+  "mission_type": "software-dev",
+  "schema_version": 2,
+  "summary": {
+    "approved": 0,
+    "blocked": 0,
+    "canceled": 5,
+    "claimed": 0,
+    "done": 0,
+    "for_review": 0,
+    "in_progress": 0,
+    "in_review": 0,
+    "planned": 1
+  },
+  "work_packages": {
+    "WP01": {
+      "actor": "op",
+      "cancellation_reason": "Force move to canceled",
+      "force_count": 1,
+      "lane": "canceled",
+      "last_event_id": "01J00000000000000000000001",
+      "last_transition_at": "2026-01-01T00:00:01Z",
+      "reason_source": "synthetic"
+    },
+    "WP02": {
+      "actor": "op",
+      "cancellation_reason": "operator said stop",
+      "force_count": 1,
+      "lane": "canceled",
+      "last_event_id": "01J00000000000000000000002",
+      "last_transition_at": "2026-01-01T00:00:02Z",
+      "reason_source": "operator"
+    },
+    "WP03": {
+      "actor": "op",
+      "cancellation_reason": "whatever",
+      "force_count": 1,
+      "lane": "canceled",
+      "last_event_id": "01J00000000000000000000003",
+      "last_transition_at": "2026-01-01T00:00:03Z",
+      "reason_source": "operator"
+    },
+    "WP04": {
+      "actor": "op",
+      "cancellation_reason": "",
+      "force_count": 1,
+      "lane": "canceled",
+      "last_event_id": "01J00000000000000000000004",
+      "last_transition_at": "2026-01-01T00:00:04Z",
+      "reason_source": "synthetic"
+    },
+    "WP05": {
+      "actor": "op",
+      "cancellation_reason": "move-task: cancel",
+      "force_count": 1,
+      "lane": "canceled",
+      "last_event_id": "01J00000000000000000000005",
+      "last_transition_at": "2026-01-01T00:00:05Z",
+      "reason_source": "synthetic"
+    },
+    "WP06": {
+      "actor": "op",
+      "force_count": 2,
+      "lane": "planned",
+      "last_event_id": "01J00000000000000000000007",
+      "last_transition_at": "2026-01-01T00:00:07Z"
+    }
+  }
+}

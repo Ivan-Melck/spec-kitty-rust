@@ -1,0 +1,129 @@
+{
+  "expected": {
+    "decision": {
+      "context": {
+        "actor_context": {
+          "agent_id": "agent-1"
+        },
+        "expected_output": null,
+        "mission_key": "m",
+        "policy_snapshot": {
+          "default_route": "same_llm_context",
+          "extras": {},
+          "strictness": "medium"
+        },
+        "run_id": "run-1",
+        "step_description": "adv",
+        "step_id": "advisory",
+        "step_title": "Advisory Audit"
+      },
+      "decision_id": null,
+      "input_key": null,
+      "kind": "step",
+      "mission_key": "m",
+      "options": null,
+      "prompt": "Execute audit step 'advisory': Advisory Audit",
+      "question": null,
+      "reason": null,
+      "run_id": "run-1",
+      "step_id": "advisory",
+      "step_title": "Advisory Audit"
+    },
+    "significance": null,
+    "snapshot": {
+      "blocked_reason": null,
+      "completed_steps": [
+        "lead_in"
+      ],
+      "decisions": {
+        "raci:advisory": {
+          "accountable": {
+            "actor_id": "human-in-charge",
+            "actor_type": "human"
+          },
+          "consulted": [],
+          "inferred_rule": "audit_advisory",
+          "informed": [],
+          "override_reason": null,
+          "responsible": {
+            "actor_id": "agent-1",
+            "actor_type": "llm"
+          },
+          "source": "inferred",
+          "step_id": "advisory"
+        }
+      },
+      "inputs": {},
+      "issued_step_id": null,
+      "mission_id": null,
+      "mission_key": "m",
+      "mission_slug": null,
+      "pending_decisions": {},
+      "policy_snapshot": {
+        "default_route": "same_llm_context",
+        "extras": {},
+        "strictness": "medium"
+      },
+      "run_id": "run-1",
+      "template_hash": "frozen-hash",
+      "template_path": "/nonexistent/runtime-golden/mission.yaml"
+    }
+  },
+  "scenario": {
+    "agent_id": "agent-1",
+    "current_template_hash": "frozen-hash",
+    "kind": "plan",
+    "name": "plan_advisory_audit_is_a_step",
+    "snapshot": {
+      "blocked_reason": null,
+      "completed_steps": [
+        "lead_in"
+      ],
+      "decisions": {},
+      "inputs": {},
+      "issued_step_id": null,
+      "mission_id": null,
+      "mission_key": "m",
+      "mission_slug": null,
+      "pending_decisions": {},
+      "policy_snapshot": {
+        "default_route": "same_llm_context",
+        "extras": {},
+        "strictness": "medium"
+      },
+      "run_id": "run-1",
+      "template_hash": "frozen-hash",
+      "template_path": "/nonexistent/runtime-golden/mission.yaml"
+    },
+    "template": {
+      "audit_steps": [
+        {
+          "audit": {
+            "enforcement": "advisory",
+            "trigger_mode": "manual"
+          },
+          "depends_on": [
+            "lead_in"
+          ],
+          "description": "adv",
+          "id": "advisory",
+          "title": "Advisory Audit"
+        }
+      ],
+      "mission": {
+        "description": "",
+        "key": "m",
+        "name": "M",
+        "version": "1.0.0"
+      },
+      "steps": [
+        {
+          "description": "lead",
+          "id": "lead_in",
+          "prompt": "Run it.",
+          "title": "Lead-in"
+        }
+      ]
+    }
+  }
+}

@@ -11,14 +11,18 @@ audience: software-engineer
 
 | Crate | Implemented scope | Not yet implemented |
 | --- | --- | --- |
-| `sk-kernel` | Identifiers/discovery, bounded/no-follow reads, thread-bound process locks, durable mode-preserving replacement, generic locked append with rollback, clocks/digests (local checks passed; review hardening in progress) | Complete per-family lock/topology parity, Windows durability/identity equivalence, owner/ACL/xattr preservation and external-service handover |
-| `sk-git` | Read-only repository, branch, commit, status and worktree inspection; bounded subprocesses and lossless Unix path storage (CLI display strings have raw-byte hex companions) | Remote operations, destructive Git policies, branch/worktree allocation |
-| `sk-mission` | ULID identity/selectors, inventory, frontmatter and dependency DAG/readiness; new planning-artifact creation/authoring/finalization substrate awaiting integration/review | Full CLI creation, workspace/status allocation, acceptance/consolidation/recovery and migrations |
-| `sk-charter` | Kind vocabulary, config and charter bundle inspection, pack roots/descriptors, asset catalogs and contained resolution | Activation, synthesis, full frozen offering API, DRG evaluation, downloading and pin verification, core-version compatibility evaluation |
-| `sk-glossary` | Seed validation, typed terms/senses, deterministic scope ordering, lookup/conflict output | Event replay, extraction pipeline, middleware, activation, seed mutations |
-| `sk-status` | FSM and event inspection; canonical consumer replay, schema-aware snapshots and bounded golden archive parity (local checks passed; review pending) | Mutation preparation/writes, full audit/drift and transactional coordination/service handover |
-| `sk-runtime` | Pure planner/stale-plan checks plus significance, RACI, answer authorization, workflow discovery and differential goldens (integration/review pending) | Persistent run and prompt integration, full governed `next`, retrospective execution and remaining wire differences |
-| `sk-cli` | Published read-only adapter and binary acceptance tests | Integration of new mutation libraries, complete upstream command/option tree and end-to-end workflows |
+| `sk-kernel` | Thread-bound process/family locks, native Git topology, bounded/no-follow I/O, durable mode-preserving replacement, generic journal append, clocks/digests, home/pack paths | Remaining kernel modules, all exotic topology/config cases, Windows equivalence and service handover |
+| `sk-git` | Bounded reads, CAS refs, guarded branch/worktree lifecycle, remote probes and merge conclusion; reviewed defects have regressions | Safe commit, remote fetch/clone, full protection resolution and recovery |
+| `sk-mission` | Identity/inventory, DAG/readiness, transactional planning artifacts, canonical templates and preserving dependency patches | Canonical Mission lock integration, full create orchestration, requirement gates and lifecycle integration |
+| `sk-workspace` | Artifact taxonomy/placement, ownership, lane planning/allocation, journaling and recovery | Coordination seeding/materialization, occupancy, dependency/planning merges and remaining reviewed guards |
+| `sk-charter` | Read-only vocabulary, charter/config/pack inspection and contained asset resolution | Full offering API and remaining governance integration |
+| `sk-doctrine` | DRG loading/merge/traversal, activation planning/ledger, profiles and action context | Independent review, org-required floors, full context rendering/resolution, synthesis and migrations |
+| `sk-glossary` | Seed validation, typed terms/senses, deterministic ordering and lookups | Replay, extraction, middleware, activation and mutations |
+| `sk-status` | Schema-aware consumer replay, structural audit, canonical whole-file writer, transitions, annotations, lifecycle and envelope migration | Independent writer review, alias/rekey locking, mirrors/projections, all payload models and service delivery |
+| `sk-runtime` | Pure planner, significance/RACI, answer authority, workflows and differential goldens | Complete governed composition, retrospective execution and remaining wire behavior |
+| `sk-run-store` | Durable run start/query/advance/answer/recovery and prompt artifacts | Independent review, complete baseline differential corpus and full next orchestration |
+| `sk-install` | Preserving init/assets/skills, activation/identity/ledger, upgrade guards and three native migrations | Independent review, 133 remaining migrations, transports, profiles and global provisioning |
+| `sk-cli` | Native `spec-kitty` compatibility binary plus inspection binary; real partial lifecycle/runtime routes and explicit refusals | Canonical mutation integration, all remaining commands/options and full-workflow equivalence |
 
 The available crate READMEs and public API documentation describe individual compatibility differences. A serializable inspection result is not evidence that upstream mutation protocols have been ported. In particular, event inspection does **not** claim to compute authoritative current lanes.
 
@@ -36,7 +40,7 @@ These are design improvements, not measured performance claims. Cross-platform C
 
 ## Verification policy
 
-Only the coordinator runs whole-workspace checks, with `CARGO_BUILD_JOBS=2` on this shared machine. Implementers run their crate tests. Independent reviewers examine fixed completed surfaces, and the coordinator reproduces and fixes findings. The last published aggregate Linux run passed **455 tests** at the foundation checkpoint, including 3 compile-only doctests; that checkpoint also passed strict workspace Clippy, formatting and release build. Ongoing uncommitted tranches need a fresh aggregate run and review before their results replace that evidence. Individual subagent results are not a substitute for that aggregate run. See [verification evidence](VERIFICATION.md).
+Only the coordinator runs whole-workspace checks, with `CARGO_BUILD_JOBS=2` on this shared machine. Implementers run their crate tests. Independent reviewers examine fixed completed surfaces, and the coordinator reproduces and fixes findings. The latest integrated Linux checkpoint passed **1,276 tests** (one subprocess child ignored in isolation), strict workspace Clippy, formatting and a release build. The published foundation's 455-test result is historical. New lock integrations and subsequent edits must repeat these gates before publication. Individual subagent results are not a substitute for the aggregate run or independent review. See [verification evidence](VERIFICATION.md).
 
 The FSM tests consume the checked-in upstream conformance corpus; the runtime planner tests reproduce two upstream next-decision fixtures. Neither is blanket upstream compatibility. Existing Python suites have not been claimed green by virtue of Rust checks.
 

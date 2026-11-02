@@ -1,0 +1,33 @@
+{
+  "event_count": 3,
+  "last_event_id": "01J00000000000000000000003",
+  "materialized_at": "2026-01-01T00:00:03Z",
+  "mission_number": "42",
+  "mission_slug": "900-losing-seed-payload",
+  "mission_type": "software-dev",
+  "schema_version": 2,
+  "summary": {
+    "approved": 0,
+    "blocked": 0,
+    "canceled": 0,
+    "claimed": 0,
+    "done": 0,
+    "for_review": 0,
+    "in_progress": 1,
+    "in_review": 0,
+    "planned": 0
+  },
+  "work_packages": {
+    "WP01": {
+      "actor": "impl",
+      "agent": "seed-agent",
+      "force_count": 0,
+      "implementer_of_record": "seed-agent",
+      "lane": "in_progress",
+      "last_event_id": "01J00000000000000000000002",
+      "last_transition_at": "2026-01-01T00:00:02Z",
+      "shell_pid": 999,
+      "shell_pid_created_at": "999.0"
+    }
+  }
+}

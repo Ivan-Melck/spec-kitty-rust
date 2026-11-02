@@ -1,0 +1,43 @@
+{
+  "migrated_count": 2,
+  "rows": [
+    {
+      "action": "migrated",
+      "event_id": "01K9M0R3WJ8V6Q1Y4T7B2N5C0A",
+      "event_type": "MissionCreated",
+      "post_hash": "1e0d6fff19e78074620e0e4fb4e1388fe949cb959f5c67a948e2e5ac1e4adb35",
+      "pre_hash": "1e0d6fff19e78074620e0e4fb4e1388fe949cb959f5c67a948e2e5ac1e4adb35"
+    },
+    {
+      "action": "migrated",
+      "event_id": "01K9M0R3WK9W7R2Z5V8C3P6D1B",
+      "event_type": "SpecifyCompleted",
+      "post_hash": "38dfa99daf7e6c075d5e5f4faadd2993b99e1596efe38912d4bc922e43159b06",
+      "pre_hash": "38dfa99daf7e6c075d5e5f4faadd2993b99e1596efe38912d4bc922e43159b06"
+    },
+    {
+      "action": "skipped_no_model",
+      "event_id": "01K9M0R3WMADXS8SA6W9D4Q7E2",
+      "event_type": "ReviewerSelfApproval",
+      "post_hash": "2232a0c6710b91193cb88f7e58c63a7beb43a9d88130427327aa0f77a2b4288d",
+      "pre_hash": "2232a0c6710b91193cb88f7e58c63a7beb43a9d88130427327aa0f77a2b4288d"
+    },
+    {
+      "action": "skipped_no_project_uuid",
+      "event_id": "01K9M0R3WNBEYT9TB7XAE5R8F3",
+      "event_type": "TasksStarted",
+      "post_hash": "cf490bf4a66a1397b050e7baf2794178098e408ac5541eb660dfbfaa661fb07d",
+      "pre_hash": "cf490bf4a66a1397b050e7baf2794178098e408ac5541eb660dfbfaa661fb07d"
+    },
+    {
+      "action": "unchanged",
+      "event_id": "01K9M0R3WPCFZVAWC8YBF6S9GX",
+      "event_type": "MissionCreated",
+      "post_hash": "01f6ed24887aec0556118758db0419c9462353289283ddea989d9019ac257290",
+      "pre_hash": "01f6ed24887aec0556118758db0419c9462353289283ddea989d9019ac257290"
+    }
+  ],
+  "skipped_count": 2,
+  "total_rows": 5,
+  "unchanged_count": 1
+}

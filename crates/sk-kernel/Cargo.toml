@@ -8,7 +8,11 @@ repository.workspace = true
 description = "Foundation primitives for the Rust Spec Kitty implementation"
 
 [dependencies]
+chrono.workspace = true
+fs2.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 
@@ -17,7 +21,6 @@ rustix = { version = "1", features = ["fs"] }
 
 [dev-dependencies]
 proptest.workspace = true
-serde_json.workspace = true
 
 [lints]
 workspace = true

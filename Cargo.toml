@@ -11,7 +11,7 @@ repository = "https://github.com/Ivan-Melck/spec-kitty-rust"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["arbitrary_precision"] }
 serde_yaml_ng = "0.10"
 thiserror = "2"
 chrono = { version = "0.4", features = ["serde"] }

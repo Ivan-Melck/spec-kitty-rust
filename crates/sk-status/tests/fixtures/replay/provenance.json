@@ -1,0 +1,402 @@
+{
+  "bounds": {
+    "max_total_events": 500,
+    "max_total_input_bytes": 400000
+  },
+  "fixtures": [
+    {
+      "event_count": 7,
+      "events": 10,
+      "events_sha256": "86f3c9bcd2764c045d8edb5e742301e83edfbef2cea42c83b099e366bf1a1eda",
+      "expected_sha256": "1d6e753bf5333ea7a4a3d86c4b820ae6a2fc215c6bfb874eed3f0e11266fddf0",
+      "input_bytes": 2551,
+      "kind": "synthetic",
+      "name": "shuffled-basic",
+      "schema_version": 2
+    },
+    {
+      "event_count": 1,
+      "events": 2,
+      "events_sha256": "f43e57177b804b7963997c2585067ecfe0534ad1e0a9f646340fbbfca278ec0b",
+      "expected_sha256": "435348a5bfffd886020be262da6732ab588471cf148a7b2d7651b6de3c9c97d1",
+      "input_bytes": 461,
+      "kind": "synthetic",
+      "name": "dedupe-first-wins",
+      "schema_version": 2
+    },
+    {
+      "event_count": 1,
+      "events": 2,
+      "events_sha256": "3bb8aafc5e5b27966e729aea7225e3c27b2b5cf300fd8f803a3901bffe9bc64c",
+      "expected_sha256": "d3e0c47135e774748f6c7ab6937f7267124eb691dd56fbc0cd8475fa176a3ecf",
+      "input_bytes": 570,
+      "kind": "synthetic",
+      "name": "dedupe-seeds",
+      "schema_version": 2
+    },
+    {
+      "event_count": 6,
+      "events": 6,
+      "events_sha256": "42ae4a8eef6a98b21c703db5b5d62f58e012f6162d4a6a17cbffb32fc25b4fea",
+      "expected_sha256": "0cd2e8f5f78c1efe43fea129cdec3946af4924f616598f8862c4bb9c950d4ed4",
+      "input_bytes": 1509,
+      "kind": "synthetic",
+      "name": "stale-approval",
+      "schema_version": 2
+    },
+    {
+      "event_count": 6,
+      "events": 6,
+      "events_sha256": "ec0cf4c031d0e587ab2a80f0bbdf47dc29ed4adc8bac8fc444065eb1aee02c41",
+      "expected_sha256": "d82f8a23a9aef3aae269249bd71acb9b9d56c67a4b38fb50137de518208f759b",
+      "input_bytes": 1584,
+      "kind": "synthetic",
+      "name": "approved-departure-clock-skew",
+      "schema_version": 2
+    },
+    {
+      "event_count": 6,
+      "events": 6,
+      "events_sha256": "74af5c754fbde572c5a08be44da66bb431ef024123c4dc0db7751755129227b9",
+      "expected_sha256": "bf9efbedfccde8f367807a14d187e4074179d685a661f2b5ebe169fd21052474",
+      "input_bytes": 1563,
+      "kind": "synthetic",
+      "name": "rollback-same-timestamp",
+      "schema_version": 2
+    },
+    {
+      "event_count": 6,
+      "events": 6,
+      "events_sha256": "f398ed8dc37b57a1ad80368c496b052ecacf3069a1b70eb172fac7f58cb8554c",
+      "expected_sha256": "2cffc9be2ea6c7c45855285ebdf21698197347a60242e702907434bb21439117",
+      "input_bytes": 1588,
+      "kind": "synthetic",
+      "name": "rollback-seed-bare-sibling",
+      "schema_version": 2
+    },
+    {
+      "event_count": 3,
+      "events": 3,
+      "events_sha256": "213e02cd6066baf143cf78cefaad88c6da1a49b1e7f8e77d21a6a601a326b845",
+      "expected_sha256": "a23fb70b59088fc5b60ac5f52f9019040c40c08887ee05bf2391ca991dffecb0",
+      "input_bytes": 795,
+      "kind": "synthetic",
+      "name": "losing-seed-payload",
+      "schema_version": 2
+    },
+    {
+      "event_count": 1,
+      "events": 6,
+      "events_sha256": "0af8a182678d13991662eea247259ba8b4196d0a62a743da181568622e30d896",
+      "expected_sha256": "49dd863aa720213b94cd32b021beb4572844e887cd5f8a2b3b3d7237bec62b24",
+      "input_bytes": 1564,
+      "kind": "synthetic",
+      "name": "annotation-runtime",
+      "schema_version": 2
+    },
+    {
+      "event_count": 7,
+      "events": 7,
+      "events_sha256": "e795dd204a00abe2759a8e190069d98468eb3328a457e53fe3776c2dc1888e84",
+      "expected_sha256": "a91f2c6b3364915ef8cb070a34a9492b231af75f2a8f2559995a14e19da9b831",
+      "input_bytes": 1776,
+      "kind": "synthetic",
+      "name": "cancellation-provenance",
+      "schema_version": 2
+    },
+    {
+      "event_count": 1,
+      "events": 7,
+      "events_sha256": "55e8ec7b51cb8fdac5e3cb2bb48ec4c0097563f0a3a5ce4122e5737d88a55b60",
+      "expected_sha256": "6c4c1c5dd3852916e67e6c6ee2ae70a0476fb96baf7817096270667d962943fc",
+      "input_bytes": 1105,
+      "kind": "synthetic",
+      "name": "retrospective",
+      "schema_version": 2
+    },
+    {
+      "event_count": 1,
+      "events": 1,
+      "events_sha256": "caff7660ee4c2cef04aedb6badb17d137e1de30a3dbc5dc3981ee6736c309f73",
+      "expected_sha256": "52a802eeab37a0e879bc1c6f37187c515ce1f0e2a04f1b5b52600dafd0f9f910",
+      "input_bytes": 268,
+      "kind": "synthetic",
+      "name": "legacy-schema",
+      "schema_version": null
+    },
+    {
+      "event_count": 1,
+      "events": 1,
+      "events_sha256": "be74806a5cece8269e282569b6783cc1ca174ad3284e6b220e9517903a4f6699",
+      "expected_sha256": "fcef9514e07cb67a2a0093890872ddea76a119814de48365c7c21b0d91df1b98",
+      "input_bytes": 272,
+      "kind": "synthetic",
+      "name": "current-schema-v2",
+      "schema_version": 2
+    },
+    {
+      "event_count": 0,
+      "events": 0,
+      "events_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_sha256": "27bfbf8370aadd8f2dbeeaa9bc4a8c20b0af01364d3fbe4b7b4b5adca975778e",
+      "input_bytes": 0,
+      "kind": "synthetic",
+      "name": "empty-stream",
+      "schema_version": 2
+    },
+    {
+      "event_count": 1,
+      "events": 1,
+      "events_sha256": "d39a5e58210f0a473b345e1938adc1215520d544e6c11f551f7a566ce32f264a",
+      "expected_sha256": "4bd09dd8f66cf229b1366fd9388497e67b174bda5a184eea448cfeb80fd95fd7",
+      "input_bytes": 212,
+      "kind": "synthetic",
+      "name": "unsafe-mission-slug",
+      "schema_version": 2
+    },
+    {
+      "event_count": 1,
+      "events": 1,
+      "events_sha256": "bf7b90d2e95e775f8817bcff1c76cb6ed7706278645f510c316cefc76ebbd411",
+      "expected_sha256": "cb20c8857aacab617e27273941fe51d05f28e0fa2ecef1274e4747068007a919",
+      "input_bytes": 264,
+      "kind": "synthetic",
+      "name": "malformed-snapshot",
+      "schema_version": null
+    },
+    {
+      "event_count": 1,
+      "events": 1,
+      "events_sha256": "252472630b2b449329c957e79dfae4abdbf1b70bcbdf33f578e89b36f8c0cc2f",
+      "expected_sha256": "73f0a02a823d1c6254283b53f108bcfce38b308e2ea78deb4f91cb522c7d2005",
+      "input_bytes": 260,
+      "kind": "synthetic",
+      "name": "array-snapshot",
+      "schema_version": null
+    },
+    {
+      "event_count": 1,
+      "events": 1,
+      "events_sha256": "c8e4ebaacc1cfe2c6eb709c04d2040dc06ebd467f8c5f129e5e281d488271838",
+      "expected_sha256": "222ee4c4e0de25dacb820f3c76ef871fdd6501b65a8ba1268f80c0925c175c0c",
+      "input_bytes": 259,
+      "kind": "synthetic",
+      "name": "null-snapshot",
+      "schema_version": null
+    },
+    {
+      "event_count": 1,
+      "events": 1,
+      "events_sha256": "99368e796b847ea3b10dbcc90a8895225ec5d1cf05e4482f5fef032ea3b06429",
+      "expected_sha256": "8e9b46c5ec8bb93d30acb9936015fcd1997257199735e258a385822c998e8207",
+      "input_bytes": 221,
+      "kind": "synthetic",
+      "name": "missing-meta",
+      "schema_version": 2
+    },
+    {
+      "event_count": 1,
+      "events": 1,
+      "events_sha256": "23c2dd39382efaa66a68e3b6b1f4e48d3e4808a5984a31b779d7d4dc31bc77b2",
+      "expected_sha256": "2322b92fa6405f5ee20db80329aaeb727c471af30fdf8d8288fc315968db43e8",
+      "input_bytes": 222,
+      "kind": "synthetic",
+      "name": "typeless-meta",
+      "schema_version": 2
+    },
+    {
+      "event_count": 1,
+      "events": 2,
+      "events_sha256": "c52a9e17627aa63d85c0836b1c27e65c5828d8ee9250e335fde7add2723bee00",
+      "expected_sha256": "d83b47dd3e88a9935117376c2caafb6d68343166fb21c8ca0ded63d29a6727cb",
+      "input_bytes": 571,
+      "kind": "synthetic",
+      "name": "unicode-seeds",
+      "schema_version": 2
+    },
+    {
+      "event_count": 1,
+      "events": 2,
+      "events_sha256": "db1bb6ecc01e733074aaf28e706bfc82f87f026c0c10d6358964dd56f3150d3c",
+      "expected_sha256": "67b5ae99a8d8acb500c195593d5bca4016f7b24cde3b2920931073727d78c856",
+      "input_bytes": 593,
+      "kind": "synthetic",
+      "name": "floating-seeds",
+      "schema_version": 2
+    },
+    {
+      "event_count": 1,
+      "events": 1,
+      "events_sha256": "120c9ec5038207f4939fbe4090cd58d2da9fc6c97e56d2e8b4b139e6767da97b",
+      "expected_sha256": "ccd683773b04fde1e4bdd3d0a943bb73fb7c380dfb72d9b74d86402f58b8c3e3",
+      "input_bytes": 258,
+      "kind": "synthetic",
+      "name": "float-schema",
+      "schema_version": null
+    },
+    {
+      "event_count": 1,
+      "events": 1,
+      "events_sha256": "5ef04d4a3392ae92762520d112be3ce5bb73722338995e7debc0051a6d11ca37",
+      "expected_sha256": "043794762f643846f3fb49535b34265f1dd4f79ecc2b5f0fa1b2dd9ecfbbe6bf",
+      "input_bytes": 257,
+      "kind": "synthetic",
+      "name": "bool-schema",
+      "schema_version": null
+    },
+    {
+      "event_count": 1,
+      "events": 1,
+      "events_sha256": "fc58342cb7f117784b79ec79f0b47ce686ad46eababbc10a4225416e71bc550b",
+      "expected_sha256": "30b4230703dd99883e32d1701475b12ca9598b374b0f0696832c8ae7f220c28d",
+      "input_bytes": 259,
+      "kind": "synthetic",
+      "name": "string-schema",
+      "schema_version": null
+    },
+    {
+      "event_count": 1,
+      "events": 1,
+      "events_sha256": "9a61f4acba4adf0810fce5735009bcc9d43d255d76ed05deb39980f64d4fe5b3",
+      "expected_sha256": "64a2cfedadec05fc3a7f5d707e0ae6073d2ef878ac7d45b93d3da2b385d20c02",
+      "input_bytes": 259,
+      "kind": "synthetic",
+      "name": "future-schema",
+      "schema_version": 3
+    },
+    {
+      "event_count": 0,
+      "events": 0,
+      "events_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_sha256": "7c9899ce2952dc660593539f3af2098f8755b4927d1609884fbcde923234dda8",
+      "input_bytes": 1037,
+      "kind": "archive",
+      "name": "pre-and-post-mission-lifecycle-support-01KTNK1G",
+      "schema_version": null
+    },
+    {
+      "event_count": 1,
+      "events": 2,
+      "events_sha256": "7718949ee28d031c4f474491540c342137f5b04ca071d322a0071f21e8d9bfe9",
+      "expected_sha256": "a8e3802bf260cc417d5495e31cf109383ab3aee4c069eb4d69802cd4a2ce35c8",
+      "input_bytes": 2226,
+      "kind": "archive",
+      "name": "013-fix-and-test-dashboard",
+      "schema_version": null
+    },
+    {
+      "event_count": 2,
+      "events": 2,
+      "events_sha256": "f6084bdfc6cf74c4e90f0cf5c5be8097cb18807d1bc4f6b89e9c4af1c87a48cd",
+      "expected_sha256": "478cd7dfb599e15f69b90fb5221d827a2184890bc1ef13a3fec104d93f9a0383",
+      "input_bytes": 2240,
+      "kind": "archive",
+      "name": "blocked-wp-unblock-path-01M29093",
+      "schema_version": 2
+    },
+    {
+      "event_count": 3,
+      "events": 10,
+      "events_sha256": "5217e368210ba000c78549d6f765348f7339dbeafed95c5f9f4ba6be91e5cecf",
+      "expected_sha256": "52fee058dc6850bf404e36cf516020dbd116cd6777a449730c335e49f805c74a",
+      "input_bytes": 7424,
+      "kind": "archive",
+      "name": "native-stale-content-refusal-01M4S2CQ",
+      "schema_version": 2
+    },
+    {
+      "event_count": 3,
+      "events": 10,
+      "events_sha256": "fbe5b4fbb887914778d3f024a8ecb5e59623f13320efe6107e4d28e2db2cd860",
+      "expected_sha256": "0c4b8bcb2a7e8d263fbc6cdece94b0f8021c203591fa4faa36acc06b97bc9629",
+      "input_bytes": 7335,
+      "kind": "archive",
+      "name": "remove-charter-sync-noop-01M4RXKH",
+      "schema_version": 2
+    },
+    {
+      "event_count": 4,
+      "events": 14,
+      "events_sha256": "27e4cb4e824acd18e2f0e35d4325ba15373bee442a63ba4edfc8261b43057260",
+      "expected_sha256": "bf901d3c27ef6556170f1a3cba7a73abca03e969834740252171fbfd5e6cd2ca",
+      "input_bytes": 9060,
+      "kind": "archive",
+      "name": "ci-router-charter-dossier-routing-01M4SW1A",
+      "schema_version": 2
+    },
+    {
+      "event_count": 24,
+      "events": 64,
+      "events_sha256": "a60a2d9f658eeb7a76cce10415d61f4b919056f8bc318b283cb7ec86cc811882",
+      "expected_sha256": "e6b0435a6421d10d85f70c6b7a11035f0a2d3f236b67d48979f1d30f13c391de",
+      "input_bytes": 44240,
+      "kind": "archive",
+      "name": "friction-remediation-01M43DRV",
+      "schema_version": 2
+    },
+    {
+      "event_count": 17,
+      "events": 45,
+      "events_sha256": "2a8215055d2094ae5fd036629bcc78a5600eda89c46759b6229e92d4640548de",
+      "expected_sha256": "727240d173b82d564dc256686b95ca65ca3aace1f869f5b5ef2fb22ca70bcca2",
+      "input_bytes": 33338,
+      "kind": "archive",
+      "name": "review-feedback-draft-retirement-01M66YR3",
+      "schema_version": 2
+    },
+    {
+      "event_count": 14,
+      "events": 16,
+      "events_sha256": "d21b226612dc5ef761758862fbd974d71660fb4883ca68751ca925ca6fd70142",
+      "expected_sha256": "804be703c79910c32ea4c93aae86eef1e58e9d4ece033e2d5e0f57bcf1ef822e",
+      "input_bytes": 10878,
+      "kind": "archive",
+      "name": "053-orchestrator-api-json-contract-fidelity",
+      "schema_version": null
+    },
+    {
+      "event_count": 38,
+      "events": 42,
+      "events_sha256": "242fda333ebeacfad0429a1e22a603592bfda58d4c0455392f8418b92a5434b3",
+      "expected_sha256": "233e0a22b0927652a929476e05857ba4bc9b94c4fbd1eeb64bd3d653b34ca2dc",
+      "input_bytes": 29361,
+      "kind": "archive",
+      "name": "unblock-sync-identity-boundary-canary-01KRZJ07",
+      "schema_version": null
+    },
+    {
+      "event_count": 12,
+      "events": 29,
+      "events_sha256": "e5eea080d58fea400efcf259260b98ee1c11b9ce4c4418e93fd10cab2f3dc019",
+      "expected_sha256": "fd1774e47755520ef6a2f864f7468d2c2611029832277936eb0455c49de2fef1",
+      "input_bytes": 22205,
+      "kind": "archive",
+      "name": "terminus-integrity-followups-01M393QR",
+      "schema_version": 2
+    },
+    {
+      "event_count": 73,
+      "events": 157,
+      "events_sha256": "d09bd4120cc570b9075a2f2c503db8b867c754e0a9f99cb2cb56902302909f13",
+      "expected_sha256": "03c934e39fbd4d2066ed860f9c85da949105f872446ff78ec5a85f194525e3f1",
+      "input_bytes": 111662,
+      "kind": "archive",
+      "name": "regression-slice-cleanup-01M42WCF",
+      "schema_version": null
+    }
+  ],
+  "generator": "crates/sk-status/tests/fixtures/replay/generate_fixtures.py",
+  "oracle": {
+    "entry_point": "specify_cli.status.reducer.materialize_snapshot",
+    "external_reducer": "spec_kitty_events.diary.reduce_parsed",
+    "interpreter": "/home/exedev/.t3/scratch/2026-11-02-pull-current-spec-kitty-from-442fd12a/spec-kitty-rust/.venv-rust-oracle/bin/python",
+    "spec_kitty_events_version": "11.3.0",
+    "uv_lock_pin": "11.3.0"
+  },
+  "source_revision": "6cb5cc241d8ebe35e04058748f0b65316d4ad93d",
+  "totals": {
+    "events": 468,
+    "fixtures": 38,
+    "input_bytes": 300247
+  }
+}

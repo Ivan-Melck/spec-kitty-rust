@@ -14,7 +14,8 @@
 //! * null stdin, so git can never read from the caller's terminal.
 
 use std::ffi::OsStr;
-use std::io::{Read, Seek, SeekFrom};
+use std::ffi::OsString;
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 use std::process::{Command, ExitStatus, Stdio};
 use std::thread;
@@ -27,6 +28,9 @@ pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Maximum captured bytes per output stream (16 MiB).
 const MAX_OUTPUT_BYTES: u64 = 16 * 1024 * 1024;
+
+/// Maximum bytes accepted on a child's stdin (4 MiB).
+const MAX_STDIN_BYTES: u64 = 4 * 1024 * 1024;
 
 /// Environment variables that would redirect git to a different repository
 /// than the one the adapter was opened on. They are removed from every child.
@@ -81,6 +85,20 @@ pub(crate) struct CommandOutput {
     pub(crate) stderr: Vec<u8>,
 }
 
+/// The closed environment profiles this crate may run a child under.
+///
+/// There is deliberately no caller-supplied environment map: a profile can
+/// only add the no-prompt, no-remote-write settings this adapter owns.
+#[derive(Debug, Clone)]
+pub(crate) enum EnvProfile {
+    /// A local repository command: no remote contact, read-shaped locks off.
+    Local,
+    /// One bounded remote READ (`ls-remote`). `ssh_command` is the effective
+    /// non-interactive ssh command chosen by the remote module, or `None` to
+    /// leave the inherited `GIT_SSH_COMMAND`/`GIT_SSH` choice untouched.
+    RemoteRead { ssh_command: Option<OsString> },
+}
+
 /// A bounded git process bound to one working directory and option set.
 #[derive(Debug, Clone)]
 pub(crate) struct GitProcess {
@@ -107,6 +125,46 @@ impl GitProcess {
     /// (for example `symbolic-ref` exit 1 on a detached HEAD) can be
     /// distinguished from real failures.
     pub(crate) fn run<S: AsRef<OsStr>>(&self, args: &[S]) -> Result<CommandOutput, GitError> {
+        self.run_profiled(args, None, EnvProfile::Local)
+    }
+
+    /// Run one bounded remote read with the given effective ssh command.
+    pub(crate) fn run_remote<S: AsRef<OsStr>>(
+        &self,
+        args: &[S],
+        ssh_command: Option<OsString>,
+    ) -> Result<CommandOutput, GitError> {
+        self.run_profiled(args, None, EnvProfile::RemoteRead { ssh_command })
+    }
+
+    /// Run git with a bounded stdin payload and require a successful status.
+    ///
+    /// Used by `update-ref --stdin` and `rev-list --stdin`, whose ref/OID
+    /// operands are line data rather than option positionals.
+    pub(crate) fn checked_with_stdin<S: AsRef<OsStr>>(
+        &self,
+        args: &[S],
+        stdin: &[u8],
+    ) -> Result<CommandOutput, GitError> {
+        if stdin.len() as u64 > MAX_STDIN_BYTES {
+            return Err(GitError::InputTooLarge {
+                limit: MAX_STDIN_BYTES,
+            });
+        }
+        let output = self.run_profiled(args, Some(stdin), EnvProfile::Local)?;
+        if output.status.success() {
+            Ok(output)
+        } else {
+            Err(self.failed(args, &output))
+        }
+    }
+
+    fn run_profiled<S: AsRef<OsStr>>(
+        &self,
+        args: &[S],
+        stdin: Option<&[u8]>,
+        profile: EnvProfile,
+    ) -> Result<CommandOutput, GitError> {
         let mut stdout_file = tempfile::tempfile().map_err(|source| GitError::Io {
             context: "create a temporary stdout file",
             source,
@@ -125,12 +183,58 @@ impl GitProcess {
             source,
         })?;
 
-        let mut command = self.command(args);
+        // A stdin payload is materialised in an anonymous file before the
+        // child starts. A pipe would let a child that never reads block the
+        // writer; a regular file cannot, and git's `--stdin` plumbing reads it
+        // the same way.
+        let stdin_file = match stdin {
+            Some(payload) => {
+                let mut file = tempfile::tempfile().map_err(|source| GitError::Io {
+                    context: "create a temporary stdin file",
+                    source,
+                })?;
+                file.write_all(payload).map_err(|source| GitError::Io {
+                    context: "write the child stdin payload",
+                    source,
+                })?;
+                file.seek(SeekFrom::Start(0))
+                    .map_err(|source| GitError::Io {
+                        context: "rewind the child stdin payload",
+                        source,
+                    })?;
+                Some(file)
+            }
+            None => None,
+        };
+
+        let mut command = self.command_with_profile(args, &profile);
         command
             .stdout(Stdio::from(stdout_child))
             .stderr(Stdio::from(stderr_child));
+        if let Some(file) = stdin_file {
+            command.stdin(Stdio::from(file));
+        }
 
-        let mut child = command.spawn().map_err(|source| {
+        let started = Instant::now();
+        // Concurrent fork/exec can briefly inherit a writer descriptor for a
+        // newly installed executable, yielding ETXTBSY before it runs at all.
+        // Retry only that pre-exec failure, within the invocation's original
+        // deadline and a separate 100 ms cap; never retry a running mutation.
+        let spawn_budget = self.timeout.min(Duration::from_millis(100));
+        let spawned = loop {
+            let result = command.spawn();
+            if let Err(source) = &result
+                && source.kind() == std::io::ErrorKind::ExecutableFileBusy
+                && started.elapsed() < spawn_budget
+            {
+                thread::sleep(
+                    Duration::from_millis(1).min(spawn_budget.saturating_sub(started.elapsed())),
+                );
+                continue;
+            }
+            break result;
+        };
+        let mut child = spawned.map_err(|source| {
             // A missing working directory also reports `NotFound`. Distinguish
             // it from a missing git executable so a deleted checkout is not
             // described as an installation problem.
@@ -149,7 +253,6 @@ impl GitProcess {
         })?;
 
         let argv = display_args(args);
-        let started = Instant::now();
         let mut poll_interval = Duration::from_millis(1);
         let status = loop {
             for (stream, file) in [("stdout", &stdout_file), ("stderr", &stderr_file)] {
@@ -233,7 +336,12 @@ impl GitProcess {
     }
 
     /// Build the child command with the adapter's fixed environment policy.
+    #[cfg(test)]
     fn command<S: AsRef<OsStr>>(&self, args: &[S]) -> Command {
+        self.command_with_profile(args, &EnvProfile::Local)
+    }
+
+    fn command_with_profile<S: AsRef<OsStr>>(&self, args: &[S], profile: &EnvProfile) -> Command {
         let mut command = Command::new(&self.program);
         command.args(args.iter().map(AsRef::as_ref));
         command.current_dir(&self.cwd);
@@ -247,6 +355,16 @@ impl GitProcess {
             .env("GIT_OPTIONAL_LOCKS", "0")
             .env("GIT_PAGER", "cat")
             .env("LC_ALL", "C");
+        if let EnvProfile::RemoteRead {
+            ssh_command: Some(ssh_command),
+        } = profile
+        {
+            // `GIT_TERMINAL_PROMPT=0` covers git's own prompt; ssh(1) does not
+            // honor it, so the remote module resolves plain ssh to
+            // `-o BatchMode=yes`. A command already pinned by the user is
+            // passed through unchanged (never silently replaced).
+            command.env("GIT_SSH_COMMAND", ssh_command);
+        }
         command
     }
 

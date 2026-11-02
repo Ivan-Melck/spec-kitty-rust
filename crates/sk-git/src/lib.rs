@@ -12,15 +12,20 @@
 //! * **One subprocess seam.** Every invocation goes through a single internal
 //!   function that takes a program and an argument list. Argument values are
 //!   never interpolated into a shell string; repository paths are data, not
-//!   syntax.
+//!   syntax. Ref and object-id operands are validated types, and ref writes
+//!   travel on `update-ref --stdin` where they cannot be parsed as options.
 //! * **Bounded execution.** Each invocation has a finite timeout. On timeout
 //!   the direct git child is killed and reaped before the error is returned.
-//! * **No prompts.** Children get `GIT_TERMINAL_PROMPT=0`, a null stdin, and no
-//!   pager. The adapter never runs a remote-contacting command, so credentials
-//!   are never requested.
-//! * **Read-only probes.** Status runs with `--no-optional-locks` and
-//!   `GIT_OPTIONAL_LOCKS=0` so it does not refresh/write the index, and with
-//!   `core.fsmonitor=false` so a repository-configured hook is not executed.
+//!   Captured stdout/stderr are bounded per stream, and stdin payloads are
+//!   bounded.
+//! * **No prompts.** Children get `GIT_TERMINAL_PROMPT=0`, a null stdin (or an
+//!   explicit bounded payload), and no pager. A remote read adds ssh
+//!   `BatchMode=yes` when the effective transport is plain ssh, without
+//!   replacing a user-pinned command.
+//! * **Read-only probes by default.** Status runs with `--no-optional-locks`
+//!   and `GIT_OPTIONAL_LOCKS=0` so it does not refresh/write the index, and
+//!   with `core.fsmonitor=false` so a repository-configured hook is not
+//!   executed.
 //! * **Repository identity is explicit.** Inherited `GIT_DIR`,
 //!   `GIT_WORK_TREE`, `GIT_INDEX_FILE`, and related redirecting variables are
 //!   removed, so a repository opened for a path is the repository queried.
@@ -29,6 +34,29 @@
 //!   lossy `String`.
 //! * **Failure is never absence.** A failed command is a typed
 //!   [`GitError`]; only a confirmed detached HEAD or unborn HEAD is `None`.
+//! * **Every mutation is planned.** Ref changes are compare-and-swap and carry
+//!   the value the caller observed. Branch advances, branch deletions, and
+//!   worktree removals are values that record their expected state and re-read
+//!   it before writing. A move between plan and execution is
+//!   [`GitError::PlanStale`] with the observed value, never an overwrite.
+//!
+//! # Operations
+//!
+//! Read-only: discovery, branch/HEAD, status, worktree listing, ref reads,
+//! ancestry, divergence, git directories, in-progress markers, and bounded
+//! `ls-remote` probes.
+//!
+//! Mutating, each with an explicit plan: branch create, fast-forward (or
+//! explicitly allowed non-fast-forward) advance with optional clean-checkout
+//! resync, guarded branch delete with unique-commit analysis and optional tip
+//! preservation, worktree add, guarded worktree remove, and merge/revert/
+//! cherry-pick conclusion.
+//!
+//! There is **no** push, fetch, clone, tag update, remote configuration write,
+//! reset of an unplanned checkout, hook bypass, or arbitrary command surface.
+//! Protected-branch configuration, workspace ownership, and placement/merge
+//! policy are application-layer facts; this crate only consumes the facts it is
+//! given and refuses when they are absent.
 //!
 //! # Limits
 //!
@@ -42,12 +70,15 @@
 //!   exposed as `String` and must be UTF-8; paths are not subject to that
 //!   restriction on Unix.
 //! * The timeout kills the direct git child only. Descendants, such as a
-//!   hypothetical remote helper, are outside the bound. No API in this crate
-//!   starts one.
+//!   remote helper, are outside the bound.
 //! * User and system Git configuration still affects behaviour (for example
 //!   `core.autocrlf`, `status.showUntrackedFiles`, `safe.directory`, and
 //!   attributes). The adapter does not rewrite configuration and does not claim
 //!   byte-for-byte parity with every possible configuration.
+//! * Remote reads do not fetch. A freshness comparison against a listed tip
+//!   requires that object to exist locally; otherwise the verdict is
+//!   `compare_failed` with that explanation. Upstream fetches tracking refs
+//!   before comparing.
 //! * Passing tests establish the contracts they cover, not blanket
 //!   compatibility with the Python implementation.
 //!
@@ -66,16 +97,41 @@
 
 #![deny(missing_docs)]
 
+mod branch;
 mod error;
+mod merge;
+mod oid;
 mod path;
 mod process;
+mod refname;
+mod refs;
+mod remote;
+mod repo_state;
 mod repository;
 mod status;
 mod worktree;
+mod worktree_ops;
 
+pub use branch::{
+    BOOKKEEPING_REF_PREFIX, BranchAdvanceOptions, BranchAdvanceOutcome, BranchAdvancePlan,
+    BranchCreationPlan, BranchDeletionOptions, BranchDeletionOutcome, BranchDeletionPlan,
+    BranchDeletionPreflight, ProtectedBranches,
+};
 pub use error::GitError;
+pub use merge::{ConcludedOperation, MergeConclusionOutcome, MergeConclusionPlan};
+pub use oid::Oid;
 pub use path::GitPath;
 pub use process::{DEFAULT_TIMEOUT, GitOptions};
+pub use refname::{BranchName, RefName, StartPoint};
+pub use refs::{RefChange, RefState, RefTransactionOutcome, RefTransactionPlan};
+pub use remote::{
+    AheadBehind, FreshnessState, FreshnessVerdict, RemoteBranchLookup, RemoteHeads, RemoteName,
+};
+pub use repo_state::{GitDirs, InProgressOperation, MERGE_TREE_WRITE_TREE_MIN_VERSION};
 pub use repository::GitRepository;
 pub use status::{StatusEntry, StatusOptions, UntrackedMode};
 pub use worktree::Worktree;
+pub use worktree_ops::{
+    WorktreeAddOutcome, WorktreeAddPlan, WorktreeDiscardPolicy, WorktreeRemovalOutcome,
+    WorktreeRemovalPlan, WorktreeStart,
+};

@@ -342,13 +342,15 @@ fn regular_steps_are_scheduled_before_audit_steps() {
 }
 
 #[test]
-fn step_prompt_falls_back_when_template_has_no_prompt() {
-    let mut step = prompt("a", &[], &[]);
-    step.prompt = None;
-    let template = template(vec![step], vec![]);
-    let decision = plan_next(&template, &snapshot(), "frozen-hash").unwrap();
-    let json = serde_json::to_value(&decision).unwrap();
-    assert_eq!(json["prompt"], "Execute step 'a': Title a");
+fn step_prompt_falls_back_when_template_has_no_or_empty_prompt() {
+    for value in [None, Some(String::new())] {
+        let mut step = prompt("a", &[], &[]);
+        step.prompt = value;
+        let template = template(vec![step], vec![]);
+        let decision = plan_next(&template, &snapshot(), "frozen-hash").unwrap();
+        let json = serde_json::to_value(&decision).unwrap();
+        assert_eq!(json["prompt"], "Execute step 'a': Title a");
+    }
 }
 
 #[test]

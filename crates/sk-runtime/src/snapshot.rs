@@ -30,16 +30,34 @@ impl fmt::Display for ActorType {
 }
 
 /// Identity of an actor that requested or answered a decision.
+///
+/// This mirrors the upstream `RuntimeActorIdentity` wire shape: `display_name`
+/// defaults to an empty string and `provider`/`model`/`tool` serialize as
+/// `null` when absent, because answer records and event payloads persist those
+/// keys.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActorIdentity {
     pub actor_id: String,
     pub actor_type: ActorType,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub display_name: String,
     pub provider: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool: Option<String>,
+}
+
+impl ActorIdentity {
+    /// Build a minimal identity (empty display name, no provider/model/tool).
+    pub fn new(actor_id: impl Into<String>, actor_type: ActorType) -> Self {
+        Self {
+            actor_id: actor_id.into(),
+            actor_type,
+            display_name: String::new(),
+            provider: None,
+            model: None,
+            tool: None,
+        }
+    }
 }
 
 /// Policy strictness, matching the upstream schema's closed set.
@@ -145,7 +163,10 @@ pub struct RunSnapshot {
     pub mission_id: Option<String>,
     #[serde(default)]
     pub mission_slug: Option<String>,
-    #[serde(default)]
+    /// Rust-library extension: actor context used to reproduce the emitted step
+    /// context. The upstream snapshot has no such field, so it is omitted from
+    /// serialization when empty.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub actor_context: BTreeMap<String, Value>,
 }
 

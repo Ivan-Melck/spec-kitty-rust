@@ -22,7 +22,7 @@ pub const DEFAULT_WORK_PACKAGE_BYTE_LIMIT: u64 = 1024 * 1024;
 /// In particular, the retired frontmatter `lane`/`history` values are preserved
 /// verbatim but are never exposed as, or inferred into, authoritative state;
 /// readiness comes exclusively from a caller-supplied state map (see
-/// [`crate::readiness`]).
+/// [`crate::dependency_readiness`]).
 #[derive(Clone, Debug, Serialize)]
 pub struct WorkPackage {
     id: WpId,

@@ -105,7 +105,7 @@ pub enum DecisionRequirement {
     AuditCheckpoint {
         decision_id: String,
         step_id: String,
-        step_title: String,
+        step_title: Option<String>,
         question: String,
         options: Vec<String>,
     },

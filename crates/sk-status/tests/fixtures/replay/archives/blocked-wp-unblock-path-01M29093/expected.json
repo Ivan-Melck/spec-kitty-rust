@@ -1,0 +1,36 @@
+{
+  "event_count": 2,
+  "last_event_id": "3Y4WZS8HAEP7DR6ENF7CFA3FCC",
+  "materialized_at": "2026-09-11T19:49:26.776182+00:00",
+  "mission_number": "",
+  "mission_slug": "blocked-wp-unblock-path-01M29093",
+  "mission_type": "software-dev",
+  "schema_version": 2,
+  "summary": {
+    "approved": 0,
+    "blocked": 0,
+    "canceled": 0,
+    "claimed": 0,
+    "done": 0,
+    "for_review": 0,
+    "in_progress": 0,
+    "in_review": 0,
+    "planned": 2
+  },
+  "work_packages": {
+    "WP01": {
+      "actor": "migration:backfill_wp_status",
+      "force_count": 0,
+      "lane": "planned",
+      "last_event_id": "3Y4WZS8HAEP7DR6ENF7CFA3FCC",
+      "last_transition_at": "2026-09-11T19:49:26.776182+00:00"
+    },
+    "WP02": {
+      "actor": "migration:backfill_wp_status",
+      "force_count": 0,
+      "lane": "planned",
+      "last_event_id": "0ETBD6WJNQW5GTKAXDPZ165YVP",
+      "last_transition_at": "2026-09-11T19:49:26.776182+00:00"
+    }
+  }
+}

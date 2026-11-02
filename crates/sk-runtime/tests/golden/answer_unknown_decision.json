@@ -1,0 +1,94 @@
+{
+  "expected": {
+    "error": "Decision 'input:nope' not found in pending_decisions for run 'run-1'",
+    "events": [],
+    "state": {
+      "blocked_reason": null,
+      "completed_steps": [],
+      "decisions": {},
+      "inputs": {
+        "llm_delegations": {}
+      },
+      "issued_step_id": null,
+      "mission_id": null,
+      "mission_key": "m",
+      "mission_slug": null,
+      "pending_decisions": {
+        "input:topic": {
+          "decision_id": "input:topic",
+          "options": [],
+          "question": "Input required before step 's1': provide value for 'topic'.",
+          "requested_at": "<TIMESTAMP>",
+          "requested_by": {
+            "actor_id": "agent-1",
+            "actor_type": "llm",
+            "display_name": "",
+            "model": null,
+            "provider": null,
+            "tool": null
+          },
+          "step_id": "s1"
+        }
+      },
+      "policy_snapshot": {
+        "default_route": "same_llm_context",
+        "extras": {},
+        "strictness": "medium"
+      },
+      "run_id": "run-1",
+      "template_hash": "frozen-hash",
+      "template_path": "/nonexistent/runtime-golden/mission.yaml"
+    }
+  },
+  "scenario": {
+    "actor": {
+      "actor_id": "owner-1",
+      "actor_type": "human",
+      "display_name": "",
+      "model": null,
+      "provider": null,
+      "tool": null
+    },
+    "answer": "x",
+    "decision_id": "input:nope",
+    "kind": "answer",
+    "name": "answer_unknown_decision",
+    "snapshot": {
+      "blocked_reason": null,
+      "completed_steps": [],
+      "decisions": {},
+      "inputs": {
+        "llm_delegations": {}
+      },
+      "issued_step_id": null,
+      "mission_id": null,
+      "mission_key": "m",
+      "mission_slug": null,
+      "pending_decisions": {
+        "input:topic": {
+          "decision_id": "input:topic",
+          "options": [],
+          "question": "Input required before step 's1': provide value for 'topic'.",
+          "requested_at": "2026-01-01T00:00:00Z",
+          "requested_by": {
+            "actor_id": "agent-1",
+            "actor_type": "llm",
+            "display_name": "",
+            "model": null,
+            "provider": null,
+            "tool": null
+          },
+          "step_id": "s1"
+        }
+      },
+      "policy_snapshot": {
+        "default_route": "same_llm_context",
+        "extras": {},
+        "strictness": "medium"
+      },
+      "run_id": "run-1",
+      "template_hash": "frozen-hash",
+      "template_path": "/nonexistent/runtime-golden/mission.yaml"
+    }
+  }
+}

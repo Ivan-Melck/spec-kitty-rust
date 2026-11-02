@@ -1,0 +1,7 @@
+{"actor":"impl","at":"2026-01-01T00:00:01Z","event_id":"01J00000000000000000000001","execution_mode":"worktree","force":false,"from_lane":"planned","mission_slug":"900-retrospective","to_lane":"claimed","wp_id":"WP01"}
+{"at":"2026-01-01T00:00:02Z","event_id":"01J00000000000000000000002","event_name":"retrospective.requested","payload":{"mode":{"source_signal":{"evidence":"--mode autonomous","kind":"explicit_flag"},"value":"autonomous"}}}
+{"at":"2026-01-01T00:00:03Z","event_id":"01J00000000000000000000003","event_name":"retrospective.proposal.generated","payload":{"id":"P1"}}
+{"at":"2026-01-01T00:00:04Z","event_id":"01J00000000000000000000004","event_name":"retrospective.proposal.generated","payload":{"id":"P2"}}
+{"at":"2026-01-01T00:00:05Z","event_id":"01J00000000000000000000005","event_name":"retrospective.proposal.applied","payload":{"id":"P1"}}
+{"at":"2026-01-01T00:00:06Z","event_id":"01J00000000000000000000006","event_name":"retrospective.completed","payload":{"record_path":"kitty-specs/900-retrospective/retrospective.md"}}
+{"event_type":"DecisionPointResolved","payload":{"id":"D1"}}

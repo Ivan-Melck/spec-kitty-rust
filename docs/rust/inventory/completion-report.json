@@ -1,0 +1,3632 @@
+{
+  "errors": [
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "ASSET-BUILTIN-PACK",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "ASSET-COMMANDS-SKILLS",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "ASSET-DOCTRINE-DRG",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "ASSET-GLOSSARY-SEEDS",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "ASSET-INTERNAL-PACK",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "ASSET-MISSION-TYPES",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "ASSET-ORG-PACK",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "ASSET-SERVICE-PINS",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "ASSET-TEMPLATES",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:accept",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/acceptance-verdict",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/action",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/action/implement",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/action/review",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/check-prerequisites",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/config",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/config/add",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/config/list",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/config/remove",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/config/set",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/config/status",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/config/sync",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/context",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/context/resolve",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/decision",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/decision/cancel",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/decision/defer",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/decision/list",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/decision/open",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/decision/repair-runtime-lock",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/decision/resolve",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/decision/verify",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/issue-verdict",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/mission",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/mission/accept",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/mission/acceptance-verdict",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/mission/branch-context",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/mission/check-prerequisites",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/mission/create",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/mission/finalize-tasks",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/mission/merge",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/mission/record-analysis",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/mission/repair",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/mission/setup-plan",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/profile",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/profile/get",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/profile/list",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/profile/show",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/release",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/release/prep",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/retrospect",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/retrospect/summary",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/retrospect/synthesize",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/status",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/status/doctor",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/status/emit",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/status/lifecycle",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/status/materialize",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/status/migrate",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/status/reconcile",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/status/validate",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/tasks",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/tasks/add-history",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/tasks/check-terminability",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/tasks/finalize-tasks",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/tasks/list-dependents",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/tasks/list-tasks",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/tasks/map-requirements",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/tasks/mark-status",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/tasks/move-task",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/tasks/status",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/tasks/validate-workflow",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/tests",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/tests/stale-check",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:agent/tracer-append",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:archive",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:archive/create",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:archive/list",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/activate",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/bundle",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/bundle/validate",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/consistency-check",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/context",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/deactivate",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/fetch",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/generate",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/interview",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/lint",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/list",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/mission-type",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/mission-type/list",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/new",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/org",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/org/init",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/org/validate",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/pack",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/pack/assemble",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/pack/asset",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/pack/asset/list",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/pack/asset/path",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/pack/list",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/pack/path",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/pack/regenerate-graph",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/pack/validate",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/pack/vendor",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/preflight",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/resynthesize",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/status",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/synthesize",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:charter/validate",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:commit-guard-hook",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:config",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:consolidate",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:context",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:context/cleanup",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:context/info",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:context/list",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:context/mission-resolve",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:context/mission-show",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:cutover-guard",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:dispatch",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:docs",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:docs/query",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/bytecode",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/channel",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/charter-packs",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/command-files",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/contracts",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/coordination",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/cutover",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/decisions",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/env-file",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/event-logs",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/identity",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/invocation-pairing",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/mission-state",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/mission-type",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/ops",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/provenance",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/review-cycle-reconcile",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/run-index",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/shim-registry",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/skills",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/sparse-checkout",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/state-roots",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/tool-surfaces",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/topology",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:doctor/workspaces",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:events",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:events/tail",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:glossary",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:glossary/conflicts",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:glossary/list",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:glossary/resolve",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:glossary/show",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:glossary/validate",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:implement",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:init",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:intake",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:invocations",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:invocations/list",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:issue-matrix",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:issue-matrix/migrate",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:lint",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:materialize",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:merge",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:merge-driver-acceptance-matrix",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:merge-driver-decision-index",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:merge-driver-event-log",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:merge-driver-issue-matrix",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:merge-driver-meta",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:merge-driver-review-cycle",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:merge-driver-traces",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:migrate",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:migrate/activation-ledger",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:migrate/backfill-identity",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:migrate/backfill-merge-commit",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:migrate/backfill-mission-type",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:migrate/backfill-provenance",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:migrate/backfill-runtime-state",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:migrate/backfill-topology",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:migrate/backfill-wp-status",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:migrate/charter-encoding",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:migrate/ledger",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:migrate/normalize-lifecycle",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:migrate/rebaseline-dossier-hashes",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:migrate/repin-hooks",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:migrate/rewrite-opposed-by",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission-type",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission-type/close",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission-type/current",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission-type/follow-up",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission-type/info",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission-type/list",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission-type/reopen",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission-type/run",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission-type/show",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission-type/switch",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission/close",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission/current",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission/follow-up",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission/info",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission/list",
+      "gate": "status",
+      "message": "conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission/reopen",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission/run",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission/show",
+      "gate": "status",
+      "message": "conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:mission/switch",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:next",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:ops",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:ops/log",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:ops/undo",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/accept-mission",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/answer-decision",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/append-history",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/artifact-read",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/artifact-submit",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/cancel-decision",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/check-prerequisites",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/consolidate-mission",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/contract-version",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/defer-decision",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/design-context",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/design-status",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/design-validate",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/interview-record",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/list-ready",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/mission-state",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/next",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/open-decision",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/plan",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/record-analysis",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/resolve-decision",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/resolve-workspace",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/specify",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/start-implementation",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/start-review",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/tasks",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:orchestrator-api/transition",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:plan",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:plugin",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:plugin/build",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:profile-invocation",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:profile-invocation/complete",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:profiles",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:profiles/get",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:profiles/list",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:profiles/show",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:reconcile",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:regen",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:research",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:retrospect",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:retrospect/backfill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:retrospect/create",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:retrospect/summary",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:review",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:safe-commit",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:service",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:service/fetch",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:service/status",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:service/stop",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:service/vendor",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:session-start",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:session-stop",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:spec-commit",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:specify",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:tasks",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:tracker",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:tracker/bind",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:tracker/map",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:tracker/map/add",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:tracker/map/list",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:tracker/providers",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:tracker/status",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:tracker/sync",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:tracker/sync/publish",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:tracker/sync/pull",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:tracker/sync/push",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:tracker/sync/run",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:tracker/unbind",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:upgrade",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:validate-encoding",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:validate-tasks",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:verify-setup",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:workflow",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:workflow/export",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:workflow/import",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "CLI:workflow/list",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "EXT-CHARTER-SERVICE",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "EXT-EVENTS",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "EXT-GIT",
+      "gate": "status",
+      "message": "implementation=partial; conformance=partial; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "EXT-PACK-REPOS",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "EXT-READ-SERVICE",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "EXT-TRACKER",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "EXT-UV-LOCK",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "EXT-WRITE-SERVICE",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "GOV-ACTIVATION-LEDGER",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "GOV-CHARTER-LIFECYCLE",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "GOV-DRG-CASCADE",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "GOV-PACK-SKILLS",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "GOV-PRESETS-ORG-PACKS",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG-REGISTRY",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.10.0_python_only",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.10.12_charter_cleanup",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.10.14_update_implement_slash_command",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.10.1_populate_slash_commands",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.10.2_update_slash_commands",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.10.6_workflow_simplification",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.10.8_fix_memory_structure",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.10.9_repair_templates",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.11.1_improved_workflow_templates",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.11.1_update_implement_slash_command",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.11.2_improved_workflow_templates",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.11.3_workflow_agent_flag",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.12.0_documentation_mission",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.12.1_remove_kitty_specs_from_gitignore",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.13.0_research_csv_schema_check",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.13.0_update_charter_templates",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.13.0_update_research_implement_templates",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.13.1_exclude_worktrees",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.13.5_add_commit_workflow_to_templates",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.13.8_target_branch",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.14.0_centralized_feature_detection",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.2.0_specify_to_kittify",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.4.8_gitignore_agents",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.6.5_commands_rename",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.6.7_ensure_missions",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.7.2_worktree_commands_dedup",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.7.3_update_scripts",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.8.0_remove_active_mission",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.8.0_worktree_agents_symlink",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.9.0_frontmatter_only_lanes",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.9.0_residue_safe_frontmatter_only_lanes",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.9.1_complete_migration",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.9.1_residue_safe_complete_migration",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0.9.2_research_mission_templates",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0_9_3_surface_repair_wiring",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:0_9_4_roo_deprecation",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.0.0_charter_directory",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.0.0_historical_status_migration",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.0.0_retire_git_hooks",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.0.0a5_remove_wp_status_gitignore_rule",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.0.11_install_skills",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.0.11_remove_clarify_command",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.0.1_fix_generated_command_templates",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.0.1_tool_config_key_rename",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.0.2_charter_context_bootstrap",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.0.6_consistency_sweep",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.0.6_residue_safe_consistency_sweep",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.0.7_fix_stale_overrides",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.0.9_state_gitignore",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.1.1_repair_skill_pack",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.1.2_fix_charter_doctrine_skill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.1.2_fix_glossary_context_skill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.1.2_fix_orchestrator_api_skill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.1.2_fix_runtime_next_skill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.1.2_install_git_workflow_skill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.1.2_install_mission_system_skill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.1.2_remove_release_skill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.1.3_fix_planning_repository_terminology",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.1.3_restore_prompt_commands",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.1.4_enforce_command_file_state",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:2.2.0_profile_context_deployment",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.0.0_canonical_context",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.0.2_restore_prompt_commands",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.0.3_globalize_skill_pack",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.1.1_charter_rename",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.1.1_direct_canonical_commands",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.1.1_event_log_merge_driver",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.1.1_normalize_status_json",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.1.1_residue_safe_normalize_status_json",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.1.2_globalize_commands",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0a4_normalize_mission_lifecycle",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0a4_safe_globalize_commands",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc28_github_diff_attributes",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc30_fix_runtime_next_result_default",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc35_activate_builtin_mission_types",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc35_charter_bundle_v2",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc35_charter_manifest_defaults_repair",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc35_codex_to_skills",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc35_default_charter_pack",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc35_fix_prompt_file_workaround",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc35_kittify_profile_handoff",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc35_kittify_runtime_git_hygiene",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc35_pi_letta_agent_backfill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc35_repository_root_checkout_terminology",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc35_spk_skill_pack",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc35_strip_selection_config",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc35_unified_bundle",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc35_update_planning_templates",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc43_retire_profile_context_command",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.0rc45_retire_standalone_skill_surface",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.3_encoding_provenance_gitignore_backfill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.4_derived_mission_views_gitignore_backfill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.4_runtime_dirs_gitignore_backfill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.5_agents_skills_gitignore_backfill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.6_decisions_event_log_merge_driver",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.6_gate_artifact_merge_drivers",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.6_issue_matrix_driver_repoint",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.6_meta_traces_merge_drivers",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.6_retire_rtk_search_tooling",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.6rc3_lint_report_gitignore_backfill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.6rc3_narrow_cursor_gitignore",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.6rc3_worktrees_gitignore_backfill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.7_heal_provenance_paths",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.7_review_cycle_merge_driver",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3.2.8_provision_kitty_env",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3_2_0rc39_refresh_orientation_block",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3_3_0_op_record_schema_v2",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3_3_0_session_presence_all_harnesses",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3_3_0_session_presence_claude_code",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:3_3_1_context_sources_consolidation",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4.0.0rc5_decision_index_merge_driver",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4.0.0rc5_retire_bundled_dashboard",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4.0.0rc5_retire_single_owner_doctrine_ids",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4.0.0rc7_exclude_spec_kitty",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4.0.0rc7_pack_level_backfill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4.0.0rc7_track_charter_pack_yaml",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4.0.0rc8_activation_ledger",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4.0.0rc8_backfill_migration_ledger",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4.0.0rc8_command_skill_hyphen_names",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4.0.0rc8_narrow_agent_gitignore",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4.0.0rc8_project_intent_directive_rename",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4.0.0rc8_promote_interview_selections",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4.0.0rc8_retire_antigravity_workflows",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4.0.0rc8_retire_stale_mission_template_forks",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4_0_0_retired_hosted_target",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4_0_0rc5_heal_run_index_paths",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4_0_0rc5_heal_template_set_provenance",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4_0_0rc5_install_lane_tip_recorder",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:4_0_0rc5_single_branch_code_lanes_restamp",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:charter_pack_cutover",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:consolidate_charter_bundle_fold",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:migrate_lifecycle_envelope",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:normalize_activation_absence",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:runtime_state_backfill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:unify_charter_activation_promote_answers",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "MIG:verdict_provenance_backfill",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "PERF-HARNESS",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "STATE-ACCEPTANCE",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "STATE-CONSOLIDATION",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "STATE-DECISIONS",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "STATE-EVENT-LEDGER",
+      "gate": "status",
+      "message": "implementation=partial; conformance=partial; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "STATE-LANE-FSM",
+      "gate": "status",
+      "message": "implementation=partial; conformance=partial; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "STATE-LANE-WORKTREE",
+      "gate": "status",
+      "message": "implementation=partial; conformance=partial; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "STATE-MISSION-CREATE",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "STATE-OPS-LEDGER",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "STATE-PROJECT-INIT",
+      "gate": "status",
+      "message": "implementation=partial; conformance=partial; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "STATE-ROLLBACK",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "STATE-RUN-STORE",
+      "gate": "status",
+      "message": "implementation=partial; conformance=partial; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "STATE-SERVICE-LAUNCHER",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "STATE-SESSION-PRESENCE",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "STATE-STATUS-REDUCER",
+      "gate": "status",
+      "message": "implementation=partial; conformance=partial; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "STATE-TRACKER",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "STATE-UPGRADE-LEDGER",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WF-ACCEPT",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WF-CONSOLIDATE",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WF-CREATE",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WF-EVENT-INTEGRITY",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WF-GOVERNANCE",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WF-HUMAN-DECISION",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WF-IMPLEMENT",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WF-MERGE",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WF-NEXT-RUNTIME",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WF-PERSISTENT-STATE",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WF-PLAN",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WF-RECOVERY",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WF-REVIEW",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WF-SPECIFY",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WF-TASKS",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WF-WORKTREE-OWNERSHIP",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WIRE-DECISIONS-LEDGER",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WIRE-EVENTS-PACKAGE",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WIRE-GLOSSARY-EVENTS",
+      "gate": "status",
+      "message": "implementation=partial; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WIRE-JSON-ENVELOPE",
+      "gate": "status",
+      "message": "implementation=partial; conformance=partial; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WIRE-LIFECYCLE-EVENTS",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WIRE-MCP-COMPANION",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WIRE-ORCH-ENVELOPE",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WIRE-ORCH-ERRORS",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WIRE-READ-SERVICE",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WIRE-STATUS-EVENTS",
+      "gate": "status",
+      "message": "implementation=partial; conformance=partial; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WIRE-TRACKER",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "REQUIRED_ENTRY_NOT_COMPLETE",
+      "entry_id": "WIRE-WRITE-SERVICE",
+      "gate": "status",
+      "message": "implementation=absent; conformance=none; review=none"
+    },
+    {
+      "code": "UNSUPPORTED_REQUIRED_ENTRIES",
+      "entry_id": null,
+      "gate": "status",
+      "message": "486 required entries are not natively implemented"
+    },
+    {
+      "code": "WORKFLOW_EVIDENCE_MISSING",
+      "entry_id": "WF-ACCEPT",
+      "gate": "workflows",
+      "message": "missing evidence categories: acceptance_tests, differential_tests, refusal_tests, interruption_tests, concurrency_tests, user_content_tests"
+    },
+    {
+      "code": "WORKFLOW_NOT_REVIEWED",
+      "entry_id": "WF-ACCEPT",
+      "gate": "workflows",
+      "message": "review=none"
+    },
+    {
+      "code": "WORKFLOW_REVIEW_NOT_INDEPENDENT",
+      "entry_id": "WF-ACCEPT",
+      "gate": "workflows",
+      "message": "workflow review is not independent"
+    },
+    {
+      "code": "WORKFLOW_NOT_PASSING",
+      "entry_id": "WF-ACCEPT",
+      "gate": "workflows",
+      "message": "status=pending"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-ACCEPT",
+      "gate": "workflows",
+      "message": "performance workload is not passing: workflow.accept"
+    },
+    {
+      "code": "WORKFLOW_EVIDENCE_MISSING",
+      "entry_id": "WF-CONSOLIDATE",
+      "gate": "workflows",
+      "message": "missing evidence categories: acceptance_tests, differential_tests, refusal_tests, interruption_tests, concurrency_tests, user_content_tests"
+    },
+    {
+      "code": "WORKFLOW_NOT_REVIEWED",
+      "entry_id": "WF-CONSOLIDATE",
+      "gate": "workflows",
+      "message": "review=none"
+    },
+    {
+      "code": "WORKFLOW_REVIEW_NOT_INDEPENDENT",
+      "entry_id": "WF-CONSOLIDATE",
+      "gate": "workflows",
+      "message": "workflow review is not independent"
+    },
+    {
+      "code": "WORKFLOW_NOT_PASSING",
+      "entry_id": "WF-CONSOLIDATE",
+      "gate": "workflows",
+      "message": "status=pending"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-CONSOLIDATE",
+      "gate": "workflows",
+      "message": "performance workload is not passing: workflow.consolidate"
+    },
+    {
+      "code": "WORKFLOW_EVIDENCE_MISSING",
+      "entry_id": "WF-CREATE",
+      "gate": "workflows",
+      "message": "missing evidence categories: acceptance_tests, differential_tests, refusal_tests, interruption_tests, concurrency_tests, user_content_tests"
+    },
+    {
+      "code": "WORKFLOW_NOT_REVIEWED",
+      "entry_id": "WF-CREATE",
+      "gate": "workflows",
+      "message": "review=none"
+    },
+    {
+      "code": "WORKFLOW_REVIEW_NOT_INDEPENDENT",
+      "entry_id": "WF-CREATE",
+      "gate": "workflows",
+      "message": "workflow review is not independent"
+    },
+    {
+      "code": "WORKFLOW_NOT_PASSING",
+      "entry_id": "WF-CREATE",
+      "gate": "workflows",
+      "message": "status=pending"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-CREATE",
+      "gate": "workflows",
+      "message": "performance workload is not passing: workflow.mission-create"
+    },
+    {
+      "code": "WORKFLOW_EVIDENCE_MISSING",
+      "entry_id": "WF-EVENT-INTEGRITY",
+      "gate": "workflows",
+      "message": "missing evidence categories: acceptance_tests, differential_tests, refusal_tests, interruption_tests, concurrency_tests, user_content_tests"
+    },
+    {
+      "code": "WORKFLOW_NOT_REVIEWED",
+      "entry_id": "WF-EVENT-INTEGRITY",
+      "gate": "workflows",
+      "message": "review=none"
+    },
+    {
+      "code": "WORKFLOW_REVIEW_NOT_INDEPENDENT",
+      "entry_id": "WF-EVENT-INTEGRITY",
+      "gate": "workflows",
+      "message": "workflow review is not independent"
+    },
+    {
+      "code": "WORKFLOW_NOT_PASSING",
+      "entry_id": "WF-EVENT-INTEGRITY",
+      "gate": "workflows",
+      "message": "status=pending"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-EVENT-INTEGRITY",
+      "gate": "workflows",
+      "message": "performance workload is not passing: state.event-append"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-EVENT-INTEGRITY",
+      "gate": "workflows",
+      "message": "performance workload is not passing: status.replay"
+    },
+    {
+      "code": "WORKFLOW_EVIDENCE_MISSING",
+      "entry_id": "WF-GOVERNANCE",
+      "gate": "workflows",
+      "message": "missing evidence categories: acceptance_tests, differential_tests, refusal_tests, interruption_tests, concurrency_tests, user_content_tests"
+    },
+    {
+      "code": "WORKFLOW_NOT_REVIEWED",
+      "entry_id": "WF-GOVERNANCE",
+      "gate": "workflows",
+      "message": "review=none"
+    },
+    {
+      "code": "WORKFLOW_REVIEW_NOT_INDEPENDENT",
+      "entry_id": "WF-GOVERNANCE",
+      "gate": "workflows",
+      "message": "workflow review is not independent"
+    },
+    {
+      "code": "WORKFLOW_NOT_PASSING",
+      "entry_id": "WF-GOVERNANCE",
+      "gate": "workflows",
+      "message": "status=pending"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-GOVERNANCE",
+      "gate": "workflows",
+      "message": "performance workload is not passing: governance.charter"
+    },
+    {
+      "code": "WORKFLOW_EVIDENCE_MISSING",
+      "entry_id": "WF-HUMAN-DECISION",
+      "gate": "workflows",
+      "message": "missing evidence categories: acceptance_tests, differential_tests, refusal_tests, interruption_tests, concurrency_tests, user_content_tests"
+    },
+    {
+      "code": "WORKFLOW_NOT_REVIEWED",
+      "entry_id": "WF-HUMAN-DECISION",
+      "gate": "workflows",
+      "message": "review=none"
+    },
+    {
+      "code": "WORKFLOW_REVIEW_NOT_INDEPENDENT",
+      "entry_id": "WF-HUMAN-DECISION",
+      "gate": "workflows",
+      "message": "workflow review is not independent"
+    },
+    {
+      "code": "WORKFLOW_NOT_PASSING",
+      "entry_id": "WF-HUMAN-DECISION",
+      "gate": "workflows",
+      "message": "status=pending"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-HUMAN-DECISION",
+      "gate": "workflows",
+      "message": "performance workload is not passing: state.decision.resolve"
+    },
+    {
+      "code": "WORKFLOW_EVIDENCE_MISSING",
+      "entry_id": "WF-IMPLEMENT",
+      "gate": "workflows",
+      "message": "missing evidence categories: acceptance_tests, differential_tests, refusal_tests, interruption_tests, concurrency_tests, user_content_tests"
+    },
+    {
+      "code": "WORKFLOW_NOT_REVIEWED",
+      "entry_id": "WF-IMPLEMENT",
+      "gate": "workflows",
+      "message": "review=none"
+    },
+    {
+      "code": "WORKFLOW_REVIEW_NOT_INDEPENDENT",
+      "entry_id": "WF-IMPLEMENT",
+      "gate": "workflows",
+      "message": "workflow review is not independent"
+    },
+    {
+      "code": "WORKFLOW_NOT_PASSING",
+      "entry_id": "WF-IMPLEMENT",
+      "gate": "workflows",
+      "message": "status=pending"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-IMPLEMENT",
+      "gate": "workflows",
+      "message": "performance workload is not passing: workflow.implement"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-IMPLEMENT",
+      "gate": "workflows",
+      "message": "performance workload is not passing: state.move-task"
+    },
+    {
+      "code": "WORKFLOW_EVIDENCE_MISSING",
+      "entry_id": "WF-MERGE",
+      "gate": "workflows",
+      "message": "missing evidence categories: acceptance_tests, differential_tests, refusal_tests, interruption_tests, concurrency_tests, user_content_tests"
+    },
+    {
+      "code": "WORKFLOW_NOT_REVIEWED",
+      "entry_id": "WF-MERGE",
+      "gate": "workflows",
+      "message": "review=none"
+    },
+    {
+      "code": "WORKFLOW_REVIEW_NOT_INDEPENDENT",
+      "entry_id": "WF-MERGE",
+      "gate": "workflows",
+      "message": "workflow review is not independent"
+    },
+    {
+      "code": "WORKFLOW_NOT_PASSING",
+      "entry_id": "WF-MERGE",
+      "gate": "workflows",
+      "message": "status=pending"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-MERGE",
+      "gate": "workflows",
+      "message": "performance workload is not passing: workflow.merge"
+    },
+    {
+      "code": "WORKFLOW_EVIDENCE_MISSING",
+      "entry_id": "WF-NEXT-RUNTIME",
+      "gate": "workflows",
+      "message": "missing evidence categories: acceptance_tests, differential_tests, refusal_tests, interruption_tests, concurrency_tests, user_content_tests"
+    },
+    {
+      "code": "WORKFLOW_NOT_REVIEWED",
+      "entry_id": "WF-NEXT-RUNTIME",
+      "gate": "workflows",
+      "message": "review=none"
+    },
+    {
+      "code": "WORKFLOW_REVIEW_NOT_INDEPENDENT",
+      "entry_id": "WF-NEXT-RUNTIME",
+      "gate": "workflows",
+      "message": "workflow review is not independent"
+    },
+    {
+      "code": "WORKFLOW_NOT_PASSING",
+      "entry_id": "WF-NEXT-RUNTIME",
+      "gate": "workflows",
+      "message": "status=pending"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-NEXT-RUNTIME",
+      "gate": "workflows",
+      "message": "performance workload is not passing: runtime.next.governed"
+    },
+    {
+      "code": "WORKFLOW_EVIDENCE_MISSING",
+      "entry_id": "WF-PERSISTENT-STATE",
+      "gate": "workflows",
+      "message": "missing evidence categories: acceptance_tests, differential_tests, refusal_tests, interruption_tests, concurrency_tests, user_content_tests"
+    },
+    {
+      "code": "WORKFLOW_NOT_REVIEWED",
+      "entry_id": "WF-PERSISTENT-STATE",
+      "gate": "workflows",
+      "message": "review=none"
+    },
+    {
+      "code": "WORKFLOW_REVIEW_NOT_INDEPENDENT",
+      "entry_id": "WF-PERSISTENT-STATE",
+      "gate": "workflows",
+      "message": "workflow review is not independent"
+    },
+    {
+      "code": "WORKFLOW_NOT_PASSING",
+      "entry_id": "WF-PERSISTENT-STATE",
+      "gate": "workflows",
+      "message": "status=pending"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-PERSISTENT-STATE",
+      "gate": "workflows",
+      "message": "performance workload is not passing: state.event-append"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-PERSISTENT-STATE",
+      "gate": "workflows",
+      "message": "performance workload is not passing: status.replay"
+    },
+    {
+      "code": "WORKFLOW_EVIDENCE_MISSING",
+      "entry_id": "WF-PLAN",
+      "gate": "workflows",
+      "message": "missing evidence categories: acceptance_tests, differential_tests, refusal_tests, interruption_tests, concurrency_tests, user_content_tests"
+    },
+    {
+      "code": "WORKFLOW_NOT_REVIEWED",
+      "entry_id": "WF-PLAN",
+      "gate": "workflows",
+      "message": "review=none"
+    },
+    {
+      "code": "WORKFLOW_REVIEW_NOT_INDEPENDENT",
+      "entry_id": "WF-PLAN",
+      "gate": "workflows",
+      "message": "workflow review is not independent"
+    },
+    {
+      "code": "WORKFLOW_NOT_PASSING",
+      "entry_id": "WF-PLAN",
+      "gate": "workflows",
+      "message": "status=pending"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-PLAN",
+      "gate": "workflows",
+      "message": "performance workload is not passing: workflow.plan"
+    },
+    {
+      "code": "WORKFLOW_EVIDENCE_MISSING",
+      "entry_id": "WF-RECOVERY",
+      "gate": "workflows",
+      "message": "missing evidence categories: acceptance_tests, differential_tests, refusal_tests, interruption_tests, concurrency_tests, user_content_tests"
+    },
+    {
+      "code": "WORKFLOW_NOT_REVIEWED",
+      "entry_id": "WF-RECOVERY",
+      "gate": "workflows",
+      "message": "review=none"
+    },
+    {
+      "code": "WORKFLOW_REVIEW_NOT_INDEPENDENT",
+      "entry_id": "WF-RECOVERY",
+      "gate": "workflows",
+      "message": "workflow review is not independent"
+    },
+    {
+      "code": "WORKFLOW_NOT_PASSING",
+      "entry_id": "WF-RECOVERY",
+      "gate": "workflows",
+      "message": "status=pending"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-RECOVERY",
+      "gate": "workflows",
+      "message": "performance workload is not passing: workflow.recovery"
+    },
+    {
+      "code": "WORKFLOW_EVIDENCE_MISSING",
+      "entry_id": "WF-REVIEW",
+      "gate": "workflows",
+      "message": "missing evidence categories: acceptance_tests, differential_tests, refusal_tests, interruption_tests, concurrency_tests, user_content_tests"
+    },
+    {
+      "code": "WORKFLOW_NOT_REVIEWED",
+      "entry_id": "WF-REVIEW",
+      "gate": "workflows",
+      "message": "review=none"
+    },
+    {
+      "code": "WORKFLOW_REVIEW_NOT_INDEPENDENT",
+      "entry_id": "WF-REVIEW",
+      "gate": "workflows",
+      "message": "workflow review is not independent"
+    },
+    {
+      "code": "WORKFLOW_NOT_PASSING",
+      "entry_id": "WF-REVIEW",
+      "gate": "workflows",
+      "message": "status=pending"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-REVIEW",
+      "gate": "workflows",
+      "message": "performance workload is not passing: workflow.review"
+    },
+    {
+      "code": "WORKFLOW_EVIDENCE_MISSING",
+      "entry_id": "WF-SPECIFY",
+      "gate": "workflows",
+      "message": "missing evidence categories: acceptance_tests, differential_tests, refusal_tests, interruption_tests, concurrency_tests, user_content_tests"
+    },
+    {
+      "code": "WORKFLOW_NOT_REVIEWED",
+      "entry_id": "WF-SPECIFY",
+      "gate": "workflows",
+      "message": "review=none"
+    },
+    {
+      "code": "WORKFLOW_REVIEW_NOT_INDEPENDENT",
+      "entry_id": "WF-SPECIFY",
+      "gate": "workflows",
+      "message": "workflow review is not independent"
+    },
+    {
+      "code": "WORKFLOW_NOT_PASSING",
+      "entry_id": "WF-SPECIFY",
+      "gate": "workflows",
+      "message": "status=pending"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-SPECIFY",
+      "gate": "workflows",
+      "message": "performance workload is not passing: workflow.specify"
+    },
+    {
+      "code": "WORKFLOW_EVIDENCE_MISSING",
+      "entry_id": "WF-TASKS",
+      "gate": "workflows",
+      "message": "missing evidence categories: acceptance_tests, differential_tests, refusal_tests, interruption_tests, concurrency_tests, user_content_tests"
+    },
+    {
+      "code": "WORKFLOW_NOT_REVIEWED",
+      "entry_id": "WF-TASKS",
+      "gate": "workflows",
+      "message": "review=none"
+    },
+    {
+      "code": "WORKFLOW_REVIEW_NOT_INDEPENDENT",
+      "entry_id": "WF-TASKS",
+      "gate": "workflows",
+      "message": "workflow review is not independent"
+    },
+    {
+      "code": "WORKFLOW_NOT_PASSING",
+      "entry_id": "WF-TASKS",
+      "gate": "workflows",
+      "message": "status=pending"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-TASKS",
+      "gate": "workflows",
+      "message": "performance workload is not passing: workflow.tasks"
+    },
+    {
+      "code": "WORKFLOW_EVIDENCE_MISSING",
+      "entry_id": "WF-WORKTREE-OWNERSHIP",
+      "gate": "workflows",
+      "message": "missing evidence categories: acceptance_tests, differential_tests, refusal_tests, interruption_tests, concurrency_tests, user_content_tests"
+    },
+    {
+      "code": "WORKFLOW_NOT_REVIEWED",
+      "entry_id": "WF-WORKTREE-OWNERSHIP",
+      "gate": "workflows",
+      "message": "review=none"
+    },
+    {
+      "code": "WORKFLOW_REVIEW_NOT_INDEPENDENT",
+      "entry_id": "WF-WORKTREE-OWNERSHIP",
+      "gate": "workflows",
+      "message": "workflow review is not independent"
+    },
+    {
+      "code": "WORKFLOW_NOT_PASSING",
+      "entry_id": "WF-WORKTREE-OWNERSHIP",
+      "gate": "workflows",
+      "message": "status=pending"
+    },
+    {
+      "code": "WORKFLOW_PERF_NOT_PASSING",
+      "entry_id": "WF-WORKTREE-OWNERSHIP",
+      "gate": "workflows",
+      "message": "performance workload is not passing: workflow.implement"
+    },
+    {
+      "code": "PERF_WORKLOAD_NOT_PASSING",
+      "entry_id": "glossary.activation",
+      "gate": "performance",
+      "message": "status=pending"
+    },
+    {
+      "code": "PERF_WORKLOAD_NOT_PASSING",
+      "entry_id": "governance.charter",
+      "gate": "performance",
+      "message": "status=pending"
+    },
+    {
+      "code": "PERF_WORKLOAD_NOT_PASSING",
+      "entry_id": "runtime.next.governed",
+      "gate": "performance",
+      "message": "status=pending"
+    },
+    {
+      "code": "PERF_WORKLOAD_NOT_PASSING",
+      "entry_id": "state.decision.resolve",
+      "gate": "performance",
+      "message": "status=pending"
+    },
+    {
+      "code": "PERF_WORKLOAD_NOT_PASSING",
+      "entry_id": "state.event-append",
+      "gate": "performance",
+      "message": "status=pending"
+    },
+    {
+      "code": "PERF_WORKLOAD_NOT_PASSING",
+      "entry_id": "state.move-task",
+      "gate": "performance",
+      "message": "status=pending"
+    },
+    {
+      "code": "PERF_WORKLOAD_NOT_PASSING",
+      "entry_id": "status.replay",
+      "gate": "performance",
+      "message": "status=pending"
+    },
+    {
+      "code": "PERF_WORKLOAD_NOT_PASSING",
+      "entry_id": "workflow.accept",
+      "gate": "performance",
+      "message": "status=pending"
+    },
+    {
+      "code": "PERF_WORKLOAD_NOT_PASSING",
+      "entry_id": "workflow.consolidate",
+      "gate": "performance",
+      "message": "status=pending"
+    },
+    {
+      "code": "PERF_WORKLOAD_NOT_PASSING",
+      "entry_id": "workflow.implement",
+      "gate": "performance",
+      "message": "status=pending"
+    },
+    {
+      "code": "PERF_WORKLOAD_NOT_PASSING",
+      "entry_id": "workflow.merge",
+      "gate": "performance",
+      "message": "status=pending"
+    },
+    {
+      "code": "PERF_WORKLOAD_NOT_PASSING",
+      "entry_id": "workflow.mission-create",
+      "gate": "performance",
+      "message": "status=pending"
+    },
+    {
+      "code": "PERF_WORKLOAD_NOT_PASSING",
+      "entry_id": "workflow.plan",
+      "gate": "performance",
+      "message": "status=pending"
+    },
+    {
+      "code": "PERF_WORKLOAD_NOT_PASSING",
+      "entry_id": "workflow.recovery",
+      "gate": "performance",
+      "message": "status=pending"
+    },
+    {
+      "code": "PERF_WORKLOAD_NOT_PASSING",
+      "entry_id": "workflow.review",
+      "gate": "performance",
+      "message": "status=pending"
+    },
+    {
+      "code": "PERF_WORKLOAD_NOT_PASSING",
+      "entry_id": "workflow.specify",
+      "gate": "performance",
+      "message": "status=pending"
+    },
+    {
+      "code": "PERF_WORKLOAD_NOT_PASSING",
+      "entry_id": "workflow.tasks",
+      "gate": "performance",
+      "message": "status=pending"
+    },
+    {
+      "code": "PERF_INSUFFICIENT_WORKLOADS",
+      "entry_id": null,
+      "gate": "performance",
+      "message": "0 strict workloads have samples; need 14"
+    },
+    {
+      "code": "PERF_NO_STRICT_SAMPLES",
+      "entry_id": null,
+      "gate": "performance",
+      "message": "no strict-equivalence gate workload has samples"
+    },
+    {
+      "code": "PERF_STARTUP_NOT_MEASURED",
+      "entry_id": null,
+      "gate": "performance",
+      "message": "startup status=pending"
+    },
+    {
+      "code": "PERF_STARTUP_NO_SAMPLES",
+      "entry_id": null,
+      "gate": "performance",
+      "message": "startup measurements are missing"
+    },
+    {
+      "code": "PERF_STARTUP_WORKLOAD",
+      "entry_id": null,
+      "gate": "performance",
+      "message": "startup workload not passing: startup.help"
+    },
+    {
+      "code": "PERF_STARTUP_WORKLOAD",
+      "entry_id": null,
+      "gate": "performance",
+      "message": "startup workload not passing: startup.version"
+    },
+    {
+      "code": "PERF_EVIDENCE_BUNDLE_MISSING",
+      "entry_id": null,
+      "gate": "performance",
+      "message": "no evidence bundle path/hash is recorded"
+    },
+    {
+      "code": "PERF_CANDIDATE_COMMIT",
+      "entry_id": null,
+      "gate": "performance",
+      "message": "candidate commit is not a 40-hex commit id"
+    },
+    {
+      "code": "PERF_STATUS_NOT_PASS",
+      "entry_id": null,
+      "gate": "performance",
+      "message": "performance status=pending"
+    }
+  ],
+  "gates": {
+    "accounting": true,
+    "contracts": true,
+    "dependencies": true,
+    "migrations": true,
+    "modules": true,
+    "native": true,
+    "performance": false,
+    "status": false,
+    "structure": true,
+    "surface": true,
+    "workflows": false
+  },
+  "schema_version": "1.0.0",
+  "summary": {
+    "entries_conformant": 0,
+    "entries_implemented": 2,
+    "entries_required": 488,
+    "entries_reviewed": 0,
+    "entries_total": 489,
+    "error_count": 598,
+    "gates": {
+      "accounting": true,
+      "contracts": true,
+      "dependencies": true,
+      "migrations": true,
+      "modules": true,
+      "native": true,
+      "performance": false,
+      "status": false,
+      "structure": true,
+      "surface": true,
+      "workflows": false
+    },
+    "ok": false,
+    "perf_status": "pending",
+    "warning_count": 0,
+    "workflows_passing": 0
+  },
+  "warnings": []
+}

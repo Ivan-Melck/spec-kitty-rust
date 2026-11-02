@@ -1,4 +1,4 @@
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use std::io::{self, Read};
 use std::path::Path;
 
@@ -25,6 +25,18 @@ pub fn read_bounded(path: &Path, max_bytes: u64) -> Result<Vec<u8>, KernelError>
     let file = options
         .open(path)
         .map_err(|source| KernelError::io("open", path, source))?;
+    read_open_file(file, path, max_bytes)
+}
+
+/// Read a bounded regular file from an already-open descriptor.
+///
+/// Shared by [`read_bounded`] and the no-follow reader so both enforce exactly
+/// the same regular-file, metadata-length, and `max_bytes + 1` policy.
+pub(crate) fn read_open_file(
+    file: File,
+    path: &Path,
+    max_bytes: u64,
+) -> Result<Vec<u8>, KernelError> {
     let metadata = file
         .metadata()
         .map_err(|source| KernelError::io("inspect", path, source))?;

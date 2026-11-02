@@ -1,0 +1,1362 @@
+[
+ {
+  "clone_local": false,
+  "content_hash": "sha256:444327276e5a6c33399fa7ce398cd486a58c75fe9ffb753638d70ee0897bba72",
+  "id": "4.0.0rc8_backfill_migration_ledger",
+  "identity": "4.0.0rc8_backfill_migration_ledger",
+  "module": "m_4_0_0rc8_backfill_migration_ledger",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc8"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:d00072bb3ce595f7702cfa3aeac2348a00fdde41e14fc68819f6d2ccd0cbb1f0",
+  "id": "3.2.0rc35_charter_bundle_v2",
+  "identity": "3.2.0rc35_charter_bundle_v2",
+  "module": "m_3_2_0rc35_charter_bundle_v2",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc35"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:65da8b317001254039d0706b3d9ea1e6adb89367f5d2f665c447ec96d6dbe147",
+  "id": "charter_pack_cutover",
+  "identity": "charter_pack_cutover",
+  "module": "m_4_0_0rc6_charter_pack_cutover",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc6"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:67ac266bc01c8038a12c5e9ab842ffdf2abb79d0266d98c1895c2c4faf42eb60",
+  "id": "0.2.0_specify_to_kittify",
+  "identity": "0.2.0_specify_to_kittify",
+  "module": "m_0_2_0_specify_to_kittify",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.2.0"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:5291497deacfe23d368e61b3783c6455771fd04c6e9e52e27bf6ffc9131a25e4",
+  "id": "0.4.8_gitignore_agents",
+  "identity": "0.4.8_gitignore_agents",
+  "module": "m_0_4_8_gitignore_agents",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.4.8"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:260e8fbb657fb9d092bfdf3f3cb5526abc7e61b3bda3888abbdbcf609554065b",
+  "id": "0.6.5_commands_rename",
+  "identity": "0.6.5_commands_rename",
+  "module": "m_0_6_5_commands_rename",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.6.5"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:788473d325269d90c7c017b03bc94ebc8769cbdf339833c2b81d059d3743c408",
+  "id": "0.6.7_ensure_missions",
+  "identity": "0.6.7_ensure_missions",
+  "module": "m_0_6_7_ensure_missions",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.6.7"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:e6570b3fb4c6ac2f483365b4eca2b86f1cb1895113e340670d0e33f2eed6d61e",
+  "id": "0.7.2_worktree_commands_dedup",
+  "identity": "0.7.2_worktree_commands_dedup",
+  "module": "m_0_7_2_worktree_commands_dedup",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.7.2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:65720f9fc6eb5686c833c31bc14b770a572e06264417e29b092af7ce1557ccb8",
+  "id": "0.7.3_update_scripts",
+  "identity": "0.7.3_update_scripts",
+  "module": "m_0_7_3_update_scripts",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.7.3"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:b3170b65b2d929a0f5b4e2aca553708292c76f4853e3e2019ed80c16c66b3ae0",
+  "id": "0.8.0_remove_active_mission",
+  "identity": "0.8.0_remove_active_mission",
+  "module": "m_0_8_0_remove_active_mission",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.8.0"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:1339d77c747e31b186101f387857a533d7f66671d18827f14143699380d519dd",
+  "id": "0.8.0_worktree_agents_symlink",
+  "identity": "0.8.0_worktree_agents_symlink",
+  "module": "m_0_8_0_worktree_agents_symlink",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.8.0"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:043c9c369ee087889f250b3e018e1fbbd101dfedf22d8d34760d627c9c5b4611",
+  "id": "0.9.0_frontmatter_only_lanes",
+  "identity": "0.9.0_frontmatter_only_lanes",
+  "module": "m_0_9_0_frontmatter_only_lanes",
+  "requires_git_repository": false,
+  "superseded_by": "Superseded by 0.9.0_residue_safe_frontmatter_only_lanes",
+  "target_version": "0.9.0"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:ed6e3f829a1f9c707c86f6fd377db87c91e38a670e96e12683be1767b440d133",
+  "id": "0.9.0_residue_safe_frontmatter_only_lanes",
+  "identity": "0.9.0_residue_safe_frontmatter_only_lanes",
+  "module": "m_0_9_0_residue_safe_frontmatter_only_lanes",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.9.0"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:123d5bc63e04d88146c72ff27816e97f18686aeff00fd18e5d64a745285399a0",
+  "id": "0.9.1_complete_migration",
+  "identity": "0.9.1_complete_migration",
+  "module": "m_0_9_1_complete_lane_migration",
+  "requires_git_repository": false,
+  "superseded_by": "Superseded by 0.9.1_residue_safe_complete_migration",
+  "target_version": "0.9.1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:62b522f1610ecc10a53d49d173c0259427850fad0c0659c8efade0dada193811",
+  "id": "0.9.1_residue_safe_complete_migration",
+  "identity": "0.9.1_residue_safe_complete_migration",
+  "module": "m_0_9_1_residue_safe_complete_migration",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.9.1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:8bb42b380469c55474b915c0e98e7c51297d4b83d37f77f02afae1a7652f1119",
+  "id": "0.9.2_research_mission_templates",
+  "identity": "0.9.2_research_mission_templates",
+  "module": "m_0_9_2_research_mission_templates",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.9.2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:f0cdbd49e11c2a5f89bab6ff89f0120de7328c282e5287b04fab63ff904e296d",
+  "id": "0.10.0_python_only",
+  "identity": "0.10.0_python_only",
+  "module": "m_0_10_0_python_only",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.10.0"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:47e02e3a376316df9b40be901c446436759029420527183f28f6a172c7fa6fbb",
+  "id": "0.10.1_populate_slash_commands",
+  "identity": "0.10.1_populate_slash_commands",
+  "module": "m_0_10_1_populate_slash_commands",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.10.1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:75146007aeed846871d058b930fd584a3d2eb3801833a00d69abb0a1226815b8",
+  "id": "0.10.2_update_slash_commands",
+  "identity": "0.10.2_update_slash_commands",
+  "module": "m_0_10_2_update_slash_commands",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.10.2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:130c46ffc3165a219f6e6e3e19e1fa8d758a9186f59fbce6850d4a7c0f5f969c",
+  "id": "0.10.6_workflow_simplification",
+  "identity": "0.10.6_workflow_simplification",
+  "module": "m_0_10_6_workflow_simplification",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.10.6"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:5366d6b88aa74a973d43d41e3ca35b4301a183e6d039aff366e2af39a6b9cac7",
+  "id": "0.10.8_fix_memory_structure",
+  "identity": "0.10.8_fix_memory_structure",
+  "module": "m_0_10_8_fix_memory_structure",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.10.8"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:44db4a6964797bc3c5df1c73b93565ebc41029a1c69b409500a11cf1eced25d3",
+  "id": "0.10.9_repair_templates",
+  "identity": "0.10.9_repair_templates",
+  "module": "m_0_10_9_repair_templates",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.10.9"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:15f594646f68e5fb85f82ee780d9fe24286e5b109da812b3ab13abd077be8a6b",
+  "id": "0.10.12_charter_cleanup",
+  "identity": "0.10.12_charter_cleanup",
+  "module": "m_0_10_12_charter_cleanup",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.10.12"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:7a7e9aafae7467b24913df4aa3d4ab76ee6753bf72985f02ca6a2f4fdb4b71e8",
+  "id": "0.10.14_update_implement_slash_command",
+  "identity": "0.10.14_update_implement_slash_command",
+  "module": "m_0_10_14_update_implement_slash_command",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.10.14"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:9c05bad4c511dac56b659199a8fce1b36eac56de2deb583074603c0b3a1481a3",
+  "id": "0.11.1_improved_workflow_templates",
+  "identity": "0.11.1_improved_workflow_templates",
+  "module": "m_0_11_1_improved_workflow_templates",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.11.1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:1f52c4cb87857c8b4d6a805df040d8e85ce135131aec7674541792895fc536b0",
+  "id": "0.11.1_update_implement_slash_command",
+  "identity": "0.11.1_update_implement_slash_command",
+  "module": "m_0_11_1_update_implement_slash_command",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.11.1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:9722689b6fe6eb9c16718864e64f4464e02eb2291e4a6d9f3a1734076d122acc",
+  "id": "0.11.2_improved_workflow_templates",
+  "identity": "0.11.2_improved_workflow_templates",
+  "module": "m_0_11_2_improved_workflow_templates",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.11.2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:27c87dad24181c15b2cca92a86cb55341d12cf5d36d691c86ba33e3aac69280c",
+  "id": "0.11.3_workflow_agent_flag",
+  "identity": "0.11.3_workflow_agent_flag",
+  "module": "m_0_11_3_workflow_agent_flag",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.11.3"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:444f9dcec5402f7c48aa93e4f3fee6737260a0979d0b49811b137898e3f5f026",
+  "id": "0.12.0_documentation_mission",
+  "identity": "0.12.0_documentation_mission",
+  "module": "m_0_12_0_documentation_mission",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.12.0"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:fffd335d655e2199e8abeb6a7c301ace82466c9523f77f1fa4ec7da7b0de7ce7",
+  "id": "0.12.1_remove_kitty_specs_from_gitignore",
+  "identity": "0.12.1_remove_kitty_specs_from_gitignore",
+  "module": "m_0_12_1_remove_kitty_specs_from_gitignore",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.12.1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:6730768c3b69521b444d3cf37b5cbe67ebf89dddd6bdb9e9bcb19c7e1bc403f9",
+  "id": "0.13.0_research_csv_schema_check",
+  "identity": "0.13.0_research_csv_schema_check",
+  "module": "m_0_13_0_research_csv_schema_check",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.13.0"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:9a891d4e2f84ec47ac45892786ccd0e461df1d250e3e06bea3bdc9b501fcde42",
+  "id": "0.13.0_update_charter_templates",
+  "identity": "0.13.0_update_charter_templates",
+  "module": "m_0_13_0_update_charter_templates",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.13.0"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:c056485dc092f295df476263bb8bed6a25989af71700df8fc501be60a9c08947",
+  "id": "0.13.0_update_research_implement_templates",
+  "identity": "0.13.0_update_research_implement_templates",
+  "module": "m_0_13_0_update_research_implement_templates",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.13.0"
+ },
+ {
+  "clone_local": true,
+  "content_hash": "sha256:860f05071361cbc649dd8aefeda0464ce966df932b0a7a302a7fe45206f15525",
+  "id": "0.13.1_exclude_worktrees",
+  "identity": "0.13.1_exclude_worktrees",
+  "module": "m_0_13_1_exclude_worktrees",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.13.1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:baca0c9f07369904c7312938b8d2ca4f558d1afbe57dec0800b3489425ad51a3",
+  "id": "0.13.5_add_commit_workflow_to_templates",
+  "identity": "0.13.5_add_commit_workflow_to_templates",
+  "module": "m_0_13_5_add_commit_workflow_to_templates",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.13.5"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:c3119cced71a9af299a6fbd4ae5629d9c0c58353db376b415b103a7972c872b3",
+  "id": "0.13.8_target_branch",
+  "identity": "0.13.8_target_branch",
+  "module": "m_0_13_8_target_branch",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.13.8"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:023f6502386606764f749e4df30ede9739a54a6c0b3395eba3fbbaffd27ebece",
+  "id": "0.14.0_centralized_feature_detection",
+  "identity": "0.14.0_centralized_feature_detection",
+  "module": "m_0_14_0_centralized_feature_detection",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "0.14.0"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:1ca6e9bb05299f994ad6e3a14a723e5bf01bfc79063dedeb7ef8bf0816ef04df",
+  "id": "2.0.0a5_remove_wp_status_gitignore_rule",
+  "identity": "2.0.0a5_remove_wp_status_gitignore_rule",
+  "module": "m_0_16_2_remove_wp_status_gitignore_rule",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.0.0a5"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:00e62fede9aa6f9231061745e70a51a595236d316601a9199a32240d3f076a9e",
+  "id": "2.0.0_charter_directory",
+  "identity": "2.0.0_charter_directory",
+  "module": "m_2_0_0_charter_directory",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.0.0"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:4c465136c541563faccbbb5160ad7a5c418d3284aa9a818428e1a6baffa01d3d",
+  "id": "2.0.0_historical_status_migration",
+  "identity": "2.0.0_historical_status_migration",
+  "module": "m_2_0_0_historical_status_migration",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.0.0"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:bcbca84c0913ac6c6593b6ab4133911890cf9c20a51538d934ad3b220cd1ac64",
+  "id": "2.0.0_retire_git_hooks",
+  "identity": "2.0.0_retire_git_hooks",
+  "module": "m_2_0_0_retire_git_hooks",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.0.0"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:98b0e88e5141f53d432f31db0bb76f415666e9573980c83a8d332ed438beb107",
+  "id": "2.0.1_fix_generated_command_templates",
+  "identity": "2.0.1_fix_generated_command_templates",
+  "module": "m_2_0_1_fix_generated_command_templates",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.0.1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:895f17f373aa18ff027913f5e4ae1971eb3ec5c912038b181ed16e086b5da37c",
+  "id": "2.0.1_tool_config_key_rename",
+  "identity": "2.0.1_tool_config_key_rename",
+  "module": "m_2_0_1_tool_config_key_rename",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.0.1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:e90af6cc579efac5e23286bcd8663a4d70bbfbacf6c3f950ce27f44ba7d55b2e",
+  "id": "2.0.2_charter_context_bootstrap",
+  "identity": "2.0.2_charter_context_bootstrap",
+  "module": "m_2_0_2_charter_context_bootstrap",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.0.2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:c0e984672ad674ff7b6ec9abe262e36a438f8b63b0f61a66950537715473cd37",
+  "id": "2.0.6_consistency_sweep",
+  "identity": "2.0.6_consistency_sweep",
+  "module": "m_2_0_6_consistency_sweep",
+  "requires_git_repository": false,
+  "superseded_by": "Superseded by 2.0.6_residue_safe_consistency_sweep",
+  "target_version": "2.0.6"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:0f98b0392f17031c1ec977855fbe233542a4b08704a611b37f6924cd1f1811af",
+  "id": "2.0.6_residue_safe_consistency_sweep",
+  "identity": "2.0.6_residue_safe_consistency_sweep",
+  "module": "m_2_0_6_residue_safe_consistency_sweep",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.0.6"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:71f963a350c9cce95e553ba38d4c5c8485c2fefe749fbf88b610d977a2a7c521",
+  "id": "2.0.7_fix_stale_overrides",
+  "identity": "2.0.7_fix_stale_overrides",
+  "module": "m_2_0_7_fix_stale_overrides",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.0.7"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:cf48ceccf3836f7349339c2ab9e08bd7f7199e991e53e293266d5b5f222dd9bc",
+  "id": "2.0.9_state_gitignore",
+  "identity": "2.0.9_state_gitignore",
+  "module": "m_2_0_9_state_gitignore",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.0.9"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:ad05c0005fe55072641a50da51bbea517e2dab5e5235232b82e9e91c17b1e3df",
+  "id": "2.0.11_install_skills",
+  "identity": "2.0.11_install_skills",
+  "module": "m_2_0_11_install_skills",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.0.11"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:acefc9828bf702662cee7b6d54847f18c20cf3aeeac325b5b25a88cdb2e83f9e",
+  "id": "2.0.11_remove_clarify_command",
+  "identity": "2.0.11_remove_clarify_command",
+  "module": "m_2_0_11_remove_clarify_command",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.0.11"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:e5f119e8fd9acf92464974886bebf42fe552d00c87c4e823ece9436c8c561287",
+  "id": "2.1.1_repair_skill_pack",
+  "identity": "2.1.1_repair_skill_pack",
+  "module": "m_2_1_1_repair_skill_pack",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.1.1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:c1f66a383e7228293cbe430929365e45e8716a500f7922e5356a5c192db88f33",
+  "id": "2.1.2_fix_charter_doctrine_skill",
+  "identity": "2.1.2_fix_charter_doctrine_skill",
+  "module": "m_2_1_2_fix_charter_doctrine_skill",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.1.2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:5e3c37bd5eaf94fa65c8be1f94b9f66d9723b54aacb1884f25747dca4f527062",
+  "id": "2.1.2_fix_glossary_context_skill",
+  "identity": "2.1.2_fix_glossary_context_skill",
+  "module": "m_2_1_2_fix_glossary_context_skill",
+  "requires_git_repository": false,
+  "superseded_by": "Superseded by the charter-pack cutover",
+  "target_version": "2.1.2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:2f84c2e34a8951f17ecafc79fa45faeba627ddccb5af3c2a64ebc326e0f6b0ea",
+  "id": "2.1.2_fix_orchestrator_api_skill",
+  "identity": "2.1.2_fix_orchestrator_api_skill",
+  "module": "m_2_1_2_fix_orchestrator_api_skill",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.1.2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:9e51d593078c8b10f21e66db272dd2ec389ef3d5e1c4fa15b61ee9594993320c",
+  "id": "2.1.2_fix_runtime_next_skill",
+  "identity": "2.1.2_fix_runtime_next_skill",
+  "module": "m_2_1_2_fix_runtime_next_skill",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.1.2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:7fe661fa192ed114b51e4a04e3af698b6e803a424059c9ac49b7ac0a170c4dd4",
+  "id": "2.1.2_install_git_workflow_skill",
+  "identity": "2.1.2_install_git_workflow_skill",
+  "module": "m_2_1_2_install_git_workflow_skill",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.1.2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:ad1d4bf43296dd6d507595c0d0f03d78b80c91656dc39e03eece5ae29931f467",
+  "id": "2.1.2_install_mission_system_skill",
+  "identity": "2.1.2_install_mission_system_skill",
+  "module": "m_2_1_2_install_mission_system_skill",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.1.2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:9da49a3f1c916090a22be6fc6862fbd0a86b92257228f26d354dde84ec221cc9",
+  "id": "2.1.2_remove_release_skill",
+  "identity": "2.1.2_remove_release_skill",
+  "module": "m_2_1_2_remove_release_skill",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.1.2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:ae0980b34878ebde13cd0164c542d0932979b690e5c409a64d10b0959a14a708",
+  "id": "2.1.3_fix_planning_repository_terminology",
+  "identity": "2.1.3_fix_planning_repository_terminology",
+  "module": "m_2_1_3_fix_planning_repository_terminology",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.1.3"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:a906644657d48d3ede5c3aa6f480c20167d96b83775c5682108ee1fedb051c74",
+  "id": "2.1.3_restore_prompt_commands",
+  "identity": "2.1.3_restore_prompt_commands",
+  "module": "m_2_1_3_restore_prompt_commands",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.1.3"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:f16bdc4ac172eb9cbe02f393e06ac0ae340e6e1f55deb2023115b28a9e7467da",
+  "id": "2.1.4_enforce_command_file_state",
+  "identity": "2.1.4_enforce_command_file_state",
+  "module": "m_2_1_4_enforce_command_file_state",
+  "requires_git_repository": false,
+  "superseded_by": "Superseded by 3.2.0a4_safe_globalize_commands",
+  "target_version": "2.1.4"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:aee2c4ed48b75a75026caa44eec8811ab8bda89ed149813e18483e8b9fdfece3",
+  "id": "2.2.0_profile_context_deployment",
+  "identity": "2.2.0_profile_context_deployment",
+  "module": "m_2_2_0_profile_context_deployment",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "2.2.0"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:0f9426e289e77c200ae2ce8224e7199e110b3c5c6a8978b3dcdd47b898b5c2fb",
+  "id": "3.0.0_canonical_context",
+  "identity": "3.0.0_canonical_context",
+  "module": "m_3_0_0_canonical_context",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.0.0"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:a06f5c3a735b57630209915a66e94620790ef3b1e2ad7041597dd4b34c8fe928",
+  "id": "3.0.2_restore_prompt_commands",
+  "identity": "3.0.2_restore_prompt_commands",
+  "module": "m_3_0_2_restore_prompt_commands",
+  "requires_git_repository": false,
+  "superseded_by": "Superseded by 3.2.0a4_safe_globalize_commands",
+  "target_version": "3.0.2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:70e29e60262597211be9254526784244d9e0d373b7017a893b1f12d1ae1e469b",
+  "id": "3.0.3_globalize_skill_pack",
+  "identity": "3.0.3_globalize_skill_pack",
+  "module": "m_3_0_3_globalize_skill_pack",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.0.3"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:fb153a5927f11cb0a6df385015b8d5e3676a1f2f80a110aa48aa521c1ad9b595",
+  "id": "3.1.1_charter_rename",
+  "identity": "3.1.1_charter_rename",
+  "module": "m_3_1_1_charter_rename",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.1.1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:e57518d187539bebd302ae8e1c7bf9c9d6c0a5c442bb8468096191f1ade9b15b",
+  "id": "3.1.1_direct_canonical_commands",
+  "identity": "3.1.1_direct_canonical_commands",
+  "module": "m_3_1_1_direct_canonical_commands",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.1.1"
+ },
+ {
+  "clone_local": true,
+  "content_hash": "sha256:f44f4ef13ea20803d0ddd737bd82d66b8531ee571ac25a60596d4915450ba3b3",
+  "id": "3.1.1_event_log_merge_driver",
+  "identity": "3.1.1_event_log_merge_driver",
+  "module": "m_3_1_1_event_log_merge_driver",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.1.1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:b2db5229ca9a9bb99f572c7d89fbea47609813e8962a0c398a99a67900a62697",
+  "id": "3.1.1_normalize_status_json",
+  "identity": "3.1.1_normalize_status_json",
+  "module": "m_3_1_1_normalize_status_json",
+  "requires_git_repository": false,
+  "superseded_by": "Superseded by 3.1.1_residue_safe_normalize_status_json",
+  "target_version": "3.1.1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:fd20671ee65e9fef6837dcca2e866e7230975ba0bb23db2914f6a1d2a73787d5",
+  "id": "3.1.1_residue_safe_normalize_status_json",
+  "identity": "3.1.1_residue_safe_normalize_status_json",
+  "module": "m_3_1_1_residue_safe_normalize_status_json",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.1.1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:0fbaf9e365b3d5a4bedbab8ff706e5632a00790b9376163fb70ea35efc099b0c",
+  "id": "3.1.2_globalize_commands",
+  "identity": "3.1.2_globalize_commands",
+  "module": "m_3_1_2_globalize_commands",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.1.2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:e5ff6d815185c8de6ec06e86bd80f78d1957ec7a20f573fb92e54db0d4b38501",
+  "id": "3.2.0a4_normalize_mission_lifecycle",
+  "identity": "3.2.0a4_normalize_mission_lifecycle",
+  "module": "m_3_2_0a4_normalize_mission_lifecycle",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0a4"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:2b4aab8604abc48d80ae5dbaad2def32bb73ad96b0be69b647259abe4cf7f52d",
+  "id": "3.2.0a4_safe_globalize_commands",
+  "identity": "3.2.0a4_safe_globalize_commands",
+  "module": "m_3_2_0a4_safe_globalize_commands",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0a4"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:70b4a6edc4fe5832a6c2df3196380f64aa1fa175a26d9703d73a56d682ffff42",
+  "id": "3.2.0rc28_github_diff_attributes",
+  "identity": "3.2.0rc28_github_diff_attributes",
+  "module": "m_3_2_0rc28_github_diff_attributes",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc28"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:dc994ed7d726ce968373ee3e9703093d02674b84f3e41a38398fa2da4fc36cf5",
+  "id": "3.2.0rc30_fix_runtime_next_result_default",
+  "identity": "3.2.0rc30_fix_runtime_next_result_default",
+  "module": "m_3_2_0rc30_fix_runtime_next_result_default",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc30"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:1f18d0ca6f01df4de1692b7a201e967c9f7b7d425e3ba95bfa3554400ec80320",
+  "id": "3.2.0rc35_activate_builtin_mission_types",
+  "identity": "3.2.0rc35_activate_builtin_mission_types",
+  "module": "m_3_2_0rc35_activate_builtin_mission_types",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc35"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:e9710707eaab653c5a5d6e1bf4c60666c54f7749b4c12936b7c4987102890088",
+  "id": "3.2.0rc35_charter_manifest_defaults_repair",
+  "identity": "3.2.0rc35_charter_manifest_defaults_repair",
+  "module": "m_3_2_0rc35_charter_manifest_defaults_repair",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc35"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:4ca060cb877228457f44c51b93ad34be3271bc1458d296700d52c5fae2015cfb",
+  "id": "3.2.0rc35_codex_to_skills",
+  "identity": "3.2.0rc35_codex_to_skills",
+  "module": "m_3_2_0rc35_codex_to_skills",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc35"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:fc4a2845a7681a5dfc9c11970e5db4537e9ce23f927c5097f0297eeb9cd691c4",
+  "id": "3.2.0rc35_default_charter_pack",
+  "identity": "3.2.0rc35_default_charter_pack",
+  "module": "m_3_2_0rc35_default_charter_pack",
+  "requires_git_repository": false,
+  "superseded_by": "Superseded by the charter-pack cutover",
+  "target_version": "3.2.0rc35"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:e4101e74cfa1d9be3f4bdd226455d93eff43a097d988e9e3e32a147bf2cd6265",
+  "id": "3.2.0rc35_fix_prompt_file_workaround",
+  "identity": "3.2.0rc35_fix_prompt_file_workaround",
+  "module": "m_3_2_0rc35_fix_prompt_file_workaround",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc35"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:0e0fb7849eb55e7b6f97e43eff9d90beb20b3e21ed2e11a1a73874f0422a2271",
+  "id": "3.2.0rc35_kittify_profile_handoff",
+  "identity": "3.2.0rc35_kittify_profile_handoff",
+  "module": "m_3_2_0rc35_kittify_profile_handoff",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc35"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:41b45af52a71af00d13c71750c19964371f0b007a85f69dbebc4cf0d8682617d",
+  "id": "3.2.0rc35_pi_letta_agent_backfill",
+  "identity": "3.2.0rc35_pi_letta_agent_backfill",
+  "module": "m_3_2_0rc35_pi_letta_backfill",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc35"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:e1d81f194dd1c50ac4137bd1191f604e628ecc7888499825c6b739cdefee00bf",
+  "id": "3.2.0rc35_repository_root_checkout_terminology",
+  "identity": "3.2.0rc35_repository_root_checkout_terminology",
+  "module": "m_3_2_0rc35_repository_root_checkout_terminology",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc35"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:60fadaa4a32e0ad1b142a10b3bcab5d4a06cf0af60eee67c7ad87f4af7ef2765",
+  "id": "3.2.0rc35_spk_skill_pack",
+  "identity": "3.2.0rc35_spk_skill_pack",
+  "module": "m_3_2_0rc35_spk_skill_pack",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc35"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:806ff809cf385e48fe3331771d73e7d27c64ed11a180a773f61f06e793456492",
+  "id": "3.2.0rc35_strip_selection_config",
+  "identity": "3.2.0rc35_strip_selection_config",
+  "module": "m_3_2_0rc35_strip_selection_config",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc35"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:66a51453bbf177c423a05f6879db0ecaa78f36605b3ef08f36ea4e9a57988a6d",
+  "id": "3.2.0rc35_kittify_runtime_git_hygiene",
+  "identity": "3.2.0rc35_kittify_runtime_git_hygiene",
+  "module": "m_3_2_0rc35_sync_state_gitignore",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc35"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:e3f44dad401802d4c61b2a973b4d9906a7066ca3845741ec99e8ebd57f1e151d",
+  "id": "3.2.0rc35_unified_bundle",
+  "identity": "3.2.0rc35_unified_bundle",
+  "module": "m_3_2_0rc35_unified_bundle",
+  "requires_git_repository": true,
+  "superseded_by": "",
+  "target_version": "3.2.0rc35"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:3d5282f7be8a0501c0203d893f353ce834a10841a1552b7530d986efcf2d29c3",
+  "id": "3.2.0rc35_update_planning_templates",
+  "identity": "3.2.0rc35_update_planning_templates",
+  "module": "m_3_2_0rc35_update_planning_templates",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc35"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:e3ee856238c61d3828607fc1a846c6560fc908d275e83d4811535bfc88c05ef8",
+  "id": "3_2_0rc39_refresh_orientation_block",
+  "identity": "3_2_0rc39_refresh_orientation_block",
+  "module": "m_3_2_0rc39_refresh_orientation_block",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc39"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:a101debc839a4e25fc330f5dd47cc8f2c7b44a701cfbdf8600859ae3eebdcd9f",
+  "id": "3_3_0_session_presence_all_harnesses",
+  "identity": "3_3_0_session_presence_all_harnesses",
+  "module": "m_3_3_0_session_presence_all_harnesses",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc39"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:0215f84c19c9bf0cc45c9afefd58f41da8ed8fe7ded79f13988316751002f391",
+  "id": "3_3_0_session_presence_claude_code",
+  "identity": "3_3_0_session_presence_claude_code",
+  "module": "m_3_3_0_session_presence_claude_code",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc39"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:f75479076a31e1d616cdf7fd20e978368ea60602d5a75022d8b62b9f86578555",
+  "id": "3_3_0_op_record_schema_v2",
+  "identity": "3_3_0_op_record_schema_v2",
+  "module": "m_3_3_0_op_record_schema_v2",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc41"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:72f4fbd798e6c62e21bc922712a02ccd5765a9c42e96b53aa653cd3bea9dcbb7",
+  "id": "3.2.0rc43_retire_profile_context_command",
+  "identity": "3.2.0rc43_retire_profile_context_command",
+  "module": "m_3_2_0rc43_retire_profile_context_command",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc43"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:10f2d4d4a7887dd92bd975c897917341b8436366d6fd05b4036d7c9c30e00474",
+  "id": "0_9_3_surface_repair_wiring",
+  "identity": "0_9_3_surface_repair_wiring",
+  "module": "m_0_9_3_surface_repair_wiring",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc44"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:a017d87a543cefe198328a28977590276680c36466764cdea4d8c5cfaa0a5f74",
+  "id": "0_9_4_roo_deprecation",
+  "identity": "0_9_4_roo_deprecation",
+  "module": "m_0_9_4_roo_deprecation",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc44"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:7558060f095b115a1e980e91a15a494c7c9e57947ba10cffd6072e638f3574fc",
+  "id": "3.2.0rc45_retire_standalone_skill_surface",
+  "identity": "3.2.0rc45_retire_standalone_skill_surface",
+  "module": "m_3_2_0rc45_retire_standalone_skill_surface",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.0rc45"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:6dc324d2228ea2c0f6f2f5988d221a1a49269b016d677973312c52686c12414c",
+  "id": "3.2.3_encoding_provenance_gitignore_backfill",
+  "identity": "3.2.3_encoding_provenance_gitignore_backfill",
+  "module": "m_3_2_3_encoding_provenance_gitignore_backfill",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.3"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:bca1ed49e41fe175609bb520f77d40a87720cd0d40c5d6aa33c448b05c3d6c73",
+  "id": "3.2.4_derived_mission_views_gitignore_backfill",
+  "identity": "3.2.4_derived_mission_views_gitignore_backfill",
+  "module": "m_3_2_4_derived_views_gitignore_backfill",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.4"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:911b9fc1db7eab1c54587a97fdb20bc77267c83a7424bba1b692742ea366e17e",
+  "id": "3.2.4_runtime_dirs_gitignore_backfill",
+  "identity": "3.2.4_runtime_dirs_gitignore_backfill",
+  "module": "m_3_2_4_runtime_dirs_gitignore_backfill",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.4"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:bf4ba79eae8dd91b6b5343792ccd522064bdb38c7bab830a6a98f997c6bbb9d7",
+  "id": "3.2.5_agents_skills_gitignore_backfill",
+  "identity": "3.2.5_agents_skills_gitignore_backfill",
+  "module": "m_3_2_5_agents_skills_gitignore_backfill",
+  "requires_git_repository": false,
+  "superseded_by": "Superseded by 4.0.0rc8_narrow_agent_gitignore",
+  "target_version": "3.2.5"
+ },
+ {
+  "clone_local": true,
+  "content_hash": "sha256:409837e08a83e6e32c11d3ec4cde3a2c62c176399bf748dbbb52fe0fcbadd8a8",
+  "id": "3.2.6_decisions_event_log_merge_driver",
+  "identity": "3.2.6_decisions_event_log_merge_driver",
+  "module": "m_3_2_6_decisions_event_log_merge_driver",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.6rc1"
+ },
+ {
+  "clone_local": true,
+  "content_hash": "sha256:8e774ea4bcdcfdb25f73ca3a1b7477ec81766c87430449aaa6ed55316bf895ae",
+  "id": "3.2.6_gate_artifact_merge_drivers",
+  "identity": "3.2.6_gate_artifact_merge_drivers",
+  "module": "m_3_2_6_gate_artifact_merge_drivers",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.6rc1"
+ },
+ {
+  "clone_local": true,
+  "content_hash": "sha256:c6d8b9f0f5fa80ded1c808effd2250638ffe5aca15f8e83af6a6c2b18357bd78",
+  "id": "3.2.6_issue_matrix_driver_repoint",
+  "identity": "3.2.6_issue_matrix_driver_repoint",
+  "module": "m_3_2_6_issue_matrix_driver_repoint",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.6rc1"
+ },
+ {
+  "clone_local": true,
+  "content_hash": "sha256:a59654d285b2cc80f65f346257f0b8ccf768d4dba79171728bab123c246b4f0d",
+  "id": "3.2.6_meta_traces_merge_drivers",
+  "identity": "3.2.6_meta_traces_merge_drivers",
+  "module": "m_3_2_6_meta_traces_merge_drivers",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.6rc1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:e72da98f4f92c59f681adaa25414a42778dfa75ccc616230147ef047e3d28cc8",
+  "id": "3.2.6_retire_rtk_search_tooling",
+  "identity": "3.2.6_retire_rtk_search_tooling",
+  "module": "m_3_2_6_retire_rtk_search_tooling",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.6rc1"
+ },
+ {
+  "clone_local": true,
+  "content_hash": "sha256:d59d51061ca73ff9d9027c3c18b76ac5bddbc5ed49c0bfee991de8a3f18e6a0f",
+  "id": "3.2.7_review_cycle_merge_driver",
+  "identity": "3.2.7_review_cycle_merge_driver",
+  "module": "m_3_2_7_review_cycle_merge_driver",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.6rc1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:f3944e9953f8832cdc739b98c0ef8d89b13afa46c18a4485cbce63d88ed36d1c",
+  "id": "normalize_activation_absence",
+  "identity": "normalize_activation_absence",
+  "module": "m_3_2_x_normalize_activation_absence",
+  "requires_git_repository": false,
+  "superseded_by": "Superseded by the charter-pack cutover",
+  "target_version": "3.2.6rc1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:4dd7469c499fea12649684c67956305c79da1f823a3d8d4ac1e89245f3a13660",
+  "id": "unify_charter_activation_promote_answers",
+  "identity": "unify_charter_activation_promote_answers",
+  "module": "m_unify_charter_activation",
+  "requires_git_repository": false,
+  "superseded_by": "Superseded by 4.0.0rc8_promote_interview_selections",
+  "target_version": "3.2.6rc1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:6039ccc699e0e8cb731877602e990453e20359f2282f9a62616521125b21b482",
+  "id": "consolidate_charter_bundle_fold",
+  "identity": "consolidate_charter_bundle_fold",
+  "module": "m_unify_charter_activation_finalize",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.6rc1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:6d77a19f231d554f74186a5bcafc2b5edfd168430f1168dc84d651ecc33e4d99",
+  "id": "runtime_state_backfill",
+  "identity": "runtime_state_backfill",
+  "module": "m_zz_runtime_state_backfill",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.6rc1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:54ae4b2e1eac117224d448ae52ef60a00e20ce24ac368a583f5eefe7e2e1c1a6",
+  "id": "verdict_provenance_backfill",
+  "identity": "verdict_provenance_backfill",
+  "module": "m_zz_verdict_provenance_backfill",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.6rc1"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:e22fa69d65c455f5db2af56a05f7da80491a786cff4ddadbe58b236fe0bb6dbd",
+  "id": "3.2.7_heal_provenance_paths",
+  "identity": "3.2.7_heal_provenance_paths",
+  "module": "m_3_2_7_heal_provenance_paths",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.6rc2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:cf7f9b24151ed6740dcdeabd2e986a1ac04f630312998b8d2f66968438c8e3cc",
+  "id": "3.2.8_provision_kitty_env",
+  "identity": "3.2.8_provision_kitty_env",
+  "module": "m_3_2_8_provision_kitty_env",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.6rc2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:7c464fe8919a2485b5505a02a11d3614ed75b285c23c930bfaf806e746c34546",
+  "id": "migrate_lifecycle_envelope",
+  "identity": "migrate_lifecycle_envelope",
+  "module": "m_3_2_9_migrate_lifecycle_envelope",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.6rc2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:563e9f76cf437c59c2485ff040c4922db5dd373b05e12bfe9eccc5c1fc46d49b",
+  "id": "3_3_1_context_sources_consolidation",
+  "identity": "3_3_1_context_sources_consolidation",
+  "module": "m_3_3_1_context_sources_consolidation",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.6rc2"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:e20ea754577910393d3d92727d98c215b8d2204484cae1d29133c74c38868c0c",
+  "id": "3.2.6rc3_lint_report_gitignore_backfill",
+  "identity": "3.2.6rc3_lint_report_gitignore_backfill",
+  "module": "m_3_2_6rc3_lint_report_gitignore_backfill",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.6rc3"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:8c22f1d8fc4e5e45d3105a1ac1bdaef45140681f52af5128d1c9dbbf5f59046a",
+  "id": "3.2.6rc3_narrow_cursor_gitignore",
+  "identity": "3.2.6rc3_narrow_cursor_gitignore",
+  "module": "m_3_2_6rc3_narrow_cursor_gitignore",
+  "requires_git_repository": false,
+  "superseded_by": "Superseded by 4.0.0rc8_narrow_agent_gitignore",
+  "target_version": "3.2.6rc3"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:0e86af5c8f8d49305fac3d39a3dacb3449ee91a5524a02565cc90c4ac4a89911",
+  "id": "3.2.6rc3_worktrees_gitignore_backfill",
+  "identity": "3.2.6rc3_worktrees_gitignore_backfill",
+  "module": "m_3_2_6rc3_worktrees_gitignore_backfill",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "3.2.6rc3"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:f90bb838b3ee96914235e5266b230ebcce3d665ce041805dc098292dc5b1a804",
+  "id": "4_0_0_retired_hosted_target",
+  "identity": "4_0_0_retired_hosted_target",
+  "module": "m_4_0_0_retired_hosted_target",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc1"
+ },
+ {
+  "clone_local": true,
+  "content_hash": "sha256:a60aadfcf08b50b534c1dab7dfcf57e8bc395fda9af20f5c5b16f46183501015",
+  "id": "4.0.0rc5_decision_index_merge_driver",
+  "identity": "4.0.0rc5_decision_index_merge_driver",
+  "module": "m_4_0_0rc5_decision_index_merge_driver",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc5"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:7a76afed707d2cff2049e68ec3e591943d627c18c52ca211b2b9fc86a9b2adec",
+  "id": "4_0_0rc5_heal_run_index_paths",
+  "identity": "4_0_0rc5_heal_run_index_paths",
+  "module": "m_4_0_0rc5_heal_run_index_paths",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc5"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:09bcc2a3b9503a96d5a0ef4bc4d9b0dfbe4c7eb5534f52e8679e111df88b0954",
+  "id": "4_0_0rc5_heal_template_set_provenance",
+  "identity": "4_0_0rc5_heal_template_set_provenance",
+  "module": "m_4_0_0rc5_heal_template_set_provenance",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc5"
+ },
+ {
+  "clone_local": true,
+  "content_hash": "sha256:e63e09dbd887ebe0c1f9cf63a1d2df6a190658fff88d6ad8124b6aee00962353",
+  "id": "4_0_0rc5_install_lane_tip_recorder",
+  "identity": "4_0_0rc5_install_lane_tip_recorder",
+  "module": "m_4_0_0rc5_install_lane_tip_recorder",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc5"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:aec764fcc3c9383802b79aa3f3d2174cd8dc82c8afab89941be3d9f7fde74015",
+  "id": "4.0.0rc5_retire_bundled_dashboard",
+  "identity": "4.0.0rc5_retire_bundled_dashboard",
+  "module": "m_4_0_0rc5_retire_bundled_dashboard",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc5"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:3994405372443f4390279f8f3d0d16dfaf96bc946b090d08f0e6baac2617aeca",
+  "id": "4.0.0rc5_retire_single_owner_doctrine_ids",
+  "identity": "4.0.0rc5_retire_single_owner_doctrine_ids",
+  "module": "m_4_0_0rc5_retire_single_owner_doctrine_ids",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc5"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:1fd42a560a16a875268e71fefd5ec8956071ff2e0df56ced36245474ec16768c",
+  "id": "4_0_0rc5_single_branch_code_lanes_restamp",
+  "identity": "4_0_0rc5_single_branch_code_lanes_restamp",
+  "module": "m_4_0_0rc5_single_branch_code_lanes_restamp",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc5"
+ },
+ {
+  "clone_local": true,
+  "content_hash": "sha256:d5b0ae14fb0bb9d56ce0a642f15ad9ae06c46bf672b6c154b7577a675ddb50f6",
+  "id": "4.0.0rc7_exclude_spec_kitty",
+  "identity": "4.0.0rc7_exclude_spec_kitty",
+  "module": "m_4_0_0rc7_exclude_spec_kitty",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc7"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:c4e91dd32267f8850254a63aff6a742fb2d97825234185ef8414034036e7d6d4",
+  "id": "4.0.0rc7_pack_level_backfill",
+  "identity": "4.0.0rc7_pack_level_backfill",
+  "module": "m_4_0_0rc7_pack_level_backfill",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc7"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:a76adab1f64c80ec7610bb43754c327aa9c790294c0371c9fa7026b3c46b3d54",
+  "id": "4.0.0rc7_track_charter_pack_yaml",
+  "identity": "4.0.0rc7_track_charter_pack_yaml",
+  "module": "m_4_0_0rc7_track_charter_pack_yaml",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc7"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:5783b01b110ba258cd85910159ac62484ec030d7149d02f6feb69ba9b0773d7a",
+  "id": "4.0.0rc8_project_intent_directive_rename",
+  "identity": "4.0.0rc8_project_intent_directive_rename",
+  "module": "m_4_0_0rc8_project_intent_directive_rename",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc8"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:36ce2826ed111de4aec155f92edd97cfe32fe79acf7f65240d155634d66c3d07",
+  "id": "4.0.0rc8_activation_ledger",
+  "identity": "4.0.0rc8_activation_ledger",
+  "module": "m_4_0_0rc8_activation_ledger",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc8"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:991ac055c84e9c45c7c2004274276f1f535253f4a17dfa816d5a647eeeaa1e01",
+  "id": "4.0.0rc8_promote_interview_selections",
+  "identity": "4.0.0rc8_promote_interview_selections",
+  "module": "m_4_0_0rc8_promote_interview_selections",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc8"
+ },
+ {
+  "clone_local": true,
+  "content_hash": "sha256:67b42ed1536d99d7808d5fb051183445888155b030a21bc051e9e90f725b7b38",
+  "id": "4.0.0rc8_command_skill_hyphen_names",
+  "identity": "4.0.0rc8_command_skill_hyphen_names",
+  "module": "m_4_0_0rc8_command_skill_hyphen_names",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc8"
+ },
+ {
+  "clone_local": true,
+  "content_hash": "sha256:0d70e54eb5fcc37cd3119d42add075b28d429b0828bfaff9abe7e0ca53910267",
+  "id": "4.0.0rc8_retire_antigravity_workflows",
+  "identity": "4.0.0rc8_retire_antigravity_workflows",
+  "module": "m_4_0_0rc8_retire_antigravity_workflows",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc8"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:2a977ea2322ac95f3ee43658c980ec1590dc3cd410ec9c928bcf681547f0d32b",
+  "id": "4.0.0rc8_retire_stale_mission_template_forks",
+  "identity": "4.0.0rc8_retire_stale_mission_template_forks",
+  "module": "m_4_0_0rc8_retire_stale_mission_template_forks",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc8"
+ },
+ {
+  "clone_local": false,
+  "content_hash": "sha256:09d5777b2c705c4358da7744f73839434756283e3c2817754d3fd183ff7bd9b3",
+  "id": "4.0.0rc8_narrow_agent_gitignore",
+  "identity": "4.0.0rc8_narrow_agent_gitignore",
+  "module": "m_4_0_0rc8_narrow_agent_gitignore",
+  "requires_git_repository": false,
+  "superseded_by": "",
+  "target_version": "4.0.0rc8"
+ }
+]

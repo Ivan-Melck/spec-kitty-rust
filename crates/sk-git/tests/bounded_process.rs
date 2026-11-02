@@ -53,6 +53,38 @@ fn missing_git_program_is_a_typed_unavailable_error() {
     );
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn preexec_busy_is_retried_but_cannot_extend_the_invocation_deadline() {
+    let temp = tempfile::tempdir().unwrap();
+    let program = write_fake_git(temp.path(), &script("exit 3\n"));
+    let writer = fs::OpenOptions::new().write(true).open(&program).unwrap();
+    let options = GitOptions {
+        program: program.clone(),
+        timeout: Duration::from_millis(50),
+    };
+    let started = Instant::now();
+    let error = GitRepository::open_with_options(temp.path(), &options).unwrap_err();
+    assert!(
+        matches!(error, GitError::Spawn { ref source, .. } if source.kind() == std::io::ErrorKind::ExecutableFileBusy),
+        "{error:?}"
+    );
+    assert!(started.elapsed() >= Duration::from_millis(40));
+    assert!(started.elapsed() < Duration::from_secs(2));
+    drop(writer);
+    let options = GitOptions {
+        program,
+        timeout: Duration::from_secs(1),
+    };
+    assert!(matches!(
+        GitRepository::open_with_options(temp.path(), &options),
+        Err(GitError::CommandFailed {
+            status: Some(3),
+            ..
+        })
+    ));
+}
+
 #[test]
 fn non_zero_exit_is_a_command_failure_not_an_absent_answer() {
     let temp = tempfile::tempdir().unwrap();

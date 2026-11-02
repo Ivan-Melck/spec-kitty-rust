@@ -1,0 +1,18 @@
+{
+  "source_repository": "spec-kitty/spec-kitty",
+  "source_paths": [
+    "src/specify_cli/missions/research/templates/spec-template.md",
+    "src/specify_cli/missions/research/templates/plan-template.md",
+    "src/specify_cli/missions/research/templates/tasks-template.md",
+    "src/specify_cli/missions/research/templates/task-prompt-template.md"
+  ],
+  "mission_type": "research",
+  "notes": "Committed verbatim copies of the reference mission templates. Rust never ships or invents these contents; callers inject resolved canonical template bytes. The copies make the authoring tests reproducible without reading the repository or a pack cache.",
+  "sha256": {
+    "spec-template.md": "16c845b94c48c67506e0a729ac5608357e971cb4078476e6211b862ba8168eae",
+    "plan-template.md": "3c6bc2be02d879b3397e075a7d3770bcca23fcdf15e54cd77d08ae5176aec857",
+    "tasks-template.md": "237b0954d3a87bc7f073c9a0037f231a068cec7db3e493f08c19de3e84c5689a",
+    "task-prompt-template.md": "455a90e561f6020608395765f8bc851d4c7bff6350038efe0b549f5d953af9e6"
+  },
+  "baseline_commit": "9aed3a8012cb5eb22c0128b14d525039f95fea7a"
+}

@@ -1,9 +1,21 @@
-//! Read-only Mission inventory, work-package dependency planning, and
-//! dependency readiness for the Rust Spec Kitty implementation.
+//! Mission planning: inventory, dependency planning/readiness, typed creation,
+//! canonical-template authoring, and `tasks.md` finalization.
 //!
 //! # Scope and boundaries
 //!
-//! This crate inspects on-disk planning artifacts; it never mutates them.
+//! The read side inspects on-disk planning artifacts without rewriting user
+//! Markdown or YAML. The write side is deliberately narrow:
+//! [`MissionCreatePlan`] creates a Mission's planning scaffold,
+//! [`MissionArtifactPlan`] authors the remaining template-derived planning
+//! files, and [`DependencyFinalizePlan`] persists `tasks.md` dependency
+//! declarations into WP frontmatter. All three are plan → validate → commit,
+//! and every commit is failure-atomic.
+//!
+//! A committed plan is **not** an allocated or executable Mission. Lanes,
+//! branches, worktrees, commits, placement, ownership, and status-event writes
+//! are owned by other crates. [`MissionAllocationState::PlanningArtifactsOnly`]
+//! makes that boundary explicit in the creation receipt.
+//!
 //! [`list_missions`] reads `kitty-specs/*/meta.json` with a bounded kernel
 //! read, preserving every field (including extension fields) exactly as
 //! decoded. [`WorkPackage`] parses the YAML frontmatter of `WP*.md` prompt
@@ -18,9 +30,10 @@
 //! dependency with no entry ([`UnsatisfiedReason::MissingState`]) from one in a
 //! non-acceptable lane.
 //!
-//! Mission rooms, worktrees, lane placement, ownership, git, and status writes
-//! are out of scope. This crate makes no placement or ownership claim and
-//! never edits `meta.json`.
+//! Canonical spec/plan/tasks/work-package prose is never invented or vendored:
+//! callers inject [`CanonicalTemplate`]s resolved by the charter/template
+//! chain. The canonical `tasks/README.md` is the one rendered constant, pinned
+//! byte-for-byte by an oracle fixture.
 //!
 //! # Selection
 //!
@@ -30,29 +43,59 @@
 //!
 //! # Limits
 //!
-//! `meta.json` reads default to [`meta::DEFAULT_META_BYTE_LIMIT`] and
-//! work-package reads to [`work_package::DEFAULT_WORK_PACKAGE_BYTE_LIMIT`].
-//! Corrupt, oversized, symlinked, or duplicate-identity input fails closed.
+//! `meta.json` reads default to [`DEFAULT_META_BYTE_LIMIT`],
+//! work-package reads to [`DEFAULT_WORK_PACKAGE_BYTE_LIMIT`], and
+//! `tasks.md` reads to [`DEFAULT_TASKS_MD_BYTE_LIMIT`]. Corrupt,
+//! oversized, symlinked, duplicate-key, or duplicate-identity input fails
+//! closed.
 
+mod artifacts;
+mod create;
 mod error;
 mod frontmatter;
 mod graph;
 mod identity;
 mod meta;
 mod mission;
+mod paths;
 mod readiness;
+mod tasks;
+mod template;
 mod topology;
 mod work_package;
+mod yaml_patch;
 
+pub use artifacts::{
+    ArtifactFile, MissionArtifactPlan, MissionArtifactReceipt, MissionArtifactRequest,
+    TaskArtifactError, WorkPackageDraft,
+};
+pub use create::{
+    DEFAULT_MISSION_TYPE, MissionAllocationState, MissionCreateError, MissionCreateOptions,
+    MissionCreatePlan, MissionCreateReceipt, MissionCreateRequest, MissionCreateSlug,
+    MissionIdentity, MissionRetention, MissionWriteObserver, PlannedFile, PlannedFileKind,
+    PlannedFileMode, PriorMissionActivity,
+};
 pub use error::MissionError;
 pub use frontmatter::{Frontmatter, FrontmatterError, split_frontmatter};
 pub use graph::WorkPackageGraph;
 pub use identity::{MID8_LENGTH, MISSION_ID_LENGTH, MissionId, MissionIdError};
 pub use meta::{DEFAULT_META_BYTE_LIMIT, META_FILE_NAME, SPECS_DIR_NAME};
 pub use mission::{Mission, list_missions, select_mission};
+pub use paths::{
+    CHECKLISTS_DIR_NAME, MissionPathError, MissionPaths, PLAN_FILE_NAME, RESEARCH_DIR_NAME,
+    SPEC_FILE_NAME, STATUS_EVENTS_FILE_NAME, TASKS_DIR_NAME, TASKS_FILE_NAME, TASKS_README_NAME,
+};
 pub use readiness::{
     DependencyReadiness, UnsatisfiedDependency, UnsatisfiedReason, WpState, WpStateMap,
     dependency_readiness, readiness_for_dependencies, ready_work_packages,
+};
+pub use tasks::{
+    DEFAULT_TASKS_MD_BYTE_LIMIT, DependencyApplyReceipt, DependencyFinalizePlan, DependencyUpdate,
+    TasksAuthoringError, TasksOutline, TasksSection, parse_dependencies_from_tasks_md,
+};
+pub use template::{
+    CanonicalTemplate, MissionTemplateKind, MissionTemplates, TemplateError,
+    WorkPackageTemplateContext, render_tasks_readme,
 };
 pub use topology::{MissionTopology, classify_topology, routes_through_coordination};
 pub use work_package::{DEFAULT_WORK_PACKAGE_BYTE_LIMIT, WorkPackage};

@@ -1,0 +1,173 @@
+{
+  "expected": {
+    "audit_steps": [
+      {
+        "audit": {
+          "enforcement": "blocking",
+          "label": null,
+          "metadata": null,
+          "trigger_mode": "manual"
+        },
+        "depends_on": [
+          "specify"
+        ],
+        "description": "",
+        "id": "gate",
+        "raci": null,
+        "raci_override_reason": null,
+        "significance": null,
+        "title": "Gate"
+      }
+    ],
+    "mission": {
+      "description": "",
+      "key": "m",
+      "name": "M",
+      "version": "1.0.0"
+    },
+    "steps": [
+      {
+        "agent_profile": null,
+        "contract_ref": null,
+        "depends_on": [],
+        "description": "d",
+        "expected_output": null,
+        "id": "discovery",
+        "prompt": "discover",
+        "prompt_template": null,
+        "raci": null,
+        "raci_override_reason": null,
+        "requires_inputs": [
+          "topic"
+        ],
+        "title": "Discovery"
+      },
+      {
+        "agent_profile": "action-profile",
+        "contract_ref": "contract-1",
+        "depends_on": [
+          "discovery"
+        ],
+        "description": "Do specify.",
+        "expected_output": null,
+        "id": "specify",
+        "prompt": "spec",
+        "prompt_template": null,
+        "raci": {
+          "accountable": {
+            "actor_id": "owner",
+            "actor_type": "human"
+          },
+          "consulted": [],
+          "informed": [],
+          "responsible": {
+            "actor_id": "claude",
+            "actor_type": "llm"
+          }
+        },
+        "raci_override_reason": "explicit",
+        "requires_inputs": [],
+        "title": "Specify"
+      },
+      {
+        "agent_profile": null,
+        "contract_ref": null,
+        "depends_on": [
+          "specify"
+        ],
+        "description": "",
+        "expected_output": null,
+        "id": "mission-review",
+        "prompt": null,
+        "prompt_template": "mission-review.md",
+        "raci": null,
+        "raci_override_reason": null,
+        "requires_inputs": [
+          "operator_approval"
+        ],
+        "title": "Mission Review"
+      }
+    ]
+  },
+  "scenario": {
+    "kind": "compose",
+    "name": "compose_virtual_discovery_prefix",
+    "template": {
+      "audit_steps": [
+        {
+          "audit": {
+            "enforcement": "blocking",
+            "trigger_mode": "manual"
+          },
+          "depends_on": [
+            "specify"
+          ],
+          "id": "gate",
+          "title": "Gate"
+        }
+      ],
+      "mission": {
+        "description": "",
+        "key": "m",
+        "name": "M",
+        "version": "1.0.0"
+      },
+      "steps": [
+        {
+          "depends_on": [
+            "legacy"
+          ],
+          "description": "d",
+          "id": "discovery",
+          "prompt": "discover",
+          "requires_inputs": [
+            "topic"
+          ],
+          "title": "Discovery"
+        },
+        {
+          "agent_profile": "source-profile",
+          "contract_ref": "contract-1",
+          "description": "old",
+          "id": "specify",
+          "prompt": "spec",
+          "raci": {
+            "accountable": {
+              "actor_id": "owner",
+              "actor_type": "human"
+            },
+            "responsible": {
+              "actor_id": "claude",
+              "actor_type": "llm"
+            }
+          },
+          "raci_override_reason": "explicit",
+          "title": "Specify"
+        }
+      ]
+    },
+    "workflow": {
+      "actions": [
+        {
+          "action_name": "specify",
+          "agent_profile": "action-profile",
+          "description": "Do specify.",
+          "next": [
+            "mission-review"
+          ]
+        },
+        {
+          "action_name": "mission-review",
+          "description": "",
+          "human_in_the_loop": "operator_approval",
+          "next": [],
+          "terminal": true
+        }
+      ],
+      "description": "A workflow.",
+      "initial": "specify",
+      "version": 1,
+      "workflow_id": "software-dev-default"
+    }
+  }
+}

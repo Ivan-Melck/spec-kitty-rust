@@ -1,0 +1,304 @@
+{
+  "event_count": 73,
+  "last_event_id": "01M434WR1DWCM78SD4T71917F3",
+  "materialized_at": "2026-10-04T09:46:02.157279+00:00",
+  "mission_number": "214",
+  "mission_slug": "regression-slice-cleanup-01M42WCF",
+  "mission_type": "software-dev",
+  "summary": {
+    "approved": 0,
+    "blocked": 0,
+    "canceled": 0,
+    "claimed": 0,
+    "done": 9,
+    "for_review": 0,
+    "in_progress": 0,
+    "in_review": 0,
+    "planned": 0
+  },
+  "work_packages": {
+    "WP01": {
+      "actor": "merge",
+      "agent": "claude",
+      "agent_profile": "__resolved_profile_absent__",
+      "agent_profile_version": "__resolved_profile_version_absent__",
+      "force_count": 0,
+      "lane": "done",
+      "last_event_id": "01M434VKHHRMMXQWW1DPZBW907",
+      "last_transition_at": "2026-10-04T09:45:24.785485+00:00",
+      "model": "__resolved_model_absent__",
+      "notes": [
+        "Charter scope reader guard added (RED on P-5620-1); #4600 CLI replay unmarked; #5513 file retired; #5440 unmarked+docstring fixed",
+        "Review passed (reviewer-renata): src diff empty; re-planted P-5620-1 (scope reader raise->return None) RED 2/5, message-path removal RED, P-5620-2 (_act_on_stage_plan) RED 3 incl. covering tests, P-5620-3 (status log into scaffold_paths) RED; marker gates 8 passed; ruff/format/mypy clean; -m regression 4->0; 10 passed. Nits: stale docstring in test_commit_router_status_twin_and_group_merge.py:15 (fix at closeout); seam+unmark bundled in cffcb409."
+      ],
+      "provider": "__resolved_provider_absent__",
+      "review_result": {
+        "reference": "auto-approval:WP01:20261004",
+        "reviewer": "Claude",
+        "verdict": "approved"
+      },
+      "role": "reviewer",
+      "shell_pid": 19316,
+      "shell_pid_created_at": "1791100225.01",
+      "subtasks": {
+        "T001": "done",
+        "T002": "done",
+        "T003": "done",
+        "T004": "done",
+        "T005": "done"
+      }
+    },
+    "WP02": {
+      "actor": "merge",
+      "agent": "claude",
+      "agent_profile": "__resolved_profile_absent__",
+      "agent_profile_version": "__resolved_profile_version_absent__",
+      "force_count": 1,
+      "lane": "done",
+      "last_event_id": "01M434VR5EGJEHTTAXXF94DYAW",
+      "last_transition_at": "2026-10-04T09:45:29.518858+00:00",
+      "model": "__resolved_model_absent__",
+      "notes": [
+        "Meta-corruption units + smoke trim, single-branch e2e split to core (6 removed), trio unmarked; planted breaks recorded",
+        "Cycle 2: added A3 no-VCS-lock guard in refusals file (RED under implement.py call swap); docstring nit fixed",
+        "Review passed (cycle 2, reviewer-renata): blocking A3 loss closed by 294c50d6 - new test_refused_implement_leaves_no_tracked_changes_and_no_vcs_lock; reviewer re-planted the implement.py L2167/2168 swap (_ensure_vcs_in_meta before refusal) -> 1 failed/16 passed RED, reverted, src clean. P-5620-4 re-planted (both MissionMetaReadError arms -> KeyError) -> units+smoke 5 failed, reverted. src/ diff empty; touched files 99 passed; ruff/format clean; mypy clean on touched files (only pre-existing tests/utils.py type-arg errors, untouched); marker gates 8 passed; -m regression collects 0 in touched files; red-first nit fixed; commits conventional test(...) with Stijn trailer, no model names in messages; no other lane touches these files. Out-of-map edit to test_single_branch_implement_refusals.py is orchestrator-approved and justified. Checklist: dead code N/A, synthetic fixture PASS, silent empty return N/A, FR coverage PASS, frozen surface PASS, locked decision PASS, shared-file PASS, production fragility N/A."
+      ],
+      "provider": "__resolved_provider_absent__",
+      "review": null,
+      "review_result": {
+        "reference": "auto-approval:WP02:20261004",
+        "reviewer": "Claude",
+        "verdict": "approved"
+      },
+      "role": "reviewer",
+      "shell_pid": 31037,
+      "shell_pid_created_at": "1791102834.77",
+      "subtasks": {
+        "T006": "done",
+        "T007": "done",
+        "T008": "done",
+        "T009": "done",
+        "T010": "done"
+      }
+    },
+    "WP03": {
+      "actor": "merge",
+      "agent": "claude",
+      "agent_profile": "__resolved_profile_absent__",
+      "agent_profile_version": "__resolved_profile_version_absent__",
+      "force_count": 1,
+      "lane": "done",
+      "last_event_id": "01M434VWY9F4PJW6ANFTK4PC32",
+      "last_transition_at": "2026-10-04T09:45:34.409548+00:00",
+      "model": "__resolved_model_absent__",
+      "notes": [
+        "Scoped regression marker on 5 files, ported #4962 collision guard and retired subprocess file, retired T030",
+        "cycle 2: .bak payload guard added (R-1 RED), stale wording fixed",
+        "Review passed (cycle 2, reviewer-renata): cycle-1 blocking R-1 resolved by 309de78e writer-seam test; reviewer re-planted R-1 (.bak write_bytes(b'x')) -> 1 failed/14 passed RED, P-5621-2b (writer raise->pass) RED, P-5621-1 (cp1252_in_tied=False) 4 failed RED, P-5621-3 (review_result unregistered) T032 RED; all reverted, src/ diff empty. Stale red-first wording gone (8b1ffc25). 8 touched files: 78 passed/1 skipped; -m regression 22/79; marker gates 8 passed; ruff/format/mypy clean. Commit-split nit waived by orchestrator."
+      ],
+      "provider": "__resolved_provider_absent__",
+      "review": null,
+      "review_result": {
+        "reference": "auto-approval:WP03:20261004",
+        "reviewer": "Claude",
+        "verdict": "approved"
+      },
+      "role": "reviewer",
+      "shell_pid": 7897,
+      "shell_pid_created_at": "1791101604.51",
+      "subtasks": {
+        "T011": "done",
+        "T012": "done",
+        "T013": "done",
+        "T014": "done",
+        "T015": "done"
+      }
+    },
+    "WP04": {
+      "actor": "merge",
+      "agent": "claude",
+      "agent_profile": "__resolved_profile_absent__",
+      "agent_profile_version": "__resolved_profile_version_absent__",
+      "force_count": 0,
+      "lane": "done",
+      "last_event_id": "01M434W1N9WM4AFXFQPDHS8TGW",
+      "last_transition_at": "2026-10-04T09:45:39.241137+00:00",
+      "model": "__resolved_model_absent__",
+      "notes": [
+        "Dropped regression mislabel from 16 CLI files, split 3 SPLIT-BY-KIND files, retired 4 AST pins (break B re-proved)",
+        "Review passed (reviewer-renata): src/ diff empty; 26 test files (25 owned + justified out-of-map import repoint in tests/agent/test_workflow_review_cycle_pointer.py). Re-planted P-5619-B (raw-string compare in format_saas_mismatch_warning): tests/cli/commands/test_auth_status.py 2 failed/62 passed, cleanup file green -> AST pin retirement justified; planted direct catalog.get('mission') read in src: new tests/architectural/test_recompile_never_regenerates_mission_src.py 1 failed; both reverted, src clean. All touched files 392 passed/1 skipped; marker gates 8 passed; test_ci_collection_completeness 38 passed; ruff/format clean; mypy clean on new files; -m regression collect matches ledger KEEP set; seam/new-home commits precede trims; commit trailers OK. Nits (non-blocking): (1) test_cli_boundary_remaining_callers.py::test_ambiguous_selector_is_controlled_json now carries no marker at all (file has no pytestmark) - path-routed per completeness gate, but WP protocol says add sibling tier marker (unit/fast or git_repo); (2) new test_tasks_move_task_cli_4899.py keeps inherited 'fast' though tests do real git (~1.7s each) - same mislabel T017 fixed on 4665; (3) test_accept_guard.py left with only 'regression' (25s CLI test; integration would fit); (3b) header comment of new 4899 file still says 'red-first regression battery'; several historical RED-first notes remain in docstrings (past tense, acceptable); (4) broken intermediate commit 74030cac (syntax error) repaired by 90c5146b - bisect-hostile, squash on landing if possible."
+      ],
+      "provider": "__resolved_provider_absent__",
+      "review_result": {
+        "reference": "auto-approval:WP04:20261004",
+        "reviewer": "Claude",
+        "verdict": "approved"
+      },
+      "role": "reviewer",
+      "shell_pid": 15146,
+      "shell_pid_created_at": "1791101310.48",
+      "subtasks": {
+        "T016": "done",
+        "T017": "done",
+        "T018": "done",
+        "T019": "done",
+        "T020": "done",
+        "T021": "done"
+      }
+    },
+    "WP05": {
+      "actor": "merge",
+      "agent": "claude",
+      "agent_profile": "__resolved_profile_absent__",
+      "agent_profile_version": "__resolved_profile_version_absent__",
+      "force_count": 0,
+      "lane": "done",
+      "last_event_id": "01M434W68XNXCFG45BC6B4G036",
+      "last_transition_at": "2026-10-04T09:45:43.965897+00:00",
+      "model": "__resolved_model_absent__",
+      "notes": [
+        "Seam units for partition+slug, 4905/nonascii trimmed and unmarked, 2745 oracle tightened; planted breaks D1/D/S/2745 recorded",
+        "Review passed (reviewer-renata): src/ diff empty; tests-only, owned files. 50/50 touched-file tests pass; ruff/format/mypy clean; marker gates 8 passed; -m regression 4 (2745 only). Re-planted: D (skip partition at call site) -> wp02 e2e + review-claim e2e + receipt guard RED (3 failed); D1 (no path primary) -> partition units 7/15 RED; S (drop _reject_if_non_ascii) -> slug units 4/19 RED + json e2e RED; over-rejection (empty slug) -> slug units RED + tests/agent/test_commands.py::test_specify_command_delegates_to_agent_lifecycle RED (guards removed ASCII happy-path e2e); 2745 message swapped to unrelated 'required' refusal -> new oracle RED, old oracle GREEN. Removed non-json stderr test covered by tests/specify_cli/test_error_hook.py (generic GuardedReadError stderr rendering) + kept json e2e proving specify routes via the hook. Removed resume-refresh test: that path only emits status inner-state, shares the guarded sink. Nits: 4905 trimmed 13->11 not 1-2 (kept tests guard dirty-planning gates/cycle numbering not pinned by units - accepted deviation); two kept 4905 docstrings still open 'RED on pre-fix code' (historical, accurate); #2745 is closed but its regression markers remain (out of WP scope)."
+      ],
+      "provider": "__resolved_provider_absent__",
+      "review_result": {
+        "reference": "auto-approval:WP05:20261004",
+        "reviewer": "Claude",
+        "verdict": "approved"
+      },
+      "role": "reviewer",
+      "shell_pid": 20164,
+      "shell_pid_created_at": "1791102122.32",
+      "subtasks": {
+        "T022": "done",
+        "T023": "done",
+        "T024": "done",
+        "T025": "done",
+        "T026": "done",
+        "T027": "done"
+      }
+    },
+    "WP06": {
+      "actor": "merge",
+      "agent": "claude",
+      "agent_profile": "__resolved_profile_absent__",
+      "agent_profile_version": "__resolved_profile_version_absent__",
+      "force_count": 0,
+      "lane": "done",
+      "last_event_id": "01M434WAPXDD6B90YZGEV1CF58",
+      "last_transition_at": "2026-10-04T09:45:48.509783+00:00",
+      "model": "__resolved_model_absent__",
+      "notes": [
+        "Dropped regression mislabel from 8 files; added #5569 resolver units (B8 now 2 RED) and attestation/dry-run units",
+        "Review passed (reviewer-renata): diff test-only, src/ empty vs base. Re-planted: B8 (drop '- never_exempt') -> 2 failed/29 passed (incl. new canceled-dep unit); exempt=set() -> approved-dependency positive control RED (non-vacuous); B8b (unreadable canceled dep branch not appended) -> deleted-branch REFUSE RED; B7a reason/WP validator disabled -> 4 RED each (new units included); dry-run notice disabled -> new CliRunner notice test RED. All reverted, git status src/ clean. 11 touched/owned files: 116 passed; new tests <1s; ruff/format/mypy clean; marker gates 8 passed; -m regression over the 9 marker files collects 1 (the #4894 e2e). All MARKER-ONLY files keep a tier marker. Commits conventional test(...), Stijn trailer, no model names. Nits (non-blocking): test_traces_driver_section_union_4894.py still labels green tests 'RED-FIRST' in docstrings/section comments; new validate_* units partly overlap existing test_validate_requires_a_reason / test_validate_rejects_a_wp_that_is_not_canceled; dry-run CLI test monkeypatches 11 internal consolidate helpers (fails loudly on rename, but couples to internals)."
+      ],
+      "provider": "__resolved_provider_absent__",
+      "review_result": {
+        "reference": "auto-approval:WP06:20261004",
+        "reviewer": "Claude",
+        "verdict": "approved"
+      },
+      "role": "reviewer",
+      "shell_pid": 11360,
+      "shell_pid_created_at": "1791101638.67",
+      "subtasks": {
+        "T028": "done",
+        "T029": "done",
+        "T030": "done",
+        "T031": "done",
+        "T032": "done"
+      }
+    },
+    "WP07": {
+      "actor": "merge",
+      "agent": "claude",
+      "agent_profile": "__resolved_profile_absent__",
+      "agent_profile_version": "__resolved_profile_version_absent__",
+      "force_count": 0,
+      "lane": "done",
+      "last_event_id": "01M434WR1DWCM78SD4T71917F3",
+      "last_transition_at": "2026-10-04T09:46:02.157279+00:00",
+      "model": "__resolved_model_absent__",
+      "notes": [
+        "Trimmed terminus/lanes e2e replays to one smoke per family after RED planted breaks B1-B9, O1-O5, R1-R10, D; added destroyed-lane tip-row seam tests",
+        "Review passed (reviewer-renata): src/ diff empty; WP07 commits touch only owned files + new out-of-map seam file tests/lanes/test_destroyed_lane_guard_tip_rows.py (accepted: covers _refuse_on_tip rows with no prior unit guard, lands in 35aaefd1 before trims). Re-planted breaks, all RED then reverted (src clean): B1 4F, B3 4F, B5 10F, B7 11F, B8a 2F, B9 7F, R1n 1F. Adjudication: (2) fresh-run-after-abort guarded: state-not-cleared reds 4 incl kept smoke; lock-not-released reds test_abort_of_owning_mission_frees_global_lock + test_abort_clears_lock_and_state; skipping abort merge-workspace cleanup stays green everywhere BUT the removed e2e also stays green under it (verified by replaying the base-revision test), so no loss. (3) merge-only breaks red units: authored_shas keeps canceled-lane commits -> test_authored_claim_drops_the_canceled_commit_from_the_dependent_lane; merge excluded axis disabled -> 4F test_reconciliation. Touched files 30 passed; seam 11 passed in 1.6s; ruff/format/mypy clean; marker gates 8 passed; -m regression collects 19/30. Commits conventional test(...), Stijn trailer, no model names. Nits (non-blocking): verdicts docstring still says positive controls for every shape live in the controls file (now one smoke); topology file '# T028.1 -- red-first' section comment; slow marker on closed-world does not move it off per-PR path (acknowledged)."
+      ],
+      "provider": "__resolved_provider_absent__",
+      "review_result": {
+        "reference": "auto-approval:WP07:20261004",
+        "reviewer": "Claude",
+        "verdict": "approved"
+      },
+      "role": "reviewer",
+      "shell_pid": 20106,
+      "shell_pid_created_at": "1791104889.39",
+      "subtasks": {
+        "T033": "done",
+        "T034": "done",
+        "T035": "done",
+        "T036": "done",
+        "T037": "done"
+      }
+    },
+    "WP08": {
+      "actor": "merge",
+      "agent": "claude",
+      "agent_profile": "__resolved_profile_absent__",
+      "agent_profile_version": "__resolved_profile_version_absent__",
+      "force_count": 0,
+      "lane": "done",
+      "last_event_id": "01M434WEZX8S8KHER4C12MMJ1X",
+      "last_transition_at": "2026-10-04T09:45:52.893451+00:00",
+      "model": "__resolved_model_absent__",
+      "notes": [
+        "Unreadable-path tests made root-independent via PermissionError seams (#5622)",
+        "Review passed (reviewer-renata): src diff empty; red-first as uid 0 on base 2 failed + 1 root-skip; re-planted B1 observe_yaml_input, B2 _resolve_charter_path, B3 mission_type_repository listing -> 3 failed; patches scoped to the target path; 80 passed as root; marker gates 8 passed; ruff/format clean. Nit: 3 pre-existing unused type-ignores at test_charter_io.py:80-82 (campsite, fold at closeout)."
+      ],
+      "provider": "__resolved_provider_absent__",
+      "review_result": {
+        "reference": "auto-approval:WP08:20261004",
+        "reviewer": "Claude",
+        "verdict": "approved"
+      },
+      "role": "reviewer",
+      "shell_pid": 5378,
+      "shell_pid_created_at": "1791100576.51",
+      "subtasks": {
+        "T038": "done",
+        "T039": "done",
+        "T040": "done",
+        "T041": "done"
+      }
+    },
+    "WP09": {
+      "actor": "merge",
+      "agent": "claude",
+      "agent_profile": "__resolved_profile_absent__",
+      "agent_profile_version": "__resolved_profile_version_absent__",
+      "force_count": 0,
+      "lane": "done",
+      "last_event_id": "01M434WKPJ330MW5Y9VNTJWR61",
+      "last_transition_at": "2026-10-04T09:45:57.714646+00:00",
+      "model": "__resolved_model_absent__",
+      "notes": [
+        "16 root-failing chmod tests across 8 files now inject PermissionError at the I/O seam; 6 planted-break families RED",
+        "Review passed (reviewer-renata): commit 1d91127d touches only the 8 owned test files; src/ diff empty. Reviewer re-planted 6 breaks, all RED then reverted (src clean): A hasher swallows PermissionError -> 7 dossier tests RED; B guarded_read swallows -> 1 RED; C mission_brief treats PermissionError as missing -> 1 RED; D mission_type._safe_load_meta drops OSError -> 1 RED; E m_0_12_1 gitignore write swallows -> 1 RED; F claudeignore O_WRONLY probe swallows -> 1 RED. Patch targets are the seams the product calls (hasher module open, Path.read_text, Path.exists/read_text, Path.write_text, _open_claudeignore_no_follow) and deny only the target path. Root run of 8 files: 171 passed, 2 failed (TestOrdering heal-migration lookup; untouched tests, src identical to base -> baseline). Marker gates 8 passed; -m regression collects 0 (no marker edits). ruff check clean; format clean on 4 checked files (4 are ratchet-excluded). Commit msg Conventional test(root), Stijn trailer, no model names. Dropped nt skipif safe: ci-windows only runs windows_ci-marked tests. Nits: _deny_open duplicated in 3 dossier files (candidate for a shared helper); test_integration.py helper lacks PEP8 blank lines before @pytest.fixture (file is format-ratchet-excluded); test_integration no_silent_failures/no_crash tests stay green under break A (pre-existing weak assertions, not a regression); edited dossier test signatures stay untyped like siblings."
+      ],
+      "provider": "__resolved_provider_absent__",
+      "review_result": {
+        "reference": "auto-approval:WP09:20261004",
+        "reviewer": "Claude",
+        "verdict": "approved"
+      },
+      "role": "reviewer",
+      "shell_pid": 6210,
+      "shell_pid_created_at": "1791102614.25",
+      "subtasks": {
+        "T042": "done",
+        "T043": "done",
+        "T044": "done",
+        "T045": "done"
+      }
+    }
+  }
+}

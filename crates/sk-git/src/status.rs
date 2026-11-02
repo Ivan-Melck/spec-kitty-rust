@@ -7,6 +7,7 @@
 
 use crate::error::GitError;
 use crate::path::GitPath;
+use crate::process::GitProcess;
 
 /// Which untracked files `git status` should report.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -127,6 +128,31 @@ impl StatusEntry {
         }
         format!("{}{} {shown}", self.index, self.worktree)
     }
+}
+
+/// Run the fixed read-only status query against an arbitrary process binding.
+///
+/// Used by lifecycle preflights that scan a linked checkout (which is its own
+/// work tree) with the parent handle's program and timeout. The argv is built
+/// here, so no caller can add a pathspec or option.
+pub(crate) fn status_at(
+    process: &GitProcess,
+    options: &StatusOptions,
+) -> Result<Vec<StatusEntry>, GitError> {
+    let mut args = vec![
+        "-c",
+        "core.fsmonitor=false",
+        "--no-optional-locks",
+        "status",
+        "--porcelain=v1",
+        "-z",
+        options.untracked.as_git_arg(),
+    ];
+    if options.ignored {
+        args.push("--ignored");
+    }
+    let output = process.checked(&args)?;
+    parse_status_z(&output.stdout)
 }
 
 /// Parse `git status --porcelain=v1 -z` output.

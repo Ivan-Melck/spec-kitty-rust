@@ -330,3 +330,320 @@ fn mark_reachable(
         }
     }
 }
+
+/// The permanent default workflow id used when a mission declares none.
+pub const DEFAULT_WORKFLOW_ID: &str = "software-dev-default";
+
+/// The search roots for workflow discovery.
+///
+/// Project overrides live under `<project_root>/.kittify/overrides/workflows/`;
+/// the shipped roots are supplied by the caller because pack-root resolution is
+/// owned by `sk-charter`, not this crate. Candidates are, in order:
+///
+/// 1. `<project_root>/.kittify/overrides/workflows/<id>.workflow.yaml`
+/// 2. `<project_root>/.kittify/overrides/workflows/<id>.yaml`
+/// 3. `<shipped_root>/<id>.workflow.yaml` for each shipped root, in order
+///
+/// Unknown ids are always an error; there is no silent fallback.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct WorkflowSearch {
+    pub project_root: Option<std::path::PathBuf>,
+    pub shipped_roots: Vec<std::path::PathBuf>,
+}
+
+impl WorkflowSearch {
+    /// A search over shipped roots only (no project overrides).
+    pub fn shipped(roots: impl IntoIterator<Item = std::path::PathBuf>) -> Self {
+        Self {
+            project_root: None,
+            shipped_roots: roots.into_iter().collect(),
+        }
+    }
+
+    /// The same search with a project root for overrides.
+    pub fn with_project_root(mut self, project_root: impl Into<std::path::PathBuf>) -> Self {
+        self.project_root = Some(project_root.into());
+        self
+    }
+
+    /// Override directory, when a project root is configured.
+    pub fn override_root(&self) -> Option<std::path::PathBuf> {
+        self.project_root
+            .as_ref()
+            .map(|root| root.join(".kittify").join("overrides").join("workflows"))
+    }
+}
+
+/// Reject workflow ids that cannot be safely interpolated into a path.
+pub fn validate_workflow_id(workflow_id: &str) -> Result<(), RuntimeError> {
+    let valid = !workflow_id.is_empty()
+        && !workflow_id.starts_with('-')
+        && workflow_id
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-');
+    if valid {
+        Ok(())
+    } else {
+        Err(RuntimeError::InvalidWorkflowId {
+            workflow_id: workflow_id.to_string(),
+        })
+    }
+}
+
+/// Candidate file paths for a workflow id, in precedence order.
+pub fn workflow_candidate_paths(
+    workflow_id: &str,
+    search: &WorkflowSearch,
+) -> Result<Vec<std::path::PathBuf>, RuntimeError> {
+    validate_workflow_id(workflow_id)?;
+    let mut candidates = Vec::new();
+    if let Some(override_root) = search.override_root() {
+        candidates.push(override_root.join(format!("{workflow_id}.workflow.yaml")));
+        candidates.push(override_root.join(format!("{workflow_id}.yaml")));
+    }
+    for root in &search.shipped_roots {
+        candidates.push(root.join(format!("{workflow_id}.workflow.yaml")));
+    }
+    Ok(candidates)
+}
+
+/// Resolve a workflow id to its source YAML path.
+///
+/// Raises [`RuntimeError::UnknownWorkflow`] naming the id and the currently
+/// available ids; it never falls back to the default workflow.
+pub fn resolve_workflow_path(
+    workflow_id: &str,
+    search: &WorkflowSearch,
+) -> Result<std::path::PathBuf, RuntimeError> {
+    for candidate in workflow_candidate_paths(workflow_id, search)? {
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+    }
+    Err(RuntimeError::UnknownWorkflow {
+        workflow_id: workflow_id.to_string(),
+        available: list_available_workflows(search),
+    })
+}
+
+/// Resolve, load and validate a workflow by id.
+///
+/// The file must declare the requested id; a file that declares a different id
+/// is a typed mismatch rather than a silently accepted alias.
+pub fn load_workflow_by_id(
+    workflow_id: &str,
+    search: &WorkflowSearch,
+) -> Result<WorkflowSequence, RuntimeError> {
+    let path = resolve_workflow_path(workflow_id, search)?;
+    let workflow = load_workflow(&path)?;
+    if workflow.workflow_id != workflow_id {
+        return Err(RuntimeError::WorkflowIdMismatch {
+            path,
+            declared: workflow.workflow_id,
+            requested: workflow_id.to_string(),
+        });
+    }
+    Ok(workflow)
+}
+
+/// Sorted ids of every workflow resolvable from the search roots.
+///
+/// An unreadable or invalid file is simply not listed; discovery never fails
+/// the whole lookup because one unrelated file is malformed.
+pub fn list_available_workflows(search: &WorkflowSearch) -> Vec<String> {
+    let mut roots: Vec<&std::path::Path> = Vec::new();
+    let override_root;
+    if let Some(root) = search.override_root() {
+        override_root = root;
+        roots.push(&override_root);
+    }
+    for root in &search.shipped_roots {
+        roots.push(root);
+    }
+
+    let mut available: Vec<String> = Vec::new();
+    for root in roots {
+        let Ok(entries) = std::fs::read_dir(root) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+                continue;
+            };
+            if !name.ends_with(".yaml") {
+                continue;
+            }
+            let id = name
+                .strip_suffix(".workflow.yaml")
+                .or_else(|| name.strip_suffix(".yaml"))
+                .unwrap_or(name);
+            if validate_workflow_id(id).is_err() {
+                continue;
+            }
+            match load_workflow(&path) {
+                Ok(workflow) if workflow.workflow_id == id => available.push(id.to_string()),
+                _ => continue,
+            }
+        }
+    }
+    available.sort_unstable();
+    available.dedup();
+    available
+}
+
+/// Resolve the workflow a mission declares, defaulting only when it declares
+/// none.
+///
+/// `declared = None` selects [`DEFAULT_WORKFLOW_ID`] (the upstream NEW-2
+/// permanent default). A declared but unknown id propagates the typed
+/// unknown-workflow error.
+pub fn resolve_mission_workflow(
+    declared: Option<&str>,
+    search: &WorkflowSearch,
+) -> Result<WorkflowSequence, RuntimeError> {
+    load_workflow_by_id(declared.unwrap_or(DEFAULT_WORKFLOW_ID), search)
+}
+
+/// The resolved next action of a workflow sequence.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkflowActionPlan {
+    pub current_action: String,
+    pub next_action: Option<String>,
+    pub workflow_id: String,
+}
+
+/// Resolve the action that follows `current_action` in `workflow`.
+///
+/// `next_action` is `None` at a terminal action. An unknown current action is a
+/// typed error; there is no implicit reset.
+pub fn plan_next_workflow_action(
+    workflow: &WorkflowSequence,
+    current_action: &str,
+) -> Result<WorkflowActionPlan, RuntimeError> {
+    let next = workflow.next_action(current_action)?;
+    Ok(WorkflowActionPlan {
+        current_action: current_action.to_string(),
+        next_action: next.map(|action| action.action_name.clone()),
+        workflow_id: workflow.workflow_id.clone(),
+    })
+}
+
+/// Return a runtime template whose steps follow `workflow`.
+///
+/// The workflow artifact owns public action ordering; the runtime needs a
+/// mission-template DAG. Existing step metadata is preserved when an action
+/// matches a template step. A leading `discovery` step is kept when the
+/// workflow starts at `specify` and does not name `discovery` itself, exactly
+/// as upstream.
+pub fn compose_template_with_workflow(
+    template: &crate::template::MissionTemplate,
+    workflow: &WorkflowSequence,
+) -> crate::template::MissionTemplate {
+    use std::collections::BTreeMap;
+
+    let by_id: BTreeMap<&str, &crate::template::PromptStep> = template
+        .steps
+        .iter()
+        .map(|step| (step.id.as_str(), step))
+        .collect();
+    let action_names: Vec<&str> = workflow
+        .actions
+        .iter()
+        .map(|action| action.action_name.as_str())
+        .collect();
+
+    let mut composed: Vec<crate::template::PromptStep> = Vec::new();
+    let mut previous_id: Option<String> = None;
+
+    if workflow.initial == "specify"
+        && let Some(discovery) = by_id.get("discovery")
+        && !action_names.contains(&"discovery")
+    {
+        composed.push(copy_prompt_step(discovery, Some(Vec::new())));
+        previous_id = Some("discovery".to_string());
+    }
+
+    for action in &workflow.actions {
+        let depends_on: Vec<String> = previous_id.iter().cloned().collect();
+        let step = match by_id.get(action.action_name.as_str()) {
+            Some(source) => {
+                let mut step = copy_prompt_step(source, Some(depends_on));
+                step.description = if action.description.is_empty() {
+                    source.description.clone()
+                } else {
+                    action.description.clone()
+                };
+                step.agent_profile = action
+                    .agent_profile
+                    .clone()
+                    .filter(|profile| !profile.is_empty())
+                    .or_else(|| source.agent_profile.clone());
+                step
+            }
+            None => crate::template::PromptStep {
+                id: action.action_name.clone(),
+                title: title_case(&action.action_name),
+                description: action.description.clone(),
+                prompt: None,
+                prompt_template: Some(format!("{}.md", action.action_name)),
+                expected_output: None,
+                requires_inputs: action
+                    .human_in_the_loop
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<String>>(),
+                depends_on,
+                raci: None,
+                raci_override_reason: None,
+                agent_profile: action.agent_profile.clone(),
+                contract_ref: None,
+            },
+        };
+        composed.push(step);
+        previous_id = Some(action.action_name.clone());
+    }
+
+    crate::template::MissionTemplate {
+        mission: template.mission.clone(),
+        steps: composed,
+        audit_steps: template.audit_steps.clone(),
+    }
+}
+
+fn copy_prompt_step(
+    source: &crate::template::PromptStep,
+    depends_on: Option<Vec<String>>,
+) -> crate::template::PromptStep {
+    crate::template::PromptStep {
+        id: source.id.clone(),
+        title: source.title.clone(),
+        description: source.description.clone(),
+        prompt: source.prompt.clone(),
+        prompt_template: source.prompt_template.clone(),
+        expected_output: source.expected_output.clone(),
+        requires_inputs: source.requires_inputs.clone(),
+        depends_on: depends_on.unwrap_or_else(|| source.depends_on.clone()),
+        raci: source.raci.clone(),
+        raci_override_reason: source.raci_override_reason.clone(),
+        agent_profile: source.agent_profile.clone(),
+        contract_ref: source.contract_ref.clone(),
+    }
+}
+
+fn title_case(name: &str) -> String {
+    // Upstream: ``action_name.replace("-", " ").title()``.
+    name.split('-')
+        .map(|part| {
+            let mut characters = part.chars();
+            match characters.next() {
+                Some(first) => first.to_uppercase().collect::<String>() + characters.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<String>>()
+        .join(" ")
+}

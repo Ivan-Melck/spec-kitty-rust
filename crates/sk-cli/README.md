@@ -1,37 +1,68 @@
-# spec-kitty-rust CLI
+# `sk-cli`: native Spec Kitty command-line adapters
 
-Native, read-only Rust inspection commands. **Not a drop-in replacement for the Python CLI.** No command creates Missions, advances persistent runs, changes lanes, activates doctrine, allocates worktrees, or merges branches. See `capabilities` and the workspace migration status before scripting it.
+Two thin binaries share this library. Neither invokes Python at run time.
 
-```sh
-cargo build --release -p sk-cli --locked
-./target/release/spec-kitty-rust capabilities --json
-./target/release/spec-kitty-rust --project-root . mission list
-./target/release/spec-kitty-rust glossary lookup mission --scope spec_kitty_core
-./target/release/spec-kitty-rust --json --help
-```
-
-## Output and exit codes
-
-Operational commands emit exactly one versioned JSON document on stdout, even without `--json`; diagnostics go to stderr. Help/version are human-readable by default and use the same JSON envelope when `--json` is passed.
-
-- `0`: successful inspection or a runtime step, pending decision, or terminal query.
-- `1`: data/domain refusal or I/O failure, including missing/invalid filesystem paths.
-- `2`: malformed invocation, unknown command, or invalid scalar option syntax/value.
-- `3`: a successful runtime query whose decision is blocked (`ok: true` does not mean permission to advance).
-
-The unsupported-command list is illustrative, not exhaustive: unlisted commands refuse too. `events inspect` reports parsed stream statistics, not current lanes or a clean schema audit. `runtime query` is a pure library query, not the governed `next` operation.
-
-## Roots, paths and limits
-
-`--project-root DIR` is authoritative, not a discovery starting directory: it must contain `.kittify/`, `kitty-specs/`, or `.git`. Without that flag, kernel discovery walks from the working directory and may honor a valid `SPECIFY_REPO_ROOT`. Reported `source: discovery` refers to that kernel operation, not proof that a particular environment override was selected.
-
-JSON path strings are display representations, not byte-preserving filesystem identities. On Unix, Git entries additionally expose `path_bytes_hex` and rename sources expose `original_path_bytes_hex`; decode these rather than reopening a lossy display string. Charter inspection refuses non-UTF-8 roots and sidecar names as domain errors.
-
-Glossary CLI and library loaders share an 8 MiB seed limit. When every selected scope has an explicit seed, no project is required:
+| Binary | Purpose |
+| --- | --- |
+| `spec-kitty` | Upstream-shaped compatibility surface. Canonical generated prompts (`.claude/commands/`, `.agents/skills/`, ...) invoke this name. Implemented routes execute real domain behavior; every other route is refused before mutation. |
+| `spec-kitty-rust` | The original native inspection surface: a versioned JSON envelope plus `project`, `git`, `mission`, `charter`, `glossary`, `runtime query`, `events` and `transition` reads. The compatibility binary also serves it as `spec-kitty native ...`. |
 
 ```sh
-./target/release/spec-kitty-rust glossary lookup mission \
-  --scope spec_kitty_core --seed-file spec_kitty_core=/path/to/core.yaml
+cargo build --release -p sk-cli --bins
+./target/release/spec-kitty capabilities --json
+./target/release/spec-kitty init --ai claude --non-interactive
+./target/release/spec-kitty native --project-root . mission list
 ```
 
-Charter inspection fails closed when declared packs are missing. This source checkout pins but does not bundle the pack trees; `make sync-packs` (upstream build tooling, network required) may be needed first. The Rust binary performs no fetch and never falls back to Python.
+`SPEC_KITTY_PACKS_ROOT` selects the built-in pack tree used for canonical
+mission and command templates (default: the checkout's `packs/built-in`).
+
+## Implemented compatibility routes
+
+End-to-end binary tests live in `tests/compat.rs`; every case runs the real
+executable against a temporary project.
+
+| Route | State | Real behavior |
+| --- | --- | --- |
+| `init` | implemented | `sk-install` scaffold: config, metadata, agent command/skill assets, ownership manifest, idempotent refresh |
+| `agent status validate` | implemented | raw event schema audit + lane-FSM walk + continuity + canonical materialization drift |
+| `agent status materialize` | partial | canonical replay under the Mission status lock; coordination-routed writes refuse before mutation pending canonical write-surface integration |
+| `agent tasks list-tasks` | implemented | frontmatter + canonical lanes, exact `{tasks,count}` payload |
+| `agent tasks status` | partial | kanban rows, lane counts, weighted readiness, done percentage (stale/stalled flags and config-driven `auto_commit` pending) |
+| `agent tasks list-dependents` | implemented | `sk-mission` dependency graph |
+| `agent mission branch-context` | implemented | deterministic branch contract; never creates or switches a branch |
+| `agent mission create` / `specify` | partial | `sk-mission` transactional scaffold with canonical templates; reports `planning_artifacts_only` (no lane/worktree allocation). Coordination topologies are refused before mutation. No Git commit. |
+| `agent mission setup-plan` / `plan` | partial | canonical plan template resolution and scaffold; no substantive-content gate or Git commit |
+| `agent mission finalize-tasks` / `tasks` | partial | `sk-mission` tasks.md dependency parse and frontmatter patch preserving user content; no planning commit or requirement gates |
+| `implement` | partial | `sk-workspace` lane allocation and protected-branch refusal; real branch + worktree creation |
+| `next` | partial | `sk-run-store` durable start/query/advance/answer with governed authorization and an upstream-shaped decision payload; mission-board composition fields remain `null` |
+| `runtime start/query/advance/answer/recover` | implemented | native extension over the `sk-run-store` contracts |
+| `workspace recover` | implemented | native extension over the `sk-workspace` allocation journal |
+
+Every other route (`upgrade`, `agent status emit`, `agent status lifecycle`,
+`move-task`, decision ledgers, accept/consolidate/review, charter mutation,
+doctor families, tracker/service surfaces) refuses with a typed
+`NOT_IMPLEMENTED` or `UNSUPPORTED_REQUIRED_OPTION` payload and a non-zero exit.
+`capabilities --json` is the authoritative matrix; it never lists a route as
+implemented without evidence.
+
+## Contracts
+
+- Compatibility routes use upstream-shaped JSON: a single document on stdout,
+  `--json` where upstream offers it, human output otherwise. Domain refusals
+  exit 1; malformed invocations, unsupported required options, and unknown
+  routes exit 2. `next` exits 1 only for an advancing blocked decision.
+- Unsupported required options are refused **before** any filesystem or Git
+  mutation. Tests snapshot the tree to prove it.
+- `spec-kitty-rust` keeps its versioned envelope (`schema_version`, `ok`,
+  `command`, `exit_code`, `data`), its exit classes (0/1/2/3), and its
+  `--project-root`/path policies unchanged.
+- Real mutations only happen in the caller's project. Tests use `tempfile`
+  fixtures and temporary `HOME`s; neither binary writes to its own checkout or
+  the user's home.
+
+## Performance entry points
+
+`PERF.md` names equivalent workloads for the Python-vs-Rust comparison and the
+automated conformance commands. Help/version timings are recorded separately
+and never stand in for real work.

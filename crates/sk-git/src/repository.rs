@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use crate::error::GitError;
 use crate::path::{os_string_from_git_bytes, strip_line_feed, utf8_field};
 use crate::process::{GitOptions, GitProcess};
-use crate::status::{StatusEntry, StatusOptions, parse_status_z};
+use crate::status::{StatusEntry, StatusOptions};
 use crate::worktree::{Worktree, parse_worktree_lines, parse_worktree_z};
 
 /// A Git work tree discovered from a filesystem path.
@@ -37,6 +37,7 @@ use crate::worktree::{Worktree, parse_worktree_lines, parse_worktree_z};
 pub struct GitRepository {
     root: PathBuf,
     process: GitProcess,
+    options: GitOptions,
 }
 
 impl GitRepository {
@@ -131,6 +132,7 @@ impl GitRepository {
         Ok(Self {
             process: GitProcess::new(&root, options),
             root,
+            options: options.clone(),
         })
     }
 
@@ -140,6 +142,28 @@ impl GitRepository {
     /// checkout's.
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// The options that bound every invocation made by this repository handle.
+    ///
+    /// Lifecycle plans carry these options so a linked checkout is inspected
+    /// with the same git program and the same timeout as the handle that
+    /// produced the plan.
+    pub fn options(&self) -> &GitOptions {
+        &self.options
+    }
+
+    /// The subprocess binding at this repository's root.
+    pub(crate) fn process(&self) -> &GitProcess {
+        &self.process
+    }
+
+    /// A subprocess binding at another checkout of the same repository.
+    ///
+    /// Used by preflights that inspect a linked worktree (its status is its
+    /// own) while sharing this handle's program and timeout.
+    pub(crate) fn process_at(&self, root: impl Into<PathBuf>) -> GitProcess {
+        GitProcess::new(root, &self.options)
     }
 
     /// The short branch name currently checked out, or `None` for a detached
@@ -238,21 +262,7 @@ impl GitRepository {
     /// Any non-zero git exit, unparsable porcelain output, or timeout is an
     /// error. A failed status is never returned as an empty (clean) list.
     pub fn status_with(&self, options: &StatusOptions) -> Result<Vec<StatusEntry>, GitError> {
-        let mut args = vec![
-            "-c",
-            "core.fsmonitor=false",
-            "--no-optional-locks",
-            "status",
-            "--porcelain=v1",
-            "-z",
-            options.untracked.as_git_arg(),
-        ];
-        if options.ignored {
-            args.push("--ignored");
-        }
-
-        let output = self.process.checked(&args)?;
-        parse_status_z(&output.stdout)
+        crate::status::status_at(&self.process, options)
     }
 
     /// Every worktree registered for this repository, in git's order.

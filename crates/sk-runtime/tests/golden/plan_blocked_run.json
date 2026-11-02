@@ -1,0 +1,91 @@
+{
+  "expected": {
+    "decision": {
+      "context": null,
+      "decision_id": null,
+      "input_key": null,
+      "kind": "blocked",
+      "mission_key": "m",
+      "options": null,
+      "prompt": null,
+      "question": null,
+      "reason": "manual block",
+      "run_id": "run-1",
+      "step_id": null,
+      "step_title": null
+    },
+    "significance": null,
+    "snapshot": {
+      "blocked_reason": "manual block",
+      "completed_steps": [],
+      "decisions": {},
+      "inputs": {},
+      "issued_step_id": null,
+      "mission_id": null,
+      "mission_key": "m",
+      "mission_slug": null,
+      "pending_decisions": {},
+      "policy_snapshot": {
+        "default_route": "same_llm_context",
+        "extras": {},
+        "strictness": "medium"
+      },
+      "run_id": "run-1",
+      "template_hash": "frozen-hash",
+      "template_path": "/nonexistent/runtime-golden/mission.yaml"
+    }
+  },
+  "scenario": {
+    "agent_id": "agent-1",
+    "current_template_hash": "frozen-hash",
+    "kind": "plan",
+    "name": "plan_blocked_run",
+    "snapshot": {
+      "blocked_reason": "manual block",
+      "completed_steps": [],
+      "decisions": {},
+      "inputs": {},
+      "issued_step_id": null,
+      "mission_id": null,
+      "mission_key": "m",
+      "mission_slug": null,
+      "pending_decisions": {},
+      "policy_snapshot": {
+        "default_route": "same_llm_context",
+        "extras": {},
+        "strictness": "medium"
+      },
+      "run_id": "run-1",
+      "template_hash": "frozen-hash",
+      "template_path": "/nonexistent/runtime-golden/mission.yaml"
+    },
+    "template": {
+      "mission": {
+        "description": "",
+        "key": "m",
+        "name": "M",
+        "version": "1.0.0"
+      },
+      "steps": [
+        {
+          "description": "one",
+          "id": "s1",
+          "prompt": "do",
+          "requires_inputs": [
+            "topic"
+          ],
+          "title": "S1"
+        },
+        {
+          "depends_on": [
+            "s1"
+          ],
+          "description": "two",
+          "id": "s2",
+          "prompt": "then",
+          "title": "S2"
+        }
+      ]
+    }
+  }
+}

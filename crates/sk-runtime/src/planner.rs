@@ -110,6 +110,25 @@ enum EligibleStep<'a> {
     Audit(&'a AuditStep),
 }
 
+/// Look up a step by id across prompt and audit steps, in that order.
+pub fn find_step<'a>(
+    template: &'a MissionTemplate,
+    step_id: &str,
+) -> Option<crate::raci::StepRef<'a>> {
+    template
+        .steps
+        .iter()
+        .find(|step| step.id == step_id)
+        .map(crate::raci::StepRef::Prompt)
+        .or_else(|| {
+            template
+                .audit_steps
+                .iter()
+                .find(|step| step.id == step_id)
+                .map(crate::raci::StepRef::Audit)
+        })
+}
+
 fn resolve_next_eligible_step<'a>(
     template: &'a MissionTemplate,
     snapshot: &RunSnapshot,
@@ -198,6 +217,7 @@ fn prompt_step_decision(
     let prompt = step
         .prompt
         .clone()
+        .filter(|prompt| !prompt.is_empty())
         .unwrap_or_else(|| format!("Execute step '{}': {}", step.id, step.title));
 
     Ok(NextDecision::Step(StepDecision {
@@ -214,12 +234,10 @@ fn audit_step_decision(
     snapshot: &RunSnapshot,
     step: &AuditStep,
 ) -> Result<NextDecision, RuntimeError> {
-    if step.significance.is_some() {
-        return Err(RuntimeError::UnsupportedPolicy {
-            step_id: step.id.clone(),
-            policy: "audit significance evaluation",
-        });
-    }
+    // Significance policy is applied by `plan_advance`, which can record the
+    // evaluation and re-plan a LOW gate. The bare planner query stays a pure
+    // DAG query and emits the upstream approve/reject checkpoint, exactly as
+    // the upstream `planner.plan_next` does.
     match step.audit.enforcement {
         AuditEnforcement::Blocking => Ok(NextDecision::DecisionRequired(DecisionRequired {
             run_id: snapshot.run_id.clone(),
@@ -227,7 +245,7 @@ fn audit_step_decision(
             requirement: DecisionRequirement::AuditCheckpoint {
                 decision_id: format!("audit:{}", step.id),
                 step_id: step.id.clone(),
-                step_title: step.title.clone(),
+                step_title: Some(step.title.clone()),
                 question: format!("Audit checkpoint: {}. Approve to continue?", step.title),
                 options: vec!["approve".to_string(), "reject".to_string()],
             },
