@@ -1,0 +1,61 @@
+use std::fs::OpenOptions;
+use std::io::{self, Read};
+use std::path::Path;
+
+use crate::KernelError;
+
+/// Read at most `max_bytes` from `path`.
+///
+/// The file is rejected with [`KernelError::TooLarge`] when it is larger than
+/// the limit. Both the file metadata and an `max_bytes + 1` read are checked,
+/// so a file that grows concurrently cannot slip past the bound. A limit of
+/// zero accepts only an empty file.
+pub fn read_bounded(path: &Path, max_bytes: u64) -> Result<Vec<u8>, KernelError> {
+    let mut options = OpenOptions::new();
+    options.read(true);
+    // Opening a FIFO can block before metadata is available. Nonblocking open
+    // closes that denial-of-service path even if the entry changes concurrently.
+    // NOCTTY prevents an untrusted terminal node becoming our controlling tty.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        let flags = rustix::fs::OFlags::NONBLOCK | rustix::fs::OFlags::NOCTTY;
+        options.custom_flags(flags.bits() as i32);
+    }
+    let file = options
+        .open(path)
+        .map_err(|source| KernelError::io("open", path, source))?;
+    let metadata = file
+        .metadata()
+        .map_err(|source| KernelError::io("inspect", path, source))?;
+
+    if !metadata.is_file() {
+        return Err(KernelError::io(
+            "read",
+            path,
+            io::Error::new(io::ErrorKind::InvalidInput, "path is not a regular file"),
+        ));
+    }
+
+    if metadata.len() > max_bytes {
+        return Err(KernelError::TooLarge {
+            path: path.to_path_buf(),
+            limit: max_bytes,
+        });
+    }
+
+    let mut bytes = Vec::new();
+    let read_limit = max_bytes.saturating_add(1);
+    file.take(read_limit)
+        .read_to_end(&mut bytes)
+        .map_err(|source| KernelError::io("read", path, source))?;
+
+    if bytes.len() as u64 > max_bytes {
+        return Err(KernelError::TooLarge {
+            path: path.to_path_buf(),
+            limit: max_bytes,
+        });
+    }
+
+    Ok(bytes)
+}

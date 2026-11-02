@@ -1,0 +1,23 @@
+[package]
+name = "sk-charter"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Bounded, read-only charter, pack and asset inspection for Spec Kitty"
+
+[dependencies]
+serde.workspace = true
+serde_yaml_ng.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+sk-kernel = { path = "../sk-kernel" }
+
+[dev-dependencies]
+proptest.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

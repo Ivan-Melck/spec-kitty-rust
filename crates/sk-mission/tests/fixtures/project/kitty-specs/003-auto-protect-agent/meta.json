@@ -1,0 +1,15 @@
+{
+  "created_at": "2025-11-10T08:16:31Z",
+  "flattened": false,
+  "friendly_name": "Auto-protect Agent Directories",
+  "mission_id": "01KN2371WNZX28ME4MN97B67PK",
+  "mission_number": null,
+  "mission_slug": "003-auto-protect-agent",
+  "mission_type": "software-dev",
+  "slug": "003-auto-protect-agent",
+  "source_description": "agent-specific directories should be added to .gitignore",
+  "status_phase": "1",
+  "target_branch": "main",
+  "topology": "lanes",
+  "coordination_branch": "kitty/mission-003-auto-protect-agent-01KN2371"
+}

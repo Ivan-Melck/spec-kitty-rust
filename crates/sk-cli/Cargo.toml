@@ -1,0 +1,31 @@
+[package]
+name = "sk-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Partial-rewrite read-only CLI adapter for the Rust Spec Kitty implementation"
+publish = false
+
+[[bin]]
+name = "spec-kitty-rust"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sk-charter = { path = "../sk-charter" }
+sk-git = { path = "../sk-git" }
+sk-glossary = { path = "../sk-glossary" }
+sk-kernel = { path = "../sk-kernel" }
+sk-mission = { path = "../sk-mission" }
+sk-runtime = { path = "../sk-runtime" }
+sk-status = { path = "../sk-status" }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

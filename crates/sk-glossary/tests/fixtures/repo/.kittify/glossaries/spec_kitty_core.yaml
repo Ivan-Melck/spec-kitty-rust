@@ -1,0 +1,17 @@
+# Spec Kitty glossary seed — scope: spec_kitty_core
+terms:
+
+  - surface: feature
+    definition: "DEPRECATED. Use `mission` for the tracked domain object."
+    confidence: 1.0
+    status: deprecated
+
+  - surface: mission
+    definition: A unit of governed delivery
+    confidence: 1.0
+    status: active
+
+  - surface: glossary
+    definition: A scoped collection of canonical term surfaces and their senses
+    confidence: 0.95
+    status: active

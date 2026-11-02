@@ -1,0 +1,12 @@
+# Spec Kitty glossary seed — scope: audience_domain
+terms:
+
+  - surface: mission
+    definition: A project goal or objective
+    confidence: 0.8
+    status: active
+
+  - surface: workspace
+    definition: Audience-facing collaborative workspace
+    confidence: 0.6
+    status: draft

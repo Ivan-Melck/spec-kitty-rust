@@ -1,0 +1,15 @@
+[package]
+name = "sk-status"
+description = "Read-only Spec Kitty lane FSM and typed event-stream inspection"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
