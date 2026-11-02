@@ -12,7 +12,8 @@ use crate::output::{CliError, CommandData};
 
 /// Resolve the root to inspect.
 ///
-/// An explicit `--project-root` is authoritative and must exist. Otherwise the
+/// An explicit `--project-root` is authoritative, must exist, and must carry
+/// a `.kittify`, `kitty-specs`, or `.git` marker. Otherwise the
 /// kernel's bounded discovery (which honours `SPECIFY_REPO_ROOT`) walks from the
 /// current directory.
 pub fn resolve_root(explicit: Option<&Path>) -> Result<PathBuf, CliError> {
@@ -60,6 +61,15 @@ fn canonical_existing_root(root: &Path) -> Result<PathBuf, CliError> {
             root.display()
         )));
     }
+    if !root.join(".kittify").is_dir()
+        && !root.join("kitty-specs").is_dir()
+        && !root.join(".git").exists()
+    {
+        return Err(CliError::domain(format!(
+            "explicit project root {} has no .kittify/, kitty-specs/, or .git marker; supply the repository root, not a subdirectory",
+            root.display()
+        )));
+    }
     fs::canonicalize(root).map_err(|error| {
         CliError::io(format!(
             "could not canonicalize project root {}: {error}",
@@ -73,8 +83,6 @@ pub fn root(explicit: Option<&Path>) -> Result<CommandData, CliError> {
     let root = resolve_root(explicit)?;
     let source = if explicit.is_some() {
         "explicit"
-    } else if env::var_os("SPECIFY_REPO_ROOT").is_some_and(|value| !value.is_empty()) {
-        "SPECIFY_REPO_ROOT"
     } else {
         "discovery"
     };

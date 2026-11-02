@@ -317,10 +317,10 @@ fn check_review_result_consistency(ctx: &GuardContext) -> Result<(), TransitionE
         return Err(TransitionError::ReviewResultRequired);
     };
 
-    if let Some(review_ref) = ctx.review_ref.as_deref() {
-        if review_ref != result.reference {
-            return Err(TransitionError::ReviewRefMismatch);
-        }
+    if let Some(review_ref) = ctx.review_ref.as_deref()
+        && review_ref != result.reference
+    {
+        return Err(TransitionError::ReviewRefMismatch);
     }
 
     let Some(evidence) = ctx.evidence.as_ref() else {

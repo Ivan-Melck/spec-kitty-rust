@@ -8,7 +8,9 @@ This fork is building a native Rust implementation, not a Python launcher or a f
 - Build: `cargo build --release -p sk-cli`
 - Verify: `cargo test --workspace --locked`
 
-The native executable is named `spec-kitty-rust` to avoid silently replacing your installed Python CLI. Existing Mission event ledgers are never modified by the initial Rust command surface. See `spec-kitty-rust --help` and `spec-kitty-rust capabilities --json` for the implemented operations.
+The native executable is named `spec-kitty-rust` to avoid silently replacing your installed Python CLI. Existing Mission event ledgers are never modified by the initial Rust command surface. See `spec-kitty-rust --help`, `spec-kitty-rust capabilities --json`, and the [CLI contract](crates/sk-cli/README.md) for implemented operations. Operational output is JSON; help/version use JSON when `--json` is passed.
+
+Charter inspection fails closed if declared packs are missing. This checkout pins pack sources without bundling them; upstream's `make sync-packs` (network required) may be needed before `charter inspect`. The Rust binary never fetches implicitly.
 
 ---
 

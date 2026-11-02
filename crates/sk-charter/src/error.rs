@@ -61,6 +61,10 @@ pub enum CharterError {
     #[error("containment root {root} does not exist or is not a directory")]
     RootNotDirectory { root: PathBuf },
 
+    /// An inspection path cannot be represented by the UTF-8 JSON contract.
+    #[error("charter inspection path {path} is not UTF-8")]
+    NonUtf8Path { path: PathBuf },
+
     /// A filesystem read failed.
     #[error("failed to read {path}: {source}")]
     Io {

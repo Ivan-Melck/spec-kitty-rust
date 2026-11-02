@@ -548,22 +548,22 @@ fn classify(object: Map<String, Value>, line: u64) -> Result<InspectedEvent, Eve
         };
     }
 
-    if let Some(event_name) = object.get("event_name").and_then(Value::as_str) {
-        if event_name.starts_with("retrospective.") {
-            return Ok(InspectedEvent::NonLane(non_lane(
-                object,
-                NonLaneCategory::RetrospectiveEventName,
-            )));
-        }
+    if let Some(event_name) = object.get("event_name").and_then(Value::as_str)
+        && event_name.starts_with("retrospective.")
+    {
+        return Ok(InspectedEvent::NonLane(non_lane(
+            object,
+            NonLaneCategory::RetrospectiveEventName,
+        )));
     }
 
-    if let Some(event_type) = object.get("type").and_then(Value::as_str) {
-        if RETROSPECTIVE_LIFECYCLE_TYPES.contains(&event_type) {
-            return Ok(InspectedEvent::NonLane(non_lane(
-                object,
-                NonLaneCategory::RetrospectiveLifecycle,
-            )));
-        }
+    if let Some(event_type) = object.get("type").and_then(Value::as_str)
+        && RETROSPECTIVE_LIFECYCLE_TYPES.contains(&event_type)
+    {
+        return Ok(InspectedEvent::NonLane(non_lane(
+            object,
+            NonLaneCategory::RetrospectiveLifecycle,
+        )));
     }
 
     if object.contains_key("event_type") {

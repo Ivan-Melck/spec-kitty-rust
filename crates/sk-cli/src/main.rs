@@ -1,8 +1,9 @@
 //! `spec-kitty-rust`: a partial, read-only Rust rewrite of the Spec Kitty CLI.
 //!
 //! This binary is an adapter over the domain crates. It calls implemented
-//! behavior; it does not simulate absent behavior. Every command emits exactly
-//! one JSON document on stdout and diagnostics on stderr.
+//! behavior; it does not simulate absent behavior. Operational commands emit
+//! one JSON document on stdout and diagnostics on stderr. Help/version are
+//! human-readable unless `--json` was requested.
 
 mod cli;
 mod commands;
@@ -20,9 +21,10 @@ use crate::output::{CommandData, Success, emit_failure, emit_success};
 
 fn main() -> ExitCode {
     let arguments: Vec<OsString> = std::env::args_os().collect();
+    let json_requested = arguments.iter().any(|argument| argument == "--json");
     let cli = match Cli::try_parse_from(arguments) {
         Ok(cli) => cli,
-        Err(error) => return handle_parse_error(error),
+        Err(error) => return handle_parse_error(error, json_requested),
     };
 
     let command_name = cli.command.name();
@@ -94,19 +96,41 @@ fn dispatch(root: Option<&Path>, command: Command) -> Result<CommandData, output
     }
 }
 
-fn handle_parse_error(error: clap::Error) -> ExitCode {
+fn handle_parse_error(error: clap::Error, json_requested: bool) -> ExitCode {
     use clap::error::ErrorKind;
 
     match error.kind() {
         ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => {
-            let _ = error.print();
-            ExitCode::SUCCESS
+            if json_requested {
+                let kind = if error.kind() == ErrorKind::DisplayHelp {
+                    "help"
+                } else {
+                    "version"
+                };
+                let command = if kind == "help" {
+                    "cli.help"
+                } else {
+                    "cli.version"
+                };
+                ExitCode::from(emit_success(&Success {
+                    command,
+                    data: serde_json::json!({"format": kind, "text": error.to_string()}),
+                    exit_code: output::EXIT_SUCCESS,
+                }))
+            } else {
+                let _ = error.print();
+                ExitCode::SUCCESS
+            }
         }
         _ => {
             // Usage failures still get exactly one JSON document on stdout.
             // The clap diagnostic goes to stderr through `emit_failure`.
             let message = error.to_string();
-            let failure = output::CliError::usage(message.trim().to_owned());
+            let message = message
+                .trim()
+                .strip_prefix("error: ")
+                .unwrap_or(message.trim());
+            let failure = output::CliError::usage(message.to_owned());
             ExitCode::from(emit_failure("cli", &failure))
         }
     }

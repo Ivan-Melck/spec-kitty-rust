@@ -381,13 +381,13 @@ fn parse_org_pack(
     };
 
     let pack_id = optional_string(entry, "pack_id", path)?;
-    if let Some(value) = &pack_id {
-        if !is_ulid(value) {
-            return Err(invalid(
-                path,
-                &format!("pack `pack_id` must be a valid 26-char ULID, got {value:?}"),
-            ));
-        }
+    if let Some(value) = &pack_id
+        && !is_ulid(value)
+    {
+        return Err(invalid(
+            path,
+            &format!("pack `pack_id` must be a valid 26-char ULID, got {value:?}"),
+        ));
     }
     let source_type = optional_string(entry, "source_type", path)?;
     if let Some(value) = &source_type {

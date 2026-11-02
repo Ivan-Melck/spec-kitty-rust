@@ -306,13 +306,13 @@ pub fn load_pack_descriptor(
         return Err(invalid_descriptor(&path, "`name` must not be blank"));
     }
     let pack_id = optional_string(&mapping, "pack_id", &path)?;
-    if let Some(value) = &pack_id {
-        if !is_ulid(value) {
-            return Err(CharterError::InvalidPackId {
-                path: path.clone(),
-                value: value.clone(),
-            });
-        }
+    if let Some(value) = &pack_id
+        && !is_ulid(value)
+    {
+        return Err(CharterError::InvalidPackId {
+            path: path.clone(),
+            value: value.clone(),
+        });
     }
     let pack_version = optional_string(&mapping, "pack_version", &path)?;
     let parent_pack = optional_string(&mapping, "parent_pack", &path)?;

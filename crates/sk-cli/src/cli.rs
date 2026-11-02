@@ -15,7 +15,8 @@ use clap::{Args, Parser, Subcommand};
 /// governed `next` workflow. Those operations are listed as unsupported by
 /// `spec-kitty-rust capabilities` and are refused rather than simulated.
 ///
-/// Every command emits exactly one JSON document on stdout. Diagnostics go to
+/// Operational commands emit exactly one JSON document on stdout. Help and
+/// version output are human-readable unless `--json` is passed. Diagnostics go to
 /// stderr. Exit codes: 0 success, 1 domain/data refusal, 2 usage error, 3 the
 /// runtime query returned a blocked decision.
 #[derive(Debug, Parser)]
@@ -26,7 +27,7 @@ use clap::{Args, Parser, Subcommand};
     long_about = None,
     arg_required_else_help = true,
     disable_help_subcommand = true,
-    after_help = "Unsupported by this partial rewrite: init, upgrade, worktrees, merge, activation, event-ledger writes, and the full governed next workflow.\nEvery command emits exactly one JSON document on stdout; diagnostics go to stderr."
+    after_help = "Unsupported by this partial rewrite: init, upgrade, worktrees, merge, activation, event-ledger writes, and the full governed next workflow.\nOperational commands emit one JSON document; help/version do so with --json. Diagnostics go to stderr."
 )]
 pub struct Cli {
     /// Emit the single JSON result document. JSON is the canonical output; this
@@ -34,7 +35,8 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub json: bool,
 
-    /// Project root to inspect. Defaults to discovery from the current directory.
+    /// Authoritative root with .kittify/, kitty-specs/ or .git; not a subdirectory.
+    /// Defaults to discovery from the current directory.
     #[arg(long, global = true, value_name = "DIR")]
     pub project_root: Option<PathBuf>,
 

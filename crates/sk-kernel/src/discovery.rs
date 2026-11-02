@@ -64,12 +64,12 @@ fn candidate_status(candidate: &Path) -> Result<CandidateStatus, KernelError> {
     let git_marker = candidate.join(GIT_DIR);
     match fs::metadata(&git_marker) {
         Ok(metadata) if metadata.is_file() => {
-            if let Some(primary) = linked_worktree_primary(candidate)? {
-                if primary.join(KITTIFY_DIR).is_dir() {
-                    let resolved = resolve_non_strict(&primary)
-                        .map_err(|failure| map_resolve_failure(&primary, failure))?;
-                    return Ok(CandidateStatus::Found(resolved));
-                }
+            if let Some(primary) = linked_worktree_primary(candidate)?
+                && primary.join(KITTIFY_DIR).is_dir()
+            {
+                let resolved = resolve_non_strict(&primary)
+                    .map_err(|failure| map_resolve_failure(&primary, failure))?;
+                return Ok(CandidateStatus::Found(resolved));
             }
         }
         Ok(metadata) if metadata.is_dir() => {

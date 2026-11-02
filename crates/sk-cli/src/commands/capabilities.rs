@@ -88,6 +88,9 @@ pub fn report() -> CommandData {
                 "description": "Pure lane-FSM validation only; never persists a transition or writes an event."
             }
         ],
+        "unsupported_list_exhaustive": false,
+        "unlisted_commands": "unsupported; refused with exit 2",
+        "path_output": "path strings are display-only; Unix Git entries additionally expose lossless path_bytes_hex",
         "unsupported": [
             {
                 "name": "init",
@@ -127,16 +130,18 @@ pub fn report() -> CommandData {
             }
         ],
         "exit_codes": {
-            "0": "success (including a resolved/terminal runtime query)",
-            "1": "domain/data refusal or I/O failure",
-            "2": "usage error (unknown command or invalid option value)",
+            "0": "success (including step, decision_required and terminal runtime queries)",
+            "1": "domain/data refusal or I/O failure (including unresolved filesystem paths)",
+            "2": "usage error (unknown command, malformed syntax or invalid scalar option value)",
             "3": "runtime query returned a blocked decision"
         },
-        "json_output": "exactly one JSON document on stdout; diagnostics on stderr",
+        "json_output": "one JSON document for operational commands; help/version are JSON with --json, human-readable otherwise; diagnostics on stderr",
         "notes": [
             "There is no Python runtime fallback.",
             "Unsupported commands are refused with a usage error, never simulated.",
-            "User-authored YAML and Markdown are inspected, never reserialized."
+            "User-authored YAML and Markdown are inspected, never reserialized.",
+            "charter inspect fails on missing declared pack roots; source checkouts may require make sync-packs (network needed) before inspection.",
+            "Explicit --project-root is an authoritative marked root, not a discovery start; invalid filesystem inputs exit 1."
         ]
     }))
 }

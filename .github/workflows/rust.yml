@@ -36,3 +36,13 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Tests
         run: cargo test --workspace --locked
+      - name: Release build
+        run: cargo build --release -p sk-cli --locked
+      - name: Release smoke tests
+        run: |
+          ./target/release/spec-kitty-rust capabilities --json
+          ./target/release/spec-kitty-rust project root --json
+          ./target/release/spec-kitty-rust mission list --json
+          ./target/release/spec-kitty-rust glossary lookup mission --json
+          ./target/release/spec-kitty-rust git inspect --json
+          ./target/release/spec-kitty-rust transition check planned claimed --actor ci --json

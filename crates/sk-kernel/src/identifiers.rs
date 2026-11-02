@@ -117,10 +117,11 @@ impl FromStr for WpId {
         let trimmed = value.trim_matches(|character: char| character.is_ascii_whitespace());
         if trimmed.is_ascii() {
             let canonical = trimmed.to_ascii_uppercase();
-            if let Some(digits) = canonical.strip_prefix("WP") {
-                if !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit()) {
-                    return Ok(Self(canonical));
-                }
+            if let Some(digits) = canonical.strip_prefix("WP")
+                && !digits.is_empty()
+                && digits.bytes().all(|byte| byte.is_ascii_digit())
+            {
+                return Ok(Self(canonical));
             }
         }
 

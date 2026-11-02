@@ -124,22 +124,22 @@ impl AssetCatalog {
         let mut catalog = Self::default();
         let mut count = 0_usize;
 
-        if let Some(assets_dir) = &roots.built_in {
-            if assets_dir.is_dir() {
-                let anchor = assets_dir
-                    .parent()
-                    .ok_or_else(|| CharterError::RootNotDirectory {
-                        root: assets_dir.clone(),
-                    })?;
-                catalog.load_layer(
-                    PackTier::BuiltIn,
-                    assets_dir,
-                    anchor,
-                    "built-in",
-                    limits,
-                    &mut count,
-                )?;
-            }
+        if let Some(assets_dir) = &roots.built_in
+            && assets_dir.is_dir()
+        {
+            let anchor = assets_dir
+                .parent()
+                .ok_or_else(|| CharterError::RootNotDirectory {
+                    root: assets_dir.clone(),
+                })?;
+            catalog.load_layer(
+                PackTier::BuiltIn,
+                assets_dir,
+                anchor,
+                "built-in",
+                limits,
+                &mut count,
+            )?;
         }
         for org in &roots.organizations {
             if org.assets_dir.is_dir() {
@@ -153,17 +153,17 @@ impl AssetCatalog {
                 )?;
             }
         }
-        if let Some(assets_dir) = &roots.project {
-            if assets_dir.is_dir() {
-                catalog.load_layer(
-                    PackTier::Project,
-                    assets_dir,
-                    assets_dir,
-                    "project",
-                    limits,
-                    &mut count,
-                )?;
-            }
+        if let Some(assets_dir) = &roots.project
+            && assets_dir.is_dir()
+        {
+            catalog.load_layer(
+                PackTier::Project,
+                assets_dir,
+                assets_dir,
+                "project",
+                limits,
+                &mut count,
+            )?;
         }
         Ok(catalog)
     }
@@ -309,6 +309,10 @@ fn collect_manifests(
                 path: current.clone(),
                 source,
             })?;
+            let filename = entry.file_name();
+            let filename = filename
+                .to_str()
+                .ok_or_else(|| CharterError::NonUtf8Path { path: entry.path() })?;
             let file_type = entry.file_type().map_err(|source| CharterError::Io {
                 path: entry.path(),
                 source,
@@ -317,7 +321,7 @@ fn collect_manifests(
             // reported rather than silently skipped, so a hidden manifest cannot
             // change the catalog without an error.
             if file_type.is_symlink() {
-                if entry.file_name().to_string_lossy().ends_with(".asset.yaml") {
+                if filename.ends_with(".asset.yaml") {
                     return Err(invalid_manifest(
                         &entry.path(),
                         "symlinked asset manifests are not followed",
@@ -327,9 +331,7 @@ fn collect_manifests(
             }
             if file_type.is_dir() {
                 stack.push((entry.path(), depth + 1));
-            } else if file_type.is_file()
-                && entry.file_name().to_string_lossy().ends_with(".asset.yaml")
-            {
+            } else if file_type.is_file() && filename.ends_with(".asset.yaml") {
                 manifests.push(entry.path());
                 if manifests.len() > limits.max_asset_manifests {
                     return Err(CharterError::TooManyAssets {

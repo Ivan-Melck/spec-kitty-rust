@@ -17,7 +17,7 @@ cargo build --release -p sk-cli --locked
 cargo test -p sk-charter --no-default-features --locked --test review_regressions
 ```
 
-All pass locally. The aggregate run has **449 passing tests**, including 3 compile-only doctests:
+All pass locally. The aggregate run has **455 passing tests**, including 3 compile-only doctests:
 
 | Crate | Passing tests |
 | --- | ---: |
@@ -28,7 +28,7 @@ All pass locally. The aggregate run has **449 passing tests**, including 3 compi
 | sk-glossary | 41 |
 | sk-status | 33 |
 | sk-runtime | 76 |
-| sk-cli | 23 |
+| sk-cli | 29 |
 
 The FSM test reads all 2,057 upstream corpus rows: 1,700 non-genesis rows match exact acceptance/refusal messages; 357 obsolete genesis expectations are covered by separate current-semantics assertions. This is not a claim that all 2,057 legacy messages still apply. Two upstream runtime next-decision fixtures reproduce exactly; lifecycle fixture parity is explicitly not claimed.
 
@@ -38,7 +38,7 @@ macOS and Windows CI are configured but not claimed locally verified. No speedup
 
 ## Independent review and remediation
 
-All research, implementation, and review subagents used `tokenfactory/deepseek-v4.1-flash-1017`. The coordinator performed integration and fixes. Three independent reviews covered kernel/Git/Mission, charter/glossary, and runtime/status; final CLI/integration review remains pending.
+All research, implementation, and review subagents used `tokenfactory/deepseek-v4.1-flash-1017`. The coordinator performed integration and fixes. Three independent reviews covered kernel/Git/Mission, charter/glossary, and runtime/status. A fourth, final CLI/integration review approved publication as an incomplete draft with fixes or explicit disclosures; its root/provenance, non-UTF-8, output, path-fidelity, and seed-budget findings were then addressed.
 
 Fixed findings have regression tests in the owning crates:
 
@@ -53,14 +53,17 @@ Fixed findings have regression tests in the owning crates:
 - **Skipped policy:** declared audit significance now produces a typed unsupported-policy error, not an invented approve/reject gate.
 - **Workflow compatibility:** implicit terminal actions and empty descriptions are accepted; workflow ids reject traversal/path spellings.
 - **Git captures:** stdout/stderr have a 16 MiB per-stream memory bound; active captures are checked and an oversized child's direct process is killed/reaped. This is not a strict disk quota or descendant-process sandbox.
-- **Strict CI gates:** fixed Git module item ordering, formatting, redundant closures, and a large CLI enum variant without suppressing lints.
+- **Strict CI gates:** fixed Git module item ordering, formatting, redundant closures, and a large CLI enum variant without suppressing lints. CI also builds release binaries and runs the six smoke commands; the declared Rust minimum now matches the tested 1.99 toolchain rather than an untested 1.85 promise.
+- **CLI root/provenance:** explicit roots require project/repository markers and cannot silently treat an arbitrary subdirectory as an empty project. Kernel discovery is reported as discovery, not inferred from the presence of an ignored environment override.
+- **CLI data/error fidelity:** non-UTF-8 charter roots/sidecars are typed domain failures, not internal serialization errors. Unix Git paths expose raw-byte hex companions alongside display strings.
+- **CLI output policy:** help/version honor `--json`, usage messages do not duplicate clap's error prefix, filesystem data failures are explicitly exit 1, and the unsupported list is explicitly non-exhaustive. CLI and glossary library share one 8 MiB seed limit.
 
 ## Deliberate differences and remaining risks
 
 - This command surface is read-only. No canonical event reducer/writer, full governed `next`, worktree allocator, activation, migration, acceptance or consolidation is claimed.
 - Event inspection is not a schema audit: timestamps, execution modes, force reasons, review-reference consistency and evidence semantics are not certified by a successful inspection. It does not compute current lanes.
 - Templates with duplicate/unknown/cyclic dependencies fail schema validation instead of loading and later returning upstream's blocked decision. Pending-decision map-key mismatches are also refused. These are deliberate fail-closed differences.
-- Missing declared org packs make charter inspection fail rather than warn/skip; this checkout's unsynced `packs/internal` demonstrates that policy. No implicit network fetch occurs.
+- Missing declared org packs make charter inspection fail rather than warn/skip; this checkout's unsynced `packs/internal` demonstrates that policy (also disclosed in the root/CLI READMEs and capabilities). No implicit network fetch occurs.
 - Pack core-version constraints are not evaluated. A parsed descriptor is not a compatibility approval. Path expansion supports a narrower syntax than every Python/platform form.
 - Path containment is verified for static trees; resolve-then-open is not a capability-based, race-proof filesystem sandbox. Concurrent hostile symlink swaps remain outside the guarantee.
 - Atomic replacement does not preserve modes/owner/ACLs/xattrs/hard links or fsync the parent directory; concurrent writes are last-writer-wins. It is not a transactional event-store primitive.

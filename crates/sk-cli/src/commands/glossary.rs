@@ -18,7 +18,7 @@ use crate::commands::path_string;
 use crate::commands::project::{optional_root, resolve_root};
 use crate::output::{CliError, CommandData};
 
-const MAX_SEED_BYTES: u64 = 1024 * 1024;
+const MAX_SEED_BYTES: u64 = sk_glossary::MAX_SEED_BYTES;
 
 /// Resolve one term against the selected scopes.
 pub fn lookup(

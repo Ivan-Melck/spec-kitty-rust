@@ -88,6 +88,11 @@ pub fn inspect_project(
     project_root: &Path,
     options: &InspectionOptions,
 ) -> Result<CharterInspection, CharterError> {
+    if project_root.to_str().is_none() {
+        return Err(CharterError::NonUtf8Path {
+            path: project_root.to_path_buf(),
+        });
+    }
     if !project_root.is_dir() {
         return Err(CharterError::ProjectRootNotDirectory {
             root: project_root.to_path_buf(),

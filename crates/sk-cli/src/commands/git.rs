@@ -9,6 +9,25 @@ use crate::commands::path_string;
 use crate::commands::project::resolve_root;
 use crate::output::{CliError, CommandData};
 
+fn unix_path_hex(path: &sk_git::GitPath) -> Option<String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        Some(
+            path.as_os_str()
+                .as_bytes()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect(),
+        )
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        None
+    }
+}
+
 /// Inspect the repository containing the project root.
 pub fn inspect(explicit: Option<&Path>) -> Result<CommandData, CliError> {
     let root = resolve_root(explicit)?;
@@ -67,6 +86,7 @@ pub fn inspect(explicit: Option<&Path>) -> Result<CommandData, CliError> {
 
             let mut value = json!({
                 "path": entry.path().display_lossy(),
+                "path_bytes_hex": unix_path_hex(entry.path()),
                 "index": entry.index().to_string(),
                 "worktree": entry.worktree().to_string(),
                 "is_directory": entry.is_directory(),
@@ -78,6 +98,7 @@ pub fn inspect(explicit: Option<&Path>) -> Result<CommandData, CliError> {
             });
             if let Some(original) = entry.original_path() {
                 value["original_path"] = json!(original.display_lossy());
+                value["original_path_bytes_hex"] = json!(unix_path_hex(original));
             }
             value
         })

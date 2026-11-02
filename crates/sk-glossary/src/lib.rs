@@ -41,5 +41,5 @@ pub use resolution::{
     Severity, classify_conflict, resolve_term, score_severity,
 };
 pub use scope::{GlossaryScope, SCOPE_RESOLUTION_ORDER};
-pub use seed::{load_seed_file, parse_seed, seed_path};
+pub use seed::{MAX_SEED_BYTES, load_seed_file, parse_seed, seed_path};
 pub use store::{Glossary, GlossaryStore};

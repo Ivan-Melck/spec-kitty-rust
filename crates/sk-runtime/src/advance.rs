@@ -54,14 +54,14 @@ pub fn apply_result(
     expected_issued_step: Option<&str>,
     result: StepResult,
 ) -> Result<AppliedResult, RuntimeError> {
-    if let Some(expected) = expected_issued_step {
-        if snapshot.issued_step_id.as_deref() != Some(expected) {
-            return Err(RuntimeError::StaleIssuedStep {
-                run_id: snapshot.run_id.clone(),
-                expected: Some(expected.to_string()),
-                found: snapshot.issued_step_id.clone(),
-            });
-        }
+    if let Some(expected) = expected_issued_step
+        && snapshot.issued_step_id.as_deref() != Some(expected)
+    {
+        return Err(RuntimeError::StaleIssuedStep {
+            run_id: snapshot.run_id.clone(),
+            expected: Some(expected.to_string()),
+            found: snapshot.issued_step_id.clone(),
+        });
     }
 
     let Some(completed_step_id) = snapshot.issued_step_id.clone() else {
