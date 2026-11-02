@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+#[cfg(unix)]
+use sk_glossary::GlossaryError;
 use sk_glossary::{
-    Glossary, GlossaryError, GlossaryScope, SeedFileError, TermStatus, load_seed_file, parse_seed,
-    seed_path,
+    Glossary, GlossaryScope, SeedFileError, TermStatus, load_seed_file, parse_seed, seed_path,
 };
 use tempfile::TempDir;
 
