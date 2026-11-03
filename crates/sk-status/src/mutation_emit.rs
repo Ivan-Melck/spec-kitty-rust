@@ -935,7 +935,8 @@ pub fn emit_status_transition(request: &TransitionRequest) -> Result<EmitOutcome
 
     let row = event.to_json_value();
     append_rows_atomic(&log_path, std::slice::from_ref(&row), &defaults)?;
-    verify_event_rows(&log_path, std::slice::from_ref(&row))?;
+    verify_event_rows(&log_path, std::slice::from_ref(&row))
+        .map_err(|error| error.after_commit(&log_path))?;
     let (snapshot, materialize_error) = materialize_after_write(&feature_dir);
 
     Ok(EmitOutcome {
@@ -992,8 +993,11 @@ pub fn emit_status_transition_batch(
     let mut rows = Vec::new();
     let mut outcomes = Vec::new();
     for request in requests {
+        let mut request = request.clone();
+        // The baseline batch door never manufactures a workspace context.
+        request.default_workspace_context = false;
         let prepared = prepare_transition(
-            request,
+            &request,
             &feature_dir,
             &request.mission_slug,
             mission_id.as_deref(),
@@ -1011,7 +1015,7 @@ pub fn emit_status_transition_batch(
         return Ok(Vec::new());
     }
     append_rows_atomic(&log_path, &rows, &defaults)?;
-    verify_event_rows(&log_path, &rows)?;
+    verify_event_rows(&log_path, &rows).map_err(|error| error.after_commit(&log_path))?;
     let (snapshot, materialize_error) = materialize_after_write(&feature_dir);
 
     Ok(outcomes
@@ -1120,7 +1124,8 @@ pub fn emit_inner_state_changed(
         std::slice::from_ref(&row),
         &AppendOptions::default(),
     )?;
-    verify_event_rows(&log_path, std::slice::from_ref(&row))?;
+    verify_event_rows(&log_path, std::slice::from_ref(&row))
+        .map_err(|error| error.after_commit(&log_path))?;
     let (snapshot, materialize_error) = materialize_after_write(&feature_dir);
     Ok(AnnotationOutcome {
         event_id,

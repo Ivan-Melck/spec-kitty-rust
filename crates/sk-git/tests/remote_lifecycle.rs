@@ -30,7 +30,7 @@ impl RemoteFixture {
         let bare = repo.temp.path().join("remote.git");
         git_ok(
             repo.temp.path(),
-            &["init", "-q", "--bare", bare.to_str().unwrap()],
+            &["init", "-q", "--bare", "-b", "main", bare.to_str().unwrap()],
         );
         repo.git(&["remote", "add", "origin", bare.to_str().unwrap()]);
         repo.git(&["push", "-q", "origin", "main"]);

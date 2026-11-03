@@ -16,10 +16,11 @@
 use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::error::GitError;
 
@@ -88,7 +89,10 @@ pub(crate) struct CommandOutput {
 /// The closed environment profiles this crate may run a child under.
 ///
 /// There is deliberately no caller-supplied environment map: a profile can
-/// only add the no-prompt, no-remote-write settings this adapter owns.
+/// only add the no-prompt, no-remote-write settings this adapter owns. The one
+/// repository-redirecting exception is [`EnvProfile::ScopedIndex`], whose value
+/// is a [`ScopedIndex`] path generated *inside this checkout's own git
+/// directory* — never a caller-provided index path.
 #[derive(Debug, Clone)]
 pub(crate) enum EnvProfile {
     /// A local repository command: no remote contact, read-shaped locks off.
@@ -97,6 +101,72 @@ pub(crate) enum EnvProfile {
     /// non-interactive ssh command chosen by the remote module, or `None` to
     /// leave the inherited `GIT_SSH_COMMAND`/`GIT_SSH` choice untouched.
     RemoteRead { ssh_command: Option<OsString> },
+    /// A path-scoped index transaction against one private index file.
+    ScopedIndex { index: PathBuf },
+}
+
+/// A private index file used by one path-scoped index transaction.
+///
+/// The constructor is crate-private and only accepts a checkout's own git
+/// directory (as returned by `git rev-parse --absolute-git-dir`). The file name
+/// is generated here, includes the process id, and can never be a path supplied
+/// by a caller, so the `GIT_INDEX_FILE` this type feeds to git cannot reopen
+/// arbitrary repository redirection. The file and its `.lock` sibling are
+/// removed on drop; the operator's real index is never named by this type.
+#[derive(Debug)]
+pub(crate) struct ScopedIndex {
+    path: PathBuf,
+}
+
+impl ScopedIndex {
+    /// Allocate a new private index path inside `git_dir`.
+    ///
+    /// The path is not created: git creates it (and its `.lock`) itself when the
+    /// first plumbing command writes the index, so the shared lock authority is
+    /// still git's.
+    pub(crate) fn in_git_dir(git_dir: &Path) -> Result<Self, GitError> {
+        if !git_dir.is_absolute() {
+            return Err(GitError::InvalidPlan {
+                detail: format!(
+                    "a scoped index needs an absolute git directory, got {}",
+                    git_dir.display()
+                ),
+            });
+        }
+        static NEXT_SERIAL: AtomicU64 = AtomicU64::new(0);
+        let pid = std::process::id();
+        for _ in 0..32 {
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|elapsed| elapsed.as_nanos())
+                .unwrap_or(0);
+            let serial = NEXT_SERIAL.fetch_add(1, Ordering::Relaxed);
+            let path = git_dir.join(format!("spec-kitty-safe-commit.{pid}.{nanos}.{serial}.tmp"));
+            let mut lock_name = path.as_os_str().to_os_string();
+            lock_name.push(".lock");
+            if !path.exists() && !PathBuf::from(lock_name).exists() {
+                return Ok(Self { path });
+            }
+        }
+        Err(GitError::InvalidPlan {
+            detail: "could not allocate a unique private index path in the git directory"
+                .to_string(),
+        })
+    }
+
+    /// The path the child sees as `GIT_INDEX_FILE`.
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for ScopedIndex {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+        let mut lock_name = self.path.as_os_str().to_os_string();
+        lock_name.push(".lock");
+        let _ = std::fs::remove_file(PathBuf::from(lock_name));
+    }
 }
 
 /// A bounded git process bound to one working directory and option set.
@@ -108,6 +178,17 @@ pub(crate) struct GitProcess {
 }
 
 impl GitProcess {
+    /// Refuse an inherited selector instead of silently writing another index
+    /// or repository. A captured shared authority is required to support these.
+    pub(crate) fn ensure_unredirected_write(&self) -> Result<(), GitError> {
+        for &variable in REPOSITORY_REDIRECTING_ENV {
+            if std::env::var_os(variable).is_some() {
+                return Err(GitError::RepositoryEnvironmentRefused { variable });
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn new(cwd: impl Into<PathBuf>, options: &GitOptions) -> Self {
         Self {
             program: options.program.clone(),
@@ -135,6 +216,61 @@ impl GitProcess {
         ssh_command: Option<OsString>,
     ) -> Result<CommandOutput, GitError> {
         self.run_profiled(args, None, EnvProfile::RemoteRead { ssh_command })
+    }
+
+    /// Run git against one private index file (raw outcome, whatever the code).
+    pub(crate) fn run_index_scoped<S: AsRef<OsStr>>(
+        &self,
+        args: &[S],
+        index: &ScopedIndex,
+    ) -> Result<CommandOutput, GitError> {
+        self.run_profiled(
+            args,
+            None,
+            EnvProfile::ScopedIndex {
+                index: index.path().to_path_buf(),
+            },
+        )
+    }
+
+    /// Run git against one private index file and require success.
+    pub(crate) fn checked_index_scoped<S: AsRef<OsStr>>(
+        &self,
+        args: &[S],
+        index: &ScopedIndex,
+    ) -> Result<CommandOutput, GitError> {
+        let output = self.run_index_scoped(args, index)?;
+        if output.status.success() {
+            Ok(output)
+        } else {
+            Err(self.failed(args, &output))
+        }
+    }
+
+    /// Run git against one private index file with a bounded stdin payload.
+    pub(crate) fn checked_with_stdin_index_scoped<S: AsRef<OsStr>>(
+        &self,
+        args: &[S],
+        stdin: &[u8],
+        index: &ScopedIndex,
+    ) -> Result<CommandOutput, GitError> {
+        if stdin.len() as u64 > MAX_STDIN_BYTES {
+            return Err(GitError::InputTooLarge {
+                limit: MAX_STDIN_BYTES,
+            });
+        }
+        let output = self.run_profiled(
+            args,
+            Some(stdin),
+            EnvProfile::ScopedIndex {
+                index: index.path().to_path_buf(),
+            },
+        )?;
+        if output.status.success() {
+            Ok(output)
+        } else {
+            Err(self.failed(args, &output))
+        }
     }
 
     /// Run git with a bounded stdin payload and require a successful status.
@@ -365,6 +501,11 @@ impl GitProcess {
             // passed through unchanged (never silently replaced).
             command.env("GIT_SSH_COMMAND", ssh_command);
         }
+        if let EnvProfile::ScopedIndex { index } = profile {
+            // The one allowed repository-redirecting variable, and only for a
+            // value this crate generated inside the checkout's own git dir.
+            command.env("GIT_INDEX_FILE", index);
+        }
         command
     }
 
@@ -486,5 +627,80 @@ mod tests {
                 "{key} must be removed, not inherited"
             );
         }
+    }
+
+    #[test]
+    fn a_scoped_index_profile_sets_only_the_generated_index_file() {
+        let git_dir = tempfile::tempdir().unwrap();
+        let index = ScopedIndex::in_git_dir(git_dir.path()).unwrap();
+        assert!(
+            index.path().starts_with(git_dir.path()),
+            "the private index must live in the checkout's own git dir"
+        );
+        assert!(
+            index
+                .path()
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("spec-kitty-safe-commit.")
+        );
+        assert!(!index.path().exists(), "git creates the index, not us");
+
+        let process = GitProcess {
+            program: PathBuf::from("git"),
+            cwd: PathBuf::from("."),
+            timeout: DEFAULT_TIMEOUT,
+        };
+        let command = process.command_with_profile(
+            &["status"],
+            &EnvProfile::ScopedIndex {
+                index: index.path().to_path_buf(),
+            },
+        );
+        let environment = env_map(&command);
+
+        assert_eq!(
+            environment.get(Path::new("GIT_INDEX_FILE")),
+            Some(&Some(index.path().to_path_buf()))
+        );
+        for key in REPOSITORY_REDIRECTING_ENV {
+            if *key == "GIT_INDEX_FILE" {
+                continue;
+            }
+            assert_eq!(
+                environment.get(Path::new(key)),
+                Some(&None),
+                "{key} must still be removed in a scoped-index child"
+            );
+        }
+        assert_eq!(
+            environment.get(Path::new("GIT_TERMINAL_PROMPT")),
+            Some(&Some(PathBuf::from("0")))
+        );
+    }
+
+    #[test]
+    fn a_scoped_index_refuses_a_relative_git_dir() {
+        assert!(matches!(
+            ScopedIndex::in_git_dir(Path::new(".git")),
+            Err(GitError::InvalidPlan { .. })
+        ));
+    }
+
+    #[test]
+    fn dropping_a_scoped_index_removes_the_index_and_its_lock() {
+        let git_dir = tempfile::tempdir().unwrap();
+        let index = ScopedIndex::in_git_dir(git_dir.path()).unwrap();
+        std::fs::write(index.path(), b"private index").unwrap();
+        let mut lock = index.path().as_os_str().to_os_string();
+        lock.push(".lock");
+        let lock = PathBuf::from(lock);
+        std::fs::write(&lock, b"lock").unwrap();
+
+        drop(index);
+
+        assert!(!lock.exists());
+        assert_eq!(std::fs::read_dir(git_dir.path()).unwrap().count(), 0);
     }
 }

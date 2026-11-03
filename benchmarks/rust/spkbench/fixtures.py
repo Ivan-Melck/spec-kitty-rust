@@ -14,6 +14,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shutil
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -193,6 +196,61 @@ def _wp_text(wp_id: str, title: str, deps: list[str], mission_id: str) -> str:
         f"# Work Package {wp_id}: {title}\n\n"
         "Deterministic benchmark fixture body. No source mutation is performed.\n"
     )
+
+
+def _record_tree(fixture: Fixture, root: Path) -> None:
+    """Record every file below ``root`` in the fixture manifest.
+
+    Used for generated metadata that is not written through :func:`_write`
+    (currently only the deterministic ``.git`` skeleton of ``compat-project``).
+    """
+    for path in sorted(root.rglob("*")):
+        if path.is_file():
+            rel = path.relative_to(fixture.path).as_posix()
+            fixture.manifest[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _git_init(fixture: Fixture) -> str:
+    """Create an unborn ``main`` branch in the fixture with an isolated config.
+
+    Upstream's ``agent tasks`` reads insist on a branch (a detached HEAD is a
+    hard refusal), while the native CLI does not. An unborn branch is enough:
+    no commit, index or object directory is written, so every ``.git`` byte is
+    reproducible (unlike ``git add``/``git commit``, whose index records inode
+    and timestamp stat data). The git version is recorded because the sample
+    hooks shipped by ``git init`` are installation-defined.
+    """
+    env = {
+        "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
+        "HOME": str(fixture.path / ".git-home"),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_TERMINAL_PROMPT": "0",
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "TZ": "UTC",
+    }
+    (fixture.path / ".git-home").mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "init", "-q", "-b", "main", "."],
+        cwd=fixture.path,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        check=True,
+    )
+    version = subprocess.run(
+        ["git", "--version"],
+        cwd=fixture.path,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        check=True,
+    ).stdout.decode("utf-8", "replace").strip()
+    # The temporary HOME is only a config sandbox; it is not fixture input.
+    shutil.rmtree(fixture.path / ".git-home", ignore_errors=True)
+    _record_tree(fixture, fixture.path / ".git")
+    return version
 
 
 def _seed_yaml(terms: list[dict]) -> str:
@@ -565,8 +623,81 @@ def _runtime(builder: FixtureBuilder, path: Path) -> Fixture:
     return fixture
 
 
+def _compat_project(builder: FixtureBuilder, path: Path) -> Fixture:
+    """Fixture for the native compatibility routes.
+
+    Adds two properties the older projection fixtures do not have:
+
+    * an unborn ``main`` git branch, because upstream's ``agent tasks`` reads
+      refuse a detached HEAD (the native CLI does not); and
+    * a *coherent* per-WP lane history for mission 002, so canonical status
+      materialization is compared over a plausible event stream rather than
+      only the deliberately chaotic stream used by the projection fixtures.
+
+    Mission 001 keeps the mixed stream (annotations, future extensions and
+    unordered transitions) so reducer parity is still exercised on odd input.
+    """
+    fixture = _project(
+        builder,
+        path,
+        missions=12,
+        wps=6,
+        terms_per_scope=40,
+        events=240,
+    )
+    fixture.recipe.update(
+        {
+            "kind": "compat-project",
+            "missions": 12,
+            "work_packages_per_mission": 6,
+            "terms_per_scope": 40,
+            "events": 240,
+            "git": "unborn-main",
+        }
+    )
+    specs = path / "kitty-specs"
+    coherent_mission = "002-bench-mission-002"
+    mission_id = ulid("bench-mission", 1)
+    lanes = ("planned", "claimed", "in_progress", "for_review", "in_review", "approved", "done")
+    lines: list[str] = []
+    index = 0
+    for wp in range(6):
+        wp_id = f"WP{wp + 1:02d}"
+        for step in range(len(lanes) - 1):
+            lines.append(
+                json.dumps(
+                    {
+                        "event_id": ulid("bench-compat-event", index),
+                        "mission_slug": coherent_mission,
+                        "mission_id": mission_id,
+                        "wp_id": wp_id,
+                        "from_lane": lanes[step],
+                        "to_lane": lanes[step + 1],
+                        "at": f"2026-11-02T00:{index // 60:02d}:{index % 60:02d}Z",
+                        "actor": f"agent-{wp}",
+                        "force": False,
+                        "execution_mode": "worktree",
+                        "reason": None,
+                        "review_ref": None,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+            )
+            index += 1
+    _write(fixture, specs / coherent_mission / "status.events.jsonl", "\n".join(lines) + "\n")
+
+    fixture.recipe["git_version"] = _git_init(fixture)
+    fixture.notes.append(
+        "compat-project adds an unborn main branch (git reads) and a coherent "
+        "mission-002 event log for canonical status materialization."
+    )
+    return fixture
+
+
 RECIPES = {
     "project-small": lambda b, p: _project(b, p, missions=4, wps=4, terms_per_scope=40, events=200),
     "project-large": lambda b, p: _project(b, p, missions=800, wps=4, terms_per_scope=1500, events=20000),
+    "compat-project": _compat_project,
     "runtime-large": _runtime,
 }

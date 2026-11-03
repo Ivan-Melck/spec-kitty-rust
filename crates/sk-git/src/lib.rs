@@ -1,11 +1,11 @@
-//! Read-only Git adapter for Spec Kitty Rust.
+//! Bounded Git adapter for Spec Kitty Rust.
 //!
-//! `sk-git` answers questions about a checkout without changing it and without
-//! contacting a remote. It is deliberately narrower than a general Git
-//! library: the crate exposes repository discovery, the current branch, HEAD,
-//! porcelain status, dirty paths, and the worktree listing. There is no push,
-//! fetch, clone, commit, ref update, reset, checkout, worktree add/remove, or
-//! arbitrary command surface.
+//! `sk-git` answers questions about a checkout and performs a narrow, planned
+//! set of lifecycle mutations. It is deliberately narrower than a general Git
+//! library: there is no push, fetch, clone, tag update, remote configuration
+//! write, hook bypass, or caller-supplied argv. Every invocation goes through
+//! one subprocess seam, and every mutation is a value that records the state it
+//! observed and re-reads that state before writing.
 //!
 //! # Guarantees
 //!
@@ -39,6 +39,13 @@
 //!   worktree removals are values that record their expected state and re-read
 //!   it before writing. A move between plan and execution is
 //!   [`GitError::PlanStale`] with the observed value, never an overwrite.
+//! * **Path-scoped commits.** A safe commit builds its tree in a private index
+//!   seeded from a pinned parent, stages only the requested paths, runs the
+//!   repository's hooks, creates a commit object against that parent, and
+//!   advances the branch with a compare-and-swap. Unrelated staged, partially
+//!   staged, unstaged, and untracked content is never read, moved, stashed, or
+//!   restored; the real index is reconciled for the requested paths only after
+//!   the commit exists.
 //!
 //! # Operations
 //!
@@ -49,8 +56,9 @@
 //! Mutating, each with an explicit plan: branch create, fast-forward (or
 //! explicitly allowed non-fast-forward) advance with optional clean-checkout
 //! resync, guarded branch delete with unique-commit analysis and optional tip
-//! preservation, worktree add, guarded worktree remove, and merge/revert/
-//! cherry-pick conclusion.
+//! preservation, worktree add, guarded worktree remove, merge/revert/
+//! cherry-pick conclusion, and path-scoped safe commit (including index-only
+//! removals, a pinned parent, and exact raw-bytes assertions).
 //!
 //! There is **no** push, fetch, clone, tag update, remote configuration write,
 //! reset of an unplanned checkout, hook bypass, or arbitrary command surface.
@@ -71,6 +79,9 @@
 //!   restriction on Unix.
 //! * The timeout kills the direct git child only. Descendants, such as a
 //!   remote helper, are outside the bound.
+//! * A safe commit runs hooks with `git hook run`, which requires git >= 2.36;
+//!   older Git is refused with [`GitError::Unsupported`] rather than skipping
+//!   hooks. Its exact raw-bytes assertion is bounded by the seam's stdin limit.
 //! * User and system Git configuration still affects behaviour (for example
 //!   `core.autocrlf`, `status.showUntrackedFiles`, `safe.directory`, and
 //!   attributes). The adapter does not rewrite configuration and does not claim
@@ -108,6 +119,8 @@ mod refs;
 mod remote;
 mod repo_state;
 mod repository;
+mod safe_commit;
+mod safe_commit_transaction;
 mod status;
 mod worktree;
 mod worktree_ops;
@@ -117,7 +130,7 @@ pub use branch::{
     BranchCreationPlan, BranchDeletionOptions, BranchDeletionOutcome, BranchDeletionPlan,
     BranchDeletionPreflight, ProtectedBranches,
 };
-pub use error::GitError;
+pub use error::{GitError, SafeCommitLandedKind};
 pub use merge::{ConcludedOperation, MergeConclusionOutcome, MergeConclusionPlan};
 pub use oid::Oid;
 pub use path::GitPath;
@@ -129,6 +142,11 @@ pub use remote::{
 };
 pub use repo_state::{GitDirs, InProgressOperation, MERGE_TREE_WRITE_TREE_MIN_VERSION};
 pub use repository::GitRepository;
+pub use safe_commit::{
+    CommitGuardCapability, CommitGuardVerdict, ExpectedBlob, MAX_COMMIT_MESSAGE_LEN,
+    SafeCommitOutcome, SafeCommitPlan, SafeCommitRecovery, SafeCommitRequest, SafeCommitRoute,
+    WORKTREES_DIR, evaluate_commit_guard, normalize_safe_commit_path,
+};
 pub use status::{StatusEntry, StatusOptions, UntrackedMode};
 pub use worktree::Worktree;
 pub use worktree_ops::{

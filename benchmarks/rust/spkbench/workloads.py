@@ -40,6 +40,31 @@ class CommandSpec:
 
 
 @dataclass
+class MutationSpec:
+    """Execution contract for a workload that mutates its fixture.
+
+    Mutation workloads cannot run through the read-only executor: every
+    invocation needs a fresh clone of the pristine fixture, and equivalence is
+    stdout/results **plus** post-state, not stdout alone. This descriptor is
+    consumed by ``spkbench.mutation``; the measurement runner needs an additive
+    hook before a mutation workload can be timed (see ``ADAPTER-REPORT.md``).
+
+    ``ignored_post_state`` holds only implementation-private artifacts that are
+    recorded separately but excluded from the equality manifest (currently the
+    status lock files, whose paths differ between implementations). It is not a
+    general nondeterminism escape hatch.
+    """
+
+    placeholder: str = "{FIXTURE}"
+    ignored_post_state: tuple[str, ...] = ()
+    timing_ready: bool = False
+
+    def rewrite(self, argv: list[str], fixture: Path) -> list[str]:
+        token = str(fixture)
+        return [item.replace(self.placeholder, token) for item in argv]
+
+
+@dataclass
 class Workload:
     id: str
     description: str
@@ -55,9 +80,12 @@ class Workload:
     repeats: int | None = None
     notes: list[str] = field(default_factory=list)
     pending_reason: str | None = None
+    mutation: MutationSpec | None = None
 
     @property
     def runnable(self) -> bool:
+        if self.mutation is not None and not self.mutation.timing_ready:
+            return False
         return self.equivalence != "pending" and self.rust is not None and self.oracle is not None
 
     def counts_for_gate(self) -> bool:
@@ -151,10 +179,19 @@ def sha_payload(value: object) -> str:
 
 
 def rust_payload(stdout: bytes) -> dict:
-    """Parse the Rust envelope into a comparable payload.
+    """Parse the native CLI payload into a comparable document.
 
-    A success compares its ``data``; a refusal compares ``error`` (kind,
-    message, details). Exit code is compared separately.
+    Two native surfaces exist:
+
+    * the versioned inspection envelope (``{"ok": true, "data": ...}`` or
+      ``{"ok": false, "error": ...}``); and
+    * the compatibility routes (``spec-kitty init|specify|agent ... --json``),
+      which emit the bare upstream-shaped document with no envelope.
+
+    A bare document is treated as a successful payload. Refusals carry
+    ``error``/``error_code`` and are still compared field-for-field against the
+    oracle, so the envelope shape is never silently normalised away: the bare
+    document itself is the compared value.
     """
     try:
         document = json.loads(stdout.decode("utf-8"))
@@ -162,6 +199,9 @@ def rust_payload(stdout: bytes) -> dict:
         return {"_unparseable": str(exc), "_raw": stdout[:500].decode("utf-8", "replace")}
     if not isinstance(document, dict):
         return {"_unparseable": "envelope is not an object"}
+    if "ok" not in document:
+        # Compatibility route: the bare document is the payload.
+        return {"ok": True, "data": document}
     if document.get("ok") is True:
         return {"ok": True, "data": document.get("data")}
     return {"ok": False, "error": document.get("error"), "exit_code": document.get("exit_code")}
@@ -270,6 +310,23 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _native_compat_binary(rust_binary: Path) -> Path | None:
+    """Locate the compatibility CLI (``spec-kitty``) next to the inspection CLI.
+
+    The inspection binary (``spec-kitty-rust``) has no ``agent`` routes; the
+    compatibility binary (``spec-kitty``) serves both the upstream-shaped routes
+    and, under ``native``, the inspection tree. ``bench.py`` historically passes
+    ``target/release/spec-kitty-rust``, so compat workloads resolve the sibling
+    artifact explicitly instead of assuming the caller switched binaries.
+
+    The harness identity currently records only the primary binary; the dual
+    binary gap is reported in ``ADAPTER-REPORT.md`` until the frozen identity
+    core can attest both artifacts.
+    """
+    candidate = rust_binary if rust_binary.name == "spec-kitty" else rust_binary.with_name("spec-kitty")
+    return candidate if candidate.exists() else None
+
+
 def build_workloads(
     *,
     builder: FixtureBuilder,
@@ -281,10 +338,16 @@ def build_workloads(
     workloads: list[Workload] = []
     runtime = builder.get("runtime-large")
     project = builder.get("project-large")
+    compat = builder.get("compat-project")
+    compat_slug = "002-bench-mission-002"
+    compat_binary = _native_compat_binary(rust_binary)
+    compat_missing = compat_binary is None
+    compat_bin = compat_binary or rust_binary
 
     path_tokens = [
         (str(runtime.path), "<FIXTURE>"),
         (str(project.path), "<FIXTURE>"),
+        (str(compat.path), "<FIXTURE>"),
     ]
 
     def normalize(value: object) -> object:
@@ -487,6 +550,227 @@ def build_workloads(
         )
     )
 
+    # ---------------- native compatibility reads (compat-project) ----------------
+    # These pair the upstream-shaped native CLI with the pinned upstream command
+    # implementation (called directly by a dev adapter, not reimplemented).
+    def normalize_compat(value: object) -> object:
+        return replace_strings(_unwrap_rust_data(value), path_tokens)
+
+    def project_dependents(value: object) -> dict:
+        data = _unwrap_rust_data(value)
+        if not isinstance(data, dict):
+            return {"_unexpected": data}
+        # Upstream's own `depends_on` field is produced by a scalar frontmatter
+        # reader that returns the raw list text (e.g. "[]" or "- WP01"), while
+        # the native CLI returns a parsed array. The dependency *graph* is the
+        # shared upstream-defined fact; the raw scalar is not. It is therefore
+        # excluded from this projection, and the divergence is recorded here
+        # rather than normalised inside a strict comparison.
+        return {
+            "wp_id": data.get("wp_id"),
+            "dependents": sorted(data.get("dependents") or []),
+        }
+
+    def project_branch_context(value: object) -> dict:
+        data = _unwrap_rust_data(value)
+        if not isinstance(data, dict):
+            return {"_unexpected": data}
+        # Wall-clock fields are declared nondeterministic. `spec_kitty_version`
+        # is a genuine gap: upstream emits it, the native route does not, so the
+        # projection excludes it and the gap is stated in the notes.
+        projected = drop_paths(
+            data,
+            [
+                "NOW_UTC_ISO",
+                "runtime_vars.now_utc_iso",
+                "repo_root",
+                "spec_kitty_version",
+            ],
+        )
+        return replace_strings(projected, path_tokens)
+
+    workloads.append(
+        Workload(
+            id="tasks.list",
+            description=f"List six WPs in a mission with a coherent lane history ({compat_slug})",
+            fixture="compat-project",
+            klass="work",
+            equivalence="pending" if compat_missing else "strict",
+            required=True,
+            rust=CommandSpec(
+                "rust",
+                [str(compat_bin), "agent", "tasks", "list-tasks", "--mission", compat_slug, "--json"],
+            ),
+            oracle=CommandSpec(
+                "py-adapter",
+                [
+                    str(oracle_python),
+                    str(adapters_dir / "py_tasks_list.py"),
+                    "--repo",
+                    str(compat.path),
+                    "--mission",
+                    compat_slug,
+                ],
+                floor_modules=["specify_cli.cli.commands.agent.tasks"],
+            ),
+            compare=compare_canonical,
+            normalize=normalize_compat,
+            expected_exit=0,
+            pending_reason=(
+                "The compatibility binary (target/release/spec-kitty) is absent; the "
+                "inspection binary spec-kitty-rust has no `agent` routes and is not used "
+                "as a fallback. Build both executables (cargo build --release -p sk-cli) "
+                "and rerun."
+            ) if compat_missing else None,
+            notes=[
+                "Both sides emit {tasks,count} with work_package_id/title/lane/path.",
+                "Oracle calls the pinned `agent tasks list-tasks` command implementation directly.",
+                "Happy path only: upstream's detached-HEAD/target-branch guard is tracked separately (pending).",
+            ],
+        )
+    )
+    workloads.append(
+        Workload(
+            id="tasks.list_dependents.projection",
+            description="Direct dependents of WP02 in the compat fixture",
+            fixture="compat-project",
+            klass="work",
+            equivalence="pending" if compat_missing else "projection",
+            required=False,
+            rust=CommandSpec(
+                "rust",
+                [
+                    str(compat_bin),
+                    "agent",
+                    "tasks",
+                    "list-dependents",
+                    "WP02",
+                    "--mission",
+                    compat_slug,
+                    "--json",
+                ],
+            ),
+            oracle=CommandSpec(
+                "py-adapter",
+                [
+                    str(oracle_python),
+                    str(adapters_dir / "py_tasks_list_dependents.py"),
+                    "--repo",
+                    str(compat.path),
+                    "--mission",
+                    compat_slug,
+                    "--wp-id",
+                    "WP02",
+                ],
+                floor_modules=["specify_cli.cli.commands.agent.tasks"],
+            ),
+            compare=compare_canonical,
+            normalize=lambda value: project_dependents(value),
+            expected_exit=0,
+            pending_reason=(
+                "The compatibility binary (target/release/spec-kitty) is absent; the "
+                "inspection binary spec-kitty-rust has no `agent` routes and is not used "
+                "as a fallback. Build both executables (cargo build --release -p sk-cli) "
+                "and rerun."
+            ) if compat_missing else None,
+            notes=[
+                "PROJECTION: compares wp_id + sorted dependents (the dependency graph fact).",
+                "Upstream's `depends_on` is a raw scalar-frontmatter string list, not a parsed array; excluded and reported, not silently equalised.",
+                "Not eligible for the 3x gate.",
+            ],
+        )
+    )
+    workloads.append(
+        Workload(
+            id="mission.branch_context.projection",
+            description="Deterministic branch contract on the compat fixture's unborn main branch",
+            fixture="compat-project",
+            klass="micro",
+            equivalence="pending" if compat_missing else "projection",
+            required=False,
+            repeats=3,
+            rust=CommandSpec(
+                "rust",
+                [str(compat_bin), "agent", "mission", "branch-context", "--json"],
+            ),
+            oracle=CommandSpec(
+                "py-adapter",
+                [
+                    str(oracle_python),
+                    str(adapters_dir / "py_branch_context.py"),
+                    "--repo",
+                    str(compat.path),
+                ],
+                floor_modules=["specify_cli.cli.commands.agent.mission_branch_context"],
+            ),
+            compare=compare_canonical,
+            normalize=project_branch_context,
+            expected_exit=0,
+            pending_reason=(
+                "The compatibility binary (target/release/spec-kitty) is absent; the "
+                "inspection binary spec-kitty-rust has no `agent` routes and is not used "
+                "as a fallback. Build both executables (cargo build --release -p sk-cli) "
+                "and rerun."
+            ) if compat_missing else None,
+            notes=[
+                "PROJECTION: all branch-contract fields compare except repo_root and wall-clock timestamps.",
+                "Declared nondeterministic: NOW_UTC_ISO and runtime_vars.now_utc_iso (wall clock).",
+                "Gap: upstream emits spec_kitty_version; the native route does not. Excluded from the projection, recorded here.",
+                "MICRO: one git/config read; launch-dominated. Not gate evidence.",
+            ],
+        )
+    )
+
+    # ---------------- canonical status materialization (mutation) ----------------
+    workloads.append(
+        Workload(
+            id="status.materialize",
+            description="Canonical event-log replay writes status.json for a coherent 36-event mission",
+            fixture="compat-project",
+            klass="pending",
+            equivalence="pending",
+            required=True,
+            rust=CommandSpec(
+                "rust",
+                [str(compat_bin), "agent", "status", "materialize", "--mission", compat_slug, "--json"],
+            ),
+            oracle=CommandSpec(
+                "py-adapter",
+                [
+                    str(oracle_python),
+                    str(adapters_dir / "py_status_materialize.py"),
+                    "--repo",
+                    "{FIXTURE}",
+                    "--mission",
+                    compat_slug,
+                ],
+                floor_modules=["specify_cli.cli.commands.agent.status", "specify_cli.status"],
+            ),
+            compare=compare_canonical,
+            normalize=normalize_compat,
+            expected_exit=0,
+            mutation=MutationSpec(
+                ignored_post_state=(".git/spec-kitty-locks/", ".kittify/spec-kitty-locks/"),
+                timing_ready=False,
+            ),
+            pending_reason=(
+                "Replaces the old 'no native reducer' blocker: the native canonical reducer now exists, and "
+                "`tools/mutation_check.py` proves stdout JSON and status.json bytes are identical on a fresh clone "
+                "per invocation. Two items remain before this can enter the timed gate: (1) the lock artifact is "
+                "implementation-private and differs (upstream .git/spec-kitty-locks/<slug>.status.lock, native "
+                ".git/spec-kitty-locks/status-<hash>.lock), so an operator/reviewer must rule whether lock naming is "
+                "part of the post-state contract; (2) the frozen runner has no fresh-clone/post-state hook, so timing "
+                "would measure clone cost. Core patch is specified in ADAPTER-REPORT.md."
+            ),
+            notes=[
+                "Mutation: fresh clone per invocation; compare results AND post-state.",
+                "Oracle calls the pinned `agent status materialize` command implementation directly.",
+                "status.json is byte-identical; lock artifacts are recorded separately, not treated as equal.",
+                "Non-coordination path only: coordination-routed materialization is refused natively and is not compared.",
+            ],
+        )
+    )
+
     # ---------------- lane FSM (micro, launch-dominated) ----------------
     if include_micro:
         transition_cases = [
@@ -649,16 +933,62 @@ def build_workloads(
                 ),
             ),
             Workload(
-                id="status.replay",
-                description="Canonical status replay / snapshot + archive parity",
+                id="status.validate",
+                description="Canonical status validation findings",
                 fixture=None,
                 klass="pending",
                 equivalence="pending",
                 required=True,
                 pending_reason=(
-                    "Rust sk-status has no canonical reducer. events inspect states it is not a reducer. "
-                    "Upstream specify_cli.status.reducer.reduce / agent status materialize are the oracle, "
-                    "but no native counterpart exists yet."
+                    "Native `agent status validate` and upstream validate are not the same contract. On the same "
+                    "chaotic 240-event fixture upstream reports 21 errors + 156 warnings (clock-skew ordering and "
+                    "missing done-evidence classes) while native reports 145 errors + 0 warnings (schema + FSM-edge "
+                    "class only). Native has no clock-skew or evidence warning families, so pairing them would "
+                    "compare different findings even when both exit 1. No normalization is applied."
+                ),
+            ),
+            Workload(
+                id="tasks.list.target-branch-guard",
+                description="Detached-HEAD / target-branch refusal for tasks reads",
+                fixture=None,
+                klass="pending",
+                equivalence="pending",
+                required=True,
+                pending_reason=(
+                    "Upstream `agent tasks list-tasks` refuses a detached HEAD and resolves the mission target "
+                    "branch before reading. The native tasks read has no branch guard: on a detached fixture it "
+                    "returns rows where upstream exits 1 with a different envelope. Happy-path rows are covered "
+                    "strictly by tasks.list on an unborn main branch; the guard contract itself is unimplemented."
+                ),
+            ),
+            Workload(
+                id="tasks.status",
+                description="Kanban status board (lanes, readiness, stale/workspace verdicts)",
+                fixture=None,
+                klass="pending",
+                equivalence="pending",
+                required=True,
+                pending_reason=(
+                    "Partial and not equivalent. On the same coherent fixture native emits extra contract "
+                    "fields (auto_commit, done_count, done_percentage, progress_percentage, "
+                    "progress_semantics, stale_verdicts, stale_wps, stalled_wps) and derives agent/"
+                    "workspace_kind from events; upstream omits those fields and reports empty agent and "
+                    "workspace_kind=unknown. Git-backed stale verdicts, stalled-review flags and config "
+                    "auto_commit are declared native gaps, so neither result nor shape can be paired."
+                ),
+            ),
+            Workload(
+                id="lifecycle.plan",
+                description="Setup-plan scaffold and planning gate",
+                fixture=None,
+                klass="pending",
+                equivalence="pending",
+                required=True,
+                pending_reason=(
+                    "Partial and behaviourally different. On the same Mission upstream returns "
+                    "result=blocked with SPEC_NOT_SUBSTANTIVE_OR_UNCOMMITTED and writes nothing; native "
+                    "scaffolds plan.md without the substantive-spec gate or planning commit. Lifecycle "
+                    "phase events are also absent natively."
                 ),
             ),
             Workload(
@@ -669,9 +999,11 @@ def build_workloads(
                 equivalence="pending",
                 required=True,
                 pending_reason=(
-                    "Rust runtime query is a pure planner over an explicit snapshot. Upstream next reads "
-                    "and writes a run store, resolves owned workspaces, emits prompt files, and applies "
-                    "gates; it is a different contract and must be implemented before it can be paired."
+                    "Native now has a durable run store (runtime start/query/advance/answer/recover) and a "
+                    "partial `next`, but it is still not the upstream contract: mission-board progress, WP "
+                    "workspace resolution in the decision, decision-log git commits, analysis currency, "
+                    "lifecycle records and retrospective hooks are missing. The native runtime routes are "
+                    "extensions with no upstream counterpart, so they cannot be paired as governed next."
                 ),
             ),
             Workload(
@@ -713,16 +1045,64 @@ def build_workloads(
                 ),
             ),
             Workload(
-                id="lifecycle.mutations",
-                description="End-to-end init/create/implement/review/accept/consolidate/merge/recovery",
+                id="lifecycle.init",
+                description="Project initialization and generated asset set",
                 fixture=None,
                 klass="pending",
                 equivalence="pending",
                 required=True,
                 pending_reason=(
-                    "Rust CLI is read-only: no project init, mission creation, lane/worktree ownership, "
-                    "event writes, acceptance, consolidation, merge, or recovery. These are the workloads "
-                    "that matter most for the final gate and must be native before they are benchmarked."
+                    "Native init is implemented but not equivalent. On empty directories with the same "
+                    "`--ai codex --non-interactive` inputs, upstream writes 100+ files (full .agents/skills "
+                    "tree, command copies, git hooks, charter/activation scaffolding); native writes 14 files "
+                    "(config, metadata, ledger, a subset of skills). File populations and human output differ, "
+                    "and org-pack acquisition is not integrated. Not eligible until the asset set and output "
+                    "contract match."
+                ),
+            ),
+            Workload(
+                id="mission.create",
+                description="Mission scaffold creation (agent mission create / specify)",
+                fixture=None,
+                klass="pending",
+                equivalence="pending",
+                required=True,
+                pending_reason=(
+                    "Partial and behaviourally different. On the same project upstream refuses with "
+                    "ACTIVE_CHARTER_CONFIG_INVALID because no mission type is activated; native creates the "
+                    "mission without that gate. Native also appends a ULID to the directory name and reports "
+                    "mission_number allocation as absent, while upstream allocates the mission number and "
+                    "commits planning artifacts. Post-state and result contracts differ."
+                ),
+            ),
+            Workload(
+                id="tasks.finalize",
+                description="Finalize tasks.md dependencies into WP frontmatter",
+                fixture=None,
+                klass="pending",
+                equivalence="pending",
+                required=True,
+                pending_reason=(
+                    "Partial. On the same fixture both exit 1 but for different contracts: upstream validates "
+                    "requirement mapping from spec/tasks.md and reports missing requirement refs; native "
+                    "reports `tasks.md not found` at the mission root. Native also skips requirement-mapping "
+                    "gates, planning commit, lanes.json refresh and status lifecycle events. No shared error "
+                    "or post-state contract yet."
+                ),
+            ),
+            Workload(
+                id="lane.implement",
+                description="Lane worktree allocation and workspace ownership",
+                fixture=None,
+                klass="pending",
+                equivalence="pending",
+                required=True,
+                pending_reason=(
+                    "Partial. On the same project both exit 1 for different reasons: upstream refuses first "
+                    "on the protected `main` branch (auto-commit status guard); native refuses with "
+                    "MISSING_LANES because no lanes.json exists. Branch/dependency preflights, workspace "
+                    "context persistence and auto-commit are not integrated, so allocation cannot be "
+                    "compared as one workflow."
                 ),
             ),
         ]

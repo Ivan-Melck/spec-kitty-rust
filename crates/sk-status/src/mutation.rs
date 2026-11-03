@@ -85,9 +85,11 @@ pub use crate::mutation_lifecycle::{
     persist_lifecycle_event_local, project_event_log_path, read_lifecycle_events,
 };
 pub use crate::mutation_lock::{
-    MissionLock, ProjectLock, acquire_mission_lock, acquire_project_lock, canonical_repo_root,
-    canonicalize_feature_dir, mission_lock_key, mission_lock_path, project_lock_path,
-    resolve_lock_root,
+    MISSION_WRITE_LOCK_TIMEOUT, MissionLock, MissionLockExtension, ProjectLock,
+    acquire_mission_birth_lock, acquire_mission_lock, acquire_mission_lock_with,
+    acquire_project_lock, canonical_repo_root, canonicalize_feature_dir,
+    extend_mission_lock_to_moved_key, mission_lock_key, mission_lock_key_with, mission_lock_path,
+    project_lock_path, resolve_lock_root,
 };
 pub use crate::mutation_log::{
     AppendOptions, AppendOutcome, Durability, LogSnapshot, MAX_EVENT_LOG_BYTES, MaterializeOutcome,
@@ -134,6 +136,11 @@ pub enum MutationError {
     )]
     LockKeyUnresolved { directory: String },
 
+    #[error(
+        "extending the Mission write lock for {directory} needs an enclosing Mission lock hold on this thread"
+    )]
+    ExtensionRequiresHold { directory: String },
+
     #[error("refusing to follow symbolic link {path}")]
     SymlinkRefused { path: PathBuf },
 
@@ -179,6 +186,15 @@ pub enum MutationError {
     )]
     CommitIndeterminate { path: PathBuf, detail: String },
 
+    #[error(
+        "write of {path} may have committed but post-commit verification failed: {source}; inspect the log before retrying"
+    )]
+    PostCommitVerification {
+        path: PathBuf,
+        #[source]
+        source: Box<MutationError>,
+    },
+
     #[error("event {event_id} is missing from {path} after the append was verified")]
     EventMissing { path: PathBuf, event_id: String },
 
@@ -200,10 +216,24 @@ impl MutationError {
     pub fn may_have_mutated(&self) -> bool {
         match self {
             MutationError::ReadbackMismatch { .. }
+            | MutationError::PostCommitVerification { .. }
+            | MutationError::EventMissing { .. }
             | MutationError::RollbackRefused { .. }
             | MutationError::CommitIndeterminate { .. } => true,
             MutationError::Kernel(error) => error.mutation_may_have_committed(),
             _ => false,
+        }
+    }
+
+    /// Retain the successful-write boundary when a subsequent read/check fails.
+    pub fn after_commit(self, path: impl Into<PathBuf>) -> Self {
+        if self.may_have_mutated() {
+            self
+        } else {
+            Self::PostCommitVerification {
+                path: path.into(),
+                source: Box::new(self),
+            }
         }
     }
 

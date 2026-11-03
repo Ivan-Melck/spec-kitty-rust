@@ -25,6 +25,12 @@ pub fn init(
         Some(_) => false,
     };
 
+    let agents =
+        parse_agents(ai_assistant).map_err(|error| CompatError::domain(error.message()))?;
+    if !here && agents.is_empty() {
+        return Err(CompatError::domain("--ai is required for a new project"));
+    }
+
     let project_path = if here {
         env::current_dir().map_err(|error| {
             CompatError::domain(format!("Cannot access current directory: {error}"))
@@ -59,7 +65,6 @@ pub fn init(
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_else(|| "project".to_owned());
 
-    let agents = parse_agents(ai_assistant)?;
     let config_present = project_path.join(".kittify/config.yaml").is_file();
     if agents.is_empty() {
         if config_present {
@@ -83,7 +88,7 @@ pub fn init(
         })?;
     }
 
-    let mut request = InitRequest::new(&project_path, agents.clone(), env!("CARGO_PKG_VERSION"));
+    let mut request = InitRequest::new(&project_path, agents.clone(), super::CORE_VERSION);
     if let Some(source) = templates {
         request = request.with_templates(source);
     }

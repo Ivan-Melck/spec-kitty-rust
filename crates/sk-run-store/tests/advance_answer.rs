@@ -5,7 +5,6 @@ mod support;
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::Path;
 
 use serde_json::{Value, json};
 use sk_run_store::{
@@ -478,6 +477,37 @@ fn audit_rejection_blocks_the_run_with_the_upstream_reason() {
 }
 
 #[test]
+fn repeated_medium_gate_answers_remain_queryable_and_recoverable() {
+    let fixture = Fixture::with_template_yaml_and_inputs(
+        &significance_audit_yaml([3, 2, 0, 3, 0, 0]),
+        BTreeMap::from([("mission_owner_id".to_owned(), json!(OWNER_ID))]),
+    );
+    let started = fixture.start();
+    let run = &started.run;
+    advance(&fixture, run, None);
+    advance(&fixture, run, Some("specify"));
+    advance(&fixture, run, Some("plan"));
+    for action in ["open_stand_up", "defer", "decide_solo"] {
+        fixture
+            .store
+            .answer(
+                run,
+                &AnswerRequest {
+                    decision_id: "audit:review".to_owned(),
+                    answer: action.to_owned(),
+                    actor: human(OWNER_ID),
+                },
+            )
+            .unwrap();
+        fixture.store.query(run).unwrap();
+        fixture.store.recover(run).unwrap();
+    }
+    let state = fixture.store.read_state(run).unwrap();
+    assert!(state.completed_steps.iter().any(|step| step == "review"));
+    assert!(!state.pending_decisions.contains_key("audit:review"));
+}
+
+#[test]
 fn medium_band_audit_answers_use_the_soft_gate_action_set() {
     let fixture = Fixture::with_template_yaml_and_inputs(
         audit_yaml(),
@@ -613,37 +643,41 @@ fn every_run_scoped_reference_is_a_serializable_contract() {
 }
 
 #[test]
-fn prompt_paths_with_separators_are_rejected() {
-    // A template step id containing a path separator must not be able to write
-    // a prompt outside the run directory.
-    let template = r#"mission:
-  key: demo
-  name: Demo mission
-  version: "1.0.0"
-steps:
-  - id: ../escape
-    title: Escape
-    prompt: Do the specification.
-"#;
-    let fixture = Fixture::with_template_yaml(template);
-    let started = fixture.start();
-    let error = fixture
-        .store
-        .advance(
-            &started.run,
-            &AdvanceRequest {
-                agent_id: "agent-a".to_string(),
-                result: StepResult::Success,
-                expected_issued_step: None,
-            },
-        )
-        .expect_err("unsafe step id refused");
-    assert!(
-        matches!(error.code(), "PROMPT_PATH_ESCAPE" | "TEMPLATE_INVALID"),
-        "unexpected code {}: {error}",
-        error.code()
-    );
-    assert!(!Path::new("../escape").exists());
+fn nonempty_step_ids_are_preserved_while_prompt_paths_stay_contained() {
+    for id in [
+        "../escape",
+        "spec review",
+        "审查",
+        "CON",
+        "one:two",
+        "first",
+    ] {
+        let template = format!(
+            "mission:\n  key: demo\n  name: Demo\n  version: '1.0'\nsteps:\n  - id: {id}\n    title: Review\n    prompt: Work.\n"
+        );
+        let fixture = Fixture::with_template_yaml(&template);
+        let started = fixture.start();
+        let outcome = fixture
+            .store
+            .advance(
+                &started.run,
+                &AdvanceRequest {
+                    agent_id: "agent-a".to_owned(),
+                    result: StepResult::Success,
+                    expected_issued_step: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(outcome.state.issued_step_id.as_deref(), Some(id));
+        let path = outcome.prompt_file.unwrap();
+        assert!(path.starts_with(started.run.run_dir.join("prompts")));
+        assert!(
+            fs::read_to_string(path)
+                .unwrap()
+                .contains(&format!("step_id: {id}"))
+        );
+        assert!(!fixture.root.join("escape.prompt.md").exists());
+    }
 }
 
 #[test]

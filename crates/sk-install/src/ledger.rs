@@ -178,7 +178,9 @@ impl LedgerRecord {
             content_hash: spec.content_hash.clone(),
             cli_version: cli_version.to_string(),
             clone_local: spec.clone_local,
-            superseded_by: spec.superseded_by.clone(),
+            // Init/success records do not claim a supersession outcome. The
+            // runner must explicitly stamp this only when it selects one.
+            superseded_by: String::new(),
         }
     }
 
@@ -559,34 +561,27 @@ fn has_legacy_dotted_command_skills(project_root: &Path) -> bool {
 }
 
 /// The lock-only sidecar for a ledger path, in the user state directory.
-pub fn ledger_lock_path(ledger_path: &Path) -> PathBuf {
-    let state = std::env::var_os("XDG_STATE_HOME")
-        .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local").join("state"))
-        })
-        .unwrap_or_else(std::env::temp_dir);
-    let resolved = std::fs::canonicalize(ledger_path).unwrap_or_else(|_| {
-        let parent = ledger_path
-            .parent()
-            .and_then(|parent| std::fs::canonicalize(parent).ok())
-            .unwrap_or_else(|| PathBuf::from("."));
-        parent.join(ledger_path.file_name().unwrap_or_default())
-    });
+pub fn ledger_lock_path(ledger_path: &Path) -> Result<PathBuf, InstallError> {
+    let unresolved = |error: sk_kernel::KernelError| InstallError::LedgerInvalid {
+        path: ledger_path.to_path_buf(),
+        detail: format!("could not resolve ledger lock authority: {error}"),
+    };
+    let state = sk_kernel::user_state_dir().map_err(unresolved)?;
+    let resolved = sk_kernel::paths::resolve_path_non_strict(ledger_path).map_err(unresolved)?;
     let digest = Sha256::digest(resolved.to_string_lossy().as_bytes());
     let key: String = digest[..16]
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect();
-    state
+    Ok(state
         .join("spec-kitty")
         .join("locks")
         .join("migration-ledger")
-        .join(format!("{key}.lock"))
+        .join(format!("{key}.lock")))
 }
 
 fn acquire_ledger_lock(path: &Path) -> Result<sk_kernel::FileLock, InstallError> {
-    let lock_path = ledger_lock_path(path);
+    let lock_path = ledger_lock_path(path)?;
     if let Some(parent) = lock_path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|source| InstallError::io("create directory", parent, source))?;
@@ -660,6 +655,7 @@ mod tests {
         assert_eq!(seeded.len(), 124);
         let records = ledger.records(false).expect("records");
         assert_eq!(records.len(), 125);
+        assert!(records.iter().all(|record| record.superseded_by.is_empty()));
         assert!(records.iter().any(|record| record.id == "old"));
         assert!(ledger.records(true).expect("clone").is_empty());
         let again = ledger

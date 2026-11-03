@@ -291,7 +291,7 @@ pub fn append_rows_with_commit(
 }
 
 fn verify_readback(path: &Path, expected: &str) -> Result<(), MutationError> {
-    let actual = read_log_text(path)?;
+    let actual = read_log_text(path).map_err(|error| error.after_commit(path))?;
     let actual = actual.unwrap_or_default();
     if actual == expected {
         return Ok(());

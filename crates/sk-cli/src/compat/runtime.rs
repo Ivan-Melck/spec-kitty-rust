@@ -84,6 +84,17 @@ fn open_store(root: &Path) -> Result<RunStore, CompatError> {
     RunStore::open(root).map_err(map_store_error)
 }
 
+fn existing_run(
+    root: &Path,
+    mission: &sk_mission::Mission,
+) -> Result<(RunStore, RunRef), CompatError> {
+    let store = open_store(root)?;
+    let run = store.run_for_mission(mission.slug().as_str(), Some(mission.id().as_str()))
+        .map_err(map_store_error)?
+        .ok_or_else(|| CompatError::coded("RUN_NOT_FOUND", "no durable run exists; query does not start one (full no-run mission preview is not implemented)"))?;
+    Ok((store, run))
+}
+
 /// Start or resolve the mission's durable run.
 pub fn ensure_run(
     root: &Path,
@@ -363,16 +374,25 @@ pub fn next(
     let root = project_root()?;
     let mission = resolve_mission(&root, handle)?;
 
+    if answer.is_some() && result.is_none() {
+        return Err(CompatError::domain(
+            "--answer requires --result because query mode is read-only",
+        ));
+    }
     if answer.is_some() && agent.is_none() {
         return Err(CompatError::usage("--agent is required with --answer"));
     }
     if result.is_some() && agent.is_none() {
-        return Err(CompatError::usage(
+        return Err(CompatError::domain(
             "--agent is required when --result is provided",
         ));
     }
     let step_result = result.map(parse_result).transpose()?;
-    let (store, run) = ensure_run(&root, &mission)?;
+    let (store, run) = if step_result.is_some() {
+        ensure_run(&root, &mission)?
+    } else {
+        existing_run(&root, &mission)?
+    };
 
     let mut answered = None;
     if let Some(answer) = answer {
@@ -404,7 +424,7 @@ pub fn next(
                 }
             }
         };
-        let actor = ActorIdentity::new(agent.expect("checked above"), ActorType::Llm);
+        let actor = ActorIdentity::new(agent.expect("checked above"), ActorType::Human);
         store
             .answer(
                 &run,
@@ -493,7 +513,7 @@ pub fn start(
 pub fn query(handle: Option<&str>, json_output: bool) -> Result<Value, CompatError> {
     let root = project_root()?;
     let mission = resolve_mission(&root, handle)?;
-    let (store, run) = ensure_run(&root, &mission)?;
+    let (store, run) = existing_run(&root, &mission)?;
     let result = store.query(&run).map_err(map_store_error)?;
     let value = serde_json::to_value(&result)
         .map_err(|error| CompatError::domain(format!("could not serialize run: {error}")))?;

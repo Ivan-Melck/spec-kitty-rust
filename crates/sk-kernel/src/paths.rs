@@ -18,6 +18,13 @@ use crate::KernelError;
 use crate::fs_resolve::{map_resolve_failure, resolve_non_strict};
 use crate::pack_tiers::BUILT_IN;
 
+/// Resolve an absolute, symlink-aware path even when its trailing components
+/// do not exist, matching `Path.resolve(strict=False)` in the reference.
+/// Resolution failures remain typed; callers must not substitute another path.
+pub fn resolve_path_non_strict(path: &Path) -> Result<PathBuf, KernelError> {
+    resolve_non_strict(path).map_err(|failure| map_resolve_failure(path, failure))
+}
+
 /// Environment variable naming the user-global `.kittify` home (all platforms).
 pub const KITTIFY_HOME_ENV: &str = "SPEC_KITTY_HOME";
 

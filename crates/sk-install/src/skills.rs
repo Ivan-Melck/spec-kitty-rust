@@ -352,7 +352,7 @@ impl ManagedSkillManifest {
 
     /// Load the manifest strictly: absent is `Ok(None)`, malformed is an error.
     pub fn load_strict(project_root: &Path) -> Result<Option<Self>, InstallError> {
-        let path = project_root.join(SKILLS_MANIFEST_REL);
+        let path = managed_skill_destination(project_root, SKILLS_MANIFEST_REL)?;
         let raw = match std::fs::read(&path) {
             Ok(raw) => raw,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -426,6 +426,7 @@ impl ManagedSkillManifest {
                             detail: error.to_string(),
                         }
                     })?;
+                managed_skill_destination(project_root, &entry.installed_path)?;
                 if !matches!(entry.delivery_mode.as_str(), "copy" | "symlink") {
                     return Err(InstallError::SkillsManifestInvalid {
                         path: path.clone(),
@@ -482,7 +483,10 @@ impl ManagedSkillManifest {
     ///
     /// Returns `true` when the file changed.
     pub fn save(&self, project_root: &Path) -> Result<bool, InstallError> {
-        let path = project_root.join(SKILLS_MANIFEST_REL);
+        let path = managed_skill_destination(project_root, SKILLS_MANIFEST_REL)?;
+        for entry in &self.entries {
+            managed_skill_destination(project_root, &entry.installed_path)?;
+        }
         let previous = Self::load_strict(project_root)?;
         let mut desired = self.clone();
         if let Some(previous) = &previous {
@@ -918,7 +922,7 @@ pub fn run_surface_repair(
         ) {
             continue;
         }
-        let destination = project_root.join(&entry.installed_path);
+        let destination = managed_skill_destination(project_root, &entry.installed_path)?;
         match std::fs::symlink_metadata(&destination) {
             Ok(metadata) if metadata.file_type().is_file() => {
                 let bytes = std::fs::read(&destination)
@@ -969,6 +973,17 @@ pub fn run_surface_repair(
     updated.updated_at = now_utc_iso();
     updated.save(project_root)?;
     Ok(summary)
+}
+
+fn managed_skill_destination(project_root: &Path, relative: &str) -> Result<PathBuf, InstallError> {
+    let invalid = |detail: String| InstallError::SkillsManifestInvalid {
+        path: project_root.join(SKILLS_MANIFEST_REL),
+        detail,
+    };
+    crate::manifest::validate_relative_posix(relative, "managed skill destination")
+        .map_err(|error| invalid(error.to_string()))?;
+    sk_kernel::resolve_within(project_root, Path::new(relative))
+        .map_err(|error| invalid(error.to_string()))
 }
 
 fn write_bytes(destination: &Path, bytes: &[u8]) -> Result<(), InstallError> {
@@ -1073,6 +1088,67 @@ mod tests {
             .expect("install");
         assert_eq!(report.written.len(), 0);
         assert_eq!(report.adopted.len(), 3);
+    }
+
+    #[test]
+    fn unsafe_manifest_destinations_refuse_before_surface_repair() {
+        let sandbox = tempfile::tempdir().unwrap();
+        let project = tempfile::tempdir_in(sandbox.path()).unwrap();
+        let source = tempfile::tempdir_in(sandbox.path()).unwrap();
+        let catalog = catalog(source.path());
+        let outside = source.path().join("escaped.md");
+        for installed in [
+            "../escaped.md".to_owned(),
+            outside.to_string_lossy().into_owned(),
+        ] {
+            let mut manifest = ManagedSkillManifest::new("test", "now");
+            manifest.add_entry(ManagedFileEntry::copied(
+                "spec-kitty-demo",
+                "SKILL.md",
+                &installed,
+                "native-root-required",
+                "claude",
+                "sha256:x",
+                "now",
+            ));
+            let path = project.path().join(SKILLS_MANIFEST_REL);
+            write(&path, &serde_json::to_string(&manifest).unwrap());
+            let before = std::fs::read(&path).unwrap();
+            assert!(ManagedSkillManifest::load_strict(project.path()).is_err());
+            assert!(
+                run_surface_repair(project.path(), &["claude".to_owned()], &catalog, true).is_err()
+            );
+            assert_eq!(std::fs::read(&path).unwrap(), before);
+            assert!(!outside.exists());
+            assert!(!sandbox.path().join("escaped.md").exists());
+            std::fs::remove_file(&path).unwrap();
+            assert!(manifest.save(project.path()).is_err());
+            assert!(!path.exists());
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_skill_parents_cannot_redirect_manifest_repair_outside_the_project() {
+        let project = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink(outside.path(), project.path().join(".claude")).unwrap();
+        let mut manifest = ManagedSkillManifest::new("test", "now");
+        manifest.add_entry(ManagedFileEntry::copied(
+            "spec-kitty-demo",
+            "SKILL.md",
+            ".claude/skills/spec-kitty-demo/SKILL.md",
+            "native-root-required",
+            "claude",
+            "sha256:x",
+            "now",
+        ));
+        write(
+            &project.path().join(SKILLS_MANIFEST_REL),
+            &serde_json::to_string(&manifest).unwrap(),
+        );
+        assert!(ManagedSkillManifest::load_strict(project.path()).is_err());
+        assert_eq!(std::fs::read_dir(outside.path()).unwrap().count(), 0);
     }
 
     #[test]

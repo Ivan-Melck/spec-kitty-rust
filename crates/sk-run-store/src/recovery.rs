@@ -313,12 +313,9 @@ fn replay(
                     .ok_or_else(|| {
                         inconsistent(state, format!("answer {decision_id:?} has no actor"))
                     })?;
-                if working.decisions.contains_key(decision_id) {
-                    return Err(inconsistent(
-                        state,
-                        format!("journal answers decision {decision_id:?} twice"),
-                    ));
-                }
+                // A soft gate can remain pending after defer/open_stand_up;
+                // its next answer replaces the prior record, just like the live
+                // engine. A completed decision still refuses as non-pending.
                 if !working.pending_decisions.contains_key(decision_id) {
                     return Err(inconsistent(
                         state,
@@ -620,13 +617,9 @@ fn index_differences(
 }
 
 fn index_present(store: &RunStore, run: &RunRef, state: &RunState) -> Result<bool, RunStoreError> {
-    let Some(slug) = state.mission_slug.as_deref() else {
-        return Err(RunStoreError::IdentityMismatch {
-            message: format!("run {:?} has no mission_slug", run.run_id),
-        });
-    };
+    let (slug, id) = crate::store::resolved_run_identity(run, state)?;
     let (index, _rekeyed) = store.read_index_canonical()?;
-    let Some((_key, entry)) = find_entry(&index, slug, state.mission_id.as_deref())? else {
+    let Some((_key, entry)) = find_entry(&index, slug, id)? else {
         return Ok(false);
     };
     let indexed = store.run_ref_from_entry(entry)?;

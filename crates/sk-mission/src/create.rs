@@ -38,7 +38,7 @@ use std::time::Duration;
 
 use serde::Serialize;
 use serde_json::Value;
-use sk_kernel::locks::FileLock;
+use sk_kernel::locks::LockWait;
 use sk_kernel::{MissionSlug, atomic_write, read_bounded};
 use thiserror::Error;
 
@@ -57,9 +57,7 @@ use crate::topology::{MissionTopology, routes_through_coordination};
 pub const DEFAULT_MISSION_TYPE: &str = "software-dev";
 
 const TASKS_GITKEEP: &str = ".gitkeep";
-const LOCK_DIR: &str = "spec-kitty-locks";
-const CREATE_LOCK_FILE: &str = "mission-write.lock";
-const DEFAULT_LOCK_TIMEOUT: Duration = Duration::from_secs(10);
+const DEFAULT_LOCK_TIMEOUT: Duration = crate::write_lock::MISSION_WRITE_LOCK_TIMEOUT;
 
 /// A validated kebab-case Mission slug body supplied by the operator.
 ///
@@ -940,16 +938,17 @@ impl MissionCreatePlan {
         observer: &mut dyn MissionWriteObserver,
     ) -> Result<MissionCreateReceipt, MissionCreateError> {
         self.validate(root)?;
-        let lock_path = self
-            .root
-            .join(".kittify")
-            .join(LOCK_DIR)
-            .join(CREATE_LOCK_FILE);
-        let _lock = FileLock::acquire(&lock_path, self.lock_timeout).map_err(|source| {
-            MissionCreateError::Lock {
-                path: lock_path.clone(),
-                source,
-            }
+        // The create's `meta.json` birth write takes the documented birth key
+        // (the directory name): there is no `meta.json` to resolve yet, so the
+        // canonical primary/coordination key cascade does not apply here.
+        let _lock = crate::write_lock::lock_mission_birth(
+            &self.spec_dir,
+            &self.root,
+            LockWait::Bounded(self.lock_timeout),
+        )
+        .map_err(|source| MissionCreateError::Lock {
+            path: self.spec_dir.clone(),
+            source,
         })?;
         // Revalidate under the lock: another writer may have won the race.
         self.validate(root)?;
@@ -1649,12 +1648,12 @@ pub enum MissionCreateError {
     #[error("stale Mission creation plan for {path}: {detail}")]
     StalePlan { path: PathBuf, detail: String },
 
-    /// The creation lock could not be acquired.
-    #[error("cannot acquire Mission creation lock {path}: {source}")]
+    /// The write lock could not be acquired.
+    #[error("cannot acquire Mission write lock {path}: {source}")]
     Lock {
         path: PathBuf,
         #[source]
-        source: sk_kernel::KernelError,
+        source: sk_status::mutation::MutationError,
     },
 
     /// A filesystem operation failed.

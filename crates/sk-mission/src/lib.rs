@@ -63,6 +63,7 @@ mod tasks;
 mod template;
 mod topology;
 mod work_package;
+mod write_lock;
 mod yaml_patch;
 
 pub use artifacts::{
@@ -99,6 +100,7 @@ pub use template::{
 };
 pub use topology::{MissionTopology, classify_topology, routes_through_coordination};
 pub use work_package::{DEFAULT_WORK_PACKAGE_BYTE_LIMIT, WorkPackage};
+pub use write_lock::{MISSION_WRITE_LOCK_TIMEOUT, lock_mission, lock_mission_birth};
 
 // Re-exported so callers can build selectors and state maps without depending
 // on the kernel crate directly.

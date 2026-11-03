@@ -14,6 +14,15 @@ use std::time::Duration;
 /// A failure while inspecting a Git repository.
 #[derive(Debug, thiserror::Error)]
 pub enum GitError {
+    /// The selected repository/index cannot yet share captured writer authority.
+    #[error(
+        "inherited {variable} is not supported for this write; clear repository selectors rather than silently retargeting the mutation"
+    )]
+    RepositoryEnvironmentRefused {
+        /// The selector name; its potentially sensitive value is never logged.
+        variable: &'static str,
+    },
+
     /// The configured git executable could not be found.
     ///
     /// This is distinct from a git command that ran and exited non-zero: the
@@ -361,4 +370,213 @@ pub enum GitError {
         /// Maximum bytes written to a child's stdin.
         limit: u64,
     },
+
+    // -----------------------------------------------------------------
+    // Path-scoped safe-commit refusals. Every variant below is raised
+    // BEFORE any repository mutation unless its documentation says the
+    // commit already landed, so a caller can distinguish "refused, nothing
+    // changed" from "landed, follow-up needs repair".
+    // -----------------------------------------------------------------
+    /// A safe commit was requested with no paths and no index deletions.
+    #[error("refusing an empty safe commit: at least one path is required")]
+    SafeCommitEmptyChangeset,
+
+    /// The checkout's HEAD is not the declared destination branch.
+    #[error(
+        "safe commit worktree {worktree_root} has HEAD {observed_head:?}, expected branch {destination:?}"
+    )]
+    SafeCommitHeadMismatch {
+        /// The branch the caller declared.
+        destination: String,
+        /// The branch checked out now, or `<detached>`.
+        observed_head: String,
+        /// The checkout that was inspected.
+        worktree_root: PathBuf,
+    },
+
+    /// The declared destination branch does not exist in this repository.
+    #[error("safe commit destination branch {destination:?} does not exist in {worktree_root}")]
+    SafeCommitDestinationMissing {
+        /// The branch the caller declared.
+        destination: String,
+        /// The checkout that was inspected.
+        worktree_root: PathBuf,
+    },
+
+    /// A requested path is a real directory, not a file, symlink, gitlink, or deletion.
+    #[error(
+        "refusing directory path {path} in a safe commit; expand it to its files first ({worktree_root})"
+    )]
+    SafeCommitDirectoryArgument {
+        /// The path that is a directory.
+        path: PathBuf,
+        /// The checkout that was inspected.
+        worktree_root: PathBuf,
+    },
+
+    /// A requested path is under `.worktrees/`.
+    #[error(
+        "refusing to stage {path} from {worktree_root}: `.worktrees/` paths are coordination-worktree artefacts"
+    )]
+    SafeCommitPathPolicy {
+        /// The refused path.
+        path: PathBuf,
+        /// The checkout the path was resolved against.
+        worktree_root: PathBuf,
+    },
+
+    /// An absolute requested path does not resolve inside the worktree.
+    #[error("safe commit path {path} is outside worktree {worktree_root}")]
+    SafeCommitPathOutsideWorktree {
+        /// The path as supplied.
+        path: PathBuf,
+        /// The checkout the path was resolved against.
+        worktree_root: PathBuf,
+    },
+
+    /// Resolving a requested path hit a symlink loop.
+    #[error("refusing safe commit path {path}: symlink loop ({worktree_root})")]
+    SafeCommitPathLoop {
+        /// The path whose resolution looped.
+        path: PathBuf,
+        /// The checkout the path was resolved against.
+        worktree_root: PathBuf,
+    },
+
+    /// The destination denies a safe commit for the asserted capability.
+    #[error(
+        "refusing to commit to protected branch {destination:?} in {worktree_root}: capability {capability:?} authorizes no protected-branch flow"
+    )]
+    SafeCommitProtectedBranch {
+        /// The protected destination branch.
+        destination: String,
+        /// The checkout that would receive the commit.
+        worktree_root: PathBuf,
+        /// The capability asserted at the call site.
+        capability: &'static str,
+    },
+
+    /// A path was requested for commit and also listed as an index deletion.
+    #[error("safe commit path(s) both requested and listed as index deletions: {paths:?}")]
+    SafeCommitIndexDeletionConflict {
+        /// The conflicting repository-relative paths.
+        paths: Vec<String>,
+    },
+
+    /// A safe-commit request is internally inconsistent.
+    #[error("invalid safe commit request: {detail}")]
+    SafeCommitInvalidRequest {
+        /// What is inconsistent.
+        detail: String,
+    },
+
+    /// The requested paths produce no change against HEAD (a benign no-op).
+    #[error(
+        "nothing to commit for safe commit destination {destination:?}: the requested paths already match HEAD ({detail})"
+    )]
+    SafeCommitNothingToCommit {
+        /// The destination branch.
+        destination: String,
+        /// The evidence that classified the outcome as a no-op.
+        detail: String,
+    },
+
+    /// Git refused to stage one requested path.
+    #[error("safe commit could not stage {path}: {detail}")]
+    SafeCommitStageFailed {
+        /// The repository-relative path that failed.
+        path: PathBuf,
+        /// Git's diagnostic.
+        detail: String,
+    },
+
+    /// Candidate creation succeeded, but ref advancement could not be confirmed.
+    /// Hooks or another writer may have changed history; inspect before retrying.
+    #[error(
+        "safe commit candidate {candidate} has an unconfirmed advance on {destination} (observed {observed_tip:?}): {detail}"
+    )]
+    SafeCommitAdvanceUnconfirmed {
+        /// The requested branch.
+        destination: String,
+        /// The immutable candidate object created by this operation.
+        candidate: crate::Oid,
+        /// The branch tip read after the error, if it could be read.
+        observed_tip: Option<crate::Oid>,
+        /// Original failure and any readback diagnostic.
+        detail: String,
+    },
+
+    /// Git refused to create the commit for a reason other than an empty changeset.
+    #[error("safe commit failed on {destination} (status {status:?}): {detail}")]
+    SafeCommitCommitFailed {
+        /// The destination branch.
+        destination: String,
+        /// The process exit code, or `None` when signalled.
+        status: Option<i32>,
+        /// Git's combined output.
+        detail: String,
+    },
+
+    /// A commit hook rejected the pinned-parent commit.
+    #[error("safe commit hook {hook:?} rejected the commit: {detail}")]
+    SafeCommitHookRejected {
+        /// The hook name.
+        hook: String,
+        /// Git's diagnostic.
+        detail: String,
+    },
+
+    /// A commit hook changed the requested path contents in the isolated index.
+    #[error(
+        "refusing pinned-parent safe commit: a commit hook changed the requested path contents after they were staged"
+    )]
+    SafeCommitHookChangedPaths,
+
+    /// An exact-bytes assertion did not match the staged blob.
+    #[error("safe commit expected raw bytes for {path} do not match the staged blob: {detail}")]
+    SafeCommitExpectedBytesMismatch {
+        /// The repository-relative path.
+        path: String,
+        /// What differed.
+        detail: String,
+    },
+
+    /// The commit DID land, but a post-landing readback or index resync failed.
+    ///
+    /// This is not a refusal: `recovery.commit()` names the commit object that
+    /// exists and `recovery.affected_paths()` names the paths whose index state
+    /// needs repair. Nothing is reset, deleted, or rolled back automatically.
+    #[error(
+        "safe commit {commit} landed on {destination} in {worktree_root}, but {detail}; \
+         repair the index for {paths:?} against that commit (no state was reset automatically)",
+        commit = recovery.commit(),
+        paths = recovery.affected_paths()
+    )]
+    SafeCommitLanded {
+        /// Which post-landing step failed.
+        kind: SafeCommitLandedKind,
+        /// The destination branch.
+        destination: String,
+        /// The checkout whose index needs repair.
+        worktree_root: PathBuf,
+        /// What failed.
+        detail: String,
+        /// The landed commit and the paths whose index state needs repair.
+        ///
+        /// Boxed so the common error path stays small.
+        recovery: Box<crate::safe_commit::SafeCommitRecovery>,
+    },
+}
+
+/// Which post-landing safe-commit step failed after the commit object was created.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SafeCommitLandedKind {
+    /// The real index could not be resynchronised for the committed paths.
+    IndexResyncFailed,
+    /// The real index still stages a path the commit already carries.
+    IndexResidue,
+    /// The commit carries paths the operation never requested.
+    UnrequestedPaths,
+    /// The commit's own changed-path set could not be read back.
+    CommitPathReadbackFailed,
 }

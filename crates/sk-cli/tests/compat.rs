@@ -312,7 +312,7 @@ fn init_rejects_an_invalid_agent_before_writing() {
         &home,
         &["init", "--ai", "not-an-agent", "--non-interactive"],
     );
-    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(output.status.code(), Some(1));
     assert!(!temp.path().join(".kittify").exists());
 }
 
@@ -532,7 +532,11 @@ fn specify_plan_and_tasks_form_a_real_authoring_slice() {
     let init = run(root, &home, &["init", "--ai", "codex", "--non-interactive"]);
     assert_eq!(init.status.code(), Some(0));
 
-    let specify = run(root, &home, &["specify", "User Auth", "--json"]);
+    let specify = run(
+        root,
+        &home,
+        &["specify", "User Auth", "--topology", "lanes", "--json"],
+    );
     assert_eq!(
         specify.status.code(),
         Some(0),
@@ -553,7 +557,11 @@ fn specify_plan_and_tasks_form_a_real_authoring_slice() {
     assert!(mission_dir.join("meta.json").is_file());
 
     // A second identical specify is refused by the idempotency guard.
-    let duplicate = run(root, &home, &["specify", "User Auth", "--json"]);
+    let duplicate = run(
+        root,
+        &home,
+        &["specify", "User Auth", "--topology", "lanes", "--json"],
+    );
     assert_eq!(duplicate.status.code(), Some(1));
     let value = single_json(&duplicate);
     assert!(
@@ -584,6 +592,29 @@ fn specify_plan_and_tasks_form_a_real_authoring_slice() {
     assert_eq!(value["result"], json!("success"));
     assert_eq!(value["dependencies"]["WP01"], json!([]));
     assert_eq!(value["committed"], json!(false));
+}
+
+#[test]
+fn omitted_topology_never_silently_selects_lanes_on_the_primary_checkout() {
+    let (temp, home) = project();
+    let root = temp.path();
+    git(root, &["init", "-q", "-b", "main"]);
+    write(&root.join("README.md"), "fixture\n");
+    git(root, &["add", "-A"]);
+    git(root, &["commit", "-qm", "init"]);
+    assert!(
+        run(root, &home, &["init", "--ai", "codex", "--non-interactive"])
+            .status
+            .success()
+    );
+    let before = tree_snapshot(root);
+    let output = run(root, &home, &["specify", "Default Coord", "--json"]);
+    assert!(!output.status.success());
+    assert_eq!(
+        single_json(&output)["error_code"],
+        "COORDINATION_TOPOLOGY_UNSUPPORTED"
+    );
+    assert_eq!(tree_snapshot(root), before);
 }
 
 #[test]
@@ -697,6 +728,32 @@ fn implement_allocates_real_lane_worktrees_and_reuses_them() {
 }
 
 #[test]
+fn canonical_protection_config_is_honored_before_lane_allocation() {
+    let (temp, home, slug) = lane_project();
+    let root = temp.path();
+    write(
+        &root.join(".kittify/config.yaml"),
+        "protection:\n  protected_branches: [release]\n",
+    );
+    let path = root.join("kitty-specs").join(&slug).join("lanes.json");
+    let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    manifest["mission_branch"] = json!("release");
+    write(&path, &manifest.to_string());
+    let before = tree_snapshot(root);
+    let output = run(
+        root,
+        &home,
+        &["implement", "WP01", "--mission", &slug, "--json"],
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        single_json(&output)["error_code"],
+        "PROTECTED_BRANCH_REFUSED"
+    );
+    assert_eq!(tree_snapshot(root), before);
+}
+
+#[test]
 fn implement_refuses_a_protected_lane_branch_before_allocating() {
     let (temp, home, slug) = lane_project();
     let root = temp.path();
@@ -744,6 +801,48 @@ fn coordination_materialization_refuses_before_writing_the_primary_surface() {
         "COORDINATION_SURFACE_UNAVAILABLE"
     );
     assert_eq!(tree_snapshot(root), before);
+}
+
+#[test]
+fn no_run_queries_and_invalid_advances_do_not_bootstrap_runtime_files() {
+    let (temp, home, slug) = mission_project();
+    let root = temp.path();
+    let before = tree_snapshot(root);
+    for args in [
+        vec!["next", "--mission", &slug, "--json"],
+        vec!["runtime", "query", "--mission", &slug, "--json"],
+        vec!["next", "--result", "success", "--mission", &slug, "--json"],
+        vec!["next", "--answer", "ignored", "--mission", &slug, "--json"],
+    ] {
+        let output = run(root, &home, &args);
+        assert_eq!(output.status.code(), Some(1), "args: {args:?}");
+        let _ = single_json(&output);
+        assert_eq!(tree_snapshot(root), before, "args: {args:?}");
+    }
+}
+
+#[test]
+fn a_mission_handle_named_native_is_not_the_native_escape_route() {
+    let (temp, home, _) = mission_project();
+    let output = run(
+        temp.path(),
+        &home,
+        &[
+            "agent",
+            "status",
+            "validate",
+            "--mission",
+            "native",
+            "--json",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        single_json(&output)["error"]
+            .as_str()
+            .unwrap()
+            .contains("native")
+    );
 }
 
 #[test]

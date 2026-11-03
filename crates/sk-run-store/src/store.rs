@@ -47,6 +47,8 @@ static RUN_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 pub struct RunStore {
     root: PathBuf,
     lock_timeout: Duration,
+    #[cfg(test)]
+    index_commit: fn(&Path, &[u8]) -> Result<bool, KernelError>,
 }
 
 impl RunStore {
@@ -68,6 +70,8 @@ impl RunStore {
         Ok(Self {
             root,
             lock_timeout: DEFAULT_LOCK_TIMEOUT,
+            #[cfg(test)]
+            index_commit: sk_kernel::atomic_write,
         })
     }
 
@@ -162,6 +166,7 @@ impl RunStore {
         // Phase 3: commit the index under the lock, re-checking that no peer won.
         let _lock = self.lock_index()?;
         let created_dir = created.0.run_dir.clone();
+        let created_run_id = created.0.run_id.clone();
         let committed = (|| {
             let (mut index, _rekeyed) = self.read_index_canonical()?;
             if let Some((_key, entry)) =
@@ -207,10 +212,19 @@ impl RunStore {
                 orphans_removed,
             })
         })();
-        if committed.is_err() {
-            // No index entry names this run (the lock is still held and the
-            // write failed or never happened), so it is unreachable.
-            let _ = fs::remove_dir_all(&created_dir);
+        if let Err(error) = &committed {
+            // Rename may have succeeded. Never erase the run named by an
+            // indeterminate index, or when a readback cannot prove absence.
+            let indeterminate = matches!(error,
+                RunStoreError::Kernel(source) if source.mutation_may_have_committed());
+            let definitely_unindexed = self.read_index_canonical().is_ok_and(|(index, _)| {
+                !index.values().any(|entry| {
+                    entry.get("run_id").and_then(Value::as_str) == Some(created_run_id.as_str())
+                })
+            });
+            if !indeterminate && definitely_unindexed {
+                let _ = fs::remove_dir_all(&created_dir);
+            }
         }
         committed
     }
@@ -379,12 +393,13 @@ impl RunStore {
             });
         }
         let state = self.read_state_at(&resolved, Some(&run.run_id))?;
+        let (slug, id) = resolved_run_identity(run, &state)?;
         Ok(RunRef {
             run_id: run.run_id.clone(),
             run_dir: resolved,
-            mission_key: state.mission_key,
-            mission_id: state.mission_id,
-            mission_slug: state.mission_slug,
+            mission_key: state.mission_key.clone(),
+            mission_id: id.map(str::to_owned),
+            mission_slug: Some(slug.to_owned()),
         })
     }
 
@@ -507,6 +522,9 @@ impl RunStore {
                 message: format!("could not serialize index: {error}"),
             }
         })?;
+        #[cfg(test)]
+        (self.index_commit)(&self.index_path(), &bytes)?;
+        #[cfg(not(test))]
         sk_kernel::atomic_write(&self.index_path(), &bytes)?;
         Ok(())
     }
@@ -518,16 +536,8 @@ impl RunStore {
     ) -> Result<bool, RunStoreError> {
         let _lock = self.lock_index()?;
         let (mut index, _rekeyed) = self.read_index_canonical()?;
-        if let Some((_key, entry)) = find_entry(
-            &index,
-            state
-                .mission_slug
-                .as_deref()
-                .ok_or_else(|| RunStoreError::IdentityMismatch {
-                    message: format!("run {:?} has no mission_slug to index", run.run_id),
-                })?,
-            state.mission_id.as_deref(),
-        )? {
+        let (slug, id) = resolved_run_identity(run, state)?;
+        if let Some((_key, entry)) = find_entry(&index, slug, id)? {
             let indexed = self.run_ref_from_entry(entry)?;
             if indexed.run_id == run.run_id {
                 return Ok(false);
@@ -539,10 +549,7 @@ impl RunStore {
                 ),
             });
         }
-        let key = run_index_key(
-            state.mission_slug.as_deref().unwrap_or_default(),
-            state.mission_id.as_deref(),
-        );
+        let key = run_index_key(slug, id);
         index.insert(
             key,
             json!({
@@ -550,8 +557,8 @@ impl RunStore {
                 "run_dir": self.run_dir_token(&run.run_dir)?,
                 "mission_type": state.mission_key,
                 "mission_key": state.mission_key,
-                "mission_id": state.mission_id,
-                "mission_slug": state.mission_slug,
+                "mission_id": id,
+                "mission_slug": slug,
             }),
         );
         self.write_index(&index)?;
@@ -580,15 +587,32 @@ impl RunStore {
             path: self.index_path(),
             message: format!("entry {run_id:?} is missing run_dir"),
         })?;
-        let relative = Path::new(&token);
-        if relative.is_absolute()
-            || relative.components().any(|component| {
-                matches!(
-                    component,
-                    Component::Prefix(_) | Component::RootDir | Component::ParentDir
-                )
-            })
-        {
+        let token_path = Path::new(&token);
+        let relative = if token_path.is_absolute() {
+            let canonical = fs::canonicalize(token_path).map_err(|source| {
+                RunStoreError::Kernel(KernelError::Io {
+                    action: "resolve legacy run directory",
+                    path: token_path.to_path_buf(),
+                    source,
+                })
+            })?;
+            canonical
+                .strip_prefix(&self.root)
+                .map_err(|_| RunStoreError::RunDirOutsideRepo {
+                    token: token.clone(),
+                    resolved: canonical.clone(),
+                    root: self.root.clone(),
+                })?
+                .to_path_buf()
+        } else {
+            token_path.to_path_buf()
+        };
+        if relative.components().any(|component| {
+            matches!(
+                component,
+                Component::Prefix(_) | Component::RootDir | Component::ParentDir
+            )
+        }) {
             return Err(RunStoreError::RunDirOutsideRepo {
                 token: token.clone(),
                 resolved: self.root.join(relative),
@@ -596,7 +620,7 @@ impl RunStore {
             });
         }
         let resolved =
-            sk_kernel::resolve_within(&self.root, relative).map_err(|error| match error {
+            sk_kernel::resolve_within(&self.root, &relative).map_err(|error| match error {
                 KernelError::PathEscape { root, resolved } => RunStoreError::RunDirOutsideRepo {
                     token,
                     resolved,
@@ -940,7 +964,92 @@ fn next_run_id() -> String {
     format!("{high:016x}{low:016x}")
 }
 
+/// Resolve nullable baseline cursor identity from the validated reference/index.
+pub(crate) fn resolved_run_identity<'a>(
+    run: &'a RunRef,
+    state: &'a RunState,
+) -> Result<(&'a str, Option<&'a str>), RunStoreError> {
+    for (field, declared, durable) in [
+        (
+            "mission_slug",
+            run.mission_slug.as_deref(),
+            state.mission_slug.as_deref(),
+        ),
+        (
+            "mission_id",
+            run.mission_id.as_deref(),
+            state.mission_id.as_deref(),
+        ),
+    ] {
+        if let (Some(declared), Some(durable)) = (declared, durable)
+            && declared != durable
+        {
+            return Err(RunStoreError::IdentityMismatch {
+                message: format!(
+                    "{field} differs between run reference and cursor for {:?}",
+                    run.run_id
+                ),
+            });
+        }
+    }
+    let slug = state
+        .mission_slug
+        .as_deref()
+        .or(run.mission_slug.as_deref())
+        .or_else(|| state.inputs.get("mission_slug").and_then(Value::as_str))
+        .ok_or_else(|| RunStoreError::IdentityMismatch {
+            message: format!(
+                "run {:?} has no mission_slug in its cursor, reference or inputs",
+                run.run_id
+            ),
+        })?;
+    validate_mission_slug(slug)?;
+    let id = state.mission_id.as_deref().or(run.mission_id.as_deref());
+    Ok((slug, id))
+}
+
 /// The current instant used by callers that need to seed a request timestamp.
 pub fn now_timestamp() -> String {
     now_iso()
+}
+
+#[cfg(test)]
+mod transaction_regressions {
+    use super::*;
+
+    #[test]
+    fn indeterminate_index_commit_preserves_the_run_the_visible_index_names() {
+        let root = tempfile::tempdir().unwrap();
+        let template = root.path().join("mission.yaml");
+        fs::write(&template, "mission:\n  key: demo\n  name: Demo\n  version: '1.0'\nsteps:\n  - id: first\n    title: First\n    prompt: Start\n").unwrap();
+        let mut store = RunStore::open(root.path()).unwrap();
+        store.index_commit = |path, bytes| {
+            sk_kernel::atomic_write(path, bytes)?;
+            Err(KernelError::AtomicCommitIndeterminate {
+                path: path.to_path_buf(),
+                source: Box::new(KernelError::Io {
+                    action: "injected parent directory sync",
+                    path: path.to_path_buf(),
+                    source: std::io::Error::other("injected failure after rename"),
+                }),
+            })
+        };
+        let error = store
+            .start(&StartRequest {
+                mission_slug: "demo".to_owned(),
+                mission_id: None,
+                template_path: template,
+                inputs: Default::default(),
+                policy_snapshot: Default::default(),
+            })
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            RunStoreError::Kernel(KernelError::AtomicCommitIndeterminate { .. })
+        ));
+        let run = store.run_for_mission("demo", None).unwrap().unwrap();
+        assert!(run.run_dir.join(STATE_FILENAME).is_file());
+        assert!(run.run_dir.join(FROZEN_TEMPLATE_FILENAME).is_file());
+        assert!(store.query(&run).is_ok());
+    }
 }

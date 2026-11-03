@@ -9,6 +9,8 @@ repository.workspace = true
 
 [dependencies]
 serde_json.workspace = true
+uuid.workspace = true
+ulid.workspace = true
 thiserror.workspace = true
 sk-kernel = { path = "../sk-kernel" }
 

@@ -171,48 +171,29 @@ pub fn node_id_from_host_user() -> String {
 /// This reproduces `specify_cli.identity.project.derive_build_id`: the namespace
 /// is `uuid5(NAMESPACE_URL, "spec-kitty:identity:build_id")`.
 pub fn build_id_for(project_uuid: &str, node_id: &str) -> String {
-    let namespace = uuid5_bytes(&NAMESPACE_URL, "spec-kitty:identity:build_id");
-    uuid5(&namespace, &format!("{project_uuid}:{node_id}"))
-}
-
-fn uuid5(namespace: &[u8; 16], name: &str) -> String {
-    format_uuid(uuid5_bytes(namespace, name))
-}
-
-fn uuid5_bytes(namespace: &[u8; 16], name: &str) -> [u8; 16] {
-    let mut data = namespace.to_vec();
-    data.extend_from_slice(name.as_bytes());
-    let sha1 = hex_to_bytes(&sk_kernel::content_digest::sha1_hex(&data));
-    let mut bytes = [0_u8; 16];
-    if sha1.len() < 16 {
-        return bytes;
-    }
-    bytes.copy_from_slice(&sha1[..16]);
-    bytes[6] = (bytes[6] & 0x0f) | 0x50;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    bytes
-}
-
-fn format_uuid(bytes: [u8; 16]) -> String {
-    let hex: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
-    format!(
-        "{}-{}-{}-{}-{}",
-        &hex[0..8],
-        &hex[8..12],
-        &hex[12..16],
-        &hex[16..20],
-        &hex[20..32]
+    let namespace = uuid::Uuid::new_v5(
+        &uuid::Uuid::from_bytes(NAMESPACE_URL),
+        b"spec-kitty:identity:build_id",
+    );
+    let normalized = parse_python_uuid(project_uuid)
+        .ok()
+        .map(|id| id.hyphenated().to_string());
+    uuid::Uuid::new_v5(
+        &namespace,
+        format!(
+            "{}:{node_id}",
+            normalized.as_deref().unwrap_or(project_uuid)
+        )
+        .as_bytes(),
     )
+    .hyphenated()
+    .to_string()
 }
 
-fn hex_to_bytes(hex: &str) -> Vec<u8> {
-    hex.as_bytes()
-        .chunks(2)
-        .filter_map(|pair| {
-            let text = std::str::from_utf8(pair).ok()?;
-            u8::from_str_radix(text, 16).ok()
-        })
-        .collect()
+fn parse_python_uuid(value: &str) -> Result<uuid::Uuid, uuid::Error> {
+    let stripped = value.replace("urn:", "").replace("uuid:", "");
+    let hex = stripped.trim_matches(['{', '}']).replace('-', "");
+    uuid::Uuid::parse_str(&hex)
 }
 
 /// Run the envelope migration over `log_path`.
@@ -408,19 +389,28 @@ fn migrate_row(
     if is_already_strict_shaped(object) {
         return Ok((object.clone(), MigrationAction::Unchanged));
     }
-    let Some(project_uuid) = object.get("project_uuid").and_then(Value::as_str) else {
-        return Ok((object.clone(), MigrationAction::SkippedNoProjectUuid));
-    };
-    if !is_uuid(project_uuid) {
-        return Err(MutationError::InvalidLifecyclePayload {
+    let project_uuid = match object.get("project_uuid") {
+        None | Some(Value::Null) => {
+            return Ok((object.clone(), MigrationAction::SkippedNoProjectUuid));
+        }
+        Some(value) => parse_python_uuid(
+            &value
+                .as_str()
+                .map(str::to_owned)
+                .unwrap_or_else(|| python_compact_json(value)),
+        )
+        .ok()
+        .ok_or_else(|| MutationError::InvalidLifecyclePayload {
             event_type: object
                 .get("event_type")
                 .and_then(Value::as_str)
                 .unwrap_or("")
                 .to_owned(),
-            reason: format!("project_uuid {project_uuid:?} is not a UUID"),
-        });
-    }
+            reason: format!("project_uuid {value} is not a UUID string"),
+        })?
+        .hyphenated()
+        .to_string(),
+    };
 
     let mut migrated = object.clone();
     migrated.remove("aggregate_type");
@@ -438,7 +428,7 @@ fn migrate_row(
     migrated.insert("lamport_clock".to_owned(), Value::from(0));
     migrated.insert(
         "build_id".to_owned(),
-        Value::String(build_id_for(project_uuid, node_id)),
+        Value::String(build_id_for(&project_uuid, node_id)),
     );
     Ok((migrated, MigrationAction::Migrated))
 }
@@ -462,22 +452,4 @@ fn render_scalar(value: &Value) -> String {
         Value::String(text) => text.clone(),
         other => other.to_string(),
     }
-}
-
-fn is_uuid(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    if bytes.len() != 36 {
-        return false;
-    }
-    for (index, byte) in bytes.iter().enumerate() {
-        let separator = matches!(index, 8 | 13 | 18 | 23);
-        if separator {
-            if *byte != b'-' {
-                return false;
-            }
-        } else if !byte.is_ascii_hexdigit() {
-            return false;
-        }
-    }
-    true
 }

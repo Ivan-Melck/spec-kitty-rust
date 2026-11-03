@@ -16,9 +16,14 @@ divergence, bounded `ls-remote`). Mutations are split into **plan → apply**:
 `plan_*` validates names, paths, protection facts, and the observed state;
 `apply_*` re-reads that state, fails with `GitError::PlanStale` if anything
 moved, and then performs exactly one bounded git operation (a compare-and-swap
-ref transaction, a worktree add/remove, or a merge conclusion commit). Nothing
-is retried and there is no unconditional fallback. A refusal leaves the
-repository as found; a partial failure reports the observed recovery facts.
+ref transaction, a worktree add/remove, a merge conclusion commit, or a
+path-scoped safe commit whose tree was built in a private index against a pinned
+parent). Nothing is retried and there is no unconditional fallback. A refusal
+leaves the repository as found; a partial failure reports the observed recovery
+facts. The one deliberate exception is the *post-landing* index reconciliation
+of a safe commit, which retries a bounded number of times while another writer
+holds git's index lock because the commit already exists and the write is
+idempotent.
 
 ## Public API
 
@@ -123,6 +128,43 @@ application concern.
 
 A rejected hook leaves the operation in progress; this crate does not abort it.
 
+### Safe commit (path-scoped index transaction)
+
+| Item | Purpose |
+|------|---------|
+| `SafeCommitRequest::new(destination, message, paths)` | Commit exactly `paths` on the declared branch. |
+| `.with_index_deletions(paths)` | Commit index-only removals (`git rm --cached` semantics); the files stay on disk. |
+| `.with_expected_parent(oid)` | Pin the parent; the tree is built against it and the ref advances only by compare-and-swap. |
+| `.with_expected_bytes([ExpectedBlob])` | Assert exact staged blob bytes (requires a pinned parent). |
+| `.with_protection(&ProtectedBranches, CommitGuardCapability)` | Supply the caller-resolved protected set and the asserted capability. |
+| `GitRepository::plan_safe_commit(&request)` | Validate destination/HEAD/parent, message, paths, protection, and in-progress state; no mutation. |
+| `GitRepository::apply_safe_commit(&plan)` | Re-check the observed state, then run the private-index transaction. |
+| `GitRepository::safe_commit(&request)` | Plan and apply in one call. |
+| `SafeCommitPlan` / `SafeCommitOutcome` | Observed HEAD/tip, route, normalised paths, guard verdict; landed commit, committed path set, warnings. |
+| `SafeCommitRecovery::repair_argv` | Exact argv (no shell quoting) to repair the index after a landed-but-unreconciled commit. |
+| `evaluate_commit_guard(&BranchName, &ProtectedBranches, CommitGuardCapability)` | The pure protection decision (mirrors upstream `commit_guard.evaluate`). |
+| `normalize_safe_commit_path(root, path)` | Resolve absolute/relative caller paths, keep raw bytes, refuse escape and symlink loops. |
+
+`SafeCommitRoute::Worktree` (the default) seeds a private index from `HEAD`,
+stages only the requested paths, runs the repository's commit hooks with
+`git hook run` against that index, writes the tree, creates the commit with
+`git commit-tree -p <observed HEAD>`, and advances the branch with a
+compare-and-swap. The real index is not written until the commit exists; it is
+then resynchronised for exactly the requested paths. Unrelated staged, partially
+staged, unstaged, and untracked content is never read, moved, stashed, or
+restored. `SafeCommitRoute::IndexDeletions` is the same transaction plus
+`git rm --cached` removals. `SafeCommitRoute::PinnedParent` additionally
+re-isolates the tree around the hooks, so a hook cannot add paths or change
+requested content, and verifies optional exact raw bytes.
+
+A commit that lands but whose index reconciliation or readback fails is
+`GitError::SafeCommitLanded`, carrying the commit id and the paths to repair.
+A hook that sweeps tracked files into the commit is reported the same way
+(`SafeCommitLandedKind::UnrequestedPaths`) after the extra index entries are
+resynchronised. A losing compare-and-swap is `GitError::PlanStale`: no ref
+moved and no user state changed. A rejected or failing hook is
+`GitError::SafeCommitHookRejected` with its stderr.
+
 ## Guarantees
 
 - **One bounded subprocess seam.** Arguments are passed as argv entries, never
@@ -153,7 +195,16 @@ A rejected hook leaves the operation in progress; this crate does not abort it.
 - **No protected/default-branch shortcut.** Advancing or deleting a branch in
   the caller-supplied protected set requires an explicit, non-empty override
   reason. Resolving that set from configuration, the remote default branch, or a
-  Mission stays in the application layer.
+  Mission stays in the application layer. A safe commit is refused on a
+  protected destination unless the call site asserts a bookkeeping
+  `CommitGuardCapability`; the decision itself is the pure
+  `evaluate_commit_guard`.
+- **Path-scoped commits.** A safe commit builds its tree in a private index
+  seeded from the pinned parent, so unrelated index content can never enter the
+  commit. Pathspecs are literal (`--literal-pathspecs` plus `--`), raw path
+  bytes are preserved, and the real index is only reconciled for the requested
+  paths after the commit exists. A commit built against a stale parent is
+  refused by the ref compare-and-swap; it is never landed on a moved branch.
 - **No automatic push, fetch, clone, or remote mutation.** Remote contact is a
   bounded `ls-remote` read only.
 
@@ -176,7 +227,7 @@ Reference: upstream `spec-kitty/spec-kitty` at
 | `specify_cli/git/merge_tree_probe.py` | `supports_merge_tree_write_tree` | No merge-tree simulation. |
 | `specify_cli/git/report_transaction.py` | ref/commit primitives only | The report transaction, receipt qualification, and commit router are not implemented. |
 | `specify_cli/lanes/worktree_allocator.py` | worktree add/attach/remove plans | No sparse-checkout policy, lane layout, branch naming, dependency merges, or ownership/placement rules. |
-| `specify_cli/git/commit_helpers.py` | merge conclusion only | No `safe_commit`, path-scoped index transaction, or commit guard. |
+| `specify_cli/git/commit_helpers.py` | `safe_commit`, private-index path-scoped transaction, expected parent, index deletions, expected raw bytes, protected-branch guard, landed-but-unreconciled recovery | No `SafeCommitBackstopError` whole-index staging probe (deleted upstream), no owned-checkout/decision-lock restriction on index-only removals, no mission-scoped `commit_to_target` fold or config/hatch resolution (application layer), no report transaction / receipt qualification / commit router, no CLI wiring. |
 
 Passing tests establish the covered contracts, not blanket Python
 compatibility.
@@ -194,8 +245,15 @@ compatibility.
 - The timeout kills the direct git child only. Remote helpers and other
   descendants are outside the bound.
 - User/system Git configuration still affects behaviour (attributes,
-  `core.autocrlf`, `status.showUntrackedFiles`, `safe.directory`, hooks invoked
-  by a real commit). The adapter does not rewrite configuration.
+  `core.autocrlf`, `status.showUntrackedFiles`, `safe.directory`, commit hooks).
+  The adapter does not rewrite configuration. A safe commit runs hooks with
+  `git hook run`, which needs Git >= 2.36; older Git is refused with
+  `GitError::Unsupported` rather than skipping hooks. Its exact-bytes assertion
+  is bounded by the seam's 4 MiB stdin budget.
+- A `SafeCommitRequest` starts with an **empty** protected set and
+  `CommitGuardCapability::Standard`. The application layer must resolve and
+  attach the real facts with `with_protection`; the crate never reads
+  `.kittify/config.yaml`, the remote default branch, or the operator hatch.
 - `apply_worktree_add` creates missing parent directories before git runs; a
   failed `worktree add` can leave an empty parent directory.
 - A failed branch delete after a preservation ref was created leaves that
@@ -220,9 +278,10 @@ CARGO_BUILD_JOBS=2 cargo clippy -p sk-git --all-targets -- -D warnings
 cargo fmt -p sk-git -- --check
 ```
 
-Current count: **111 tests** — 28 unit, 27 existing acceptance, 6 bounded
-subprocess, 33 lifecycle, 10 remote lifecycle, 4 remote bounded-process, and 3
-compile-only doctests.
+Current count: **179 tests** — 34 unit, 27 existing acceptance, 7 bounded
+subprocess, 34 lifecycle, 10 remote lifecycle, 5 remote bounded-process, 49
+safe-commit acceptance, 2 safe-commit contention, 8 pinned safe-commit
+differential, and 3 compile-only doctests.
 
 Coverage highlights:
 
@@ -240,4 +299,11 @@ Coverage highlights:
   freshness up-to-date/ahead/behind/diverged/local-missing/remote-missing/
   compare-failed/ambiguous;
 - merge conflict resolution conclusion, moved HEAD/operation refusal;
+- safe commit: exact-path staging, unrelated staged/partial/unstaged/untracked
+  preservation, path bytes (including non-UTF-8), literal-pathspec injection,
+  rename pairs, ignored files, symlinked files/directories, gitlinks, index-only
+  deletions, expected parent + raw bytes, protected-branch capability refusal,
+  hook rejection vs empty changeset, hook-swept extras, landed-but-unresynced
+  recovery, held-lock refusal, concurrent contention, and pinned differential
+  outcomes from the upstream Python oracle;
 - git-dir/common-dir distinction, in-progress markers, version probe.

@@ -23,19 +23,52 @@ fn protected_branches(root: &Path) -> Result<sk_git::ProtectedBranches, CompatEr
         .map(|name| (*name).to_owned())
         .collect();
     let config = root.join(".kittify/config.yaml");
-    if let Ok(bytes) = sk_kernel::read_bounded(&config, 4 * 1024 * 1024)
-        && let Ok(text) = std::str::from_utf8(&bytes)
-        && let Ok(value) = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(text)
-        && let Some(list) = value
-            .get("git")
-            .and_then(|git| git.get("protected_branches"))
-            .and_then(serde_yaml_ng::Value::as_sequence)
-    {
-        for entry in list {
-            if let Some(name) = entry.as_str()
-                && !name.trim().is_empty()
-            {
-                names.push(name.trim().to_owned());
+    let invalid = |message: String| CompatError::coded("PROTECTION_CONFIG_INVALID", message);
+    let bytes = match sk_kernel::read_bounded(&config, 4 * 1024 * 1024) {
+        Ok(bytes) => Some(bytes),
+        Err(sk_kernel::KernelError::Io { source, .. })
+            if source.kind() == std::io::ErrorKind::NotFound =>
+        {
+            None
+        }
+        Err(error) => return Err(invalid(error.to_string())),
+    };
+    if let Some(bytes) = bytes {
+        let value: serde_yaml_ng::Value =
+            serde_yaml_ng::from_slice(&bytes).map_err(|error| invalid(error.to_string()))?;
+        if !value.is_mapping() && !value.is_null() {
+            return Err(invalid(
+                "protection config root must be a mapping".to_owned(),
+            ));
+        }
+        if let Some(raw) = value
+            .get("protection")
+            .and_then(serde_yaml_ng::Value::as_mapping)
+            .and_then(|block| {
+                block.get(serde_yaml_ng::Value::String(
+                    "protected_branches".to_owned(),
+                ))
+            })
+            .filter(|raw| !raw.is_null())
+        {
+            let list = raw.as_sequence().ok_or_else(|| {
+                invalid("protection.protected_branches must be a list".to_owned())
+            })?;
+            // An explicit list, including [], REPLACES the defaults.
+            names.clear();
+            for entry in list {
+                names.push(match entry {
+                    serde_yaml_ng::Value::String(name) => name.clone(),
+                    serde_yaml_ng::Value::Number(number) => number.to_string(),
+                    serde_yaml_ng::Value::Bool(true) => "True".to_owned(),
+                    serde_yaml_ng::Value::Bool(false) => "False".to_owned(),
+                    serde_yaml_ng::Value::Null => "None".to_owned(),
+                    _ => {
+                        return Err(invalid(
+                            "protected branch entries must be scalar names".to_owned(),
+                        ));
+                    }
+                });
             }
         }
     }
@@ -289,4 +322,43 @@ pub fn recover(root: &Path, handle: Option<&str>, json_output: bool) -> Result<V
 /// Resolve the manifest path for diagnostics (native extension helper).
 pub fn lanes_path(mission: &Mission) -> PathBuf {
     LanesStore::new(mission.spec_dir()).path()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn explicit_protected_lists_replace_defaults_including_an_empty_list() {
+        for (yaml, main, release) in [
+            ("protection:\n  protected_branches: []\n", false, false),
+            (
+                "protection:\n  protected_branches: [release]\n",
+                false,
+                true,
+            ),
+            ("protection:\n  protected_branches: null\n", true, false),
+        ] {
+            let root = tempfile::tempdir().unwrap();
+            std::fs::create_dir(root.path().join(".kittify")).unwrap();
+            std::fs::write(root.path().join(".kittify/config.yaml"), yaml).unwrap();
+            let policy = protected_branches(root.path()).unwrap();
+            assert_eq!(policy.contains(&"main".parse().unwrap()), main);
+            assert_eq!(policy.contains(&"release".parse().unwrap()), release);
+        }
+    }
+
+    #[test]
+    fn unreadable_or_malformed_protection_config_is_never_silently_ignored() {
+        for bytes in [
+            b"[unclosed".as_slice(),
+            b"\xff",
+            b"protection:\n  protected_branches: release\n",
+        ] {
+            let root = tempfile::tempdir().unwrap();
+            std::fs::create_dir(root.path().join(".kittify")).unwrap();
+            std::fs::write(root.path().join(".kittify/config.yaml"), bytes).unwrap();
+            assert!(protected_branches(root.path()).is_err());
+        }
+    }
 }

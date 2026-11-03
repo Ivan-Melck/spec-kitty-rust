@@ -175,7 +175,7 @@ fn refuse_unsupported(options: &CreateOptions<'_>) -> Result<(), CompatError> {
         )
         .with("option", json!(option)));
     }
-    let topology = options.topology.unwrap_or(TopologyChoice::Lanes);
+    let topology = options.topology.unwrap_or(TopologyChoice::Coord);
     if topology.routes_through_coordination() {
         return Err(CompatError::unsupported(
             "COORDINATION_TOPOLOGY_UNSUPPORTED",
@@ -230,7 +230,7 @@ pub fn create(root: &Path, options: &CreateOptions<'_>) -> Result<Value, CompatE
         .with_topology(
             options
                 .topology
-                .unwrap_or(TopologyChoice::Lanes)
+                .unwrap_or(TopologyChoice::Coord)
                 .mission_topology(),
         )
         .with_retention(MissionRetention {

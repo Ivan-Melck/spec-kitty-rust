@@ -67,6 +67,7 @@ pub mod lifecycle;
 pub mod lock;
 pub mod manifest;
 pub mod metadata;
+pub mod migrations;
 pub mod pack;
 pub mod pin;
 pub mod plan;

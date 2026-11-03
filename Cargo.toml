@@ -16,6 +16,9 @@ serde_yaml_ng = "0.10"
 thiserror = "2"
 chrono = { version = "0.4", features = ["serde"] }
 ulid = { version = "1", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "v5"] }
+toml_edit = "0.25"
+pep440_rs = "0.7"
 sha2 = "0.10"
 fs2 = "0.4"
 tempfile = "3"

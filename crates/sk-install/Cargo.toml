@@ -19,9 +19,14 @@ tar = { version = "0.4", default-features = false }
 flate2 = "1"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 ulid.workspace = true
+uuid.workspace = true
+toml_edit.workspace = true
+pep440_rs.workspace = true
 getrandom = "0.3"
 sk-kernel = { path = "../sk-kernel" }
 sk-charter = { path = "../sk-charter" }
+sk-doctrine = { path = "../sk-doctrine" }
+sk-status = { path = "../sk-status" }
 
 [dev-dependencies]
 proptest.workspace = true

@@ -23,6 +23,7 @@ serde_json.workspace = true
 serde_yaml_ng.workspace = true
 chrono.workspace = true
 sk-charter = { path = "../sk-charter" }
+sk-doctrine = { path = "../sk-doctrine" }
 sk-git = { path = "../sk-git" }
 sk-glossary = { path = "../sk-glossary" }
 sk-install = { path = "../sk-install" }

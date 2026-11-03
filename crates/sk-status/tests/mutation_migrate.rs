@@ -40,6 +40,38 @@ fn manifest_json(manifest: &sk_status::mutation::MigrationManifest) -> Value {
 }
 
 #[test]
+fn uuid_spellings_and_nonstring_values_match_the_verified_oracle_without_loss() {
+    let data = read_json(&fixture("edge-cases.json"));
+    let cases = data["uuid_migrations"].as_array().unwrap();
+    assert_eq!(cases.len(), 10);
+    for case in cases {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join(EVENTS_FILENAME);
+        let original = serde_json::to_vec(&case["input"]).unwrap();
+        fs::write(&path, &original).unwrap();
+        let result = migrate_lifecycle_envelope(&path, false, Some(NODE_ID), None);
+        if case.get("error_type").is_some() {
+            assert!(result.is_err(), "input: {}", case["input"]);
+            assert_eq!(fs::read(&path).unwrap(), original);
+            assert!(
+                !temp
+                    .path()
+                    .join(format!("{EVENTS_FILENAME}.pre-migration.bak"))
+                    .exists()
+            );
+        } else {
+            assert_eq!(result.unwrap().migrated_count, 1);
+            assert_eq!(
+                read_json(&path),
+                case["expected"],
+                "input: {}",
+                case["input"]
+            );
+        }
+    }
+}
+
+#[test]
 fn the_migration_matches_the_pinned_oracle() {
     let (_temp, log_path) = migrated_copy();
     let manifest =

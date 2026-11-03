@@ -46,6 +46,13 @@ impl ActivationState {
                     let mut urns = BTreeSet::new();
                     let mut unknown = Vec::new();
                     for token in tokens {
+                        // Anti-patterns are graph-only nodes, with no standalone
+                        // file/stem identity to discover.
+                        if kind == ArtifactKind::AntiPattern {
+                            let id = token.strip_prefix("anti_pattern:").unwrap_or(token);
+                            urns.insert(format!("anti_pattern:{id}"));
+                            continue;
+                        }
                         match identity.declared_id_checked(kind, token)? {
                             Some(declared) => {
                                 urns.insert(format!("{}:{declared}", kind.canonical()));
@@ -241,6 +248,20 @@ mod tests {
         let filtered = filter_graph_by_activation(&graph(), &state);
         assert!(filtered.node("directive:DIRECTIVE_001").is_none());
         assert!(filtered.edges().is_empty());
+    }
+
+    #[test]
+    fn graph_only_anti_patterns_do_not_require_standalone_identity_files() {
+        let root = tempfile::tempdir().unwrap();
+        let identity = IdentityIndex::from_roots(root.path(), &[], None);
+        let mut ledger = ActivationLedger::default();
+        ledger
+            .allow
+            .insert(ArtifactKind::AntiPattern, Some(vec!["SMELL".to_owned()]));
+        let state = ActivationState::from_ledger(&ledger, &identity, &BTreeMap::new()).unwrap();
+        assert!(state.admits("anti_pattern", "SMELL"));
+        assert!(!state.admits("anti_pattern", "OTHER"));
+        assert!(!state.unknown_allow_tokens.contains_key("anti_pattern"));
     }
 
     #[test]

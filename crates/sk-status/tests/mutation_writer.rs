@@ -188,6 +188,36 @@ fn an_indeterminate_commit_with_unexpected_bytes_is_reported_not_deleted() {
 }
 
 #[test]
+fn a_failed_read_after_a_confirmed_commit_retains_the_mutation_warning() {
+    let mission = temp_mission();
+    let log_path = mission.feature_dir.join(EVENTS_FILENAME);
+    let landed = mission.feature_dir.join("landed.jsonl");
+    let error = append_rows_with_commit(
+        &log_path,
+        &[json!({"event_id": "new"})],
+        &AppendOptions::default(),
+        &mut |path, bytes, _| {
+            sk_kernel::atomic_write(path, bytes)?;
+            // A concurrent path change makes the post-commit read fail.
+            fs::rename(path, &landed).unwrap();
+            fs::create_dir(path).unwrap();
+            Ok(true)
+        },
+    )
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        MutationError::PostCommitVerification { .. }
+    ));
+    assert!(error.may_have_mutated());
+    assert!(read_text(&landed).contains("new"));
+    assert!(
+        log_path.is_dir(),
+        "verification must not remove the replacement path"
+    );
+}
+
+#[test]
 fn a_readback_mismatch_is_reported_and_the_file_is_left_alone() {
     let mission = temp_mission();
     let log_path = mission.feature_dir.join(EVENTS_FILENAME);

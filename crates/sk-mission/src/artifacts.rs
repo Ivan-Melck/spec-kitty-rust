@@ -15,9 +15,8 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::time::Duration;
 
-use sk_kernel::locks::FileLock;
+use sk_kernel::locks::LockWait;
 use sk_kernel::{MissionSlug, WpId, atomic_write};
 
 use crate::paths::MissionPaths;
@@ -32,9 +31,7 @@ use crate::template::{
     render_tasks_readme,
 };
 
-const LOCK_DIR: &str = "spec-kitty-locks";
-const WRITE_LOCK_FILE: &str = "mission-write.lock";
-const LOCK_TIMEOUT: Duration = Duration::from_secs(10);
+const LOCK_TIMEOUT: std::time::Duration = crate::write_lock::MISSION_WRITE_LOCK_TIMEOUT;
 
 /// A work-package prompt the caller wants authored.
 #[derive(Clone, Debug)]
@@ -453,12 +450,17 @@ impl MissionArtifactPlan {
         observer: &mut dyn MissionWriteObserver,
     ) -> Result<MissionArtifactReceipt, TaskArtifactError> {
         self.validate(root)?;
-        let lock_path = root.join(".kittify").join(LOCK_DIR).join(WRITE_LOCK_FILE);
-        let _lock = FileLock::acquire(&lock_path, LOCK_TIMEOUT).map_err(|source| {
-            TaskArtifactError::Lock {
-                path: lock_path.clone(),
-                source,
-            }
+        // Plan/tasks authoring is a post-birth Mission write: take the shared
+        // keyed Mission lock, so this writer serializes with the status writers
+        // and with a coordination-routed Mission's primary/coordination surface.
+        let _lock = crate::write_lock::lock_mission(
+            &self.mission_dir,
+            root,
+            LockWait::Bounded(LOCK_TIMEOUT),
+        )
+        .map_err(|source| TaskArtifactError::Lock {
+            path: self.mission_dir.clone(),
+            source,
         })?;
         self.validate(root)?;
 
@@ -878,7 +880,7 @@ pub enum TaskArtifactError {
     Lock {
         path: PathBuf,
         #[source]
-        source: sk_kernel::KernelError,
+        source: sk_status::mutation::MutationError,
     },
 
     /// A filesystem operation failed.

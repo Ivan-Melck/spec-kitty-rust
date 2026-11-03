@@ -14,6 +14,12 @@ use crate::error::RunStoreError;
 /// A prompt filename is a single, contained path component.
 pub fn prompt_file_path(run_dir: &Path, step_id: &str) -> Result<PathBuf, RunStoreError> {
     let raw = run_dir.join(format!("{step_id}.prompt.md"));
+    if step_id.is_empty() {
+        return Err(RunStoreError::PromptPathEscape {
+            step_id: step_id.to_owned(),
+            path: raw,
+        });
+    }
     let safe = !step_id.is_empty()
         && step_id.len() <= 128
         && !step_id.starts_with('.')
@@ -22,13 +28,30 @@ pub fn prompt_file_path(run_dir: &Path, step_id: &str) -> Result<PathBuf, RunSto
         && step_id.chars().all(|character| {
             character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.')
         });
-    if !safe {
-        return Err(RunStoreError::PromptPathEscape {
-            step_id: step_id.to_string(),
-            path: raw,
-        });
-    }
-    let relative = Path::new("prompts").join(format!("{step_id}.prompt.md"));
+    let stem = step_id
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_uppercase();
+    let windows_reserved = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || stem
+            .strip_prefix("COM")
+            .or_else(|| stem.strip_prefix("LPT"))
+            .is_some_and(|number| {
+                number.len() == 1 && b"123456789".contains(&number.as_bytes()[0])
+            });
+    // '%' cannot appear in the legacy safe namespace, avoiding collisions
+    // between an authored safe id and an encoded id. Preserve the real id in
+    // the prompt content; filenames are derived artifacts, not step identity.
+    let filename = if safe && !windows_reserved {
+        format!("{step_id}.prompt.md")
+    } else {
+        format!(
+            "%{}.prompt.md",
+            sk_kernel::content_digest::sha256_hex(step_id.as_bytes())
+        )
+    };
+    let relative = Path::new("prompts").join(filename);
     let resolved = sk_kernel::resolve_within(run_dir, &relative).map_err(|error| {
         RunStoreError::PromptPathEscape {
             step_id: step_id.to_string(),

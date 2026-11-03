@@ -225,21 +225,43 @@ pub(crate) fn has_unrepresentable_float(value: &Value) -> bool {
 fn python_number(number: &serde_json::Number) -> String {
     let raw = number.to_string();
     if !raw.contains(['.', 'e', 'E']) {
-        return raw;
+        return if raw == "-0" { "0".to_owned() } else { raw };
     }
     let Some(value) = number.as_f64().filter(|value| value.is_finite()) else {
         return raw;
     };
-    let scientific = format!("{value:e}");
-    let (mantissa, exponent) = scientific.split_once('e').expect("finite scientific float");
-    let exponent: i32 = exponent.parse().expect("scientific exponent");
-    if !(-4..16).contains(&exponent) {
-        return format!("{mantissa}e{exponent:+03}");
-    }
-    let (sign, mantissa) = mantissa
+    // serde_json's pinned shortest-roundtrip formatter handles decimal ties
+    // like Python; Rust's Display/e formatter can pick the other shortest digit.
+    let shortest = serde_json::Number::from_f64(value)
+        .expect("finite float")
+        .to_string();
+    let (sign, unsigned) = shortest
         .strip_prefix('-')
-        .map_or(("", mantissa), |digits| ("-", digits));
-    let digits = mantissa.replace('.', "");
+        .map_or(("", shortest.as_str()), |digits| ("-", digits));
+    let (mantissa, scale) = match unsigned.split_once('e') {
+        Some((mantissa, scale)) => (mantissa, scale.parse::<i32>().expect("float exponent")),
+        None => (unsigned, 0),
+    };
+    let decimal = mantissa.find('.').unwrap_or(mantissa.len()) as i32;
+    let raw_digits = mantissa.replace('.', "");
+    let leading = raw_digits
+        .find(|digit: char| digit != '0')
+        .unwrap_or(raw_digits.len());
+    let mut digits = raw_digits[leading..].trim_end_matches('0').to_owned();
+    let exponent = if digits.is_empty() {
+        digits.push('0');
+        0
+    } else {
+        scale + decimal - leading as i32 - 1
+    };
+    if !(-4..16).contains(&exponent) {
+        let tail = if digits.len() > 1 {
+            format!(".{}", &digits[1..])
+        } else {
+            String::new()
+        };
+        return format!("{sign}{}{tail}e{exponent:+03}", &digits[..1]);
+    }
     let point = exponent + 1;
     if point <= 0 {
         return format!("{sign}0.{}{digits}", "0".repeat((-point) as usize));
@@ -314,6 +336,8 @@ mod tests {
     #[test]
     fn numeric_wire_encoding_matches_python_thresholds_and_big_integers() {
         for (input, expected) in [
+            ("810553441865041.25", "810553441865041.2"),
+            ("-0", "0"),
             ("1e30", "1e+30"),
             ("1e-5", "1e-05"),
             ("1e-4", "0.0001"),
@@ -328,6 +352,28 @@ mod tests {
         assert!(has_unrepresentable_float(
             &serde_json::from_str("1e400").unwrap()
         ));
+    }
+
+    #[test]
+    fn finite_ieee_vectors_match_the_verified_python_oracle() {
+        let fixture: Value =
+            serde_json::from_str(include_str!("../tests/fixtures/mutation/edge-cases.json"))
+                .unwrap();
+        assert_eq!(
+            fixture["baseline"],
+            "9aed3a8012cb5eb22c0128b14d525039f95fea7a"
+        );
+        let cases = fixture["floats"].as_array().unwrap();
+        assert_eq!(cases.len(), 2056);
+        for case in cases {
+            let bits = u64::from_str_radix(case["bits"].as_str().unwrap(), 16).unwrap();
+            let number = serde_json::Number::from_f64(f64::from_bits(bits)).unwrap();
+            assert_eq!(
+                python_number(&number),
+                case["expected"].as_str().unwrap(),
+                "bits: {bits:016x}"
+            );
+        }
     }
 
     #[test]

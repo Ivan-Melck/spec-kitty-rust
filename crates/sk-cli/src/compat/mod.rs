@@ -12,6 +12,10 @@ pub mod support;
 pub mod tasks;
 pub mod workspace;
 
+/// Core-version target of the pinned upstream data and command contracts.
+/// This identifies compatibility, not completion; capabilities remain explicit.
+pub const CORE_VERSION: &str = "4.0.0rc8";
+
 use std::ffi::OsString;
 use std::process::ExitCode;
 
@@ -28,7 +32,7 @@ use crate::compat::support::{CompatError, emit_json};
 #[derive(Debug, Parser)]
 #[command(
     name = "spec-kitty",
-    version,
+    version = CORE_VERSION,
     about = "Spec Kitty native Rust CLI",
     long_about = None,
     disable_help_subcommand = true,
@@ -518,13 +522,16 @@ pub fn main(arguments: impl IntoIterator<Item = OsString>) -> ExitCode {
     let json_requested = arguments.iter().any(|argument| argument == "--json");
 
     // `native` is a direct pass-through to the versioned inspection tree.
-    if let Some(position) = arguments.iter().position(|argument| argument == "native") {
+    if arguments
+        .get(1)
+        .is_some_and(|argument| argument == "native")
+    {
         let program = arguments
             .first()
             .cloned()
             .unwrap_or_else(|| OsString::from("spec-kitty-rust"));
         let mut forwarded = vec![program];
-        forwarded.extend(arguments.drain(position + 1..));
+        forwarded.extend(arguments.drain(2..));
         return crate::native_main(forwarded);
     }
 

@@ -103,8 +103,9 @@ pub struct RunState {
 impl RunState {
     /// Convert the persisted cursor into the runtime planner's read model.
     ///
-    /// Only the cursor-relevant fields are projected; unknown persisted keys are
-    /// preserved in `RunState` and never re-serialized away.
+    /// Only known cursor fields are projected. Like the pinned baseline model,
+    /// unknown persisted keys are ignored on decode and omitted on rewrite;
+    /// this is not a lossless container for user extensions.
     pub fn to_snapshot(&self) -> Result<RunSnapshot, RunStoreError> {
         let mut pending_decisions = BTreeMap::new();
         for (key, value) in &self.pending_decisions {

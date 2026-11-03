@@ -18,10 +18,9 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::time::Duration;
 
 use serde_yaml_ng::{Mapping, Value};
-use sk_kernel::locks::FileLock;
+use sk_kernel::locks::LockWait;
 use sk_kernel::{WpId, atomic_write, read_bounded};
 use thiserror::Error;
 
@@ -36,9 +35,7 @@ use crate::yaml_patch::{
 /// Default byte budget for one `tasks.md` read.
 pub const DEFAULT_TASKS_MD_BYTE_LIMIT: u64 = 4 * 1024 * 1024;
 
-const LOCK_DIR: &str = "spec-kitty-locks";
-const WRITE_LOCK_FILE: &str = "mission-write.lock";
-const LOCK_TIMEOUT: Duration = Duration::from_secs(10);
+const LOCK_TIMEOUT: std::time::Duration = crate::write_lock::MISSION_WRITE_LOCK_TIMEOUT;
 
 /// One work-package section of `tasks.md`.
 #[derive(Clone, Debug)]
@@ -831,13 +828,21 @@ impl DependencyFinalizePlan {
         }
 
         let root = project_root_for(tasks_dir)?;
-        let lock_path = root.join(".kittify").join(LOCK_DIR).join(WRITE_LOCK_FILE);
-        let _lock = FileLock::acquire(&lock_path, LOCK_TIMEOUT).map_err(|source| {
-            TasksAuthoringError::Lock {
-                path: lock_path.clone(),
-                source,
-            }
-        })?;
+        let mission_dir = tasks_dir
+            .parent()
+            .ok_or_else(|| TasksAuthoringError::StalePlan {
+                path: tasks_dir.to_path_buf(),
+                detail: "tasks directory has no Mission parent".to_owned(),
+            })?;
+        // Dependency finalization rewrites work-package prompts inside the
+        // Mission, so it takes the shared keyed Mission lock (not the retired
+        // per-checkout mission-write.lock).
+        let _lock =
+            crate::write_lock::lock_mission(mission_dir, &root, LockWait::Bounded(LOCK_TIMEOUT))
+                .map_err(|source| TasksAuthoringError::Lock {
+                    path: mission_dir.to_path_buf(),
+                    source,
+                })?;
 
         for update in &self.updates {
             let current = fs::read(update.path()).map_err(|source| TasksAuthoringError::Io {
@@ -1297,7 +1302,7 @@ pub enum TasksAuthoringError {
     Lock {
         path: PathBuf,
         #[source]
-        source: sk_kernel::KernelError,
+        source: sk_status::mutation::MutationError,
     },
 
     /// A filesystem operation failed.

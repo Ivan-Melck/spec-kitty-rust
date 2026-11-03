@@ -37,8 +37,39 @@ pub struct YamlDocument {
 impl YamlDocument {
     /// Parse `text` as one YAML document.
     pub fn parse(text: &str, path: &Path) -> Result<Self, DoctrineError> {
+        let semantic: serde_yaml_ng::Value =
+            serde_yaml_ng::from_str(text).map_err(|error| DoctrineError::Yaml {
+                path: path.to_path_buf(),
+                message: error.to_string(),
+            })?;
+        let source = match semantic {
+            serde_yaml_ng::Value::Mapping(_) => text.to_owned(),
+            serde_yaml_ng::Value::Null => {
+                // A null/empty ledger is an empty mapping, never a scalar we
+                // can silently fail to update. Preserve its comment text.
+                let mut source = String::new();
+                for line in text.lines() {
+                    if line.trim_start().starts_with('#') {
+                        source.push_str(line);
+                        source.push('\n');
+                    } else if let Some((_, comment)) = line.split_once('#') {
+                        source.push('#');
+                        source.push_str(comment);
+                        source.push('\n');
+                    }
+                }
+                source.push_str("{}\n");
+                source
+            }
+            _ => {
+                return Err(DoctrineError::YamlRootNotMapping {
+                    path: path.to_path_buf(),
+                });
+            }
+        };
         let document: Document =
-            text.parse()
+            source
+                .parse()
                 .map_err(|error: yaml_edit::YamlError| DoctrineError::Yaml {
                     path: path.to_path_buf(),
                     message: error.to_string(),
@@ -47,7 +78,7 @@ impl YamlDocument {
             path: path.to_path_buf(),
             message: error.to_string(),
         })?;
-        if !matches!(value, YamlValue::Mapping(_) | YamlValue::Scalar(_)) {
+        if !matches!(value, YamlValue::Mapping(_)) || document.as_mapping().is_none() {
             return Err(DoctrineError::YamlRootNotMapping {
                 path: path.to_path_buf(),
             });
@@ -434,6 +465,30 @@ fn restore(target: &Path, before: Option<&[u8]>) -> Result<(), DoctrineError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn null_and_comment_ledgers_become_real_mappings_without_losing_the_activation() {
+        for original in ["", "null\n", "~ # retained\n", "# note\n"] {
+            let mut document = YamlDocument::parse(original, Path::new("activation.yaml")).unwrap();
+            document.set_string_list("activated_directives", &["001-arch".to_owned()]);
+            let rendered = document.to_text();
+            let value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&rendered).unwrap();
+            assert_eq!(value["activated_directives"][0].as_str(), Some("001-arch"));
+            assert_eq!(
+                document.get_string_list("activated_directives").unwrap(),
+                Some(vec!["001-arch".to_owned()])
+            );
+            if original.contains('#') {
+                assert!(rendered.contains(original.split_once('#').unwrap().1.trim()));
+            }
+        }
+        for original in ["42\n", "hello\n", "[a, b]\n"] {
+            assert!(matches!(
+                YamlDocument::parse(original, Path::new("activation.yaml")),
+                Err(DoctrineError::YamlRootNotMapping { .. })
+            ));
+        }
+    }
 
     #[test]
     fn comments_and_key_order_survive_a_list_update() {

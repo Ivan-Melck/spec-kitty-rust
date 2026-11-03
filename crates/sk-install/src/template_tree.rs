@@ -84,11 +84,11 @@ impl TemplateTreeSource {
     }
 
     /// Discover the canonical checkout layout (`src/charter/offering/templates`,
-    /// `packs/built-in/missions`, `src/specify_cli/memory`).
+    /// `packs/built-in/missions`, `.kittify/memory`).
     pub fn discover(checkout: &Path) -> Result<Self, InstallError> {
         let templates = checkout.join("src/charter/offering/templates");
         let missions = checkout.join("packs/built-in/missions");
-        let memory = checkout.join("src/specify_cli/memory");
+        let memory = checkout.join(".kittify/memory");
         if !templates.is_dir() {
             return Err(InstallError::TemplateTreeMissing {
                 path: templates,

@@ -147,6 +147,28 @@ fn a_forced_review_lane_exit_without_a_note_is_refused() {
 }
 
 #[test]
+fn a_batch_cannot_synthesize_a_missing_workspace_context() {
+    let mission = temp_mission();
+    let requests: Vec<_> = ["planned", "claimed", "in_progress"]
+        .into_iter()
+        .map(|lane| {
+            let mut request = TransitionRequest::new(
+                &mission.feature_dir,
+                MISSION_SLUG,
+                "WP01",
+                lane,
+                ActorValue::identity("claude"),
+            );
+            request.repo_root = Some(mission.repo_root.clone());
+            request
+        })
+        .collect();
+    assert!(emit_status_transition_batch(&requests).is_err());
+    assert!(!mission.feature_dir.join(EVENTS_FILENAME).exists());
+    assert!(!mission.feature_dir.join("status.json").exists());
+}
+
+#[test]
 fn a_batch_lands_one_replacement_and_one_snapshot() {
     let mission = temp_mission();
     let mut planned = TransitionRequest::new(
@@ -165,6 +187,7 @@ fn a_batch_lands_one_replacement_and_one_snapshot() {
     claimed.event_id = Some("01K9M0R3WK9W7R2Z5V8C3P6D1B".to_owned());
     let mut started = planned.clone();
     started.to_lane = "in_progress".to_owned();
+    started.workspace_context = Some("lane-a".to_owned());
     started.at = Some("2026-11-02T10:00:02+00:00".to_owned());
     started.event_id = Some("01K9M0R3WMADXS8SA6W9D4Q7E2".to_owned());
 

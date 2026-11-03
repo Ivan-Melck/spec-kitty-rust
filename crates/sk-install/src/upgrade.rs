@@ -8,11 +8,17 @@
 //! already-target project records `skipped` rather than re-applying.
 //!
 //! **Fail-closed execution.** The catalog has 136 declared migrations; this
-//! crate implements a small, source-read subset ([`NATIVE_MIGRATIONS`]). If the
-//! selection contains any migration without a native implementation the real
-//! run refuses *before the first write*, naming every id. That is deliberate:
-//! silently dropping an old project's migration would claim a compatibility the
-//! binary does not have. `dry_run` reports the same split without refusing.
+//! crate implements the source-read families registered in
+//! [`NATIVE_MIGRATIONS`] (16 ids: the merge-driver family, run-index heal,
+//! lane-tip hooks, the 4.0.0rc7 pack/gitignore pair, the narrow agent-ignore
+//! rewrite and the stale mission-template fork repair). If the selection
+//! contains any migration without a native implementation the real run refuses
+//! *before the first write*, naming every id. That is deliberate: silently
+//! dropping an old project's migration would claim a compatibility the binary
+//! does not have. `dry_run` reports the same split without refusing. A
+//! migration whose `detect` is true but whose `can_apply` refuses this project
+//! is a skip that is **not** recorded, so it is retried after the project
+//! changes.
 //!
 //! Ordering is catalog order (the upstream `order_manifest.txt`), not version
 //! sort. Each applied migration writes one ledger record; a failure records
@@ -70,33 +76,168 @@ impl MigrationOutcome {
     }
 }
 
-/// A native implementation: `detect` plus `apply`.
+/// A native implementation: `detect`, `can_apply` plus `apply`.
 #[derive(Clone, Copy)]
 pub struct NativeMigration {
     /// The catalog id.
     pub id: &'static str,
     /// Whether the old state is still present (upstream `detect`).
     pub detect: fn(&Path) -> Result<bool, InstallError>,
+    /// The upstream `can_apply` refusal (a skip that records nothing), if any.
+    pub can_apply: fn(&Path) -> Result<Option<String>, InstallError>,
     /// Apply the transformation (upstream `apply`, non-dry-run).
     pub apply: fn(&Path) -> Result<MigrationOutcome, InstallError>,
 }
 
+/// A migration that has no project-shape refusal beyond existence.
+pub fn always_applicable(_project_root: &Path) -> Result<Option<String>, InstallError> {
+    Ok(None)
+}
+
+macro_rules! merge_driver_native {
+    ($detect:ident, $apply:ident, $id:literal) => {
+        fn $detect(project_root: &Path) -> Result<bool, InstallError> {
+            crate::migrations::merge_drivers::detect_for($id, project_root)
+        }
+        fn $apply(project_root: &Path) -> Result<MigrationOutcome, InstallError> {
+            crate::migrations::merge_drivers::apply_for($id, project_root)
+        }
+    };
+}
+
+merge_driver_native!(
+    detect_event_log_merge_driver,
+    apply_event_log_merge_driver,
+    "3.1.1_event_log_merge_driver"
+);
+merge_driver_native!(
+    detect_decisions_event_log_merge_driver,
+    apply_decisions_event_log_merge_driver,
+    "3.2.6_decisions_event_log_merge_driver"
+);
+merge_driver_native!(
+    detect_gate_artifact_merge_drivers,
+    apply_gate_artifact_merge_drivers,
+    "3.2.6_gate_artifact_merge_drivers"
+);
+merge_driver_native!(
+    detect_issue_matrix_driver_repoint,
+    apply_issue_matrix_driver_repoint,
+    "3.2.6_issue_matrix_driver_repoint"
+);
+merge_driver_native!(
+    detect_meta_traces_merge_drivers,
+    apply_meta_traces_merge_drivers,
+    "3.2.6_meta_traces_merge_drivers"
+);
+merge_driver_native!(
+    detect_review_cycle_merge_driver,
+    apply_review_cycle_merge_driver,
+    "3.2.7_review_cycle_merge_driver"
+);
+merge_driver_native!(
+    detect_decision_index_merge_driver,
+    apply_decision_index_merge_driver,
+    "4.0.0rc5_decision_index_merge_driver"
+);
+
 /// Every migration implemented natively in this crate.
-pub const NATIVE_MIGRATIONS: [NativeMigration; 3] = [
+pub const NATIVE_MIGRATIONS: [NativeMigration; 16] = [
     NativeMigration {
         id: "0.13.1_exclude_worktrees",
         detect: detect_exclude_worktrees,
+        can_apply: always_applicable,
         apply: apply_exclude_worktrees,
+    },
+    NativeMigration {
+        id: "3.1.1_event_log_merge_driver",
+        detect: detect_event_log_merge_driver,
+        can_apply: crate::migrations::merge_drivers::can_apply,
+        apply: apply_event_log_merge_driver,
     },
     NativeMigration {
         id: "3.2.0rc28_github_diff_attributes",
         detect: detect_github_diff_attributes,
+        can_apply: always_applicable,
         apply: apply_github_diff_attributes,
+    },
+    NativeMigration {
+        id: "3.2.6_decisions_event_log_merge_driver",
+        detect: detect_decisions_event_log_merge_driver,
+        can_apply: crate::migrations::merge_drivers::can_apply,
+        apply: apply_decisions_event_log_merge_driver,
+    },
+    NativeMigration {
+        id: "3.2.6_gate_artifact_merge_drivers",
+        detect: detect_gate_artifact_merge_drivers,
+        can_apply: crate::migrations::merge_drivers::can_apply,
+        apply: apply_gate_artifact_merge_drivers,
+    },
+    NativeMigration {
+        id: "3.2.6_issue_matrix_driver_repoint",
+        detect: detect_issue_matrix_driver_repoint,
+        can_apply: crate::migrations::merge_drivers::can_apply,
+        apply: apply_issue_matrix_driver_repoint,
+    },
+    NativeMigration {
+        id: "3.2.6_meta_traces_merge_drivers",
+        detect: detect_meta_traces_merge_drivers,
+        can_apply: crate::migrations::merge_drivers::can_apply,
+        apply: apply_meta_traces_merge_drivers,
+    },
+    NativeMigration {
+        id: "3.2.7_review_cycle_merge_driver",
+        detect: detect_review_cycle_merge_driver,
+        can_apply: crate::migrations::merge_drivers::can_apply,
+        apply: apply_review_cycle_merge_driver,
+    },
+    NativeMigration {
+        id: "4.0.0rc5_decision_index_merge_driver",
+        detect: detect_decision_index_merge_driver,
+        can_apply: crate::migrations::merge_drivers::can_apply,
+        apply: apply_decision_index_merge_driver,
+    },
+    NativeMigration {
+        id: "4_0_0rc5_heal_run_index_paths",
+        detect: crate::migrations::run_index::detect,
+        can_apply: crate::migrations::run_index::can_apply,
+        apply: crate::migrations::run_index::apply,
+    },
+    NativeMigration {
+        id: "4_0_0rc5_install_lane_tip_recorder",
+        detect: crate::migrations::lane_tip::detect,
+        can_apply: crate::migrations::lane_tip::can_apply,
+        apply: crate::migrations::lane_tip::apply,
     },
     NativeMigration {
         id: "4.0.0rc7_exclude_spec_kitty",
         detect: detect_exclude_spec_kitty,
+        can_apply: always_applicable,
         apply: apply_exclude_spec_kitty,
+    },
+    NativeMigration {
+        id: "4.0.0rc7_pack_level_backfill",
+        detect: crate::migrations::pack_level::detect,
+        can_apply: crate::migrations::pack_level::can_apply,
+        apply: crate::migrations::pack_level::apply,
+    },
+    NativeMigration {
+        id: "4.0.0rc7_track_charter_pack_yaml",
+        detect: crate::migrations::charter_pack_gitignore::detect,
+        can_apply: crate::migrations::charter_pack_gitignore::can_apply,
+        apply: crate::migrations::charter_pack_gitignore::apply,
+    },
+    NativeMigration {
+        id: "4.0.0rc8_narrow_agent_gitignore",
+        detect: crate::migrations::narrow_agent_gitignore::detect,
+        can_apply: crate::migrations::narrow_agent_gitignore::can_apply,
+        apply: crate::migrations::narrow_agent_gitignore::apply,
+    },
+    NativeMigration {
+        id: "4.0.0rc8_retire_stale_mission_template_forks",
+        detect: crate::migrations::mission_template_forks::detect,
+        can_apply: crate::migrations::mission_template_forks::can_apply,
+        apply: crate::migrations::mission_template_forks::apply,
     },
 ];
 
@@ -113,8 +254,10 @@ pub enum PlannedOutcome {
     Apply,
     /// `detect()` says the project is already in the target state.
     NotNeeded,
-    /// A declared git requirement cannot be met here (recorded `skipped`).
+    /// A declared git requirement cannot be met here (not recorded).
     SkipOutsideGit,
+    /// The migration's own `can_apply` refuses this project shape (not recorded).
+    NotApplicable,
     /// No native implementation exists; the real run refuses.
     Unimplemented,
 }
@@ -126,6 +269,7 @@ impl PlannedOutcome {
             Self::Apply => "apply",
             Self::NotNeeded => "not_needed",
             Self::SkipOutsideGit => "skipped_outside_git",
+            Self::NotApplicable => "not_applicable",
             Self::Unimplemented => "unimplemented",
         }
     }
@@ -163,14 +307,23 @@ impl UpgradePlan {
             .collect()
     }
 
-    /// Ids that would be recorded `skipped` (not needed / outside git).
+    /// Ids that would be recorded `skipped` (not needed).
     pub fn skip_ids(&self) -> Vec<String> {
+        self.rows
+            .iter()
+            .filter(|row| row.outcome == PlannedOutcome::NotNeeded)
+            .map(|row| row.spec.id.clone())
+            .collect()
+    }
+
+    /// Ids this run would not apply and would not record.
+    pub fn not_applicable_ids(&self) -> Vec<String> {
         self.rows
             .iter()
             .filter(|row| {
                 matches!(
                     row.outcome,
-                    PlannedOutcome::NotNeeded | PlannedOutcome::SkipOutsideGit
+                    PlannedOutcome::SkipOutsideGit | PlannedOutcome::NotApplicable
                 )
             })
             .map(|row| row.spec.id.clone())
@@ -361,7 +514,10 @@ pub fn plan_upgrade(request: &UpgradeRequest) -> Result<UpgradePlan, InstallErro
                         Some("requires a git repository".to_string()),
                     )
                 } else if (native.detect)(root)? {
-                    (PlannedOutcome::Apply, None)
+                    match (native.can_apply)(root)? {
+                        Some(reason) => (PlannedOutcome::NotApplicable, Some(reason)),
+                        None => (PlannedOutcome::Apply, None),
+                    }
                 } else {
                     (
                         PlannedOutcome::NotNeeded,
@@ -400,6 +556,7 @@ pub fn run_upgrade(request: &UpgradeRequest) -> Result<UpgradeReport, InstallErr
                         PlannedOutcome::Apply => "would_apply".to_string(),
                         PlannedOutcome::NotNeeded => "not_needed".to_string(),
                         PlannedOutcome::SkipOutsideGit => "would_skip_outside_git".to_string(),
+                        PlannedOutcome::NotApplicable => "not_applicable".to_string(),
                         PlannedOutcome::Unimplemented => "unimplemented".to_string(),
                     },
                     changes: row.detail.iter().cloned().collect(),
@@ -457,12 +614,22 @@ pub fn run_upgrade(request: &UpgradeRequest) -> Result<UpgradeReport, InstallErr
                     warnings: outcome.warnings,
                 });
             }
-            PlannedOutcome::NotNeeded | PlannedOutcome::SkipOutsideGit => {
+            PlannedOutcome::NotNeeded => {
                 ledger.append(&LedgerRecord::for_spec(
                     &row.spec,
                     SKIPPED_RESULT,
                     &request.cli_version,
                 ))?;
+                rows.push(MigrationResultRow {
+                    id: row.spec.id.clone(),
+                    result: "skipped".to_string(),
+                    changes: row.detail.iter().cloned().collect(),
+                    warnings: Vec::new(),
+                });
+            }
+            // Upstream records nothing for "not applicable here": the next run
+            // after the project changes must select it again.
+            PlannedOutcome::SkipOutsideGit | PlannedOutcome::NotApplicable => {
                 rows.push(MigrationResultRow {
                     id: row.spec.id.clone(),
                     result: "skipped".to_string(),
@@ -820,6 +987,25 @@ mod tests {
         MigrationLedger::new(root)
             .seed_for_init(catalog, "4.0.0rc8", |_spec| false)
             .expect("seed");
+    }
+
+    #[test]
+    fn every_native_migration_id_is_declared_exactly_once() {
+        let catalog = MigrationCatalog::embedded().expect("catalog");
+        assert_eq!(NATIVE_MIGRATIONS.len(), 16);
+        let mut ids = std::collections::BTreeSet::new();
+        for migration in NATIVE_MIGRATIONS {
+            assert!(
+                ids.insert(migration.id),
+                "duplicate native id {}",
+                migration.id
+            );
+            assert!(
+                catalog.get(migration.id).is_some(),
+                "{} is not in the declared catalog",
+                migration.id
+            );
+        }
     }
 
     #[test]
