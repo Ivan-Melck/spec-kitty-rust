@@ -3,12 +3,16 @@
 //! Stage 1 of the native invocation port: the durable Op trail
 //! (`kitty-ops/<ULID>.jsonl`, the index, and the closure spine), the typed
 //! `started`/`completed` models with pre-v2 detection, `ModeOfWork` and its
-//! entry-command derivation, the canonical invocation-id boundary, and Op
-//! record-root placement with the admission refusal vocabulary.
+//! entry-command derivation, the canonical invocation-id boundary, Op
+//! record-root placement with the admission refusal vocabulary, and the
+//! read-only Git-backed commit-or-skip probes (`primary` tracking and the
+//! exact-path ignore/tracking decision).
 //!
 //! This crate is deliberately unwired: no dispatcher calls it, the executor /
 //! catalog / router / governance / glossary / StepContract surfaces are not
-//! implemented here, and no capability is claimed. Its only effectful
+//! implemented here, and no capability is claimed. The commit-or-skip probes
+//! decide only whether an `op(...)` commit would be skipped; they do not admit,
+//! protect, or perform a commit. Its only effectful
 //! authorities are the `sk-kernel` event-log protocol (lock placement, locked
 //! append, torn-tail refusal, fsync/readback), the `sk-kernel` clock, and
 //! `sk-kernel` Git topology; path identity uses the kernel's read-only
@@ -24,6 +28,7 @@
 
 mod error;
 mod modes;
+mod op_commit_policy;
 mod op_custody;
 mod python_json;
 mod record;
@@ -36,6 +41,11 @@ pub use error::{
 pub use modes::{
     ENTRY_COMMAND_MODES, ModeOfWork, RecordedMode, classify_mode_of_work, derive_mode,
     mode_permits_evidence,
+};
+pub use op_commit_policy::{
+    COMMON_PRIMARY_BRANCHES, OpCommitProbeError, OpCommitSkipProbe, PrimaryTracking,
+    is_op_record_path, op_commit_skip_reason, primary_tracks_op_records, probe_primary_tracking,
+    resolve_primary_refs,
 };
 pub use op_custody::{
     GitProbeError, OP_WRITE_PROTECTED_BRANCH, OP_WRITE_PROTECTION_CONFIG_INVALID, OpWriteAction,

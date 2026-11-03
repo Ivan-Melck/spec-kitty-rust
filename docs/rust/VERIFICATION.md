@@ -8,7 +8,41 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Governance composition correction checkpoint — after `1eb5c99ef`
+## Native Op commit-probe checkpoint — after `12b48e0c5`
+
+All owners idle: **2,164 passed / 0 failed / 10 parent-exercised helpers**,
+183 suites including doctests; strict workspace all-target Clippy, full fmt
+and both release binaries pass without interruption. Includes Op115/Git292/
+Kernel199/doctrine175 (not additional totals). Final logs
+`/tmp/sk-native-op-probes-final-{aggregate,clippy,fmt,release}.log`.
+
+Concrete primary-ref/tree tracking, exact-path commit-or-skip decisions and
+repository-borrowed cache now exist, backed by a generic captured-authority
+symbolic-ref read. No current-branch fallback, networking, write/commit,
+admission or CLI wiring. Source 9-call resolution bound excludes repository
+opening; caller timeout/raw operand/error-message boundaries remain disclosed.
+Coordinator reuses InvocationId validation and isolates all shared Op oracle
+CWDs. True source-policy red0/1 for a legal trailing-NBSP ref fixes missing
+stdout stripping BEFORE origin-prefix removal; leading-NBSP control stays
+faithful while generic Git spelling remains untouched. Harness-isolation
+red0/1 is recorded separately, not called a business-policy defect.
+
+Owner's actual policy suite was27 pass+1 helper, not26+1; two coordinator tests
+make29 pass+1 helper. Original compiler-only reds/harness mistakes remain
+labelled. Earlier2,163 integration/gates are preserved, not substituted for
+this corrected run. New local sk-invocation->sk-git lock edge changes no registry
+pin. Current bindings/limits:
+`crates/sk-invocation/COMMIT-PROBES-INTEGRATION-REPORT.md`.
+
+Completion still599/PERF27/pending, accounting valid,0/16 workflows
+(`/tmp/sk-op-probes-final-completion-report.json`). New larger Op/Git surface
+awaits independent review. No executor/admission/protection/auto-commit/CLI/
+StepContract or whole parity/platform/performance promotion; protected-main
+false advance, language Unicode/number/encoding and remaining service/migration/
+workflow/campaign obligations stay open. Coordinator commits and PUSHES each
+verified checkpoint; draft PR remains draft.
+
+## Previous governance composition correction checkpoint — after `1eb5c99ef`
 
 Owners idle: **2,117 passed / 0 failed / 9 parent-exercised helpers**,181 suites
 including doctests; strict workspace all-target Clippy/full fmt and both release

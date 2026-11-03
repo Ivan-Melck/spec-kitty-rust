@@ -146,6 +146,7 @@ mod safe_commit;
 mod safe_commit_transaction;
 mod sparse;
 mod status;
+mod symbolic;
 mod worktree;
 mod worktree_ops;
 mod worktree_prune;

@@ -46,7 +46,9 @@ pub fn python() -> PathBuf {
                  (UV_PROJECT_ENVIRONMENT=.venv-rust-oracle)",
                 python.display()
             );
+            let scratch = tempfile::tempdir().expect("isolated oracle verification CWD");
             let result = Command::new(&python)
+                .current_dir(scratch.path())
                 .arg(root.join("scripts/rust/verify_oracle.py"))
                 .arg("--root")
                 .arg(&root)
@@ -66,10 +68,11 @@ pub fn python() -> PathBuf {
 /// Run a Python snippet against the pinned source tree with optional stdin.
 pub fn run_python(script: &str, stdin: Option<&str>) -> String {
     let root = repository_root();
+    let scratch = tempfile::tempdir().expect("isolated Python probe CWD");
     let mut child = Command::new(python())
         .arg("-c")
         .arg(script)
-        .current_dir(&root)
+        .current_dir(scratch.path())
         .env("PYTHONPATH", root.join("src"))
         .env("SPEC_KITTY_PACKS_ROOT", root.join("packs"))
         .env("PYTHONDONTWRITEBYTECODE", "1")

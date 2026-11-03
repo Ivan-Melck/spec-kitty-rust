@@ -1,5 +1,9 @@
 # Op reference/capture narrow follow-up — implementation evidence
 
+Historical `5909598e1` source/dependency bindings, not current Cargo metadata.
+Later commit-probe integration adds the local sk-git dependency and changes test
+support; see `COMMIT-PROBES-INTEGRATION-REPORT.md` for that checkpoint.
+
 Baseline `38834239dcccf6171f7f56c0d62036117d11cb4c`; input independent
 `/tmp/sk-rust-op-remediation-review.md` (403 lines). Provisional plan written
 before changes: `/tmp/sk-op-narrow-remediation.md`.
