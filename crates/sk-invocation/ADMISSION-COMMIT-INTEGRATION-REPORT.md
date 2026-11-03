@@ -1,6 +1,9 @@
 # Native Op admission / actual commit integration
 
-Status: coordinator verification complete; independent review pending. Audience:
+Status: historical coordinator evidence for published b80e5ab57. Independent
+review gives scoped PASS WITH FINDINGS, not valid-input parity. Later F3
+correction/current bindings: `docs/rust/reviews/op-admission-commit-disposition.md`.
+Audience:
 software-engineer. Updated: 2026-11-03. Baseline published
 `42994b2c226bfcfb87e3e682c608a2777179153a`; pinned Python source/oracle
 `9aed3a8012cb5eb22c0128b14d525039f95fea7a` unchanged.
@@ -68,7 +71,7 @@ All Cargo commands use `/tmp/sk-focused-cargo.sh`: whole-command flock lease,
 
 These are Linux test/build gates, not whole-command parity or a speed result.
 
-## Current source bindings
+## Historical b80e5ab57 source bindings
 
 ```
 4bc52a693434d2e3724c4f5a8afb08b497c6bd2982189c001e2aade3fa6bb3ab  crates/sk-invocation/src/op_admission.rs
@@ -87,7 +90,11 @@ Repository binding is construction-time (not source per-call rediscovery); root
 becoming a repository later is not supported by an existing service. Generic Git
 errors retain native text. Source preflight precedence/native adapter-only checks,
 short branch restrictions, raw legacy JSON stringification and full topology/error
-breadth need independent review. Protection's own remote-default probes retain
+breadth remain open. Independent review concretely finds NaN/Infinity cause native
+refusal where source commits; nested map ordering and1e400 (source inf) change
+commit messages/objects. A checked-out NBSP-suffixed branch with an existing
+stripped-name shadow also commits in source but refuses native HEAD assertion.
+These are functional gaps, not merely diagnostics or approval by disclosure. Protection's own remote-default probes retain
 workspace options. 16MiB Git capture and existing Git saturated-history evidence
 limits remain. Disclosure does not establish parity for valid-source inputs.
 
@@ -98,4 +105,5 @@ campaign. Source remains681 commits semantically behind fork/upstream main, now
 both `1bff48901c62ac971ba11e286c94a4de214f0752`. New19 tail:45 files,+1,446/-1,
 contract-test roots/docs/Mission+Op records only; source/pins unchanged. Current
 completion stays blocked; coordinator commits+pushes the verified checkpoint and
-keeps PR#1 draft before requesting independent larger-surface review.
+keeps PR#1 draft. Independent review establishes the exercised slice only;
+findings and later corrections are tracked in the disposition linked above.

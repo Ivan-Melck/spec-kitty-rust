@@ -8,6 +8,27 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
+## Op independent review / F3 policy-message correction — after `b80e5ab57`
+
+Independent review scoped PASS WITH FINDINGS:22/22 admission decisions/read-only,
+30/33 commit decisions, all33 audit bytes retained, no fabricated OID/rewind;
+138 Op/0fail/2 helpers and strict scoped gates/exact53 oracle reproduced.
+This is not valid-input parity: F1 NaN/Infinity source commits/native refuses,
+F2 nested-map order/overflow1e400 changes commit objects, F4 NBSP shadow branch
+source commits/native HEAD mismatch refuses, F5 error repr/classification differs.
+O1–O4 claim corrections are explicit; disclosure does not close functional gaps.
+
+Coordinator F3 exact live-oracle policy reason red0/1 then reuses existing
+WorkspaceError protection detail (not extra path/type Display wrapper). Scoped
+138/0/2, strict Clippy/fmt pass; `/tmp/sk-op-policy-detail-{red,green,clippy,fmt}.log`.
+Stable owner-idle workspace repeats2188/0/11 helpers,184 suites/doctests, strict
+all-target Clippy/full fmt/both release binaries pass, no interruption;
+`/tmp/sk-native-op-policy-detail-{aggregate,clippy,fmt,release}.log`.
+Current hashes and review/remaining boundaries:
+`reviews/op-admission-commit-disposition.md`. Small correction tested, not fresh
+independent whole-stage approval. No executor/CLI/StepContract/false-advance repair,
+workflow/platform/performance promotion; verified checkpoint committed+PUSHED.
+
 ## Op admission / actual commit integration — after `42994b2c2`
 
 Owners idle: **2,188 pass / 0 fail / 11 parent-exercised helpers**,184 suites

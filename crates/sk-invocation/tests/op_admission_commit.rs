@@ -524,14 +524,13 @@ fn unreadable_protection_refuses_only_when_the_commit_would_be_judged() {
         .expect("admission answers")
         .expect("a malformed protection block refuses");
     assert_eq!(refusal.code, OpWriteRefusalCode::ProtectionConfigInvalid);
-    assert!(
-        refusal.reason.contains("protection.protected_branches"),
-        "native config reason is carried verbatim: {}",
-        refusal.reason
-    );
     assert_eq!(fixture.snapshot(), before);
     let oracle = oracle_admission(&fixture.root, &fixture.root, None);
     assert_eq!(oracle["code"], "OP_WRITE_PROTECTION_CONFIG_INVALID");
+    assert_eq!(
+        oracle["reason"], refusal.reason,
+        "the Op refusal uses canonical policy detail, not WorkspaceError's extra path wrapper"
+    );
 
     // Skip-before-protection: once the probe path is ignored, the same broken
     // configuration is never read and the local write is admitted.

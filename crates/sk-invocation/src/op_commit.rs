@@ -47,6 +47,13 @@
 //! * The default git timeout is the source's 30-second probe budget. The
 //!   protection reader resolves its own remote-default probe through existing
 //!   `sk-workspace` code, which retains that crate's accepted options.
+//! * Raw `NaN`/`Infinity` JSON is accepted by Python but currently causes a
+//!   native invalid-record refusal (a commit-decision difference). Nested-map
+//!   insertion order and overflowing floats such as `1e400` change commit
+//!   messages/objects. These are open functional gaps, not only diagnostics.
+//! * With a whitespace-suffixed current ref and an existing stripped-name
+//!   shadow ref, the source may commit on the checked-out ref while the native
+//!   canonical HEAD assertion refuses. That valid-input difference remains open.
 //! * Cross-checkout CLAIM composition is not implemented; the started-record
 //!   read is local to this writer's record root, like `_read_started_event`.
 
@@ -463,8 +470,10 @@ impl OpCommitService {
             }
         };
         policy.map_err(|error| match error {
-            WorkspaceError::ProtectionConfig { .. } => {
-                ProtectionRead::InvalidConfig(error.to_string())
+            WorkspaceError::ProtectionConfig { detail, .. } => {
+                // The Op boundary reports the canonical policy's source-facing
+                // detail, not the workspace adapter's extra path/type wrapper.
+                ProtectionRead::InvalidConfig(detail)
             }
             other => ProtectionRead::Unavailable(other),
         })
