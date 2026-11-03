@@ -13,8 +13,9 @@
 //!   `kernel.resolution.resolve_rejecting_loops`. That profile is non-strict
 //!   `pathlib` tolerance: a missing, dangling or unreadable (`EACCES`)
 //!   component is carried lexically, `..` is applied *after* the symlink in
-//!   front of it is expanded, only a genuine cycle fails, and an acyclic chain
-//!   of 41, 42 or more links resolves (there is no total-link budget). An
+//!   front of it is expanded. A cycle encounter carries the remaining path
+//!   lexically; a final stat rejects a loop only if it survives normalization.
+//!   Acyclic chains of 41, 42 or more links resolve (no total-link budget). An
 //!   interior NUL is refused, which is CPython's `ValueError`.
 //!
 //! This module does **not** widen the containment policy: `resolve_within`,
@@ -104,9 +105,9 @@ enum Step {
 /// Resolve `path` to an absolute path with every existing symlink expanded.
 ///
 /// Missing tail components are appended lexically, a dangling link resolves to
-/// its target, `..` is applied to the *expanded* prefix, and only a real cycle
-/// fails. See the module documentation for why this is not the containment
-/// policy.
+/// its target, and `..` is applied to the *expanded* prefix. A loop encountered
+/// during expansion ends that walk lexically; the final probe rejects it only
+/// if the normalized result still loops. This is not the containment policy.
 pub fn resolve_reference_path(path: &Path) -> Result<PathBuf, ReferencePathError> {
     if has_interior_nul(path) {
         return Err(ReferencePathError::InteriorNul {
@@ -124,14 +125,38 @@ pub fn resolve_reference_path(path: &Path) -> Result<PathBuf, ReferencePathError
             })?
             .join(path)
     };
-    resolve_absolute(&absolute, path)
+    let resolved = resolve_absolute(&absolute)?;
+    // CPython non-strict realpath first normalizes the lexical tail. A loop
+    // removed by `..` is therefore valid; missing/unreadable tails also remain
+    // valid. Only a loop-shaped error from the final stat is a refusal.
+    if let Err(error) = fs::metadata(&resolved)
+        && is_loop_error(&error)
+    {
+        return Err(ReferencePathError::SymlinkLoop {
+            path: path.to_path_buf(),
+        });
+    }
+    Ok(resolved)
+}
+
+fn is_loop_error(error: &io::Error) -> bool {
+    #[cfg(unix)]
+    if error.raw_os_error() == Some(rustix::io::Errno::LOOP.raw_os_error()) {
+        return true;
+    }
+    #[cfg(windows)]
+    if error.raw_os_error() == Some(1921) {
+        return true;
+    }
+    let _ = error;
+    false
 }
 
 fn has_interior_nul(path: &Path) -> bool {
     path.as_os_str().to_string_lossy().contains('\0')
 }
 
-fn resolve_absolute(absolute: &Path, supplied: &Path) -> Result<PathBuf, ReferencePathError> {
+fn resolve_absolute(absolute: &Path) -> Result<PathBuf, ReferencePathError> {
     let mut resolved = PathBuf::new();
     let mut pending: VecDeque<Step> = VecDeque::new();
     for component in absolute.components() {
@@ -166,9 +191,21 @@ fn resolve_absolute(absolute: &Path, supplied: &Path) -> Result<PathBuf, Referen
                                 continue;
                             }
                             Some(None) => {
-                                return Err(ReferencePathError::SymlinkLoop {
-                                    path: supplied.to_path_buf(),
-                                });
+                                // Non-strict CPython stops expanding at a
+                                // loop, then normpath collapses the whole
+                                // remaining lexical tail. Do not resolve a
+                                // later symlink after `..` removes this one.
+                                resolved = candidate;
+                                for remaining in pending {
+                                    match remaining {
+                                        Step::Parent => {
+                                            resolved.pop();
+                                        }
+                                        Step::Normal(name) => resolved.push(name),
+                                        Step::Remember(_) => {}
+                                    }
+                                }
+                                return Ok(resolved);
                             }
                             None => {}
                         }

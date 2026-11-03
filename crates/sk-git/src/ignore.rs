@@ -29,6 +29,11 @@ impl GitRepository {
     /// for a missing path too, which is what callers probing a not-yet-written
     /// record need.
     ///
+    /// The operand is literal Git path data. Unlike Python's `PurePath`
+    /// adapter, this method does not turn an empty spelling into `.` or strip
+    /// trailing separators; those queries can therefore differ from that
+    /// adapter while matching Git exactly. Op-record paths use neither form.
+    ///
     /// The probe uses `--no-index` deliberately. Plain `git check-ignore`
     /// reports "not ignored" for any path that is in the index, so it would
     /// hide an ignore rule for a tracked-but-ignored path. This method always

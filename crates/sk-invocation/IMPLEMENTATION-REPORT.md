@@ -1,8 +1,10 @@
 # `sk-invocation` — Stage 1 implementation report (FINAL)
 
-Status: **implementation complete for the stage-1 scope below; the F1–F7
-review findings are remediated on top (see `REMEDIATION-REPORT.md`); not
-approved.** The provisional version of this file was written before any crate
+Status: **stage-1 foundation implemented, not wholly approved.** The 388
+re-review accepts the major F1–F3 fixes/consolidation but finds N1/N2 fidelity
+gaps; coordinator corrections await fresh scoped review. See
+`NARROW-REMEDIATION-REPORT.md` for current hashes and gates, and
+`REMEDIATION-REPORT.md` for the historical 388 snapshot. The provisional version of this file was written before any crate
 body existed (see "Provisional record, retained and corrected"). This version
 records what was built, the evidence, the exact failures, and what stage 2
 still needs.
@@ -171,11 +173,13 @@ f9e2f070716f84bbb9ce6a6503f6b0395df7ff49e7205feed0ecfbdf0fefb9ad  tests/op_custo
 e6cca12a437bf7a47ad567de52c283e2d202932292fcc697ff6fdd2f0d539d65  tests/support/mod.rs        (198)
 ```
 
-### 3.1 Post-remediation snapshot (this round)
+### 3.1 Published 388 post-remediation snapshot (historical)
 
-Current files: the coordinator's F1/F2 edits are in `writer.rs`, `Cargo.toml`
-and `tests/writer_filesystem.rs`; the rest is this remediation round.
-`src/resolve.rs` no longer exists.
+Bindings below describe published `38834239d`, not current follow-up sources.
+The coordinator supplied F1/F2 and the tempfile dev-to-runtime promotion; the
+implementation owner supplied the remaining remediation. The deletion of
+`src/resolve.rs` is committed at 388. Current bindings (including the later
+runtime-to-dev reversal) are in `NARROW-REMEDIATION-REPORT.md`.
 
 ```
 843f1c3766d57516a54098542b92a4bf08621b27b89b70a3c756dc440a3e819e  src/error.rs
@@ -190,9 +194,14 @@ c24a6fd64dfc79347a314e83cf9486f42fec8c4d9e1ccaedd65f92f840c634c5  tests/lock_con
 17513e96a55c53bb0a45a8d42217e4c1930ca99f26452cd5a41be232439f7e64  tests/oracle_vectors.rs
 e5cf9cf85683d1562761674e276c11bfbe0d10412437fc5c49923d95529b3201  tests/reference_path_oracle.rs  (new)
 e6cca12a437bf7a47ad567de52c283e2d202932292fcc697ff6fdd2f0d539d65  tests/support/mod.rs
-bd7488fea14b397ae79276fb02afa3486a014c2c890fa093159d455c7f8d137a  ../sk-kernel/src/reference_path.rs (new)
+3514559efaa6edb366284d0d325249e4a5c28c17c635a6260013aaade2bf1012  tests/writer_filesystem.rs
+c3b39d76ba154f62c72245b4ed336441441c3b1d9e2af660bfd2978e373dec88  ../sk-kernel/src/reference_path.rs (published 388)
 ed1bec27c6e2e60988f53975b79db97b38e485f30b264e14656b8c03a8221c7d  ../sk-kernel/src/lib.rs  (module + re-export lines only)
 ```
+
+The earlier table incorrectly bound unpublished owner hash `bd7488fe…` rather
+than delivered `c3b39d76…`; this is corrected, not treated as proof of an
+independently preserved earlier snapshot.
 
 Native checkpoint the work was applied on: `bfc79fdfd413e69059b6a1475d31e70317f8b6b8`
 (the coordinator's `M Cargo.lock` and the two `docs/rust/*` edits were already

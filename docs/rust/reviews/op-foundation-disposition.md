@@ -3,7 +3,7 @@
 Checkpoint: `1ad605bb7744b8cae1d1a95b6bf449b7d1b92c9a`.
 Independent report: `/tmp/sk-rust-op-foundation-review.md` (FINAL).
 
-**NOT APPROVED for stage 1.** The 72-test run is not acceptance. Reviewer adds
+**Original 1ad review: NOT APPROVED for stage 1.** The 72-test run is not acceptance. Reviewer adds
 22 bespoke byte vectors, 42 validation vectors, 17 writer scenarios, actual
 Git-placement bidirectional lock contention, missing-oracle negatives and
 real-checkout custody probes. Tested record/model/JSON behavior has partial
@@ -40,6 +40,25 @@ release continuation; prior release tool timeout remains documented. Fresh
 independent acceptance is still required; the original rejection is historical
 input, not silently erased. See `crates/sk-invocation/REMEDIATION-REPORT.md`.
 
+## Independent 388 re-review and narrow follow-up
+
+`/tmp/sk-rust-op-remediation-review.md` independently reproduces279/0/1,
+strict scoped Clippy/fmt, exact oracle53/53 and missing-oracle failure; 9MiB
+cross-closes are byte-identical. It accepts F1/F2/F3, authority consolidation
+without widened containment, local-reader contracts, F6 assertions and F7
+float fidelity. This is genuine scoped acceptance, not a whole stage approval.
+
+It rejects N1 loop-plus-parent normalization fidelity and N2 writable-TMP
+capture dependence, and notes N3 stale bindings/manifest wording and N4 integer
+-0 repr. Coordinator reproduces all three semantic cases red-first and fixes
+them directly: lexical loop tail plus final stat, concurrently drained pipe
+without a temp-file dependency, integer -0 canonicalization. Reports now
+separate historical388 bindings from current sources; tempfile is dev-only
+again with Cargo.lock unchanged. Scoped **281/0/1**, strict Clippy/fmt pass;
+`crates/sk-invocation/NARROW-REMEDIATION-REPORT.md` holds exact current bindings.
+These corrections are not new independent acceptance, nor a workspace total.
+
 Stage-2 admission/catalog/routing/governance/glossary/executor/commit/lifecycle
-and StepContract remain absent. Large-input, resolver and custody defects must
-close before wiring; performance and inventory gates remain unchanged.
+and StepContract remain absent. New fixes require inclusion in the next
+independent integration review before any whole-stage approval; no CLI wiring,
+performance or inventory promotion follows from this bounded remediation.

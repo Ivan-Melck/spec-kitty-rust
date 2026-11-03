@@ -14,6 +14,8 @@ Contract mirrors (reference only):
 - `src/charter/activation/{org_charter,org_charter_loader,org_pack_discovery,org_expected_artifacts,org_requirement_kinds}.py`
 - `src/charter/activation/{context_json,progressive_disclosure,resolver}.py`, `context_renderers/artifact_bodies.py`
 - `src/charter/activation/synthesizer/synthesis_lock.py`
+- `src/charter/activation/{language_scope,language_vocabulary,language_authority}.py`,
+  `src/charter/offering/shared/{scoping,language_catalog}.py` (language signal only)
 - `src/charter/offering/agent_profiles/repository.py`, `src/kernel/activation_ledger_store.py`
 
 ## Implemented
@@ -215,6 +217,70 @@ Contract mirrors (reference only):
   and tension annotations are typed API fields, deliberately outside the JSON
   contract.
 
+### Language scope (read-only provider; not CLI-bound yet)
+
+The doctrine-side half of the language signal, ported from
+`charter/activation/{language_vocabulary,language_scope,language_authority}.py`,
+`charter/offering/shared/{scoping,language_catalog}.py` and the interview
+defaults. It is a library seam: **no CLI detector, dispatcher or runtime path is
+bound to it**. The CLI retains its separate catalog/configured/compiled/interview
+implementation, which lacks the doctrine vocabulary and differs in other tier details
+(see the remaining gap below).
+
+- `scoped_language_vocabulary(repo_root, packs_root)` is a lightweight YAML scan
+  of `applies_to_languages` over exactly the five scoped kinds (tactics,
+  styleguides, toolguides, procedures, agent profiles), from the built-in tier,
+  the project overlay (`.kittify/charter-packs`, then the code-local layer
+  candidate) and every existing configured org pack root in both directory
+  spellings. Only single `\w`-word string items count; tokens are normalized and
+  `unknown`/`any`/`all` are stripped. Malformed, non-mapping, unreadable and
+  non-UTF-8 artifacts are skipped exactly as the reference skips them — no graph
+  is built, no sole-door activation gate is applied and no confinement or
+  refusal is invented.
+- `LanguageVocabularyCache` is the explicit memo: a caller-owned LRU bounded to
+  **8** roots (the reference's `lru_cache(maxsize=8)`), with `clear()`, `len()`,
+  `capacity()` and `keys()`. The explicit packs-root seam is part of the native
+  key (the reference keys on the repo root alone, because its packs root is
+  ambient). A failed scan is never cached; no performance claim is made.
+- `LanguageScopeService::infer` is the single inference authority, with the
+  three-state result typed as `InferredLanguages::{NoSignal, Empty, Declared}`.
+  Tier order: operator `languages` in `.kittify/config.yaml` (wins over
+  everything, `prefer_interview` included, and is validated against the catalog
+  so a confirmed list is never widened), then the compiled
+  `.kittify/charter/charter.yaml` `catalog.languages` (present-but-empty is an
+  authoritative `[]`; missing/null/non-list falls back; items are `str()`-
+  converted, never silently filtered), then the interview (`prefer_interview`
+  resolves from it alone and may return no signal, and a supplied interview that
+  is only the shipped `defaults.yaml` text does not mask the on-disk
+  transcript). There is no `charter.md` fallback.
+- A real `languages_frameworks` declaration decides alone: built-in detector hits
+  in that answer UNION doctrine-vocabulary whole-word hits in that answer, else
+  `["unknown"]`. Placeholder, default or absent declarations scan the other
+  answers with the built-in detector only, and return no signal when nothing is
+  found. The build-token rule (`"Gradle"` → `jvm`), the `word-`-compound guard
+  (`librespot-java` names no language) and the `C#`/`C++` word exclusion are
+  ported.
+- `lacks_specialist_guidance` is the D2 advisory: no signal and explicit-empty
+  are never advisory, reserved tokens are stripped, families are expanded, and
+  the remainder is intersected with the scoped vocabulary.
+- Declared representation limits (no false equality): `str.casefold()` is
+  approximated with `to_lowercase()` (ASCII-identical; `ß`/final-sigma edges
+  differ), Python `\w` with `char::is_alphanumeric() || '_'`, and the
+  `ast.literal_eval` subset covers list/tuple/scalar answer shapes (float and
+  exotic reprs are best-effort; unparsable shapes fall back to the raw answer
+  text exactly where the reference falls back). Reference logging warnings are
+  value-identical but are not emitted natively.
+
+The independent 170-test service review is scoped PASS with findings, not
+end-to-end approval. Coordinator P2–P4 corrections now cover BOM-prefixed
+multi-key YAML, whole-file unknown-tag skip and org-only reads that ignore
+unrelated invalid config fields (strict whole-config validation unchanged).
+Unicode casefolding, numeric exponent repr, and transcript encoding recovery
+remain real differences; artifacts are strict UTF-8 in the reference, but
+interview transcripts use the broader charter ingestion authority. The CLI
+binding must remove its existing implementation rather than add another path.
+See `LANGUAGE-REMEDIATION-REPORT.md`.
+
 ### Installer integration
 
 `crates/sk-install/src/activation.rs` no longer writes the activation authority
@@ -225,9 +291,11 @@ are unchanged.
 
 ## Verification
 
-- `CARGO_BUILD_JOBS=2 cargo test -p sk-doctrine --locked`: **149 passed,**
-  **0 failed** (108 unit + 18 checked-in baseline conformance + 21
-  oracle-generated governance fixtures/regressions + 2 doctests).
+- `CARGO_BUILD_JOBS=2 cargo test -p sk-doctrine --locked`: **174 passed,**
+  **0 failed** (120 unit + 18 checked-in baseline conformance + 21
+  oracle-generated governance fixtures/regressions + 13 oracle-generated
+  language-scope differential tests + 2 doctests). The pre-existing 149 all
+  still pass; the language-scope tests are additive.
 - Every fixture in `tests/governance_oracle.rs` fails closed on a missing or
   non-lock-exact `.venv-rust-oracle` (`scripts/rust/verify_oracle.py`). They
   generate, from the pinned Python oracle at test time:
@@ -351,9 +419,14 @@ These are real missing behaviours, not aliases for a successful stub.
     unknown mission type), can still resolve where the reference degrades to
     directly loaded locals. The 149-test / 52-check review does not approve
     those cases.
-15. **Scoped language vocabulary.** The CLI's fixed language detector does not
-    yet union languages declared by doctrine artifacts. A scoped custom `zig`
-    declaration can therefore exclude a profile that the reference admits.
+15. **Scoped language vocabulary (provider landed, CLI binding open).** The
+    doctrine-side provider now exists (`scoped_language_vocabulary`,
+    `LanguageScopeService`, oracle-verified), but the CLI's `compat/runtime.rs`
+    catalog/tier/interview implementation does not call it, so the
+    consumer-side behaviour is unchanged: a scoped custom `zig` declaration can
+    still exclude a profile that the reference admits. Binding it — and the
+    prompt/registry paths that consume the signal — is a separate, unreviewed
+    step. No N5 end-to-end fix is claimed here.
 
 ## API map for the coordinator CLI
 
@@ -377,6 +450,10 @@ use sk_doctrine::{
     // context/profiles
     build_action_context, ContextRequest, ContextInputs, ProfileRepository,
     org_charter_block,
+    // language scope
+    scoped_language_vocabulary, LanguageVocabularyCache, LanguageScopeService,
+    InferRequest, InferredLanguages, InterviewAnswers, configured_languages,
+    extract_declared_languages, lacks_specialist_guidance,
     // identity/yaml
     IdentityIndex, YamlDocument, PreparedWrite, LockScope,
 };

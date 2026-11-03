@@ -1,9 +1,14 @@
 # Upstream reconciliation: current fork, older rewrite baseline
 
 Fork `main` and upstream `main` both resolve to
-`b91a226a15c0054f3bc0bf7e9c844df8a3689245` (fork fast-forwarded and remotely
-rechecked on 2026-11-03). The two additional commits after `7c50fd38b`
-change neither production source nor pins; the total gap is now 643 commits. The rewrite and
+`d357958b6fbf6bb45bb62b22ee946e647f454e03` (fork fast-forwarded and both remotes
+rechecked). Total gap: **662 commits**. The newest9-commit tail from dcdacbd2e
+changes seven test/development-doc files (+348/−3), no production source or
+dependency/pack pins. No semantic adoption is inferred from that sync. The two commits from
+`7c50fd38b` through `b91a226a1` changed neither source nor pins; the preceding
+10-commit tail changes charter `_common.py`, generation and interview commands
+(no dependency/pack pins). Those new command semantics are not adopted or
+covered by the earlier source investigation. The rewrite and
 active development oracle source still use
 `9aed3a8012cb5eb22c0128b14d525039f95fea7a`. Synchronizing fork `main` did not
 silently rebase or certify the rewrite.

@@ -479,6 +479,34 @@ fn non_one_exit_status_is_a_typed_failure_not_false() {
 
 #[cfg(unix)]
 #[test]
+fn capture_overflow_is_an_error_even_when_exit_one_is_allowed() {
+    let temp = tempfile::tempdir().expect("create tempdir");
+    let body =
+        "if [ \"$1\" = check-ignore ]; then head -c 16777217 /dev/zero; exit 1; fi\nexit 0\n";
+    let (_program, repository) = fake_repository(&temp, body, std::time::Duration::from_secs(10));
+    match repository.is_path_ignored(&path("overflow.log")) {
+        Err(GitError::OutputTooLarge {
+            stream: "stdout",
+            limit,
+        }) => assert_eq!(limit, 16 * 1024 * 1024),
+        other => panic!("allowed exit 1 must not hide capture failure: {other:?}"),
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_signalled_probe_is_a_typed_failure_not_false() {
+    let temp = tempfile::tempdir().expect("create tempdir");
+    let body = "if [ \"$1\" = check-ignore ]; then kill -TERM $$; fi\nexit 0\n";
+    let (_program, repository) = fake_repository(&temp, body, std::time::Duration::from_secs(2));
+    assert!(matches!(
+        repository.is_path_ignored(&path("signal.log")),
+        Err(GitError::CommandFailed { status: None, .. })
+    ));
+}
+
+#[cfg(unix)]
+#[test]
 fn unavailable_git_is_a_typed_failure_not_false() {
     let temp = tempfile::tempdir().expect("create tempdir");
     let (program, repository) = fake_repository(

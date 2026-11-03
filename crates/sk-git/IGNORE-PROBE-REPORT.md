@@ -17,6 +17,24 @@ evidence, exact counts and final hashes.
 > strict workspace Clippy/fmt and a completed release-only continuation after
 > an inspected tool timeout. Independent ignore-probe approval remains pending.
 
+## Independent review and coordinator follow-up
+
+`/tmp/sk-rust-ignore-probe-review.md` independently gives **scoped PASS** at
+`38834239d` (source `e74626dc…`, formatted tests `b8c17296…`). It reproduces
+276/0/4 helpers, verifies 46 native-vs-Git byte cases and 42/44 UTF-8 Python
+comparisons (two deliberate literal-operand normalization differences), typed
+signal/capture errors and unchanged dirty/index state. No CLI/Op policy or
+performance approval.
+
+Coordinator closes the small review follow-ups without changing the method:
+adds allowed-exit-1 capture-overflow and signalled-child tests; documents the
+literal `""`/trailing-slash difference from Python `PurePath`; updates current
+hash rows below. Both new cases pass immediately (coverage additions, not
+invented red-first product fixes). Scoped **278/0/4 helpers**, 20 suites,
+strict Clippy/fmt pass in `/tmp/sk-ignore-review-followup-*.log`. Ignore suite
+is now 15 passing cases plus its parent-exercised helper. The accepted method
+body is unchanged; the new source hash includes only the doc clarification.
+
 ## Delivered
 
 One generic, read-only Git probe for future Op admission, with no Op policy or
@@ -79,8 +97,9 @@ requirements checked, no drift/missing/unsatisfied/duplicate versions, and all
 
 ## Tests and controls
 
-`tests/ignore.rs` has 14 tests: 13 passing and 1 parent-exercised ignored
-subprocess helper (`captured_index_probe_child`).
+The original delivery had 14 tests: 13 passing and 1 parent-exercised ignored
+subprocess helper (`captured_index_probe_child`). The post-review coverage adds
+two more passing cases as recorded above.
 
 Real repositories:
 
@@ -140,7 +159,7 @@ unchanged.
   change produced the final implementation hash below; the tests and strict
   Clippy were rerun after it.
 
-Final scoped run, through `/tmp/sk-focused-cargo.sh` with the existing target,
+Original delivery's final scoped run, through `/tmp/sk-focused-cargo.sh` with the existing target,
 shared whole-command lease, two jobs, no incremental and temporary
 HOME/XDG/TMP:
 
@@ -159,9 +178,9 @@ module declaration.
 ## Final hashes
 
 - `crates/sk-git/src/ignore.rs`:
-  `e74626dc512f25d0e48696cb53897eb7822cde2c48947e388edcaab258e0fd44`
+  `28981ece767ea1403ef776d7132fd35d81eabd15aabc83f311a6c94a65ce61fe` (post-review doc clarification)
 - `crates/sk-git/tests/ignore.rs`:
-  `5d07cf20bcc7230202990e92185db5da0312055a99e5fa63bce3a7b888d209c1`
+  `2a69280757d36f845baea24aa7736ba7edc02e52998a93b84fd3e6a1252e2d56` (post-review capture/signal coverage)
 - `crates/sk-git/src/lib.rs` after registration:
   `ca6742e37a1c8cce9088c10593aa8d892a138e7c9e00c81e469f5a4770bae270`
   (before: `030db72da01882233eae0b8f2f2eba995ffeea53f80a65aedc207acd3f6ec71e`)
@@ -198,6 +217,10 @@ paths belong to other owners and were not edited here.
   does; it neither sanitises nor reinterprets pathspec magic. Literal colon
   names are covered and pass. Absolute and `..` operands are likewise not
   revalidated, matching the source and avoiding an invented path restriction.
+- Literal operands are passed unchanged; Python `PurePath(...).as_posix()`
+  additionally maps `""` to `"."` and strips trailing separators (`nested/`).
+  Those spellings can have different answers. They are not used for Op-record
+  paths; no full Python-adapter operand-parity claim is made.
 - Ignore answers still depend on repository ignore files, `.git/info/exclude`,
   `core.excludesFile` and user/system Git configuration, as they do for the
   source oracle. The adapter does not rewrite configuration.

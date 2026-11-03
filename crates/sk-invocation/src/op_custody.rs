@@ -19,7 +19,7 @@
 //! stage does not depend on, so no admission decision is faked here.
 
 use std::io;
-use std::io::{Read, Seek};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -251,8 +251,8 @@ fn holds_record(checkout: &Path, invocation_id: &InvocationId) -> bool {
 
 /// Every checkout `git worktree list --porcelain` reports for the repository.
 ///
-/// The listing is drained while Git runs (a file-backed capture, so a large
-/// repository cannot deadlock the probe). A failing, timed-out, or absent Git
+/// The listing is drained concurrently while Git runs, without requiring a
+/// writable temp directory. A failing, timed-out, or absent Git
 /// binary degrades to no extra checkouts, exactly like the reference's
 /// `_git_lines`; a `None` here is the reference's empty list.
 fn repository_checkouts(project_root: &Path) -> Vec<PathBuf> {
@@ -267,22 +267,38 @@ fn repository_checkouts(project_root: &Path) -> Vec<PathBuf> {
 }
 
 fn git_lines(cwd: &Path, arguments: &[&str]) -> Option<String> {
-    // Git writes to a regular temporary file, never a pipe: `subprocess.run(
-    // capture_output=True)` drains concurrently, while reading a pipe only
-    // after exit deadlocks as soon as the listing exceeds the pipe capacity
-    // (a repository with several hundred worktrees). No output cap is added;
-    // the full listing is what the reference parses.
-    let mut captured = tempfile::tempfile().ok()?;
-    let child_stdout = captured.try_clone().ok()?;
+    // Drain while the child runs, as subprocess.run(capture_output=True)
+    // does. Waiting before reading a pipe deadlocks on large listings; a
+    // temporary-file capture instead adds a writable-TMPDIR dependency.
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
     let mut child = Command::new("git")
         .args(arguments)
         .current_dir(cwd)
         .stdin(Stdio::null())
-        .stdout(Stdio::from(child_stdout))
+        .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
         .ok()?;
     let deadline = Instant::now() + GIT_TIMEOUT;
+    let Some(mut stdout) = child.stdout.take() else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return None;
+    };
+    let reader = match std::thread::Builder::new()
+        .name("sk-op-git-output".to_owned())
+        .spawn(move || {
+            let mut bytes = Vec::new();
+            let result = stdout.read_to_end(&mut bytes).map(|_| bytes);
+            let _ = sender.send(result);
+        }) {
+        Ok(reader) => reader,
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return None;
+        }
+    };
     let status = loop {
         match child.try_wait() {
             Ok(Some(status)) => break status,
@@ -303,9 +319,14 @@ fn git_lines(cwd: &Path, arguments: &[&str]) -> Option<String> {
     if !status.success() {
         return None;
     }
-    captured.seek(std::io::SeekFrom::Start(0)).ok()?;
-    let mut bytes = Vec::new();
-    captured.read_to_end(&mut bytes).ok()?;
+    // The deadline covers output too. On failure/timeout only the direct child
+    // is killed/reaped; the reader owns the pipe until EOF and cannot delay the
+    // caller beyond the budget (no process-group signal or unbounded join).
+    let bytes = receiver
+        .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+        .ok()?
+        .ok()?;
+    reader.join().ok()?;
     let text = String::from_utf8_lossy(&bytes).into_owned();
     if text.trim().is_empty() {
         None

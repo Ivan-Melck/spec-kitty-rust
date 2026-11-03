@@ -155,7 +155,17 @@ pub fn python_repr_json(value: &serde_json::Value) -> String {
             Some(float) if float.is_finite() => python_float_repr(float),
             _ => number.to_string(),
         },
-        serde_json::Value::Number(number) => number.to_string(),
+        serde_json::Value::Number(number) => {
+            let integer = number.to_string();
+            // json.loads parses integer -0 as 0; floating -0.0 is handled
+            // above and retains its sign. Arbitrary-precision integers remain
+            // exact decimal strings, never coerced through f64.
+            if integer == "-0" {
+                "0".to_owned()
+            } else {
+                integer
+            }
+        }
         serde_json::Value::String(text) => python_repr(text),
         serde_json::Value::Array(items) => {
             let rendered: Vec<String> = items.iter().map(python_repr_json).collect();
@@ -256,6 +266,17 @@ mod tests {
         assert_eq!(python_repr("é"), "'é'");
         assert_eq!(python_repr("\u{0}\u{1f}"), "'\\x00\\x1f'");
         assert_eq!(python_repr("\u{7f}"), "'\\x7f'");
+    }
+
+    #[test]
+    fn integer_negative_zero_is_canonical_but_float_negative_zero_keeps_its_sign() {
+        let integer: serde_json::Value = serde_json::from_str("-0").unwrap();
+        let float: serde_json::Value = serde_json::from_str("-0.0").unwrap();
+        let huge: serde_json::Value =
+            serde_json::from_str("123456789012345678901234567890").unwrap();
+        assert_eq!(python_repr_json(&integer), "0");
+        assert_eq!(python_repr_json(&float), "-0.0");
+        assert_eq!(python_repr_json(&huge), "123456789012345678901234567890");
     }
 
     #[test]

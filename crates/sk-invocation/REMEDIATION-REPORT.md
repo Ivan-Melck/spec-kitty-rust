@@ -4,9 +4,10 @@ Baseline `1ad605bb7744b8cae1d1a95b6bf449b7d1b92c9a`. Inputs:
 `/tmp/sk-native-remediation-orders.md`, `/tmp/sk-rust-op-foundation-review.md`
 (stage-1 NOT APPROVED, F1–F7), `/tmp/sk-op-foundation-remediation-coordinator.md`.
 
-This is implementation evidence, **not approval**. No capability, executor,
-admission decision, CLI wiring, dispatcher, coverage, manifest/lockfile,
-`Cargo.toml`, pin or doc-gate was changed; the only other crate changes are the
+This is historical 388 implementation evidence, **not approval**. No capability,
+executor, admission decision, CLI wiring, dispatcher, coverage, pin or doc-gate
+was changed. The coordinator promoted tempfile from dev to runtime in Cargo.toml
+for this snapshot's capture; Cargo.lock stayed unchanged. Other crate changes are the
 authorized additive Kernel module/export below. No agents, commits or pushes. Status: F1–F7 addressed in the scope below; F8's uncertainty rules
 retained.
 
@@ -83,9 +84,12 @@ a82d3067c8eb3a37fce7dcd2ca4fbd7c08524967f685dc9b057f8ae3c7656c72  crates/sk-kern
 3dc1c42cfca9e60e79ae6bf18b75d4035a67a18f28bb143f4ce1b0efa05e0f1c  crates/sk-kernel/src/containment.rs           (UNCHANGED)
 ```
 
-`crates/sk-invocation/src/resolve.rs` was **deleted** (F5); it is still in
-`git status` as `D`. `Cargo.lock` is clean (`git status --porcelain Cargo.lock`
-empty); `Cargo.toml` has only the coordinator's tempfile promotion.
+`crates/sk-invocation/src/resolve.rs` was **deleted** (F5), committed at
+`38834239d`, not a pending working-tree deletion. At 388, `Cargo.lock` is
+unchanged and `Cargo.toml` has the coordinator's tempfile promotion. This
+report's hashes/gates describe that historical snapshot; current follow-up
+bindings and the later return to dev-only tempfile are recorded in
+`NARROW-REMEDIATION-REPORT.md`.
 
 ## 3. Finding-by-finding
 
@@ -217,9 +221,10 @@ closed: 0 passed / 2 failed (`/tmp/sk-op-remediation-missing-oracle.log`).
   Pydantic's multi-line validation detail text (D3); NBSP-class
   `str.isprintable()` edges in `python_repr` (D12); Python's raw
   `OSError`/`FileExistsError` types for an unreadable spine and
-  `kitty-ops`-is-a-file (D6/D8/D15); JSON integers beyond `i64`/`u64` are
-  `f64` in `serde_json`, so a giant non-string embedded id renders in
-  scientific form where Python keeps an `int` (message-only).
+  `kitty-ops`-is-a-file (D6/D8/D15). The prior huge-integer residual was
+  incorrect: workspace arbitrary_precision keeps them exact, as the independent
+  review verifies. Integer -0 was a real message-only difference, corrected in
+  `NARROW-REMEDIATION-REPORT.md`.
 
 ### F8 — uncertainty retained
 
@@ -319,14 +324,16 @@ drop; green-run fixtures are fresh temp dirs. Existing review roots
   the reference calls `repo_root.resolve()` (which can raise an uncaught
   `RuntimeError` for a looping root); not exercised because a looping repo root
   is outside the meaningful envelope. Unicode `isprintable` edges (D12),
-  Pydantic detail text (D3), Python exception types (D6/D8/D15), huge JSON
-  integers (F7) as listed above.
+  Pydantic detail text (D3), Python exception types (D6/D8/D15) as listed above.
+  N1 loop-plus-parent and N2 writable-temp dependence were found by the 388
+  re-review; their later corrections await scoped acceptance.
 - **Not re-run / not claimed:** aggregate workspace gates, both release CLIs,
   performance, full parity, workflow/platform/campaign/≥3× claims, the 90
   migrations and 16 performance workloads, Ruff dev-tool findings, StepContract
   advance, Git long-history creation evidence beyond B1/B2. The coordinator
   runs the stable aggregate after both owners deliver.
-- **Not touched:** `Cargo.toml`, `Cargo.lock`, manifests of other crates,
+- **Not touched by the implementation owner:** `Cargo.toml` (coordinator
+  promotion disclosed above), `Cargo.lock`, manifests of other crates,
   `sk-git`/`sk-status`/`docs/rust/**` (other owners), dispatcher, CLI,
   coverage, capabilities, pins, production Python, existing kernel
   containment/lock/fs_resolve behaviour.

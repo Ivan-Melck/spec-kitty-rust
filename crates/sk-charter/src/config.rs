@@ -199,6 +199,47 @@ impl PathExpansion {
     }
 }
 
+/// Read only the org-pack registry from `.kittify/config.yaml`.
+///
+/// Unlike whole-project config validation, this read does not judge unrelated
+/// `charter` pointers or project skill namespaces. Pack declarations still use
+/// the exact same parser and path/identity rules as `load_project_config`.
+/// Consumers implementing a lenient registry read may degrade an error to an
+/// empty registry; path expansion remains a separate, fallible operation.
+pub fn load_org_pack_registry(
+    project_root: &Path,
+    limits: &Limits,
+) -> Result<Vec<OrgPackConfig>, CharterError> {
+    let Some(mapping) = read_project_mapping(project_root, limits)? else {
+        return Ok(Vec::new());
+    };
+    let path = project_root.join(".kittify/config.yaml");
+    match field(&mapping, "charter_packs") {
+        FieldValue::Absent | FieldValue::Null => Ok(Vec::new()),
+        FieldValue::Other(serde_yaml_ng::Value::Mapping(packs)) => {
+            parse_org_registry_block(packs, &path)
+        }
+        _ => Err(invalid(&path, "`charter_packs` must be a mapping")),
+    }
+}
+
+fn read_project_mapping(
+    project_root: &Path,
+    limits: &Limits,
+) -> Result<Option<serde_yaml_ng::Mapping>, CharterError> {
+    let path = project_root.join(".kittify/config.yaml");
+    if !path.exists() {
+        return Ok(None);
+    }
+    if !path.is_file() {
+        return Err(invalid(&path, "expected a regular file"));
+    }
+    let resolved = crate::io::resolve_contained(project_root, ".kittify/config.yaml")?;
+    let bytes = read_bounded(&resolved, limits.max_config_bytes)?;
+    let bytes = bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(&bytes);
+    parse_yaml_mapping(&path, bytes).map(Some)
+}
+
 /// Read and validate `.kittify/config.yaml`.
 ///
 /// An absent file is absence, not an error. A present but corrupt, oversized or
@@ -208,18 +249,9 @@ pub fn load_project_config(
     limits: &Limits,
 ) -> Result<ProjectConfig, CharterError> {
     let path = project_root.join(".kittify").join("config.yaml");
-    if !path.exists() {
+    let Some(mapping) = read_project_mapping(project_root, limits)? else {
         return Ok(ProjectConfig::absent(path));
-    }
-    if !path.is_file() {
-        return Err(CharterError::InvalidConfig {
-            path,
-            reason: "expected a regular file".to_owned(),
-        });
-    }
-    let resolved = crate::io::resolve_contained(project_root, ".kittify/config.yaml")?;
-    let bytes = read_bounded(&resolved, limits.max_config_bytes)?;
-    let mapping = parse_yaml_mapping(&path, &bytes)?;
+    };
 
     let charter_pointer = match field(&mapping, "charter") {
         FieldValue::Absent | FieldValue::Null => None,
@@ -252,14 +284,29 @@ fn parse_charter_packs(
     charter_packs: &serde_yaml_ng::Mapping,
     path: &Path,
 ) -> Result<(Vec<OrgPackConfig>, Option<String>), CharterError> {
-    let org_packs = match field(charter_packs, "org") {
-        FieldValue::Absent | FieldValue::Null => Vec::new(),
-        FieldValue::Other(serde_yaml_ng::Value::Mapping(org)) => parse_org_block(org, path)?,
-        FieldValue::Other(_) | FieldValue::String(_) => {
-            return Err(invalid(path, "`charter_packs.org` must be a mapping"));
-        }
-    };
+    let org_packs = parse_org_registry_block(charter_packs, path)?;
 
+    let namespace = parse_project_namespace(charter_packs, path)?;
+    Ok((org_packs, namespace))
+}
+
+fn parse_org_registry_block(
+    charter_packs: &serde_yaml_ng::Mapping,
+    path: &Path,
+) -> Result<Vec<OrgPackConfig>, CharterError> {
+    match field(charter_packs, "org") {
+        FieldValue::Absent | FieldValue::Null => Ok(Vec::new()),
+        FieldValue::Other(serde_yaml_ng::Value::Mapping(org)) => parse_org_block(org, path),
+        FieldValue::Other(_) | FieldValue::String(_) => {
+            Err(invalid(path, "`charter_packs.org` must be a mapping"))
+        }
+    }
+}
+
+fn parse_project_namespace(
+    charter_packs: &serde_yaml_ng::Mapping,
+    path: &Path,
+) -> Result<Option<String>, CharterError> {
     let namespace = match field(charter_packs, "project") {
         FieldValue::Absent | FieldValue::Null => None,
         FieldValue::Other(serde_yaml_ng::Value::Mapping(project)) => {
@@ -285,7 +332,7 @@ fn parse_charter_packs(
         }
     };
 
-    Ok((org_packs, namespace))
+    Ok(namespace)
 }
 
 fn parse_org_block(

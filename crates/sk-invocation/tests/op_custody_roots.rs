@@ -61,6 +61,71 @@ fn canonical(path: &Path) -> std::path::PathBuf {
     path.canonicalize().expect("path canonicalizes")
 }
 
+#[cfg(unix)]
+#[test]
+fn custody_lookup_does_not_require_a_writable_temp_directory() {
+    use std::os::unix::fs::PermissionsExt;
+    const CHILD_ROOT: &str = "SK_INV_READONLY_TMP_ROOT";
+    if let Some(root) = std::env::var_os(CHILD_ROOT) {
+        let root = std::path::PathBuf::from(root);
+        assert_eq!(
+            locate_op_record_root(&root.join("primary"), ID, None),
+            Some(canonical(&root.join("lane-0799")))
+        );
+        return;
+    }
+    let root = tempfile::Builder::new()
+        .prefix("sk-readonly-custody-")
+        .tempdir()
+        .unwrap()
+        .keep();
+    eprintln!("retained fixture: {}", root.display());
+    let primary = root.join("primary");
+    init_repository(&primary);
+    for index in 0..800 {
+        let name = format!("lane-{index:04}");
+        add_linked_worktree(&primary, &root.join(&name), &name);
+    }
+    hold_record(&root.join("lane-0799"), ID);
+    assert!(porcelain_len(&primary) > 64 * 1024);
+    let readonly = root.join("readonly-tmp");
+    fs::create_dir_all(&readonly).unwrap();
+    fs::set_permissions(&readonly, fs::Permissions::from_mode(0o500)).unwrap();
+    if fs::write(readonly.join("permission-probe"), "x").is_ok() {
+        fs::set_permissions(&readonly, fs::Permissions::from_mode(0o700)).unwrap();
+        eprintln!("permission-bypass privileges: read-only TMPDIR case is not discriminating");
+        return;
+    }
+    for directory in ["home", "cache", "config", "data", "state"] {
+        fs::create_dir_all(root.join(directory)).unwrap();
+    }
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "custody_lookup_does_not_require_a_writable_temp_directory",
+            "--nocapture",
+        ])
+        .current_dir(&primary)
+        .env(CHILD_ROOT, &root)
+        .env("TMPDIR", &readonly)
+        .env("TMP", &readonly)
+        .env("TEMP", &readonly)
+        .env("HOME", root.join("home"))
+        .env("XDG_CACHE_HOME", root.join("cache"))
+        .env("XDG_CONFIG_HOME", root.join("config"))
+        .env("XDG_DATA_HOME", root.join("data"))
+        .env("XDG_STATE_HOME", root.join("state"))
+        .output()
+        .unwrap();
+    fs::set_permissions(&readonly, fs::Permissions::from_mode(0o700)).unwrap();
+    assert!(
+        output.status.success(),
+        "child lookup failed: {}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 #[test]
 fn a_linked_worktree_owns_its_op_records() {
     let temp = tempfile::tempdir().unwrap();

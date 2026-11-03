@@ -18,7 +18,12 @@
 //!   *effective* deny;
 //! * action-scoped context and agent-profile lineage resolution, including the
 //!   versioned `charter context --json` nested contract (real bodies, delivery,
-//!   references, provenance labels and the governance blocks).
+//!   references, provenance labels and the governance blocks);
+//! * the read-only language-scope service: the doctrine-derived scoped-language
+//!   vocabulary (built-in, project overlay and configured org chain) and the
+//!   configured → compiled → interview inference tiers, with the three-state
+//!   no-signal / explicit-empty / declared contract. It is a library seam only —
+//!   no CLI detector is bound to it yet.
 //!
 //! Boundaries (contract mirrors under `src/charter/**`, never invoked at runtime):
 //!
@@ -48,6 +53,9 @@ mod context;
 mod error;
 mod graph;
 mod identity;
+mod language_scope;
+mod language_vocabulary;
+mod language_yaml;
 mod ledger;
 mod loader;
 mod lock;
@@ -82,6 +90,20 @@ pub use context::{
 pub use error::{DoctrineError, RETIRED_GOVERNANCE_RUNBOOK};
 pub use graph::{DrgEdge, DrgGraph, DrgNode, NodeKind, Relation, is_valid_urn, split_urn};
 pub use identity::{IdentityIndex, IdentityLayer, IdentityLookup, scan_all};
+pub use language_scope::{
+    BUILD_TOOLS, BuildToolSpec, COMPOUND_PREFIX_GUARD, CONFIG_LANGUAGES_KEY, CONFIG_RELATIVE_PATH,
+    INTERVIEW_ANSWERS_RELATIVE_PATH, InferRequest, InferredLanguages, InterviewAnswers, JVM_FAMILY,
+    LANGUAGES, LANGUAGES_ANSWER_KEY, LanguageScopeService, LanguageSpec, RESERVED_LANGUAGE_TOKENS,
+    SENTINEL_LANGUAGE_TOKENS, SHIPPED_DEFAULT_ANSWERS, SHIPPED_DEFAULT_LANGUAGES_ANSWER,
+    UNKNOWN_LANGUAGE, configured_languages, declared_languages, expand_language_families,
+    extract_declared_languages, infer_repo_languages, is_catalog_language, is_language_family,
+    is_placeholder_language_answer, lacks_specialist_guidance, language_scoped_kinds,
+    language_tokens, read_interview_answers, shipped_default_answer,
+};
+pub use language_vocabulary::{
+    DEFAULT_CACHE_CAPACITY, LANGUAGE_SCOPED_KINDS, LanguageVocabularyCache, SCOPE_FIELD,
+    scoped_language_vocabulary,
+};
 pub use ledger::{
     ACTIVATION_LEDGER_REL, ActivationLedger, ActivationSource, CONFIG_YAML_REL, DenyListChoice,
     DenySet, EffectiveWhenAbsent, ResolvedActivationSource, activatable_kinds,

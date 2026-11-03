@@ -42,7 +42,9 @@ pub use asset::{
 pub use charter::{
     ACTIVATION_LEDGER, BundleFile, CHARTER_MD, CHARTER_YAML, CharterBundle, SYNTHESIS_MANIFEST,
 };
-pub use config::{OrgPackConfig, PathExpansion, ProjectConfig, load_project_config};
+pub use config::{
+    OrgPackConfig, PathExpansion, ProjectConfig, load_org_pack_registry, load_project_config,
+};
 pub use error::CharterError;
 pub use inspect::{CharterInspection, InspectionOptions, inspect_project};
 pub use kind::{ArtifactKind, CHARTER_KIND_TOKENS, CharterKind, MISSION_TYPE_TOKEN};

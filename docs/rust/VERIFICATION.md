@@ -8,7 +8,35 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Custody/resolver Linux checkpoint — 2026-11-03, after `1ad605bb7`
+## Language/input Linux checkpoint — after `38834239d`
+
+All implementation owners idle: **2,105 passed / 0 failed / 9 parent-exercised
+helpers**, 180 suites including doctests. Strict workspace all-target Clippy,
+full fmt check and both release binaries pass, without a tool interruption.
+Logs `/tmp/sk-native-language-stable-{aggregate,clippy,fmt,release}.log`.
+Includes doctrine174/charter80/Op82/Kernel199/Git278, not additional totals.
+
+Independent language service review reproduces170 tests and gives scoped PASS
+with findings. Its comparison totals286/265/23 are internally inconsistent;
+no quantitative conformance promotion follows. P1 blocks binding: remove the
+CLI's live duplicate catalog/tier/interview implementation and share profile
+family rules. Coordinator P2/P3/P4 live-oracle red **9/4**, now green: BOM across
+four readers, whole-file unknown-tag skip, registry-only reads that reuse
+canonical pack validation without judging unrelated fields. Three additional
+Charter API tests prove strict whole-config behavior and shared declaration
+errors. Numeric/Unicode/encoding differences remain genuine. Exact hashes in
+`crates/sk-doctrine/LANGUAGE-REMEDIATION-REPORT.md`; no CLI is bound yet.
+
+Prior Op N1–N4 and Git coverage follow-ups are included. Their bounded
+corrections are not newly independently approved. No executor/StepContract
+false-advance repair, full workflow/platform/real-fork or performance claim.
+Completion exits1: **599 findings / PERF27 / pending**, accounting valid,
+**0/16 workflows** (`/tmp/sk-language-stable-completion-report.json`).
+Source/oracle remain9aed3a80; no dependency/pack repin, registry promotion,
+measured campaign or ≥3× acceptance. Prior tooling/migration/workload gaps stay
+open. All historical logs/reports remain, not overwritten or reclassified.
+
+## Previous custody/resolver Linux checkpoint — 2026-11-03, after `1ad605bb7`
 
 Stable coordinator gates: **2,073 passed / 0 failed / 9 parent-exercised
 helpers**, 178 suites including doctests; strict workspace all-target Clippy
@@ -24,8 +52,16 @@ Large Op trails close across native/Python, non-object modes refuse, >64 KiB
 worktree output is file-captured, and reference resolution is a shared additive
 Kernel API with real-loop detection and no total-link cap. Existing containment
 and lock authorities remain unchanged. The generic tracked-aware ignore probe
-has exact exit/argv/read-only/index tests. Both deliveries await fresh independent
-review; no executor/admission/CLI/capability is wired or promoted.
+has exact exit/argv/read-only/index tests. Independent ignore review now gives
+scoped PASS; its coverage/hash/operand caveats are addressed in
+`reviews/ignore-probe-disposition.md` (later scoped Git 278, not a new aggregate).
+Op re-review accepts the major F1/F2/F3 corrections/consolidation but identifies
+N1 loop-plus-parent fidelity and N2 writable-TMP dependence. Coordinator
+reproduces those and integer -0 red-first, then fixes them: **281/0/1**
+(Op82 + Kernel199), strict scoped Clippy/fmt. Logs `/tmp/sk-op-narrow-*.log`,
+exact hashes in `crates/sk-invocation/NARROW-REMEDIATION-REPORT.md`. This later
+scoped count is not a new aggregate or independent approval. No
+executor/admission/CLI/capability is wired or promoted.
 
 Fresh completion: **599 findings / 27 PERF / false / pending**, accounting
 valid (`/tmp/sk-custody-stable-completion-report.json`). Source remains
