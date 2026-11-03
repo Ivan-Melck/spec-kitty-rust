@@ -178,19 +178,21 @@ Conclusion identity is evidence-based and invocation-bound. Hooks still run
 can move the branch after git wrote the commit, even onto a pre-existing commit
 with the same parents. The created commit is therefore identified only from
 git's own commit summary or from a reflog entry appended to the **pinned** ref
-after a publication watermark captured before the command ran. The real parent
+after a publication snapshot captured before the command ran. The real parent
 set (HEAD plus `MERGE_HEAD` for a merge; HEAD alone for a cherry-pick or revert)
 is a necessary check, but a parent match alone is never creation proof and the
-observed `HEAD` is never accepted as a candidate. A reflog that no longer
-contains its pre-invocation boundary in the bounded search cannot be bound at
-all, whether rewritten or beyond the retained window. The boundary is validated
-before any candidate is considered. Hook `commit (amend)` publications are not
+observed `HEAD` is never accepted as a candidate. Fallback requires complete
+pre/post histories below the 256-entry bound, with the prior snapshot preserved
+as the exact suffix; only the appended count is eligible. Duplicate record bytes
+cannot move this boundary. Rewritten, truncated or saturated history is unbound;
+Git's own summary remains usable on ordinary long-history repositories. Hook `commit (amend)` publications are not
 the original conclusion and are excluded from fallback creation evidence.
 `Ok` is returned only when that proven commit is also the current `HEAD` and the
 operation marker is consumed; anything else is `MergeConclusionUnconfirmed`.
-A completed `git commit` that fails with `HEAD` still pinned and the marker still
-recording the pinned tip is a plain `CommandFailed` (a rejecting
-`pre-commit`/`commit-msg` hook, nothing landed). A command that started and then
+A completed `git commit` that fails with `HEAD` still pinned, the marker still
+recording the pinned tip, and no identified created commit is a plain
+`CommandFailed` (the ordinary rejecting-`pre-commit`/`commit-msg` shape). When
+history cannot be bound, this is not proof that no commit object ever existed. A command that started and then
 failed without a status (timeout, capture bound, readback I/O) may already have
 landed, so it is reported as unconfirmed evidence instead of a retryable error.
 

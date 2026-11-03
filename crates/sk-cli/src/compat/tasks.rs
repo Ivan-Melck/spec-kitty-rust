@@ -899,6 +899,17 @@ pub fn move_task(root: &Path, args: &MoveTaskArgs) -> Result<Value, CompatError>
     {
         return Err(authority.protected_refusal("spec-kitty agent tasks move-task"));
     }
+    // Serialize lane observation, cycle allocation and exclusive evidence
+    // creation even when auto-commit is disabled. The emitter re-enters this
+    // authoritative hold; no sibling can allocate/delete the winner's cycle.
+    let mission_lock = sk_status::mutation::acquire_mission_lock(
+        mission.spec_dir(),
+        Some(root),
+        sk_kernel::LockWait::Unbounded,
+    )
+    .map_err(|error| {
+        CompatError::domain(format!("could not acquire the Mission write lock: {error}"))
+    })?;
     let old_lane = current_lane(&mission, &wp_id)?;
     let target_lane = sk_status::Lane::parse_input(&args.to)
         .map_err(|error| CompatError::domain(error.to_string()))?;
@@ -1279,30 +1290,19 @@ pub fn move_task(root: &Path, args: &MoveTaskArgs) -> Result<Value, CompatError>
         request.annotation_delta = Some(annotation);
     }
 
-    // Capture the Mission hold (and its rollback point) across the write, the
-    // commit and any rollback. The status writer re-enters the same per-thread
-    // lock, so the outer hold stays authoritative.
-    let (mission_lock, rollback_point) = match &commit_authority {
-        Some(_) => {
-            let lock = sk_status::mutation::acquire_mission_lock(
-                mission.spec_dir(),
-                Some(root),
-                sk_kernel::LockWait::Unbounded,
-            )
-            .map_err(|error| {
-                CompatError::domain(format!(
-                    "could not acquire the Mission write lock for auto-commit: {error}"
-                ))
-            })?;
-            let point = sk_status::mutation::capture_rollback_point(&lock, mission.spec_dir())
+    // The outer hold predates cycle allocation. Only auto-commit needs a
+    // rollback point; local-only writes still retain that same hold throughout.
+    let rollback_point = if commit_authority.is_some() {
+        Some(
+            sk_status::mutation::capture_rollback_point(&mission_lock, mission.spec_dir())
                 .map_err(|error| {
                     CompatError::domain(format!(
                         "could not capture the rollback point for auto-commit: {error}"
                     ))
-                })?;
-            (Some(lock), Some(point))
-        }
-        None => (None, None),
+                })?,
+        )
+    } else {
+        None
     };
 
     // Write the evidence before the transition that references it; a rejection
@@ -1403,8 +1403,9 @@ pub fn move_task(root: &Path, args: &MoveTaskArgs) -> Result<Value, CompatError>
                     let mut rolled_back = false;
                     let mut rollback_note = String::new();
                     if outcome.persisted
-                        && let (Some(lock), Some(point)) = (&mission_lock, &rollback_point)
+                        && let Some(point) = &rollback_point
                     {
+                        let lock = &mission_lock;
                         let mut expected = vec![event.event_id.clone()];
                         expected.extend(
                             outcome

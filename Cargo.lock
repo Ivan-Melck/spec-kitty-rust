@@ -972,6 +972,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "sk-invocation"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sk-kernel",
+ "tempfile",
+ "thiserror",
+ "ulid",
+]
+
+[[package]]
 name = "sk-kernel"
 version = "0.1.0"
 dependencies = [

@@ -100,6 +100,74 @@ fn apply(repo: &GitRepository, case: &Case) -> Result<sk_git::MergeConclusionOut
 }
 
 #[test]
+fn duplicate_reset_record_cannot_hide_the_newly_created_commit() {
+    let case = stopped(true);
+    hook(
+        &case,
+        "pre-commit",
+        &format!(
+            "#!/bin/sh\nset -e\ncp .git/MERGE_HEAD .git/merge-head-saved\ngit commit --no-verify -qm 'nested merge commit'\ngit rev-parse HEAD > .git/nested-created\ngit reset --hard {} >/dev/null\ncp .git/merge-head-saved .git/MERGE_HEAD\nexit 1\n",
+            case.pinned
+        ),
+    );
+    let repo = GitRepository::open(&case.root).unwrap();
+    let result = apply(&repo, &case);
+    let created = fs::read_to_string(case.root.join(".git/nested-created")).unwrap();
+    assert!(
+        output(
+            &case.root,
+            &["cat-file", "-e", &format!("{}^{{commit}}", created.trim())]
+        )
+        .status
+        .success()
+    );
+    assert_eq!(git(&case.root, &["rev-parse", "HEAD"]), case.pinned);
+    assert!(case.root.join(".git/MERGE_HEAD").is_file());
+    match result {
+        Err(GitError::MergeConclusionUnconfirmed(evidence)) => {
+            assert_eq!(
+                evidence.candidate.as_ref().map(Oid::as_str),
+                Some(created.trim())
+            );
+            assert_eq!(
+                evidence.observed_head.as_ref().map(Oid::as_str),
+                Some(case.pinned.as_str())
+            );
+            assert!(!evidence.operation_consumed);
+        }
+        other => panic!("duplicate boundary must not erase creation evidence: {other:?}"),
+    }
+}
+
+#[test]
+fn ordinary_summary_still_confirms_a_conclusion_with_saturated_reflog_history() {
+    let case = stopped(false);
+    git(&case.root, &["merge", "--abort"]);
+    let theirs = git(&case.root, &["rev-parse", "refs/heads/theirs"]);
+    for _ in 0..130 {
+        // A same-OID soft reset does not append a reflog record. Move between
+        // two real tips, ending at the original clean index/worktree state.
+        git(&case.root, &["reset", "--soft", &theirs]);
+        git(&case.root, &["reset", "--soft", &case.pinned]);
+    }
+    assert!(
+        git(&case.root, &["log", "-g", "--format=%H", "refs/heads/main"])
+            .lines()
+            .count()
+            >= 256
+    );
+    git(&case.root, &["merge", "--no-ff", "--no-commit", "theirs"]);
+    let repo = GitRepository::open(&case.root).unwrap();
+    let outcome =
+        apply(&repo, &case).expect("normal Git summary is independent of capped fallback history");
+    assert_eq!(
+        outcome.new_head().as_str(),
+        git(&case.root, &["rev-parse", "HEAD"])
+    );
+    assert!(!case.root.join(".git/MERGE_HEAD").exists());
+}
+
+#[test]
 fn rejecting_hook_deleting_boundary_does_not_revive_historical_creation_evidence() {
     let case = stopped(true);
     hook(

@@ -185,9 +185,11 @@ enum ReflogBoundary {
     /// The pinned reference had no reflog entries before the invocation, so
     /// every entry observed afterwards was appended during it.
     Empty,
-    /// The newest pre-invocation record (raw `%H%x00%gs` bytes). Entries are
-    /// evidence only until this exact record is reached.
-    At(Vec<u8>),
+    /// Complete, bounded pre-invocation history, newest first. Its unchanged
+    /// suffix anchors the count; matching record bytes alone are ambiguous.
+    Snapshot(Vec<Vec<u8>>),
+    /// The pre-invocation read reached its cap, so its count is not known.
+    Saturated,
     /// The pre-invocation reflog could not be read, so nothing can be bound.
     Unreadable,
 }
@@ -727,13 +729,15 @@ impl GitRepository {
         self.publication_mark_for(&reference)
     }
 
-    /// Capture the newest record of `reference`'s reflog as the boundary.
+    /// Capture bounded history so a duplicate newest record cannot move the
+    /// boundary. A capped read is not an exact count and cannot bind fallback.
     fn publication_mark_for(&self, reference: &str) -> PublicationMark {
-        let boundary = match self.reflog_records(reference, 1) {
-            Ok(records) => match records.into_iter().next() {
-                Some(record) => ReflogBoundary::At(record),
-                None => ReflogBoundary::Empty,
-            },
+        let boundary = match self.reflog_records(reference, REFLOG_BOUND_ENTRIES) {
+            Ok(records) if records.is_empty() => ReflogBoundary::Empty,
+            Ok(records) if records.len() < REFLOG_BOUND_ENTRIES => {
+                ReflogBoundary::Snapshot(records)
+            }
+            Ok(_) => ReflogBoundary::Saturated,
             Err(_) => ReflogBoundary::Unreadable,
         };
         PublicationMark {
@@ -767,11 +771,10 @@ impl GitRepository {
 
     /// Find the conclusion commit from a reflog entry appended by this call.
     ///
-    /// Only entries newer than the pre-invocation boundary are considered. A
-    /// reflog that no longer contains that boundary was rewritten (for example
-    /// expired by a hook), so no entry can be bound to the invocation and no
-    /// candidate is answered. The candidate still has to carry the pinned parent
-    /// set; the parent check is necessary, not creation proof on its own.
+    /// Only entries newer than the complete pre-invocation snapshot are
+    /// considered. Its exact unchanged suffix and count must fit in the bounded
+    /// read; rewritten or saturated history cannot bind a candidate. The parent
+    /// check remains necessary, not creation proof on its own.
     fn reflog_conclusion_candidate(
         &self,
         expected_parents: &[Oid],
@@ -792,21 +795,25 @@ impl GitRepository {
                 return None;
             }
         };
-        // Validate the boundary before considering any candidate. A plausible
-        // historical entry may precede a missing boundary in this bounded read;
-        // returning it early would falsely bind it to the current invocation.
+        // Validate history before considering candidates. Count alone could
+        // rebind rewritten history; the newest equal record could be a hook's
+        // duplicate. Require the entire captured history as an unchanged suffix.
         let newer_records = match &mark.boundary {
-            ReflogBoundary::At(boundary) => {
-                let Some(position) = records.iter().position(|record| record == boundary) else {
+            ReflogBoundary::Snapshot(before) => {
+                let Some(newer) = reflog_entries_after_snapshot(&records, before) else {
                     notes.push(format!(
-                        "the {} reflog no longer contains its pre-invocation entry in the bounded search, so its entries are not creation evidence for this call",
+                        "the {} reflog no longer contains its pre-invocation entry sequence in the bounded search, so its entries are not creation evidence for this call",
                         mark.reference
                     ));
                     return None;
                 };
-                &records[..position]
+                newer
             }
             ReflogBoundary::Empty => records.as_slice(),
+            ReflogBoundary::Saturated => {
+                notes.push(format!("the {} pre-invocation reflog reached the search bound, so its entry count cannot bind creation evidence", mark.reference));
+                return None;
+            }
             ReflogBoundary::Unreadable => return None,
         };
         for record in newer_records {
@@ -958,6 +965,19 @@ fn summary_commit_abbrevs(stdout: &[u8]) -> Vec<String> {
     found
 }
 
+/// Locate appended entries only when both counts are exact and the complete
+/// previous history is still the suffix. A capped read may have lost history.
+fn reflog_entries_after_snapshot<'a>(
+    current: &'a [Vec<u8>],
+    before: &[Vec<u8>],
+) -> Option<&'a [Vec<u8>]> {
+    if current.len() >= REFLOG_BOUND_ENTRIES || before.len() >= REFLOG_BOUND_ENTRIES {
+        return None;
+    }
+    let position = current.len().checked_sub(before.len())?;
+    (current[position..] == *before).then_some(&current[..position])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1041,6 +1061,33 @@ mod tests {
             String::from_utf8_lossy(&output.stderr)
         );
         output.stdout
+    }
+
+    #[test]
+    fn reflog_snapshot_counts_distinguish_duplicates_but_never_widen_rewritten_history() {
+        let before = vec![
+            b"reset".to_vec(),
+            b"old commit".to_vec(),
+            b"reset".to_vec(),
+            b"base".to_vec(),
+        ];
+        let mut current = vec![b"reset".to_vec(), b"new commit".to_vec()];
+        current.extend(before.clone());
+        assert_eq!(
+            reflog_entries_after_snapshot(&current, &before),
+            Some(&current[..2])
+        );
+        assert_eq!(
+            reflog_entries_after_snapshot(&before, &before),
+            Some(&before[..0])
+        );
+        let mut rewritten = current.clone();
+        rewritten[2] = b"different boundary".to_vec();
+        assert!(reflog_entries_after_snapshot(&rewritten, &before).is_none());
+        assert!(reflog_entries_after_snapshot(&before[..1], &before).is_none());
+        let capped = vec![b"reset".to_vec(); REFLOG_BOUND_ENTRIES];
+        assert!(reflog_entries_after_snapshot(&capped, &before).is_none());
+        assert!(reflog_entries_after_snapshot(&capped, &capped).is_none());
     }
 
     #[test]

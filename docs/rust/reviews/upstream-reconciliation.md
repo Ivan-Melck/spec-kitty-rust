@@ -1,8 +1,9 @@
 # Upstream reconciliation: current fork, older rewrite baseline
 
 Fork `main` and upstream `main` both resolve to
-`7c50fd38bec0fca4483bf8c11da8471e91652acd` (fork fast-forwarded and remotely
-rechecked on 2026-11-03). The rewrite and
+`4a5264c4081fe0be604319d371c902ecc22231e1` (fork fast-forwarded and remotely
+rechecked on 2026-11-03). The single additional commit after `7c50fd38b`
+changes neither production source nor pins; the total gap is now 642 commits. The rewrite and
 active development oracle source still use
 `9aed3a8012cb5eb22c0128b14d525039f95fea7a`. Synchronizing fork `main` did not
 silently rebase or certify the rewrite.

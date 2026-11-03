@@ -2221,6 +2221,86 @@ fn f1_a_hook_side_commit_keeps_the_committed_evidence() {
     );
 }
 
+#[test]
+fn f1c_concurrent_no_auto_commit_rejections_keep_every_review_reference() {
+    let project = Project::new();
+    project.write_config("agents:\n  auto_commit: false\nprotection:\n  protected_branches: []\n");
+    project.set_meta("topology", json!("single_branch"));
+    let head = project.git_init();
+    walk_to_in_review(&project);
+    let feedback = project.root.join("feedback.md");
+    fs::write(&feedback, "Preserve the successful review evidence.\n").unwrap();
+    let home = project.home();
+    let barrier = std::sync::Barrier::new(12);
+    let outputs = std::thread::scope(|scope| {
+        let mut handles = Vec::new();
+        for _ in 0..12 {
+            let barrier = &barrier;
+            let project = &project;
+            let home = &home;
+            let feedback = &feedback;
+            handles.push(scope.spawn(move || {
+                barrier.wait();
+                run_cli(
+                    &project.root,
+                    home,
+                    &[
+                        "agent",
+                        "tasks",
+                        "move-task",
+                        "WP01",
+                        "--to",
+                        "planned",
+                        "--agent",
+                        "claude",
+                        "--review-feedback-file",
+                        feedback.to_str().unwrap(),
+                        "--no-auto-commit",
+                        "--mission",
+                        SLUG,
+                        "--json",
+                    ],
+                )
+            }));
+        }
+        handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+    let mut successes = 0;
+    for output in outputs {
+        let payload = single_json(&output);
+        if output.status.success() {
+            successes += 1;
+            let evidence = payload["evidence_ref"]
+                .as_str()
+                .expect("success has evidence");
+            assert!(
+                project.root.join(evidence).is_file(),
+                "success cannot point at evidence removed by a loser: {payload}"
+            );
+        }
+    }
+    assert_eq!(
+        successes, 1,
+        "only the first in_review -> planned transition applies"
+    );
+    for row in project.rows() {
+        if let Some(pointer) = row["review_ref"]
+            .as_str()
+            .filter(|pointer| pointer.starts_with("review-cycle://"))
+        {
+            let filename = pointer.rsplit('/').next().unwrap();
+            assert!(
+                project.feature.join("tasks/WP01").join(filename).is_file(),
+                "retained row must not dangle: {row}"
+            );
+        }
+    }
+    assert_eq!(project.git(&["rev-parse", "HEAD"]), head, "no auto-commit");
+}
+
 // --- F2 -------------------------------------------------------------------
 
 #[test]

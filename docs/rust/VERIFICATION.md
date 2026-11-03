@@ -8,7 +8,46 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Post-review Linux checkpoint — 2026-11-03, after `f42d5380b`
+## Op/ownership Linux checkpoint — 2026-11-03, after `bfc79fdfd`
+
+All owners finished before these coordinator gates: **2,042 passed / 0 failed /
+8 parent-exercised helpers**, 176 suite results including doctests. Strict
+workspace all-target Clippy, full formatting check and both release CLI builds
+pass. Final logs (after gating the three Unix-only Op symlink tests):
+`/tmp/sk-native-op-ownership-final-{aggregate,clippy,fmt,release}.log`.
+The preceding 2,042-pass chain is also preserved.
+The new local `sk-invocation` package is the only lockfile addition; no registry
+pin changes. No CLI depends on it and no invocation capability is promoted.
+
+- **Op foundation:** 72 tests reproduced, including live lock-exact wire/parse
+  comparisons and real bidirectional Python/native lock contention. Typed
+  records/writer/custody exist; admission decision, profile execution and Op
+  commit/composition do not. Declared divergences remain in its implementation
+  report; independent review still required.
+- **Status F1c:** independent review verified F1a/F1b, two real post-emit OS
+  fault shapes, and F2–F6, then found concurrent losers deleting the winner's
+  evidence. Strengthened ownership unit + 12-process real CLI test both fail
+  red; correction separates create ownership and holds the canonical Mission
+  lock before lane observation/allocation even without auto-commit. Scoped
+  234 status / 58 CLI status / 9 CLI lib green; re-review pending.
+- **Git B1/B2:** complete bounded pre/post histories with exact prior suffix
+  replace ambiguous newest-record matching. Duplicate regression fails red,
+  now retains created-commit evidence; capped-history normal summary control
+  passes. Scoped Git 262. One initial test fixture assumed same-OID soft reset
+  appended entries; its setup assertion failed and was corrected to alternate
+  real tips, explicitly recorded in `DUPLICATE-BOUNDARY-REPORT.md`.
+- **Next:** independent review accepts both prompt corrections with live oracle
+  decisions, exact authored WP bytes and 148 Mission tests. No broad next
+  acceptance: protected-main composition still falsely advances without the
+  missing executor.
+
+Current full checks are not parity/workflow/platform/performance acceptance.
+Fresh completion remains **599 findings/27 PERF/false/pending**, accounting
+valid (`/tmp/sk-op-ownership-completion-report.json`); source
+baseline is still `9aed3a80`. No measured campaign, current build receipt or
+policy lowering; prior Python-tool lint findings remain unresolved.
+
+## Previous post-review Linux checkpoint — 2026-11-03, after `f42d5380b`
 
 All owners finished before the coordinator's final gate chain:
 **1,966 passed / 0 failed / 8 parent-exercised helpers**, 170 suite results;
@@ -19,7 +58,10 @@ boundary was corrected; both sets of logs are preserved.
 
 - Git: missing reflog watermark is validated before candidates; amend entries
   excluded. Three real-Git tests fail red then pass; scoped **259/0/3 helpers**.
-  Fresh independent re-review still required; workspace attribution conditional.
+  Independent re-review accepts G1–G4 and resolves the scoped workspace
+  attribution condition. A duplicate-boundary ambiguity (B1, LOW) remains;
+  coordinator reproduces it with 3 controls passing / 1 assertion failing.
+  See `reviews/git-boundary-disposition.md`; no complete-attribution claim.
 - Status: six independently found defects corrected (**234 status / 57 CLI
   status / 9 CLI lib**). Coordinator additionally fixed emit-error evidence
   cleanup to respect `MutationError::may_have_mutated`; its initial missing-

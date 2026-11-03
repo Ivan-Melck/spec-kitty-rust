@@ -600,31 +600,34 @@ impl ReviewCycleArtifact {
         })?;
         let path = directory.join(self.filename());
         let content = self.render();
-        let result = (|| -> Result<(), ReviewCycleError> {
-            use std::io::Write;
-            let mut file = fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&path)
-                .map_err(|source| {
-                    if source.kind() == io::ErrorKind::AlreadyExists {
-                        ReviewCycleError::Existing { path: path.clone() }
-                    } else {
-                        ReviewCycleError::Io {
-                            path: path.clone(),
-                            source,
-                        }
+        use std::io::Write;
+        // A failed exclusive create owns nothing. In particular, an Existing
+        // error must never flow through cleanup of another writer's artifact.
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .map_err(|source| {
+                if source.kind() == io::ErrorKind::AlreadyExists {
+                    ReviewCycleError::Existing { path: path.clone() }
+                } else {
+                    ReviewCycleError::Io {
+                        path: path.clone(),
+                        source,
                     }
-                })?;
-            file.write_all(content.as_bytes())
-                .and_then(|()| file.sync_all())
-                .map_err(|source| ReviewCycleError::Io {
-                    path: path.clone(),
-                    source,
-                })
-        })();
+                }
+            })?;
+        let result = file
+            .write_all(content.as_bytes())
+            .and_then(|()| file.sync_all())
+            .map_err(|source| ReviewCycleError::Io {
+                path: path.clone(),
+                source,
+            });
+        drop(file);
         if result.is_err() {
-            // Best-effort unwind while no commit can reference the file yet.
+            // Only this call's partially written file is ours to unwind.
+            // Callers hold the Mission lock across allocation and this write.
             let _ = fs::remove_file(&path);
         }
         result.map(|()| path)
@@ -891,10 +894,16 @@ mod tests {
         let dir = temp.path().join("tasks/WP01");
         let path = artifact("feedback\n").write_new(&dir).unwrap();
         assert!(path.ends_with("tasks/WP01/review-cycle-1.md"));
+        let original = fs::read(&path).unwrap();
         assert!(matches!(
-            artifact("feedback\n").write_new(&dir),
+            artifact("different feedback\n").write_new(&dir),
             Err(ReviewCycleError::Existing { .. })
         ));
+        assert_eq!(
+            fs::read(&path).unwrap(),
+            original,
+            "a losing create owns no file to remove"
+        );
         let empty = artifact("").write_new(&dir).unwrap_err();
         assert!(matches!(empty, ReviewCycleError::EmptyBody));
     }
