@@ -1,8 +1,15 @@
 # Upstream reconciliation: current fork, older rewrite baseline
 
 Fork `main` and upstream `main` both resolve to
-`1bff48901c62ac971ba11e286c94a4de214f0752` (fork fast-forwarded and both remotes
-rechecked). Total gap: **681 commits**. The newest19-commit tail after d357958b6
+`ba53b7aa6af82d01e56fdb5e3c9de23194816b76` (fork fast-forwarded and both remotes
+rechecked). Total gap: **695 commits**. Newest14 after1bff48901 changes56 files
+(+2,710/-59), including owned evidence/ownership-unresolved handling, canceled-WP
+owned acceptance, unreadable move-task refusal and orchestrator contract1.23.
+Production source delta spans accept.py, agent/tasks_move_task.py, consolidation
+{done_bookkeeping,no_implementation_attestation,wp_evidence}.py, orchestrator_api/
+envelope.py plus contract reference markdown. These semantics are NOT adopted.
+Dependency/pack/service/toolchain pins unchanged; evidence
+`/tmp/sk-legacy-runtime-upstream-refresh.log`. The preceding19-commit tail after d357958b6
 changes45 files (+1,446/−1): contract-test primary-worktree root selection,
 development docs and Mission/Op records, no production source or dependency/pack/
 service/toolchain pins. Evidence `/tmp/sk-admission-upstream-refresh.log`.

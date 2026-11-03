@@ -5,8 +5,9 @@ audience: software-engineer
 ---
 # Op legacy JSON correction: coordinator integration
 
-Status: verified coordinator checkpoint; fresh independent correction review
-pending. Baseline published `2fc7d5a5053da5e9eb47eb4dfbf4c74c5e88e5a9`.
+Status: historical758a99d41 coordinator snapshot. Independent review now confirms
+reported F1/F2 narrowly; later findings/runtime corrections and current bindings:
+`LEGACY-RUNTIME-LIMITS-REPORT.md`. Baseline published `2fc7d5a5053da5e9eb47eb4dfbf4c74c5e88e5a9`.
 Source/oracle `9aed3a8012cb5eb22c0128b14d525039f95fea7a` unchanged.
 
 ## Delivered behavior and canonical boundaries
@@ -91,7 +92,7 @@ command lease/2jobs/no incremental/existing target/isolated HOME/XDG/TMP.
 - Fork/upstream main rechecked, both1bff48901c62ac971ba11e286c94a4de214f0752;
   still681-commit semantic gap. No source/pin/manifest/lock/inventory promotion.
 
-## Current source bindings
+## Historical758a99d41 source bindings
 
 ```
 b4a1dbebf8dae7cdd19121b576e811daf9d992be405c36aa8be5eaae08d8b245  crates/sk-invocation/src/legacy_json.rs

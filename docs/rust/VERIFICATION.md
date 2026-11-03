@@ -8,6 +8,41 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
+## Legacy JSON independent review / runtime refusal fix — after `758a99d41`
+
+Independent narrow PASS WITH FINDINGS:44 actual public-service/source rows,
+24 identical real OIDs/full objects,12 both refused; F1/F2 reported cases fixed,
+not arbitrary-JSON parity. Surrogate/printability/limits/error residuals measured.
+Review's package154pass+2ignored wording is arithmetic typo: listed suites and
+coordinator logs show156pass+2additional helpers. Independent report retained.
+
+New stack-overflow regression on source-refused10000 nesting reproduced through
+existing-service child (parent survives, fixtures retained), red0/1. Default4301
+integer source-refusal/native-commit red0/1. Native source-default1000 operational
+frame guard now refuses without abort, NOT a fixed JSON-format/exact call-stack
+ceiling. Integer-only4300 default and existing PYTHONINTMAXSTRDIGITS honored:
+intermediate unlimited-setting red0/1 fixed before publication;640/0 and4300,
+negative/long-float controls pass. Small residual recursion acceptance band remains.
+Current bindings/retained roots/errors: `crates/sk-invocation/LEGACY-RUNTIME-LIMITS-REPORT.md`.
+
+Stable owner-idle **2211pass/0fail/11 helpers**,184 suites/doctests; strict workspace
+all-target Clippy/full fmt/both release CLIs+optimized Op library pass uninterrupted.
+`/tmp/sk-native-legacy-runtime-final-{aggregate,clippy,fmt,release}.log`. Op161 included,
+not extra totals. Exact53 oracle; completion599/PERF27/pending/valid accounting/0of16.
+`/tmp/sk-legacy-runtime.cRzmnU/completion-report.json`. Later small fixes tested,
+not fresh independent approval. No executor/CLI/workflow/platform/≥3× promotion.
+
+Shadow design has no implementation acceptance: coordinator real six-case matrix
+confirms FOUR native false-admissions (born/unborn protected-J/invalid), and source
+really commits on unprotected unborn physical NBSP branch. Canonical dual identity/
+progress amendments: `reviews/op-shadow-branch-plan.md`. Source fidelity already
+requested; no waiver implied by safe direction or an operator-question label.
+
+Fork/upstream main separately synced/verifiedba53b7aa6af82d01e56fdb5e3c9de23194816b76,
+695-commit semantic gap. Latest14 includes production ownership/evidence/accept/move/
+contract1.23 changes, unadopted; pins unchanged. Verified checkpoint committed+PUSHED,
+PR stays draft.
+
 ## Op legacy JSON F1/F2 correction — after `2fc7d5a50`
 
 Owner idle: **2,206 passed /0 failed /11 parent-exercised helpers**,184 suites

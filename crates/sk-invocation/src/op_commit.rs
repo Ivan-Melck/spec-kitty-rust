@@ -63,10 +63,14 @@
 //!   `sk-workspace` code, which retains that crate's accepted options.
 //! * Raw `NaN`/`Infinity` JSON is accepted by Python and by this reader, with
 //!   the same commit decision and subject. Python's lone-surrogate strings,
-//!   its default 4300-digit integer conversion ceiling, its recursion ceiling
-//!   for pathological nesting, and the incomplete `isprintable()` table behind
-//!   the shared string `repr` remain genuine legacy-input gaps, not claimed
-//!   arbitrary-JSON equivalence.
+//!   the caller-dependent source recursion ceiling, and the incomplete
+//!   `isprintable()` table behind shared string `repr` remain legacy-input gaps.
+//!   The reader now follows the default 4300-digit integer ceiling and uses the
+//!   source interpreter's default 1000-frame recursion budget as a native
+//!   operational guard against process loss, not an exact JSON-format/call-stack
+//!   acceptance claim. The existing PYTHONINTMAXSTRDIGITS startup setting is
+//!   honored; customized recursion settings/runtime Python limit mutations are
+//!   not emulated.
 //! * With a whitespace-suffixed current ref and an existing stripped-name
 //!   shadow ref, the source may commit on the checked-out ref while the native
 //!   canonical HEAD assertion refuses. That valid-input difference remains open.

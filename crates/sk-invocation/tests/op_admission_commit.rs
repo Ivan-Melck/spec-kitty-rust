@@ -1750,6 +1750,185 @@ fn legacy_source_valid_nesting_commits_without_losing_the_process() {
     );
 }
 
+/// These are interpreter defaults, not a claim that every Python call stack
+/// accepts a fixed JSON nesting depth.
+#[test]
+fn legacy_reference_default_resource_budgets_are_bound() {
+    let facts = support::run_python(
+        "import json,sys; print(json.dumps([sys.getrecursionlimit(),sys.get_int_max_str_digits()]))",
+        None,
+    );
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&facts).unwrap(),
+        json!([1000, 4300])
+    );
+}
+
+#[test]
+fn legacy_default_integer_digit_ceiling_matches_source_without_limiting_floats() {
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let source = Fixture::with_positive_primary();
+    source.checkout_new("topic");
+    let digits = "7".repeat(4301);
+    for line in [
+        started_row(RECORD, &digits, "\"a\""),
+        format!("{{\"profile_id\":\"p\",\"action\":\"a\",\"unused\":{digits}}}\n"),
+    ] {
+        fixture.write_record_line(RECORD, &line);
+        source.write_record_line(RECORD, &line);
+        let head = fixture.head();
+        let source_head = source.head();
+        let expected = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+        assert_eq!(
+            expected["committed"], false,
+            "source rejects the oversized integer"
+        );
+        let mut service = fixture.service();
+        let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
+        assert!(
+            !outcome.committed(),
+            "native must not commit a source-refused integer: {outcome:?}"
+        );
+        assert!(outcome.refusal().is_some());
+        assert_eq!(fixture.head(), head);
+        assert_eq!(source.head(), source_head);
+        assert_eq!(fixture.record_bytes(RECORD), line.as_bytes());
+        assert_eq!(source.record_bytes(RECORD), line.as_bytes());
+    }
+    for number in [
+        "7".repeat(4300),
+        format!("-{}", "7".repeat(4300)),
+        format!("{}.0", "7".repeat(4301)),
+    ] {
+        let line = started_row(RECORD, &number, "\"boundary\"");
+        let expected = oracle_legacy_commit(&source, RECORD, &line);
+        assert_legacy_commit(&fixture, RECORD, &line, &expected);
+    }
+}
+
+/// Existing CPython startup configuration must not become a new native-only
+/// refusal. All environment settings are scoped to a child process.
+#[test]
+fn legacy_integer_digit_environment_matches_source() {
+    const CHILD: &str = "SK_OP_LEGACY_INTEGER_ENV_CHILD";
+    if std::env::var_os(CHILD).is_some() {
+        let limit: usize = std::env::var("PYTHONINTMAXSTRDIGITS")
+            .unwrap()
+            .parse()
+            .unwrap();
+        let fixture = Fixture::with_positive_primary();
+        fixture.checkout_new("topic");
+        let source = Fixture::with_positive_primary();
+        source.checkout_new("topic");
+        let digits = if limit == 0 { 4301 } else { limit };
+        let line = started_row(RECORD, &"7".repeat(digits), "\"configured\"");
+        let expected = oracle_legacy_commit(&source, RECORD, &line);
+        assert_legacy_commit(&fixture, RECORD, &line, &expected);
+        if limit != 0 {
+            let line = started_row(RECORD, &"7".repeat(limit + 1), "\"too-long\"");
+            fixture.write_record_line(RECORD, &line);
+            source.write_record_line(RECORD, &line);
+            let before = fixture.snapshot();
+            assert_eq!(
+                oracle_commit(&source.root, &source.root, RECORD, "agent", None)["committed"],
+                false
+            );
+            let mut service = fixture.service();
+            assert!(
+                !service
+                    .commit_op_record(&id(RECORD), OpClosedBy::Agent)
+                    .committed()
+            );
+            assert_eq!(fixture.snapshot(), before);
+        }
+        return;
+    }
+    let cwd = tempfile::tempdir().unwrap();
+    for value in ["0", "640"] {
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "legacy_integer_digit_environment_matches_source",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .env("PYTHONINTMAXSTRDIGITS", value)
+            .current_dir(cwd.path())
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "configured integer child {value}: {:?}\n{}\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+/// The new reader must return an outcome, not lose the process on a row the
+/// source rejects. The parent verifies HEAD/index/record bytes after the child.
+#[test]
+fn legacy_source_refused_deep_row_returns_without_aborting() {
+    const CHILD_ROOT: &str = "SK_OP_LEGACY_REFUSAL_CHILD_ROOT";
+    if let Some(root) = std::env::var_os(CHILD_ROOT) {
+        let root = PathBuf::from(root);
+        let mut service =
+            OpCommitService::new(&root, InvocationWriter::new(&root)).with_hatch(None);
+        let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
+        assert!(
+            !outcome.committed(),
+            "source-refused deep row must not commit"
+        );
+        assert!(outcome.refusal().is_some());
+        return;
+    }
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let source = Fixture::with_positive_primary();
+    source.checkout_new("topic");
+    let nested = format!("{}0{}", "[".repeat(10_000), "]".repeat(10_000));
+    let line = format!("{{\"profile_id\":\"p\",\"action\":\"a\",\"unused\":{nested}}}\n");
+    fixture.write_record_line(RECORD, &line);
+    source.write_record_line(RECORD, &line);
+    let before = fixture.snapshot();
+    let source_head = source.head();
+    let expected = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+    assert_eq!(
+        expected["committed"], false,
+        "source must establish its refusal first"
+    );
+    let output = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "legacy_source_refused_deep_row_returns_without_aborting",
+            "--nocapture",
+        ])
+        .env(CHILD_ROOT, &fixture.root)
+        .current_dir(fixture.temp.path())
+        .output()
+        .expect("run deep-row child");
+    if !output.status.success() {
+        eprintln!(
+            "retained failing native fixture: {}",
+            fixture.temp.path().display()
+        );
+        eprintln!("retained source fixture: {}", source.temp.path().display());
+        let _native = fixture.temp.keep();
+        let _source = source.temp.keep();
+        panic!(
+            "deep-row child must refuse cleanly: {:?}\n{}\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    assert_eq!(fixture.snapshot(), before);
+    assert_eq!(source.head(), source_head);
+    assert_eq!(source.record_bytes(RECORD), line.as_bytes());
+}
+
 /// The looser legacy reader still validates the whole first JSON object:
 /// trailing data, a top-level non-object, bad literals and unterminated
 /// structures stay `Invalid invocation record: <id>` with no commit and no

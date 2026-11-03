@@ -40,6 +40,10 @@ order, duplicate-key behavior and nonfinite/overflow floats there without changi
 the standard wire writer or enabling serde's workspace-wide preserve_order feature.
 String/float rendering reuses the existing primitive authority. This is not a second
 writer or arbitrary-JSON parity claim; unsupported source inputs stay findings.
+The pinned interpreter's default1000 recursion budget bounds native reader stack
+use as an operational guard, not a fixed JSON-format or caller-ceiling claim.
+Default4300 integer conversion respects existing PYTHONINTMAXSTRDIGITS startup
+configuration (not a new Spec Kitty knob); floats are not integer-digit-limited.
 
 ## Delivery and verification
 

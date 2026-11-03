@@ -25,10 +25,10 @@ exercised seam, explicitly not valid-input parity certification.**
 
 | Finding | Actual source difference | Disposition |
 | --- | --- | --- |
-| F1 | Bare NaN/Infinity legacy rows: source committed; native refused invalid record | Reported cases corrected by local loose JSON profile; actual source/native commit controls pass, fresh review pending. Other raw-input gaps remain |
-| F2 | Nested map insertion order and overflow1e400 changed subjects/commit objects (source inf vs native1e+400) | Reported cases corrected; ordered duplicate-key/nonfinite/overflow reader reuses canonical repr helpers. Four fixed-metadata paired commits have equal actual OIDs; no global serde order switch, fresh review pending |
+| F1 | Bare NaN/Infinity legacy rows: source committed; native refused invalid record | Reported cases corrected and independently accepted in44-row review/24 equal real objects; later runtime small fixes tested, not freshly reviewed. Other raw-input gaps remain |
+| F2 | Nested map insertion order and overflow1e400 changed subjects/commit objects (source inf vs native1e+400) | Reported cases corrected; ordered duplicate-key/nonfinite/overflow reader reuses canonical repr helpers. Four coor OID pairs and24 independent equal-object pairs establish exercised cases; no global serde order switch/arbitrary-input parity |
 | F3 | Invalid protection reason adds WorkspaceError path/type prefix | Corrected below using existing canonical policy detail; actual equality test replaces false 'verbatim' assertion |
-| F4 | Checked-out topic<NBSP> with local topic shadow: source commits on NBSP branch; native HEAD mismatch refuses | OPEN valid-input commit-decision divergence. Original coordinator NBSP no-shadow control did not cover this. Safe direction is not parity |
+| F4 | Checked-out topic<NBSP> with local topic shadow: source commits on NBSP branch; native HEAD mismatch refuses | OPEN commit-decision AND admission divergence: six later born/unborn shadow cases expose four false-admits for protected-J/invalid config. Dual-identity/progress plan not implemented; safe direction never excused gap |
 | F5 | Source exception repr/type vs native error diagnostics, including invalid/nonUTF8/hook/no-op/landed/nested | OPEN wire/message boundary; preserve native truthful typed landed/uncertain evidence, never fabricate Python execution or erase durable data |
 
 Review objections O1/O3: public module docs now explicitly classify F1/F4 as
@@ -73,7 +73,13 @@ Stable2206/0/11 helpers,184 suites; strict workspace Clippy/fmt, both release CL
 and optimized Op library pass. Current bindings/first failures/remaining limits:
 `crates/sk-invocation/LEGACY-JSON-INTEGRATION-REPORT.md`.
 
-These corrections are tested, not fresh independent approval. Source-surrogate,
-integer/recursion ceilings and full repr printability remain genuine gaps; F4/F5
-still open. Next: independent correction review and source-grounded F4 canonical
+Independent legacy review now narrowly accepts reported F1/F2:44 actual rows,
+24 equal real objects,12 both-refused,3 repr and5 decision residuals. It also finds
+new deep-input stack loss. Coordinator reproduces abort and integer default failure
+red-first; operational1000 budget and default/configured integer ceilings corrected,
+2211/0/11 helpers/184 suites plus strict/release gates pass. Current bindings/limits:
+`crates/sk-invocation/LEGACY-RUNTIME-LIMITS-REPORT.md`. Small fixes tested, not newly
+reviewed. Source-surrogate/printability/caller-dependent recursion and F4/F5 remain
+open. Shadow false-admission proof/design amendments in `op-shadow-branch-plan.md`.
+Next: native Unicode/surrogate representation and source-grounded F4 canonical
 composition. Disclosure alone does not close remaining functional differences.

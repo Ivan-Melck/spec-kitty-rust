@@ -26,12 +26,24 @@
 //!
 //! Genuine remaining gaps (not claimed as arbitrary-JSON equivalence): a lone
 //! `\uD800`-style surrogate parses in Python but cannot be represented by Rust
-//! `String` and is refused here; CPython's default 4300-digit integer
-//! conversion ceiling and its recursion ceiling for pathological nesting are
-//! not emulated; nested-string `repr` reuses [`crate::python_json::python_repr`],
-//! whose `isprintable()` table is incomplete (for example NBSP).
+//! `String` and is refused here; nested-string `repr` reuses
+//! [`crate::python_json::python_repr`], whose `isprintable()` table is incomplete
+//! (for example NBSP). Integer conversion follows the reference interpreter's
+//! default 4300-digit ceiling (or its existing `PYTHONINTMAXSTRDIGITS` startup
+//! setting, including zero for unlimited). A native operational budget of 1000 value frames
+//! (the reference's default recursion budget) prevents process stack loss on
+//! source-refused nesting. This is NOT a fixed JSON-format limit or exact
+//! emulation of the source's caller-dependent ~992–994 acceptance ceiling.
+//! Customized interpreter recursion settings, runtime Python integer-limit
+//! mutations and the small acceptance band below this native budget remain
+//! explicit compatibility differences.
 
 use crate::python_json::{python_float_repr, python_repr};
+
+// Verified against the pinned CPython 3.11.15 defaults. In particular the
+// recursion budget is operational, not a claim about a JSON wire-format depth.
+const SOURCE_DEFAULT_RECURSION_BUDGET: usize = 1000;
+const SOURCE_DEFAULT_INTEGER_DIGITS: usize = 4300;
 
 /// One decoded `json.loads` value.
 #[derive(Clone, Debug)]
@@ -84,10 +96,18 @@ impl LegacyObject {
 
 /// Decode the first row as a Python `dict`, or `None` for the invalid cases.
 pub(crate) fn parse_object(text: &str) -> Option<LegacyObject> {
+    let setting = match std::env::var("PYTHONINTMAXSTRDIGITS") {
+        Ok(value) => Some(value),
+        Err(std::env::VarError::NotPresent) => None,
+        Err(std::env::VarError::NotUnicode(_)) => return None,
+    };
+    let integer_digits = integer_digit_limit(setting.as_deref()).ok()?;
     let mut reader = Reader {
         text,
         bytes: text.as_bytes(),
         index: 0,
+        depth: 0,
+        integer_digits,
     };
     let value = reader.value().ok()?;
     reader.skip_whitespace();
@@ -97,6 +117,21 @@ pub(crate) fn parse_object(text: &str) -> Option<LegacyObject> {
     match value {
         LegacyValue::Object(object) => Some(object),
         _ => None,
+    }
+}
+
+// CPython startup uses a signed C int with leading ASCII whitespace accepted,
+// but no trailing data; empty means default, 0 unlimited, otherwise >= 640.
+fn integer_digit_limit(setting: Option<&str>) -> Result<usize, ()> {
+    let Some(setting) = setting.filter(|value| !value.is_empty()) else {
+        return Ok(SOURCE_DEFAULT_INTEGER_DIGITS);
+    };
+    let value = setting.trim_start_matches([' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}']);
+    let limit = value.parse::<i32>().map_err(|_| ())?;
+    if limit == 0 || limit >= 640 {
+        usize::try_from(limit).map_err(|_| ())
+    } else {
+        Err(())
     }
 }
 
@@ -152,6 +187,8 @@ struct Reader<'a> {
     text: &'a str,
     bytes: &'a [u8],
     index: usize,
+    depth: usize,
+    integer_digits: usize,
 }
 
 impl Reader<'_> {
@@ -182,7 +219,13 @@ impl Reader<'_> {
 
     fn value(&mut self) -> Result<LegacyValue, ()> {
         self.skip_whitespace();
-        match self.peek().ok_or(())? {
+        if self.depth >= SOURCE_DEFAULT_RECURSION_BUDGET {
+            return Err(());
+        }
+        self.depth += 1;
+        // Any error discards the entire reader; only successful returns need
+        // to restore the counter before a sibling value is decoded.
+        let result = match self.peek().ok_or(())? {
             b'n' => {
                 self.expect(b"null")?;
                 Ok(LegacyValue::Null)
@@ -212,7 +255,9 @@ impl Reader<'_> {
             b'{' => self.object(),
             b'"' => self.string().map(LegacyValue::String),
             _ => Err(()),
-        }
+        };
+        self.depth -= 1;
+        result
     }
 
     fn number(&mut self) -> Result<LegacyValue, ()> {
@@ -260,6 +305,12 @@ impl Reader<'_> {
             // correctly-rounded parsing: overflow is `±inf`, underflow keeps a
             // signed zero. Integer tokens never pass through `f64`.
             token.parse().map(LegacyValue::Float).map_err(|_| ())
+        } else if self.integer_digits != 0
+            && token.strip_prefix('-').unwrap_or(token).len() > self.integer_digits
+        {
+            // CPython's default int conversion counts digits, not the sign.
+            // Float mantissas/exponents do not have this integer-only ceiling.
+            Err(())
         } else if token == "-0" {
             Ok(LegacyValue::Integer("0".to_owned()))
         } else {
@@ -395,6 +446,24 @@ mod tests {
         let value = object.get(key).expect("field is present");
         assert!(!is_falsy(value), "the fixture field is truthy");
         python_str(value)
+    }
+
+    #[test]
+    fn integer_startup_configuration_matches_pinned_cpython_facts() {
+        assert_eq!(integer_digit_limit(None), Ok(4300));
+        for value in ["", "0", "640", "+640", "-0", " 640", "000640"] {
+            let expected = if value.is_empty() {
+                4300
+            } else if value == "0" || value == "-0" {
+                0
+            } else {
+                640
+            };
+            assert_eq!(integer_digit_limit(Some(value)), Ok(expected), "{value:?}");
+        }
+        for value in ["640 ", "639", "bad", "2147483648"] {
+            assert!(integer_digit_limit(Some(value)).is_err(), "{value:?}");
+        }
     }
 
     #[test]
