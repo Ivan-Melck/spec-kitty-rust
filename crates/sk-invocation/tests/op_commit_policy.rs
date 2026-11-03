@@ -376,6 +376,37 @@ fn source_strips_symbolic_stdout_before_removing_the_origin_prefix() {
 }
 
 #[test]
+fn git_legal_long_primary_name_matches_the_source_and_is_not_unresolved() {
+    let fixture = Fixture::new("trunk");
+    fixture.commit_file(RECORD, "{}\n");
+    let name = vec!["x".repeat(219); 5].join("/");
+    assert_eq!(name.len(), 1099);
+    let full = format!("refs/heads/{name}");
+    // These actual Git commands must succeed before comparing either policy.
+    fixture.update_ref(&full, &fixture.head());
+    fixture.symbolic_ref("refs/remotes/origin/HEAD", &full);
+    let request = serde_json::json!({"root": fixture.root, "path": RECORD});
+    let oracle = support::run_python(
+        "import json,sys\nfrom pathlib import Path\nfrom specify_cli.invocation.op_commit_policy import resolve_primary_refs,probe_primary_tracking,op_commit_skip_reason\np=json.load(sys.stdin);r=Path(p['root']);t=probe_primary_tracking(r)\nprint(json.dumps({'refs':resolve_primary_refs(r),'tracked':t.tracked,'primary':t.primary,'skip':op_commit_skip_reason(r,p['path'],tracking=t)}))",
+        Some(&request.to_string()),
+    );
+    let oracle: serde_json::Value = serde_json::from_str(&oracle).unwrap();
+    assert_eq!(
+        oracle,
+        serde_json::json!({"refs": [full], "tracked": true, "primary": name, "skip": null}),
+        "reference must actually resolve the long ref"
+    );
+    let repository = fixture.open();
+    let tracking = probe_primary_tracking(&repository).unwrap();
+    let refs = resolve_primary_refs(&repository).unwrap();
+    let native = serde_json::json!({"refs": names(&refs), "tracked": tracking.tracked(), "primary": tracking.primary(), "skip": op_commit_skip_reason(&repository,&path(RECORD),&tracking).unwrap()});
+    assert_eq!(
+        native, oracle,
+        "long names must not silently become false absence"
+    );
+}
+
+#[test]
 fn an_origin_head_target_without_a_local_branch_still_resolves() {
     let fixture = Fixture::new("work");
     let head = fixture.head();

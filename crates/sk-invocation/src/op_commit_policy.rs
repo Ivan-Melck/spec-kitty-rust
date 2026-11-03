@@ -48,6 +48,15 @@
 //!
 //! # Limits
 //!
+//! * The reference uses 30 seconds for every probe. This handle-based API
+//!   preserves its caller's GitOptions timeout (default 10 seconds); a composer
+//!   requiring the source budget must open its handle with 30 seconds.
+//! * Process capture is bounded to 16 MiB per stream by the shared Git seam,
+//!   unlike the reference's unbounded capture. Overflow stays a typed probe
+//!   failure, never quiet absence or eligibility.
+//! * The generic symbolic-ref API takes fully-qualified refs, not the special
+//!   HEAD operand. Current-branch queries use a separate existing Git API.
+//!
 //! * The reference also accepts a bare filesystem root and runs `git -C` per
 //!   probe. The native API requires an already-opened [`GitRepository`], so a
 //!   not-a-repository root is refused when the handle is opened (for example
@@ -296,8 +305,9 @@ fn existing_refs(
     let mut refs = Vec::new();
     for prefix in [LOCAL_BRANCH_PREFIX, ORIGIN_BRANCH_PREFIX] {
         let Ok(reference) = RefName::parse(&format!("{prefix}{name}")) else {
-            // A spelling Git could not accept as a ref cannot name an existing
-            // ref; the reference's `rev-parse` probe would answer non-zero.
+            // Invalid ref syntax cannot name an existing ref. Length is not
+            // guessed here: canonical RefName validation has no arbitrary cap;
+            // Git/OS operational limits remain backend probe outcomes.
             continue;
         };
         if ref_exists(repository, &reference)? {

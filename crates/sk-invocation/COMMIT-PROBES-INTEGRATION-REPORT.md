@@ -1,5 +1,9 @@
 # Native Op commit probes — coordinator integration checkpoint
 
+Historical `d94f6f6e9` bindings/gates. Later review finds and coordinator fixes
+the legal-long-ref cap; current correction bindings/limits are in
+`LONG-REF-REMEDIATION-REPORT.md`. Scoped acceptance remains explicitly bounded.
+
 Prepared after `12b48e0c5f4dc8596559d5732cf2eac1c0426fce`. Plans written before
 work: `/tmp/sk-op-commit-probes-coordinator.md`,
 `/tmp/sk-op-commit-probes-integration.md`. Original owner evidence remains in

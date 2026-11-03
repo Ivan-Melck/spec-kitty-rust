@@ -8,7 +8,33 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Native Op commit-probe checkpoint — after `12b48e0c5`
+## Op probe scoped review / long-ref correction — after `d94f6f6e9`
+
+Independent read-only seam review **SCOPED PASS**,407/0/5 helpers plus strict
+scoped gates, exact oracle53 and real missing/drift controls. No executor,
+admission/protection/commit/CLI/StepContract or whole-command acceptance.
+Review F1 is real: legal1099-byte Git branch falsely skipped by native1024
+RefName cap. Coordinator syntax and live-Git/oracle policy both red **0/1**,
+then removes invented total-length bound in canonical branch/ref validation;
+all syntax/option/revspec/namespace checks retained. Operational limits stay
+with Git/OS. The branch-name defect is not excluded by26-character Op filenames.
+
+Public Limits now disclose handle-default10s vs source30s,16MiB capture and
+fully-qualified symbolic API (not HEAD), plus existing operand/error boundaries.
+Owner idle: **2,166 pass / 0 fail / 10 parent-exercised helpers**,183 suites
+including doctests, strict workspace all-target Clippy/full fmt and both release
+binaries pass. Includes Git293/Op116, not additional totals. Logs
+`/tmp/sk-native-long-ref-stable-{aggregate,clippy,fmt,release}.log`.
+Completion599/PERF27/pending, counting valid,0/16 workflows
+(`/tmp/sk-long-ref-stable-completion-report.json`). Source/pins/lock unchanged.
+
+`reviews/op-commit-probes-disposition.md` and the crate long-ref report bind
+acceptance/correction separately. No new independent verdict for this small
+fix, measured campaign/receipt/platform/workflow/≥3× promotion. Actual Op
+admission/protection/best-effort commit composition comes next; protected-main
+false advance and broader gaps remain open. Verified changes committed+PUSHED.
+
+## Previous native Op commit-probe checkpoint — after `12b48e0c5`
 
 All owners idle: **2,164 passed / 0 failed / 10 parent-exercised helpers**,
 183 suites including doctests; strict workspace all-target Clippy, full fmt

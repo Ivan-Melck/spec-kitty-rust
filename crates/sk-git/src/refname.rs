@@ -5,18 +5,13 @@
 //! `-` is always refused. Combined with argv-only invocation, that closes ref
 //! *option* injection (`git branch --end-of-options` is still used where git
 //! supports it) as well as revspec injection (`@{`, `..`, `^`, `:`, `~`).
+//! Syntax validation invents no total-length cap: Git and the host filesystem
+//! own operational ref limits, which are reported by the existing process seam.
 
 use std::fmt;
 
 use crate::error::GitError;
 use crate::oid::Oid;
-
-/// Maximum length accepted for one ref name.
-///
-/// Git itself has no single documented limit; filesystems bound each path
-/// component at 255 bytes. 1024 is comfortably above any real branch name and
-/// keeps diagnostics bounded.
-const MAX_REF_LEN: usize = 1024;
 
 /// A short local branch name (`main`, `feature/topic`).
 ///
@@ -189,9 +184,6 @@ fn validate(value: &str, kind: &'static str) -> Result<(), GitError> {
     if value.is_empty() {
         return Err(invalid(kind, value, "is empty"));
     }
-    if value.len() > MAX_REF_LEN {
-        return Err(invalid(kind, value, "is longer than 1024 bytes"));
-    }
     if value.starts_with('-') {
         return Err(invalid(
             kind,
@@ -262,6 +254,19 @@ mod tests {
                 .as_ref_name()
                 .as_str(),
             "refs/heads/feature/topic"
+        );
+    }
+
+    #[test]
+    fn nested_ref_syntax_has_no_invented_total_length_limit() {
+        let branch = vec!["x".repeat(219); 5].join("/");
+        assert_eq!(branch.len(), 1099);
+        let parsed = BranchName::parse(&branch).expect("Git syntax permits long nested names");
+        let full = format!("refs/heads/{branch}");
+        assert_eq!(parsed.as_ref_name().as_str(), full);
+        assert_eq!(
+            RefName::parse(&full).unwrap().short_branch().unwrap(),
+            parsed
         );
     }
 
