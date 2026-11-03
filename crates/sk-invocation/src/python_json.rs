@@ -181,14 +181,26 @@ pub fn python_repr_json(value: &serde_json::Value) -> String {
     }
 }
 
-/// CPython `repr()` for a finite float.
+/// CPython `repr()`/`str()` for a float, including the non-finite values that
+/// `json.loads` can produce.
 ///
 /// Python uses shortest round-trip digits and switches to exponent form when
 /// the decimal exponent is below `-4` or at least `16` (`1e-05`, `1e+20`),
 /// with a two-digit minimum exponent and an always-present `.0` on integral
 /// positional values. Rust's `Display` never uses exponents for `f64`, so the
-/// threshold is applied here. Used only in operator-facing message text.
-fn python_float_repr(value: f64) -> String {
+/// threshold is applied here. `nan`/`inf`/`-inf` match CPython's lower-case
+/// spellings. Used only in operator-facing message text.
+pub(crate) fn python_float_repr(value: f64) -> String {
+    if value.is_nan() {
+        return "nan".to_owned();
+    }
+    if value.is_infinite() {
+        return if value.is_sign_negative() {
+            "-inf".to_owned()
+        } else {
+            "inf".to_owned()
+        };
+    }
     if value == 0.0 {
         return if value.is_sign_negative() {
             "-0.0".to_owned()
@@ -294,6 +306,13 @@ mod tests {
 
     // Expected strings below are CPython 3.11 `repr()` output, produced by the
     // pinned oracle (`/tmp/sk-op-float-repr-probe.log`).
+    #[test]
+    fn python_float_repr_renders_nonfinite_like_cpython() {
+        assert_eq!(python_float_repr(f64::NAN), "nan");
+        assert_eq!(python_float_repr(f64::INFINITY), "inf");
+        assert_eq!(python_float_repr(f64::NEG_INFINITY), "-inf");
+    }
+
     #[test]
     fn python_float_repr_uses_cpython_thresholds() {
         for (value, expected) in [

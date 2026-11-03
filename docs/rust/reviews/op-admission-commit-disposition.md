@@ -25,8 +25,8 @@ exercised seam, explicitly not valid-input parity certification.**
 
 | Finding | Actual source difference | Disposition |
 | --- | --- | --- |
-| F1 | Bare NaN/Infinity legacy rows: source commits; native refuses invalid record | OPEN commit-decision divergence, not just repr. Implement native loose reader acceptance, not a stricter claim/model parser |
-| F2 | Nested map insertion order and overflow1e400 change subjects/commit objects (source inf vs native1e+400) | OPEN functional output/OID differences; keep standard writers separate; no global serde map-order switch |
+| F1 | Bare NaN/Infinity legacy rows: source committed; native refused invalid record | Reported cases corrected by local loose JSON profile; actual source/native commit controls pass, fresh review pending. Other raw-input gaps remain |
+| F2 | Nested map insertion order and overflow1e400 changed subjects/commit objects (source inf vs native1e+400) | Reported cases corrected; ordered duplicate-key/nonfinite/overflow reader reuses canonical repr helpers. Four fixed-metadata paired commits have equal actual OIDs; no global serde order switch, fresh review pending |
 | F3 | Invalid protection reason adds WorkspaceError path/type prefix | Corrected below using existing canonical policy detail; actual equality test replaces false 'verbatim' assertion |
 | F4 | Checked-out topic<NBSP> with local topic shadow: source commits on NBSP branch; native HEAD mismatch refuses | OPEN valid-input commit-decision divergence. Original coordinator NBSP no-shadow control did not cover this. Safe direction is not parity |
 | F5 | Source exception repr/type vs native error diagnostics, including invalid/nonUTF8/hook/no-op/landed/nested | OPEN wire/message boundary; preserve native truthful typed landed/uncertain evidence, never fabricate Python execution or erase durable data |
@@ -52,7 +52,7 @@ Scoped green: Op138/0/2 helpers, strict all-target Clippy, scoped fmt;
 repeats2188/0/11 helpers,184 suites including doctests; strict workspace all-target
 Clippy/full fmt/both release binaries pass with no interruption. Logs
 `/tmp/sk-native-op-policy-detail-{aggregate,clippy,fmt,release}.log`.
-Current changed bindings:
+Historical 2fc7d5a50 changed bindings:
 
 ```
 3e19a8b7c79f2dbafd5d814d6d522614db93550e9f1d2dfefd1999fed8b0c646  crates/sk-invocation/src/op_commit.rs
@@ -62,5 +62,18 @@ Current changed bindings:
 This small correction is coordinator-tested, not a fresh independent verdict.
 Historical b80 integration/owner bindings remain snapshots, not current-source
 promises. Coordinator commits and PUSHES verified work; draft PR remains draft.
-Next: genuine F1/F2 legacy JSON fixes, source-grounded F4 canonical composition,
-then fresh independent review; disclosure alone does not close those findings.
+## Later F1/F2 correction — after2fc7d5a50
+
+Native local ordered JSON profile now handles reported NaN/Infinity, authored map
+order and overflow subjects without changing strict writer/model or higher commit
+logic. Owner154 =138+10unit+6new integration; filtered7 includes an old control.
+Coordinator adds whole-unused-field/decoded-key/Unicode controls and source-valid
+800-depth subprocess, plus four fixed-metadata actual object/OID comparisons.
+Stable2206/0/11 helpers,184 suites; strict workspace Clippy/fmt, both release CLIs
+and optimized Op library pass. Current bindings/first failures/remaining limits:
+`crates/sk-invocation/LEGACY-JSON-INTEGRATION-REPORT.md`.
+
+These corrections are tested, not fresh independent approval. Source-surrogate,
+integer/recursion ceilings and full repr printability remain genuine gaps; F4/F5
+still open. Next: independent correction review and source-grounded F4 canonical
+composition. Disclosure alone does not close remaining functional differences.

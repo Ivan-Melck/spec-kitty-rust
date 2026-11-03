@@ -8,6 +8,34 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
+## Op legacy JSON F1/F2 correction — after `2fc7d5a50`
+
+Owner idle: **2,206 passed /0 failed /11 parent-exercised helpers**,184 suites
+including doctests. Strict workspace all-target Clippy/full fmt, both release
+CLI binaries AND optimized Op library pass without interruption. Includes Op156,
+not additional totals. `/tmp/sk-native-legacy-json-final-{aggregate,clippy,fmt,release}.log`.
+Required oracle Python3.11.15 exact53, no drift/missing; completion still599/PERF27/
+pending/accounting valid/0of16 (`/tmp/sk-legacy-json-stable-completion-report.json`).
+Fork/upstream main rechecked1bff48901c62ac971ba11e286c94a4de214f0752;681 semantic gap.
+
+Local ordered JSON profile fixes reported NaN/Infinity commit refusals and map
+order/1e400 subjects, without changing strict writer/model or higher commit policy.
+Owner true red3/4 retained;154 scoped =138+10unit+6NEW integration (filtered7 includes
+old control). E0599 compiler failure log was overwritten by owner; disclosed as
+missing, never claimed retained or behavioral red. Coordinator positive controls
+prove decoded duplicate/escaped keys, Unicode and unused-field validation; source
+accepts800 nesting and native commits without process loss. Four child-fixed author/
+committer/date pairs yield equal actual source/native OIDs (three full commit-byte
+comparisons), not an inference that subjects alone determine object identity.
+
+Current bindings/corrections/history:
+`crates/sk-invocation/LEGACY-JSON-INTEGRATION-REPORT.md`. Fresh independent correction
+review pending; earlier b80 narrow approval does not certify new parser. Lone
+surrogates, source digit/recursion ceilings, full Unicode repr and F4 shadow-branch/
+F5 error-format differences remain genuine. No executor/CLI/StepContract/protected-
+main false-advance repair, full workflow/platform/campaign/≥3× promotion. Verified
+checkpoint committed+PUSHED, PR stays draft.
+
 ## Op independent review / F3 policy-message correction — after `b80e5ab57`
 
 Independent review scoped PASS WITH FINDINGS:22/22 admission decisions/read-only,

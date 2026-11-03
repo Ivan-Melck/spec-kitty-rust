@@ -3,9 +3,9 @@
 //! Real temporary repositories and the live pinned source method surface
 //! (`ProfileInvocationExecutor.op_write_refusal` / `_commit_op_record`, with
 //! the real writer, Git and protection guard) establish the source-observable
-//! answers. No guard or commit is monkeypatched. The child-process test only
-//! supplies a captured `GIT_INDEX_FILE`, exactly as the existing `sk-git`
-//! authority tests do, and labels that boundary.
+//! answers. No guard or commit is monkeypatched. Child-process tests supply a
+//! captured `GIT_INDEX_FILE` or scoped fixed commit metadata/source-valid
+//! nesting; they never mutate the parent's process environment.
 //!
 //! These tests are not a full executor/CLI workflow: they call the reference's
 //! method surface directly.
@@ -1390,5 +1390,420 @@ fn captured_index_child() {
             println!("commit={commit}");
         }
         other => panic!("child commit did not land cleanly: {outcome:?} / {other:?}"),
+    }
+}
+
+/// Write one raw legacy row, run the real native close, and prove the outcome
+/// is a genuine commit of that one record with the expected subject.
+///
+/// The returned OID must be the actual post-commit HEAD object; the audit bytes
+/// are compared before/after so a commit never rewrites durable evidence.
+fn assert_legacy_commit(
+    fixture: &Fixture,
+    invocation_id: &str,
+    line: &str,
+    expected_subject: &str,
+) {
+    fixture.write_record_line(invocation_id, line);
+    let record_before = fixture.record_bytes(invocation_id);
+    let head_before = fixture.head();
+    let mut service = fixture.service();
+    let outcome = service.commit_op_record(&id(invocation_id), OpClosedBy::Agent);
+    assert!(outcome.committed(), "{invocation_id}: {outcome:?}");
+    assert_eq!(outcome.refusal(), None);
+    assert_eq!(outcome.skipped(), None);
+    let commit = outcome_commit(&outcome);
+    assert_eq!(commit, fixture.head(), "the returned OID is the real HEAD");
+    assert_ne!(fixture.head(), head_before, "HEAD advanced");
+    assert_eq!(
+        String::from_utf8_lossy(&fixture.git_ok(&["cat-file", "-t", &commit])).trim(),
+        "commit",
+        "the returned OID names a real commit object"
+    );
+    assert_eq!(fixture.subject(), expected_subject);
+    assert_eq!(
+        fixture.commit_paths(),
+        vec![format!("kitty-ops/{invocation_id}.jsonl")],
+        "only the closed record is committed"
+    );
+    assert_eq!(fixture.record_bytes(invocation_id), record_before);
+}
+
+/// Run the pinned source `_commit_op_record` on the same raw row.
+fn oracle_legacy_commit(fixture: &Fixture, invocation_id: &str, line: &str) -> String {
+    fixture.write_record_line(invocation_id, line);
+    let record_before = fixture.record_bytes(invocation_id);
+    let head_before = fixture.head();
+    let outcome = oracle_commit(&fixture.root, &fixture.root, invocation_id, "agent", None);
+    assert_eq!(
+        outcome["committed"], true,
+        "{invocation_id} source outcome: {outcome:?}"
+    );
+    assert_ne!(fixture.head(), head_before, "the source committed for real");
+    assert_eq!(fixture.record_bytes(invocation_id), record_before);
+    assert_eq!(
+        fixture.commit_paths(),
+        vec![format!("kitty-ops/{invocation_id}.jsonl")]
+    );
+    fixture.subject()
+}
+
+fn started_row(invocation_id: &str, profile: &str, action: &str) -> String {
+    format!(
+        "{{\"event\": \"started\", \"invocation_id\": \"{invocation_id}\", \"profile_id\": {profile}, \"action\": {action}}}\n"
+    )
+}
+
+/// F1: `json.loads` accepts the bare non-finite constants. The source commits
+/// those rows; native must make the same decision with the same subject.
+#[test]
+fn legacy_bare_nonfinite_tokens_commit_like_the_pinned_source() {
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let oracle_fixture = Fixture::with_positive_primary();
+    oracle_fixture.checkout_new("topic");
+
+    let cases = [
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FB3",
+            "NaN",
+            "\"a\"",
+            "op(nan): a [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FB4",
+            "Infinity",
+            "\"a\"",
+            "op(inf): a [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FB5",
+            "-Infinity",
+            "\"a\"",
+            "op(-inf): a [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FB6",
+            "\"p\"",
+            "NaN",
+            "op(p): nan [01ARZ3ND]",
+        ),
+    ];
+    for (invocation_id, profile, action, expected) in cases {
+        let line = started_row(invocation_id, profile, action);
+        assert_legacy_commit(&fixture, invocation_id, &line, expected);
+        assert_eq!(
+            oracle_legacy_commit(&oracle_fixture, invocation_id, &line),
+            expected,
+            "the pinned source subject"
+        );
+        assert_eq!(fixture.subject(), expected);
+    }
+}
+
+/// F2: Python dicts keep insertion order and a duplicate key keeps its first
+/// position with the last value. `serde_json`'s sorted map cannot carry that,
+/// so the committed subject (and therefore the commit object) diverged.
+#[test]
+fn legacy_ordered_and_duplicate_nested_maps_match_the_pinned_source() {
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let oracle_fixture = Fixture::with_positive_primary();
+    oracle_fixture.checkout_new("topic");
+
+    let cases = [
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FBA",
+            "{\"b\": 1, \"a\": 2}",
+            "{\"z\": 3, \"y\": 4}",
+            "op({'b': 1, 'a': 2}): {'z': 3, 'y': 4} [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FBB",
+            "{\"a\": 1, \"b\": 2, \"a\": 3}",
+            "\"dup\"",
+            "op({'a': 3, 'b': 2}): dup [01ARZ3ND]",
+        ),
+    ];
+    for (invocation_id, profile, action, expected) in cases {
+        let line = started_row(invocation_id, profile, action);
+        assert_legacy_commit(&fixture, invocation_id, &line, expected);
+        assert_eq!(
+            oracle_legacy_commit(&oracle_fixture, invocation_id, &line),
+            expected,
+            "the pinned source subject"
+        );
+        assert_eq!(fixture.subject(), expected);
+    }
+}
+
+/// F2: float-token overflow becomes ±inf and underflow becomes signed zero,
+/// exactly like CPython's `float`; `1e400` was previously rendered as its
+/// source text. Exact integers and finite floats keep the prior formatter.
+#[test]
+fn legacy_numeric_overflow_underflow_and_exact_integers_match_the_pinned_source() {
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let oracle_fixture = Fixture::with_positive_primary();
+    oracle_fixture.checkout_new("topic");
+
+    let cases = [
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FB7",
+            "1e400",
+            "-1e400",
+            "op(inf): -inf [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FB8",
+            "1e-400",
+            "-1e-400",
+            "op(unknown): unknown [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FB9",
+            "123456789012345678901234567890",
+            "1e300",
+            "op(123456789012345678901234567890): 1e+300 [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FBG",
+            "-0",
+            "-0.0",
+            "op(unknown): unknown [01ARZ3ND]",
+        ),
+    ];
+    for (invocation_id, profile, action, expected) in cases {
+        let line = started_row(invocation_id, profile, action);
+        assert_legacy_commit(&fixture, invocation_id, &line, expected);
+        assert_eq!(
+            oracle_legacy_commit(&oracle_fixture, invocation_id, &line),
+            expected,
+            "the pinned source subject"
+        );
+        assert_eq!(fixture.subject(), expected);
+    }
+}
+
+/// F1/F2 together: a truthy container keeps insertion order and Python `repr`
+/// of nested arrays, maps, booleans, null and non-finite floats.
+#[test]
+fn legacy_nested_collections_and_nonfinite_values_render_like_python() {
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let oracle_fixture = Fixture::with_positive_primary();
+    oracle_fixture.checkout_new("topic");
+
+    let invocation_id = "01ARZ3NDEKTSV4RRFFQ69G5FBC";
+    let line = started_row(
+        invocation_id,
+        "[1, NaN, {\"z\": 1, \"y\": 2}, true, null, [], {}]",
+        "\"mixed\"",
+    );
+    let expected = "op([1, nan, {'z': 1, 'y': 2}, True, None, [], {}]): mixed [01ARZ3ND]";
+    assert_legacy_commit(&fixture, invocation_id, &line, expected);
+    assert_eq!(
+        oracle_legacy_commit(&oracle_fixture, invocation_id, &line),
+        expected
+    );
+    assert_eq!(fixture.subject(), expected);
+}
+
+/// Authored strings that merely spell a non-finite token stay verbatim, at the
+/// top level and nested; only genuine JSON constants become floats.
+#[test]
+fn legacy_strings_spelling_nonfinite_tokens_are_not_rewritten() {
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let oracle_fixture = Fixture::with_positive_primary();
+    oracle_fixture.checkout_new("topic");
+
+    let cases = [
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FBD",
+            "\"NaN\"",
+            "\"Infinity\"",
+            "op(NaN): Infinity [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FBE",
+            "{\"k\": \"NaN\"}",
+            "\"-Infinity\"",
+            "op({'k': 'NaN'}): -Infinity [01ARZ3ND]",
+        ),
+    ];
+    for (invocation_id, profile, action, expected) in cases {
+        let line = started_row(invocation_id, profile, action);
+        assert_legacy_commit(&fixture, invocation_id, &line, expected);
+        assert_eq!(
+            oracle_legacy_commit(&oracle_fixture, invocation_id, &line),
+            expected
+        );
+        assert_eq!(fixture.subject(), expected);
+    }
+}
+
+/// Decoded duplicate keys, non-ASCII chunks and escaped controls share the
+/// same first-object reader; unused valid/invalid fields are not skipped.
+#[test]
+fn legacy_decoded_duplicates_escapes_and_unused_fields_match_source() {
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let source = Fixture::with_positive_primary();
+    source.checkout_new("topic");
+    let line = concat!(
+        r#"{"profile_id":"replaced","profile_\u0069d":{"\u0062":1,"a":2,"b":3},"action":["é","\ud83d\ude00","a\nb"],"unused":NaN}"#,
+        "\n"
+    );
+    let expected = "op({'b': 3, 'a': 2}): ['é', '😀', 'a\\nb'] [01ARZ3ND]";
+    assert_eq!(oracle_legacy_commit(&source, RECORD, line), expected);
+    assert_legacy_commit(&fixture, RECORD, line, expected);
+
+    let bad = "{\"profile_id\":\"p\",\"action\":\"a\",\"unused\":[1,]}\n";
+    fixture.write_record_line(RECORD, bad);
+    source.write_record_line(RECORD, bad);
+    let head = fixture.head();
+    let source_head = source.head();
+    let reference = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+    assert_eq!(reference["committed"], false);
+    let mut service = fixture.service();
+    let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
+    assert!(!outcome.committed());
+    assert!(
+        outcome
+            .refusal()
+            .unwrap()
+            .contains("Invalid invocation record")
+    );
+    assert_eq!(fixture.head(), head);
+    assert_eq!(source.head(), source_head);
+    assert_eq!(fixture.record_bytes(RECORD), bad.as_bytes());
+    assert_eq!(source.record_bytes(RECORD), bad.as_bytes());
+}
+
+/// Exercise source-valid nesting in a subprocess so a reader stack failure
+/// becomes an observable test failure, rather than losing the parent suite.
+#[test]
+fn legacy_source_valid_nesting_commits_without_losing_the_process() {
+    const CHILD: &str = "SK_OP_LEGACY_NESTING_CHILD";
+    if std::env::var_os(CHILD).is_some() {
+        let fixture = Fixture::with_positive_primary();
+        fixture.checkout_new("topic");
+        let source = Fixture::with_positive_primary();
+        source.checkout_new("topic");
+        let depth = 800;
+        let profile = format!("{}0{}", "[".repeat(depth), "]".repeat(depth));
+        let line = started_row(RECORD, &profile, "\"nested\"");
+        let expected = format!("op({profile}): nested [01ARZ3ND]");
+        // Establish source acceptance before attempting the native path.
+        assert_eq!(oracle_legacy_commit(&source, RECORD, &line), expected);
+        assert_legacy_commit(&fixture, RECORD, &line, &expected);
+        assert_eq!(
+            fixture.head(),
+            source.head(),
+            "fixed metadata binds the complete commit object"
+        );
+        for (profile, action) in [
+            ("NaN", "\"constant\""),
+            ("{\"b\":1,\"a\":2}", "{\"z\":3,\"y\":4}"),
+            ("1e400", "-1e400"),
+        ] {
+            let line = started_row(RECORD, profile, action);
+            let expected = oracle_legacy_commit(&source, RECORD, &line);
+            assert_legacy_commit(&fixture, RECORD, &line, &expected);
+            assert_eq!(
+                fixture.head(),
+                source.head(),
+                "source/native commit OIDs: {profile}"
+            );
+            assert_eq!(
+                fixture.git_ok(&["cat-file", "-p", "HEAD"]),
+                source.git_ok(&["cat-file", "-p", "HEAD"]),
+                "complete commit bytes: {profile}"
+            );
+        }
+        return;
+    }
+    let scratch = tempfile::tempdir().expect("isolated child CWD");
+    let output = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "legacy_source_valid_nesting_commits_without_losing_the_process",
+            "--nocapture",
+        ])
+        .env(CHILD, "1")
+        .env("GIT_AUTHOR_NAME", "Test Author")
+        .env("GIT_AUTHOR_EMAIL", "test@example.com")
+        .env("GIT_COMMITTER_NAME", "Test Committer")
+        .env("GIT_COMMITTER_EMAIL", "test@example.com")
+        .env("GIT_AUTHOR_DATE", "2020-01-01T00:00:00+0000")
+        .env("GIT_COMMITTER_DATE", "2020-01-01T00:00:00+0000")
+        .current_dir(scratch.path())
+        .output()
+        .expect("run nested-row child");
+    assert!(
+        output.status.success(),
+        "nested-row child failed: {:?}\n{}\n{}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// The looser legacy reader still validates the whole first JSON object:
+/// trailing data, a top-level non-object, bad literals and unterminated
+/// structures stay `Invalid invocation record: <id>` with no commit and no
+/// byte change.
+#[test]
+fn legacy_invalid_rows_still_refuse_without_writing() {
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let mut service = fixture.service();
+
+    let cases = [
+        ("01ARZ3NDEKTSV4RRFFQ69G5FBJ", "{\"profile_id\": NaN} x\n"),
+        ("01ARZ3NDEKTSV4RRFFQ69G5FBK", "{\"profile_id\": [1,]}\n"),
+        ("01ARZ3NDEKTSV4RRFFQ69G5FBM", "[NaN]\n"),
+        ("01ARZ3NDEKTSV4RRFFQ69G5FBN", "NaN\n"),
+        ("01ARZ3NDEKTSV4RRFFQ69G5FBP", "+Infinity\n"),
+        ("01ARZ3NDEKTSV4RRFFQ69G5FBR", "nan\n"),
+        ("01ARZ3NDEKTSV4RRFFQ69G5FBS", "{\"profile_id\": NaN\n"),
+    ];
+    for (invocation_id, line) in cases {
+        fixture.write_record_line(invocation_id, line);
+        let bytes = fixture.record_bytes(invocation_id);
+        let head_before = fixture.head();
+        let outcome = service.commit_op_record(&id(invocation_id), OpClosedBy::Agent);
+        let expected = format!("Invalid invocation record: {invocation_id}");
+        assert_eq!(
+            outcome.refusal(),
+            Some(expected.as_str()),
+            "{invocation_id}"
+        );
+        assert!(!outcome.committed());
+        assert_eq!(fixture.head(), head_before);
+        assert_eq!(fixture.record_bytes(invocation_id), bytes);
+    }
+
+    // The pinned source also refuses these rows (only its `repr()` wording
+    // differs, the already-disclosed F5 boundary).
+    let oracle_fixture = Fixture::with_positive_primary();
+    oracle_fixture.checkout_new("topic");
+    for (invocation_id, line) in &cases {
+        oracle_fixture.write_record_line(invocation_id, line);
+        let head_before = oracle_fixture.head();
+        let outcome = oracle_commit(
+            &oracle_fixture.root,
+            &oracle_fixture.root,
+            invocation_id,
+            "agent",
+            None,
+        );
+        assert_eq!(
+            outcome["committed"], false,
+            "{invocation_id} source outcome: {outcome:?}"
+        );
+        assert_eq!(oracle_fixture.head(), head_before);
+        assert_eq!(oracle_fixture.record_bytes(invocation_id), line.as_bytes());
     }
 }

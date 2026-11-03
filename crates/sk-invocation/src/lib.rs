@@ -30,6 +30,7 @@
 //! authority; see `tests/oracle_vectors.rs`.
 
 mod error;
+mod legacy_json;
 mod modes;
 mod op_admission;
 mod op_commit;

@@ -32,6 +32,15 @@ never turn an unavailable reference into a passing zero-comparison test.
 
 User-authored YAML and Markdown are never reserialized merely to inspect them. This avoids losing comments and formatting through a non-round-trip YAML serializer. Pack content is not bundled from the maintainer-only internal tier. Paths supplied by packs and users are untrusted; traversal and symlink escape must be rejected at the owning boundary.
 
+## Distinct JSON read contracts
+
+The executor's local first-object legacy read is deliberately looser than typed
+Op CLAIM/model validation. A private ordered value profile preserves Python dict
+order, duplicate-key behavior and nonfinite/overflow floats there without changing
+the standard wire writer or enabling serde's workspace-wide preserve_order feature.
+String/float rendering reuses the existing primitive authority. This is not a second
+writer or arbitrary-JSON parity claim; unsupported source inputs stay findings.
+
 ## Delivery and verification
 
 The operator requires autonomous continuation through the full rewrite and a substantial verified speed increase; `LOOP.md` defines the control loop and completion gates. The full upstream surface is much larger than a single implementation tranche. A capability matrix must distinguish implemented, partially implemented, and pending behavior. Passing Rust tests establishes the covered contracts, not blanket compatibility with the Python implementation. No performance claim is made without a reproducible measurement.

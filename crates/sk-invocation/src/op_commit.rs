@@ -25,6 +25,20 @@
 //! non-object, or undecodable first line is the source's
 //! `Invalid invocation record: <id>` failure.
 //!
+//! The first line is decoded by the private [`crate::legacy_json`] reader, a
+//! CPython `json.loads` compatibility profile: bare `NaN`/`Infinity`/
+//! `-Infinity` are accepted, nested maps keep Python dict insertion order
+//! (duplicate keys keep the first position and the last value), integer tokens
+//! stay exact, and float-token overflow/underflow render like Python `float`
+//! (`1e400` is `inf`, `1e-400` is a falsy signed zero). `str(value or
+//! "unknown")` therefore composes the same commit message the reference
+//! composes for those legacy rows. Matching subjects remove the demonstrated
+//! message difference, but cross-side commit-object identity also requires equal
+//! author/committer metadata, timestamps and every other header. These tests
+//! establish real native OIDs and source subjects, not blanket OID equality.
+//! The whole first line is still validated;
+//! truncated, trailing-junk and non-object rows stay invalid.
+//!
 //! # Outcomes
 //!
 //! The source treats the audit write as durable and the commit as best-effort:
@@ -47,10 +61,12 @@
 //! * The default git timeout is the source's 30-second probe budget. The
 //!   protection reader resolves its own remote-default probe through existing
 //!   `sk-workspace` code, which retains that crate's accepted options.
-//! * Raw `NaN`/`Infinity` JSON is accepted by Python but currently causes a
-//!   native invalid-record refusal (a commit-decision difference). Nested-map
-//!   insertion order and overflowing floats such as `1e400` change commit
-//!   messages/objects. These are open functional gaps, not only diagnostics.
+//! * Raw `NaN`/`Infinity` JSON is accepted by Python and by this reader, with
+//!   the same commit decision and subject. Python's lone-surrogate strings,
+//!   its default 4300-digit integer conversion ceiling, its recursion ceiling
+//!   for pathological nesting, and the incomplete `isprintable()` table behind
+//!   the shared string `repr` remain genuine legacy-input gaps, not claimed
+//!   arbitrary-JSON equivalence.
 //! * With a whitespace-suffixed current ref and an existing stripped-name
 //!   shadow ref, the source may commit on the checked-out ref while the native
 //!   canonical HEAD assertion refuses. That valid-input difference remains open.
@@ -61,7 +77,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use serde_json::{Map, Value};
 use sk_git::{
     BranchName, CommitGuardCapability, GitError, GitOptions, GitPath, GitRepository,
     ProtectedBranches, SafeCommitRequest,
@@ -69,12 +84,12 @@ use sk_git::{
 use sk_workspace::{ProtectionPolicy, WorkspaceError};
 use thiserror::Error;
 
+use crate::legacy_json::{self, LegacyObject};
 use crate::op_commit_policy::{
     OpCommitProbeError, PrimaryTracking, op_commit_skip_reason, probe_primary_tracking,
     strip_git_stdout,
 };
 use crate::op_custody::is_worktree_of;
-use crate::python_json::python_repr_json;
 use crate::record::InvocationId;
 use crate::writer::{EVENTS_DIR, InvocationWriter, OP_CLOSURES_FILENAME};
 
@@ -663,7 +678,7 @@ pub(crate) fn git_path_from_relative(path: &Path) -> Result<GitPath, GitError> {
 pub(crate) fn read_started_object(
     writer: &InvocationWriter,
     invocation_id: &InvocationId,
-) -> Result<Map<String, Value>, StartedReadError> {
+) -> Result<LegacyObject, StartedReadError> {
     let invalid = || StartedReadError::Invalid {
         invocation_id: invocation_id.as_str().to_owned(),
     };
@@ -676,8 +691,7 @@ pub(crate) fn read_started_object(
         detail: error.to_string(),
     })?;
     let first = python_first_line(&text).ok_or_else(invalid)?;
-    let value: Value = serde_json::from_str(first).map_err(|_| invalid())?;
-    value.as_object().cloned().ok_or_else(invalid)
+    legacy_json::parse_object(first).ok_or_else(invalid)
 }
 
 /// The first line as Python's `str.splitlines()` defines a boundary.
@@ -707,19 +721,14 @@ fn python_first_line(text: &str) -> Option<&str> {
 /// `str(started.get(key) or "unknown")`.
 ///
 /// Absent/null/empty/false/zero/empty collections are `unknown`; strings are
-/// verbatim; numbers and booleans use Python text. Collections use the existing
-/// Python-repr formatter, but native JSON maps sort keys (not Python insertion
-/// order); nonfinite JSON tokens are not accepted. These remain legacy-input
-/// differences, not full `str()` equivalence for arbitrary raw objects.
-pub(crate) fn started_field(started: &Map<String, Value>, key: &str) -> String {
+/// verbatim; integers stay exact; floats use CPython `repr` including `nan`,
+/// `inf` and `-inf`; collections use the shared Python `repr` formatter in the
+/// order `json.loads` produced (Python dict insertion order, last duplicate
+/// value in the first position). Nonfinite and ordered maps come from the
+/// private [`crate::legacy_json`] tree, not `serde_json::Value`.
+pub(crate) fn started_field(started: &LegacyObject, key: &str) -> String {
     match started.get(key) {
-        None | Some(Value::Null) => "unknown".to_owned(),
-        Some(Value::String(text)) if text.is_empty() => "unknown".to_owned(),
-        Some(Value::Bool(false)) => "unknown".to_owned(),
-        Some(Value::Number(number)) if number.as_f64() == Some(0.0) => "unknown".to_owned(),
-        Some(Value::Array(items)) if items.is_empty() => "unknown".to_owned(),
-        Some(Value::Object(entries)) if entries.is_empty() => "unknown".to_owned(),
-        Some(Value::String(text)) => text.clone(),
-        Some(other) => python_repr_json(other),
+        Some(value) if !legacy_json::is_falsy(value) => legacy_json::python_str(value),
+        _ => "unknown".to_owned(),
     }
 }
