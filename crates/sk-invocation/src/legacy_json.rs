@@ -24,11 +24,14 @@
 //! and every nested member is parsed. Missing/empty/non-object/bad rows remain
 //! the executor's `Invalid invocation record: <id>` failure.
 //!
-//! Genuine remaining gaps (not claimed as arbitrary-JSON equivalence): a lone
-//! `\uD800`-style surrogate parses in Python but cannot be represented by Rust
-//! `String` and is refused here; nested-string `repr` reuses
-//! [`crate::python_json::python_repr`], whose `isprintable()` table is incomplete
-//! (for example NBSP). Integer conversion follows the reference interpreter's
+//! Genuine remaining gaps (not claimed as arbitrary-JSON equivalence): Python
+//! strings are preserved as code points rather than Rust `String`, so lone and
+//! non-paired `\uD800`-style surrogate escapes parse exactly like CPython and
+//! nested `repr` renders through the one canonical formatter (whose
+//! printability table is the verified CPython 3.11.15 `str.isprintable()` data in
+//! [`crate::python_unicode`]). A used *top-level* string keeps its surrogate code
+//! points too; converting it to the UTF-8 commit message is the caller's
+//! fallible step. Integer conversion follows the reference interpreter's
 //! default 4300-digit ceiling (or its existing `PYTHONINTMAXSTRDIGITS` startup
 //! setting, including zero for unlimited). A native operational budget of 1000 value frames
 //! (the reference's default recursion budget) prevents process stack loss on
@@ -38,12 +41,89 @@
 //! mutations and the small acceptance band below this native budget remain
 //! explicit compatibility differences.
 
-use crate::python_json::{python_float_repr, python_repr};
+use crate::python_json::{python_float_repr, python_repr_codepoints};
 
 // Verified against the pinned CPython 3.11.15 defaults. In particular the
 // recursion budget is operational, not a claim about a JSON wire-format depth.
 const SOURCE_DEFAULT_RECURSION_BUDGET: usize = 1000;
 const SOURCE_DEFAULT_INTEGER_DIGITS: usize = 4300;
+
+/// A decoded Python `str`: an exact sequence of code points.
+///
+/// Rust `String` cannot hold a lone surrogate code unit, but CPython `str` can
+/// (and `json.loads` produces them from `\uD800`-style escapes), so the units
+/// are kept verbatim. Equality is code-point equality, which is also Python
+/// `dict` key equality: a decoded surrogate pair (one astral scalar) equals the
+/// raw character, while `\uD800` and `\uD800\u0041` are distinct strings.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct PythonString(Vec<u32>);
+
+impl PythonString {
+    fn push_scalars(&mut self, text: &str) {
+        self.0.extend(text.chars().map(u32::from));
+    }
+
+    /// Append one Unicode scalar code point.
+    fn push_scalar(&mut self, code: u32) {
+        debug_assert!(char::from_u32(code).is_some(), "{code:#06x} is a scalar");
+        self.0.push(code);
+    }
+
+    /// Append one code unit, including a lone surrogate.
+    fn push_code_unit(&mut self, code: u32) {
+        self.0.push(code);
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    fn eq_str(&self, key: &str) -> bool {
+        self.0.len() == key.chars().count() && self.0.iter().copied().eq(key.chars().map(u32::from))
+    }
+
+    /// CPython `repr()` through the one canonical formatter.
+    fn repr(&self) -> String {
+        python_repr_codepoints(&self.0)
+    }
+
+    /// The text when every code unit is a Unicode scalar.
+    ///
+    /// `Err` names the first surrogate unit. This is the only place a Python
+    /// string can hit a UTF-8-only boundary; nothing here replaces or drops it.
+    fn to_utf8(&self) -> Result<String, u32> {
+        let mut out = String::with_capacity(self.0.len());
+        for &code in &self.0 {
+            match char::from_u32(code) {
+                Some(character) => out.push(character),
+                None => return Err(code),
+            }
+        }
+        Ok(out)
+    }
+}
+
+/// Python `str(value)` before UTF-8 encoding.
+///
+/// A top-level string is verbatim (and may still contain surrogate units); any
+/// other value is its `repr`, whose escapes make the text valid UTF-8.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum PythonText {
+    /// `str()` of a string value: the original code points.
+    Verbatim(PythonString),
+    /// `repr()` of a non-string value, or the `"unknown"` default.
+    Rendered(String),
+}
+
+impl PythonText {
+    /// Encode for a UTF-8-only consumer, or name the first surrogate unit.
+    pub(crate) fn to_utf8(&self) -> Result<String, u32> {
+        match self {
+            Self::Verbatim(text) => text.to_utf8(),
+            Self::Rendered(text) => Ok(text.clone()),
+        }
+    }
+}
 
 /// One decoded `json.loads` value.
 #[derive(Clone, Debug)]
@@ -56,8 +136,8 @@ pub(crate) enum LegacyValue {
     Integer(String),
     /// A float token, decoded like CPython `float` (`±inf`, signed zero, NaN).
     Float(f64),
-    /// A decoded string (raw Unicode scalar values only).
-    String(String),
+    /// A decoded string (Python code points, including lone surrogates).
+    String(PythonString),
     /// An ordered JSON array.
     Array(Vec<LegacyValue>),
     /// An ordered JSON object.
@@ -70,7 +150,7 @@ pub(crate) enum LegacyValue {
 /// is kept, exactly like `dict` assignment during `json.loads`.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct LegacyObject {
-    entries: Vec<(String, LegacyValue)>,
+    entries: Vec<(PythonString, LegacyValue)>,
 }
 
 impl LegacyObject {
@@ -78,16 +158,16 @@ impl LegacyObject {
     pub(crate) fn get(&self, key: &str) -> Option<&LegacyValue> {
         self.entries
             .iter()
-            .find_map(|(name, value)| (name == key).then_some(value))
+            .find_map(|(name, value)| name.eq_str(key).then_some(value))
     }
 
     fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
-    fn insert(&mut self, key: String, value: LegacyValue) {
-        if let Some((_, existing)) = self.entries.iter_mut().find(|(name, _)| *name == key) {
-            *existing = value;
+    fn insert(&mut self, key: PythonString, value: LegacyValue) {
+        if let Some(position) = self.entries.iter().position(|(name, _)| name == &key) {
+            self.entries[position].1 = value;
         } else {
             self.entries.push((key, value));
         }
@@ -150,12 +230,13 @@ pub(crate) fn is_falsy(value: &LegacyValue) -> bool {
 
 /// Python `str(value)` for one decoded value.
 ///
-/// A top-level string is verbatim; every other value uses its `repr`, because
-/// `str(list)`/`str(dict)` delegate to element `repr` in CPython.
-pub(crate) fn python_str(value: &LegacyValue) -> String {
+/// A top-level string is verbatim (code points preserved, including surrogates);
+/// every other value uses its `repr`, because `str(list)`/`str(dict)` delegate
+/// to element `repr` in CPython.
+pub(crate) fn python_str(value: &LegacyValue) -> PythonText {
     match value {
-        LegacyValue::String(text) => text.clone(),
-        other => python_repr_value(other),
+        LegacyValue::String(text) => PythonText::Verbatim(text.clone()),
+        other => PythonText::Rendered(python_repr_value(other)),
     }
 }
 
@@ -166,7 +247,7 @@ fn python_repr_value(value: &LegacyValue) -> String {
         LegacyValue::Bool(false) => "False".to_owned(),
         LegacyValue::Integer(digits) => digits.clone(),
         LegacyValue::Float(value) => python_float_repr(*value),
-        LegacyValue::String(text) => python_repr(text),
+        LegacyValue::String(text) => text.repr(),
         LegacyValue::Array(items) => {
             let rendered: Vec<String> = items.iter().map(python_repr_value).collect();
             format!("[{}]", rendered.join(", "))
@@ -175,7 +256,7 @@ fn python_repr_value(value: &LegacyValue) -> String {
             let rendered: Vec<String> = object
                 .entries
                 .iter()
-                .map(|(key, value)| format!("{}: {}", python_repr(key), python_repr_value(value)))
+                .map(|(key, value)| format!("{}: {}", key.repr(), python_repr_value(value)))
                 .collect();
             format!("{{{}}}", rendered.join(", "))
         }
@@ -318,19 +399,19 @@ impl Reader<'_> {
         }
     }
 
-    fn string(&mut self) -> Result<String, ()> {
+    fn string(&mut self) -> Result<PythonString, ()> {
         self.expect(b"\"")?;
-        let mut out = String::new();
+        let mut out = PythonString::default();
         let mut chunk_start = self.index;
         loop {
             match self.peek().ok_or(())? {
                 b'"' => {
-                    out.push_str(self.text.get(chunk_start..self.index).ok_or(())?);
+                    out.push_scalars(self.text.get(chunk_start..self.index).ok_or(())?);
                     self.index += 1;
                     return Ok(out);
                 }
                 b'\\' => {
-                    out.push_str(self.text.get(chunk_start..self.index).ok_or(())?);
+                    out.push_scalars(self.text.get(chunk_start..self.index).ok_or(())?);
                     self.index += 1;
                     self.escape(&mut out)?;
                     chunk_start = self.index;
@@ -341,54 +422,71 @@ impl Reader<'_> {
         }
     }
 
-    fn escape(&mut self, out: &mut String) -> Result<(), ()> {
+    fn escape(&mut self, out: &mut PythonString) -> Result<(), ()> {
         match self.bump().ok_or(())? {
-            b'"' => out.push('"'),
-            b'\\' => out.push('\\'),
-            b'/' => out.push('/'),
-            b'b' => out.push('\u{08}'),
-            b'f' => out.push('\u{0c}'),
-            b'n' => out.push('\n'),
-            b'r' => out.push('\r'),
-            b't' => out.push('\t'),
+            b'"' => out.push_scalar(0x22),
+            b'\\' => out.push_scalar(0x5c),
+            b'/' => out.push_scalar(0x2f),
+            b'b' => out.push_scalar(0x08),
+            b'f' => out.push_scalar(0x0c),
+            b'n' => out.push_scalar(0x0a),
+            b'r' => out.push_scalar(0x0d),
+            b't' => out.push_scalar(0x09),
             b'u' => self.unicode_escape(out)?,
             _ => return Err(()),
         }
         Ok(())
     }
 
-    fn unicode_escape(&mut self, out: &mut String) -> Result<(), ()> {
+    /// One `\uXXXX` escape, with CPython's exact surrogate rule.
+    ///
+    /// A high surrogate combines with an immediately following low-surrogate
+    /// escape into one astral scalar. A malformed second escape is still a
+    /// decode error, but a *valid* non-low second unit is not consumed: the lone
+    /// high surrogate is kept and the following escape is scanned normally, so
+    /// `"\uD800\u0041"` is two code points (`\uD800`, `A`). Low surrogates are
+    /// always kept as lone units. Like CPython's scanner, pairing is greedy from
+    /// left to right (`"\uD800\uD800\uDC00"` is `[U+D800, U+10000]`).
+    fn unicode_escape(&mut self, out: &mut PythonString) -> Result<(), ()> {
         let first = self.hex4()?;
-        if (0xdc00..=0xdfff).contains(&first) {
-            // Python keeps a lone low surrogate; Rust `String` cannot.
-            return Err(());
-        }
         if (0xd800..=0xdbff).contains(&first) {
-            self.expect(b"\\u")?;
-            let second = self.hex4()?;
-            if !(0xdc00..=0xdfff).contains(&second) {
-                return Err(());
+            if self.bytes.get(self.index..self.index + 2) == Some(&b"\\u"[..]) {
+                let second = self.peek_hex4(self.index + 2).ok_or(())?;
+                if (0xdc00..=0xdfff).contains(&second) {
+                    self.index += 6;
+                    let combined = 0x1_0000 + ((first - 0xd800) << 10) + (second - 0xdc00);
+                    out.push_scalar(combined);
+                    return Ok(());
+                }
             }
-            let combined = 0x1_0000 + ((first - 0xd800) << 10) + (second - 0xdc00);
-            out.push(char::from_u32(combined).ok_or(())?);
+            out.push_code_unit(first);
+        } else if (0xdc00..=0xdfff).contains(&first) {
+            out.push_code_unit(first);
         } else {
-            out.push(char::from_u32(first).ok_or(())?);
+            out.push_scalar(first);
         }
         Ok(())
     }
 
-    fn hex4(&mut self) -> Result<u32, ()> {
+    /// Four hex digits at `offset`, without consuming them.
+    fn peek_hex4(&self, offset: usize) -> Option<u32> {
         let mut value = 0u32;
-        for _ in 0..4 {
-            let byte = self.bump().ok_or(())?;
+        for index in 0..4 {
+            let byte = *self.bytes.get(offset + index)?;
             let digit = match byte {
                 b'0'..=b'9' => u32::from(byte - b'0'),
                 b'a'..=b'f' => u32::from(byte - b'a') + 10,
                 b'A'..=b'F' => u32::from(byte - b'A') + 10,
-                _ => return Err(()),
+                _ => return None,
             };
             value = value * 16 + digit;
         }
+        Some(value)
+    }
+
+    fn hex4(&mut self) -> Result<u32, ()> {
+        let value = self.peek_hex4(self.index).ok_or(())?;
+        self.index += 4;
         Ok(value)
     }
 
@@ -445,7 +543,13 @@ mod tests {
         let object = parse_object(text).expect("valid object");
         let value = object.get(key).expect("field is present");
         assert!(!is_falsy(value), "the fixture field is truthy");
+        python_text(value)
+    }
+
+    fn python_text(value: &LegacyValue) -> String {
         python_str(value)
+            .to_utf8()
+            .expect("fixture text is representable as UTF-8")
     }
 
     #[test]
@@ -506,15 +610,15 @@ mod tests {
             assert!(is_falsy(object.get("p").unwrap()), "{text}");
         }
         assert_eq!(
-            python_str(parse_object(r#"{"p": -1e-400}"#).unwrap().get("p").unwrap()),
+            python_text(parse_object(r#"{"p": -1e-400}"#).unwrap().get("p").unwrap()),
             "-0.0"
         );
         assert_eq!(
-            python_str(parse_object(r#"{"p": -0.0}"#).unwrap().get("p").unwrap()),
+            python_text(parse_object(r#"{"p": -0.0}"#).unwrap().get("p").unwrap()),
             "-0.0"
         );
         assert_eq!(
-            python_str(parse_object(r#"{"p": -1e-400}"#).unwrap().get("p").unwrap()),
+            python_text(parse_object(r#"{"p": -1e-400}"#).unwrap().get("p").unwrap()),
             "-0.0"
         );
     }
@@ -526,7 +630,7 @@ mod tests {
             "123456789012345678901234567890"
         );
         let object = parse_object(r#"{"p": -0}"#).unwrap();
-        assert_eq!(python_str(object.get("p").unwrap()), "0");
+        assert_eq!(python_text(object.get("p").unwrap()), "0");
         assert!(is_falsy(object.get("p").unwrap()));
     }
 
@@ -548,6 +652,56 @@ mod tests {
         assert_eq!(
             field(r#"{"p": "\u00e9 \ud83d\ude00 \u0000"}"#, "p"),
             "\u{e9} \u{1f600} \u{0}"
+        );
+    }
+
+    #[test]
+    fn lone_and_nonpaired_surrogates_are_preserved_as_code_points() {
+        let object = parse_object(
+            r#"{"p":["\ud800","\udc80","\ud800\u0041","\ud800\ud800\udc00","\ude00\ud83d","\ud83d\ude00"]}"#,
+        )
+        .expect("valid object");
+        assert_eq!(
+            python_text(object.get("p").unwrap()),
+            "['\\ud800', '\\udc80', '\\ud800A', '\\ud800\u{10000}', '\\ude00\\ud83d', '\u{1f600}']"
+        );
+        // A used top-level string keeps the same code points; UTF-8 encoding is
+        // the caller's fallible step and names the first surrogate unit.
+        let object = parse_object(r#"{"p":"\udc80"}"#).expect("valid object");
+        assert_eq!(python_str(object.get("p").unwrap()).to_utf8(), Err(0xdc80));
+        let object = parse_object(r#"{"p":"\ud800"}"#).expect("valid object");
+        assert_eq!(python_str(object.get("p").unwrap()).to_utf8(), Err(0xd800));
+        let object = parse_object(r#"{"p":["\ud800"]}"#).expect("valid object");
+        assert!(python_str(object.get("p").unwrap()).to_utf8().is_ok());
+    }
+
+    #[test]
+    fn surrogate_keys_compare_and_deduplicate_by_code_point() {
+        assert_eq!(
+            field(r#"{"p":{"\ud800":1,"\ud800":2}}"#, "p"),
+            r"{'\ud800': 2}"
+        );
+        assert_eq!(
+            field(r#"{"p":{"\ud83d\ude00":1,"😀":2}}"#, "p"),
+            "{'\u{1f600}': 2}"
+        );
+        assert_eq!(
+            field(r#"{"p":{"\ud800\u0041":1,"\ud800A":2}}"#, "p"),
+            r"{'\ud800A': 2}"
+        );
+        assert_eq!(
+            field(r#"{"p":{"\ud83d\ude00":1,"\ud83d":2}}"#, "p"),
+            "{'\u{1f600}': 1, '\\ud83d': 2}"
+        );
+    }
+
+    #[test]
+    fn nested_nonprintable_strings_use_the_verified_python_repr_table() {
+        assert_eq!(field(r#"{"p":"a\u00a0b"}"#, "p"), "a\u{a0}b");
+        assert_eq!(field(r#"{"p":{"k":"a\u00a0b"}}"#, "p"), r"{'k': 'a\xa0b'}");
+        assert_eq!(
+            field(r#"{"p":["\u200b","\u2029","\ue000","\u0378"]}"#, "p"),
+            r"['\u200b', '\u2029', '\ue000', '\u0378']"
         );
     }
 
@@ -587,9 +741,11 @@ mod tests {
             r#"{"p": "bad\qescape"}"#,
             r#"{"p": "raw
 control"}"#,
-            // A lone surrogate parses in Python but not in Rust `String`; this
-            // disclosed gap is refused rather than silently substituted.
-            r#"{"p": "\ud800"}"#,
+            // Surrogate *escaping* is accepted like CPython, but a malformed
+            // second escape is still a decode error.
+            r#"{"p": "\ud800\uZZZZ"}"#,
+            r#"{"p": "\ud800\u00"}"#,
+            r#"{"p": "\ud800\udc0"}"#,
             // A UTF-8 BOM is an explicit `json.loads` error.
             "\u{feff}{\"p\": 1}",
         ] {

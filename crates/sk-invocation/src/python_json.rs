@@ -16,6 +16,8 @@
 //! is written as `\uXXXX` (lowercase hex), and a supplementary-plane code
 //! point becomes a UTF-16 surrogate pair (`\ud83d\ude00`).
 
+use crate::python_unicode;
+
 /// An ordered JSON object rendered the way Python's `json.dumps` renders a dict.
 #[derive(Clone, Debug, Default)]
 pub struct PythonJsonObject {
@@ -101,46 +103,73 @@ fn push_ascii_escape(target: &mut String, character: char) {
 
 /// CPython `repr()` for a string, used by operator-facing refusal messages.
 ///
-/// ASCII printable characters are kept, `\t \n \r` use their short forms, and
-/// other control characters use `\xNN`/`\uNNNN`/`\UNNNNNNNN`. Printable
-/// non-ASCII characters are kept verbatim (Python's `isprintable()` rule is
-/// Unicode-table driven; this port keeps every non-control scalar, which
-/// matches the branch names and ids those messages quote in practice).
-/// A value containing a single quote but no double quote is double-quoted,
-/// exactly like CPython.
+/// This is the `&str` wrapper over the one canonical formatter authority,
+/// [`python_repr_codepoints`]. A `&str` can only hold Unicode scalars, so the
+/// wrapper is used for text that already decoded strictly; the legacy Op reader
+/// passes Python code points (including lone surrogate units) to the same
+/// primitive.
 pub fn python_repr(value: &str) -> String {
-    let quote = if value.contains('\'') && !value.contains('"') {
-        '"'
+    let codepoints: Vec<u32> = value.chars().map(u32::from).collect();
+    python_repr_codepoints(&codepoints)
+}
+
+/// CPython `repr()` for a sequence of Python string code points.
+///
+/// This is the single `repr` formatting authority in the crate. CPython keeps
+/// printable characters verbatim, writes `\t \n \r` in their short forms,
+/// escapes the chosen quote and `\\`, and writes every other non-printable code
+/// point as `\xNN` below `U+0100`, `\uNNNN` below `U+10000`, otherwise
+/// `\UNNNNNNNN` (lowercase hex, like `unicode_repr`).
+///
+/// Printability is the verified [`crate::python_unicode`] `str.isprintable()`
+/// table, not Rust's `char::is_control()` (which is `Cc` only). A value
+/// containing a single quote but no double quote is double-quoted, exactly like
+/// CPython. Lone surrogate code units are non-printable, so they always escape
+/// and the rendered text is always valid UTF-8.
+pub(crate) fn python_repr_codepoints(codepoints: &[u32]) -> String {
+    let single_quote = u32::from(b'\'');
+    let quote = if codepoints.contains(&single_quote) && !codepoints.contains(&u32::from(b'"')) {
+        u32::from(b'"')
     } else {
-        '\''
+        single_quote
     };
-    let mut out = String::with_capacity(value.len() + 2);
-    out.push(quote);
-    for character in value.chars() {
-        match character {
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            character if character == quote => {
+    let mut out = String::with_capacity(codepoints.len() + 2);
+    out.push(char::from_u32(quote).expect("the repr quote is ASCII"));
+    for &code in codepoints {
+        match code {
+            0x5c => out.push_str("\\\\"),
+            0x09 => out.push_str("\\t"),
+            0x0a => out.push_str("\\n"),
+            0x0d => out.push_str("\\r"),
+            code if code == quote => {
                 out.push('\\');
-                out.push(character);
+                out.push(char::from_u32(code).expect("the repr quote is ASCII"));
             }
-            character if character.is_control() => {
-                let code = character as u32;
-                if code <= 0xff {
-                    out.push_str(&format!("\\x{code:02x}"));
-                } else if code <= 0xffff {
-                    out.push_str(&format!("\\u{code:04x}"));
-                } else {
-                    out.push_str(&format!("\\U{code:08x}"));
-                }
+            code if (0x20..0x7f).contains(&code) => {
+                out.push(char::from_u32(code).expect("ASCII printable code point"));
             }
-            character => out.push(character),
+            code => push_repr_escape(&mut out, code),
         }
     }
-    out.push(quote);
+    out.push(char::from_u32(quote).expect("the repr quote is ASCII"));
     out
+}
+
+/// One non-ASCII/non-printable `repr` escape (`\xNN`, `\uNNNN`, `\UNNNNNNNN`).
+fn push_repr_escape(target: &mut String, code: u32) {
+    if python_unicode::is_printable(code)
+        && let Some(character) = char::from_u32(code)
+    {
+        target.push(character);
+        return;
+    }
+    if code < 0x100 {
+        target.push_str(&format!("\\x{code:02x}"));
+    } else if code < 0x10000 {
+        target.push_str(&format!("\\u{code:04x}"));
+    } else {
+        target.push_str(&format!("\\U{code:08x}"));
+    }
 }
 
 /// CPython `repr()` for an arbitrary JSON value, used in parse-refusal messages.
@@ -278,6 +307,53 @@ mod tests {
         assert_eq!(python_repr("é"), "'é'");
         assert_eq!(python_repr("\u{0}\u{1f}"), "'\\x00\\x1f'");
         assert_eq!(python_repr("\u{7f}"), "'\\x7f'");
+    }
+
+    // Expected strings are CPython 3.11.15 `repr()` output measured from the
+    // pinned oracle. They cover every non-printable category (`Zs`, `Cf`, `Zl`,
+    // `Zp`, `Cs`, `Co`, `Cn`), not only Rust's `Cc`-wide `is_control()`.
+    #[test]
+    fn python_repr_follows_cpython_isprintable_categories() {
+        assert_eq!(python_repr("a\u{a0}b"), "'a\\xa0b'");
+        assert_eq!(python_repr("\u{ad}"), "'\\xad'");
+        assert_eq!(python_repr("a\u{200b}b"), "'a\\u200bb'");
+        assert_eq!(python_repr("\u{2028}"), "'\\u2028'");
+        assert_eq!(python_repr("\u{2029}"), "'\\u2029'");
+        assert_eq!(python_repr("\u{378}"), "'\\u0378'");
+        assert_eq!(python_repr("\u{e000}"), "'\\ue000'");
+        assert_eq!(python_repr("\u{feff}"), "'\\ufeff'");
+        assert_eq!(python_repr("\u{1d173}"), "'\\U0001d173'");
+        assert_eq!(python_repr("\u{e0001}"), "'\\U000e0001'");
+        assert_eq!(python_repr("\u{10ffff}"), "'\\U0010ffff'");
+        assert_eq!(python_repr("\u{10000}"), "'\u{10000}'");
+        assert_eq!(python_repr("\u{1f600}"), "'\u{1f600}'");
+        assert_eq!(python_repr(" "), "' '");
+    }
+
+    #[test]
+    fn codepoint_formatter_is_the_single_authority_including_surrogates() {
+        for text in [
+            "main",
+            "a'b",
+            "a\"b",
+            "a'b\"c",
+            "back\\slash",
+            "\t\n\r",
+            "é",
+            "\u{a0}\u{200b}",
+        ] {
+            let codepoints: Vec<u32> = text.chars().map(u32::from).collect();
+            assert_eq!(
+                python_repr(text),
+                python_repr_codepoints(&codepoints),
+                "{text:?}"
+            );
+        }
+        assert_eq!(python_repr_codepoints(&[0xd800]), "'\\ud800'");
+        assert_eq!(python_repr_codepoints(&[0xd800, 0x41]), "'\\ud800A'");
+        assert_eq!(python_repr_codepoints(&[0xdc80]), "'\\udc80'");
+        assert_eq!(python_repr_codepoints(&[0x1f600]), "'\u{1f600}'");
+        assert_eq!(python_repr_codepoints(&[0x27, 0x22]), "'\\'\"'");
     }
 
     #[test]

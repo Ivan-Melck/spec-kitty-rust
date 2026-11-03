@@ -62,9 +62,12 @@
 //!   protection reader resolves its own remote-default probe through existing
 //!   `sk-workspace` code, which retains that crate's accepted options.
 //! * Raw `NaN`/`Infinity` JSON is accepted by Python and by this reader, with
-//!   the same commit decision and subject. Python's lone-surrogate strings,
-//!   the caller-dependent source recursion ceiling, and the incomplete
-//!   `isprintable()` table behind shared string `repr` remain legacy-input gaps.
+//!   the same commit decision and subject for the exercised rows. Python code
+//!   points (including lone surrogates) and nested `repr` use the verified
+//!   CPython printability authority. Used top-level surrogates can still fail
+//!   the native UTF-8-only Git-message seam even where source surrogateescape
+//!   commits; protection/encoding precedence and source index-on-error differ.
+//!   Caller-dependent source recursion limits also remain an input boundary.
 //!   The reader now follows the default 4300-digit integer ceiling and uses the
 //!   source interpreter's default 1000-frame recursion budget as a native
 //!   operational guard against process loss, not an exact JSON-format/call-stack
@@ -73,7 +76,9 @@
 //!   not emulated.
 //! * With a whitespace-suffixed current ref and an existing stripped-name
 //!   shadow ref, the source may commit on the checked-out ref while the native
-//!   canonical HEAD assertion refuses. That valid-input difference remains open.
+//!   canonical HEAD assertion refuses. Shadow+protected/invalid-config can also
+//!   falsely admit the write; born/unborn targeted probes confirm this. These
+//!   valid-input differences remain open.
 //! * Cross-checkout CLAIM composition is not implemented; the started-record
 //!   read is local to this writer's record root, like `_read_started_event`.
 
@@ -88,7 +93,7 @@ use sk_git::{
 use sk_workspace::{ProtectionPolicy, WorkspaceError};
 use thiserror::Error;
 
-use crate::legacy_json::{self, LegacyObject};
+use crate::legacy_json::{self, LegacyObject, PythonText};
 use crate::op_commit_policy::{
     OpCommitProbeError, PrimaryTracking, op_commit_skip_reason, probe_primary_tracking,
     strip_git_stdout,
@@ -582,6 +587,10 @@ impl OpCommitService {
             Ok(destination) => destination,
             Err(error) => return OpCommitOutcome::new_refused(error.to_string()),
         };
+        let message = match message {
+            Ok(message) => message,
+            Err(code) => return OpCommitOutcome::new_refused(message_encoding_refusal(code)),
+        };
         let request = build_safe_commit_request(&destination, &message, &path, protected);
         let repository = self
             .open_repository()
@@ -627,18 +636,28 @@ impl OpCommitService {
     }
 
     /// The exact repository-relative path and commit message for this close.
+    ///
+    /// The profile/action text is Python `str(value)`, which may still contain
+    /// surrogate code units from a used top-level string, so the *message*
+    /// stays a fallible UTF-8 encoding. The caller acts on that error after the
+    /// skip and branch decisions. A protected-branch refusal is decided inside
+    /// the reference's `safe_commit` before it materialises the message; the
+    /// UTF-8-only native seam cannot defer that far, which is a disclosed
+    /// residual (see `UNICODE-STRING-REMEDIATION-REPORT.md`).
     fn commit_target(
         &self,
         invocation_id: &InvocationId,
         closed_by: OpClosedBy,
-        profile: &str,
-        action: &str,
-    ) -> Result<(PathBuf, String), String> {
+        profile: &PythonText,
+        action: &PythonText,
+    ) -> Result<(PathBuf, Result<String, u32>), String> {
+        let profile = profile.to_utf8();
+        let action = action.to_utf8();
         let first_eight: String = invocation_id.as_str().chars().take(8).collect();
         match closed_by {
             OpClosedBy::DoctorSweep => Ok((
                 Path::new(EVENTS_DIR).join(OP_CLOSURES_FILENAME),
-                format!("op({profile}): {action} [{first_eight}] (doctor sweep)"),
+                op_message(profile, action, &first_eight, " (doctor sweep)"),
             )),
             OpClosedBy::Agent => {
                 let path = self
@@ -650,7 +669,7 @@ impl OpCommitService {
                 })?;
                 Ok((
                     relative.to_path_buf(),
-                    format!("op({profile}): {action} [{first_eight}]"),
+                    op_message(profile, action, &first_eight, ""),
                 ))
             }
         }
@@ -659,6 +678,38 @@ impl OpCommitService {
 
 fn probe_failed(error: &OpCommitProbeError) -> String {
     format!("git probe failed while deciding whether to commit the Op record: {error}")
+}
+
+/// `op(<profile>): <action> [<short id>]<suffix>` as Python `str` composition.
+///
+/// Each field is the fallible native UTF-8 encoding of its Python text; the
+/// first non-scalar code unit wins here. This is not the source's later POSIX
+/// surrogateescape boundary, which accepts some low surrogates and follows the
+/// protection/path checks. Those precedence/capability differences remain open.
+fn op_message(
+    profile: Result<String, u32>,
+    action: Result<String, u32>,
+    first_eight: &str,
+    suffix: &str,
+) -> Result<String, u32> {
+    Ok(format!(
+        "op({}): {} [{first_eight}]{suffix}",
+        profile?, action?
+    ))
+}
+
+/// A used string whose Python code points cannot cross the UTF-8 message seam.
+///
+/// The reference builds the same Python `str` and only fails at its own encoding
+/// boundary (POSIX argv uses `surrogateescape`, so `\udc80..\udcff` can even
+/// land); the native message seam is UTF-8-only (`sk_git::SafeCommitRequest`
+/// takes `String`/`&str`). The truthful native answer is an encoding refusal that
+/// names the code point — never `Invalid invocation record` (the row is valid),
+/// never an invented Python exception, and never a replacement character.
+fn message_encoding_refusal(code: u32) -> String {
+    format!(
+        "Op commit message is not representable as UTF-8 (code point U+{code:04X}); the native commit-message seam only accepts UTF-8"
+    )
 }
 
 /// Decompose a repository-relative path into the exact `GitPath` bytes.
@@ -725,14 +776,16 @@ fn python_first_line(text: &str) -> Option<&str> {
 /// `str(started.get(key) or "unknown")`.
 ///
 /// Absent/null/empty/false/zero/empty collections are `unknown`; strings are
-/// verbatim; integers stay exact; floats use CPython `repr` including `nan`,
-/// `inf` and `-inf`; collections use the shared Python `repr` formatter in the
-/// order `json.loads` produced (Python dict insertion order, last duplicate
-/// value in the first position). Nonfinite and ordered maps come from the
-/// private [`crate::legacy_json`] tree, not `serde_json::Value`.
-pub(crate) fn started_field(started: &LegacyObject, key: &str) -> String {
+/// verbatim Python code points (a lone surrogate is preserved, not rejected, and
+/// encoding it is [`OpCommitService::commit_target`]'s fallible step); integers
+/// stay exact; floats use CPython `repr` including `nan`, `inf` and `-inf`;
+/// collections use the shared Python `repr` formatter in the order `json.loads`
+/// produced (Python dict insertion order, last duplicate value in the first
+/// position). Nonfinite and ordered maps come from the private
+/// [`crate::legacy_json`] tree, not `serde_json::Value`.
+pub(crate) fn started_field(started: &LegacyObject, key: &str) -> PythonText {
     match started.get(key) {
         Some(value) if !legacy_json::is_falsy(value) => legacy_json::python_str(value),
-        _ => "unknown".to_owned(),
+        _ => PythonText::Rendered("unknown".to_owned()),
     }
 }

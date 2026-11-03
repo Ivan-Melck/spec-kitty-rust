@@ -38,7 +38,10 @@ The executor's local first-object legacy read is deliberately looser than typed
 Op CLAIM/model validation. A private ordered value profile preserves Python dict
 order, duplicate-key behavior and nonfinite/overflow floats there without changing
 the standard wire writer or enabling serde's workspace-wide preserve_order feature.
-String/float rendering reuses the existing primitive authority. This is not a second
+String/float rendering reuses the existing primitive authority. Python strings
+retain code points, including surrogate units; one repr formatter uses verified,
+reproducibly generated CPython printability data. Encoding an actual Git message
+is a separate late capability boundary, not lossy replacement or parse invalidity. This is not a second
 writer or arbitrary-JSON parity claim; unsupported source inputs stay findings.
 The pinned interpreter's default1000 recursion budget bounds native reader stack
 use as an operational guard, not a fixed JSON-format or caller-ceiling claim.

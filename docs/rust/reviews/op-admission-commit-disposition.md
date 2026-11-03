@@ -81,5 +81,11 @@ red-first; operational1000 budget and default/configured integer ceilings correc
 `crates/sk-invocation/LEGACY-RUNTIME-LIMITS-REPORT.md`. Small fixes tested, not newly
 reviewed. Source-surrogate/printability/caller-dependent recursion and F4/F5 remain
 open. Shadow false-admission proof/design amendments in `op-shadow-branch-plan.md`.
-Next: native Unicode/surrogate representation and source-grounded F4 canonical
-composition. Disclosure alone does not close remaining functional differences.
+Later Unicode/surrogate representation now tested: one code-point repr authority,
+verified Unicode14 printability,1,112,064 scalar comparison, unused/nested surrogate
+real-source commits; Op178 and stable2228/0/11. Fresh independent review pending.
+Current bindings/limits `crates/sk-invocation/UNICODE-STRING-INTEGRATION-REPORT.md`.
+Source-used low-surrogate byte messages and protection/encoding/index-error precedence
+remain capability gaps, not invalid JSON. Next: independent review and canonical
+byte-message/target-preflight extension coordinated with F4 source identity/progress.
+Disclosure alone does not close remaining functional differences.

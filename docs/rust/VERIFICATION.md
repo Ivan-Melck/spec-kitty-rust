@@ -8,6 +8,38 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
+## Unicode repr / code-point string integration — after `4858240fb`
+
+Owner idle: **2228pass/0fail/11 helpers**,184 suites/doctests, strict workspace
+all-target Clippy/full fmt/both release CLIs+optimized Op library pass without
+interruption. Includes Op178 (177non-doc+1doc), not extra totals.
+`/tmp/sk-native-unicode-stable-{aggregate,clippy,fmt,release}.log`.
+
+Native PythonString preserves surrogate/nonpaired/key/duplicate semantics; ONE
+repr authority uses verified CPython3.11.15/Unicode14 data:701 ranges,969596
+nonprintable code points. Actual service/source true reds for nested Unicode,
+unused/nested surrogates; full1,112,064-scalar repr and bound-metadata actual object
+controls pass. Numeric/depth/env guard, standard writer/model and higher policy
+unchanged. Owner again overwrote one wrong-expectation control log; explicit
+missing evidence, not claimed retained or a business red.
+
+Coor generator verifier-CWD isolation red4pass/1fail then fixed; implementation/UCD
+pins explicit. Five real-verifier controls (exact,missing,lock drift,altered table,
+actual CWD) pass and targeted two-file Ruff passes, no full lint-debt waiver.
+Hex validation unified; false same-point/first-surrogate wording corrected. Current
+bindings/roots/history in `crates/sk-invocation/UNICODE-STRING-INTEGRATION-REPORT.md`.
+Source-used low surrogates still can commit where nativeUTF8 message refuses;
+protection-vs-encoding/index-on-error precedence remains different. Explicit byte-
+message/late-preflight seam requested, not fabricated UTF8 conversion/second writer.
+Fresh independent review pending; no arbitrary strings/full command/workflow/
+platform/language-casefold P5/performance acceptance.
+
+Exact53 oracle; completion599/PERF27/pending/valid accounting/0of16 at
+`/tmp/sk-unicode-coordinator.gtyxyG/completion-report.json`. Main separately synced/
+verifiedde5f4dc5f374170226a5331129c80927946e5d64,705 semantic gap. Latest10 changes
+owned tracer/alias protection source and tests/docs, no pin change; unadopted.
+Verified checkpoint committed+PUSHED, draft stays draft.
+
 ## Legacy JSON independent review / runtime refusal fix — after `758a99d41`
 
 Independent narrow PASS WITH FINDINGS:44 actual public-service/source rows,

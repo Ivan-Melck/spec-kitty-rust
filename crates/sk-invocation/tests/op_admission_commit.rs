@@ -23,7 +23,7 @@ use sk_invocation::{
     ADMISSION_PROBE_RECORD, ClosedBy, InvocationId, InvocationWriter, OP_CLOSURES_FILENAME,
     OP_GIT_PROBE_TIMEOUT, OpClosedBy, OpCommitEvidence, OpCommitService, OpCompletedEvent,
     OpCompletedFields, OpOutcome, OpWriteAction, OpWriteRefusalCode, append_op_closure,
-    op_git_options,
+    op_git_options, python_repr,
 };
 
 const SEED: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
@@ -1985,4 +1985,611 @@ fn legacy_invalid_rows_still_refuse_without_writing() {
         assert_eq!(oracle_fixture.head(), head_before);
         assert_eq!(oracle_fixture.record_bytes(invocation_id), line.as_bytes());
     }
+}
+
+/// F-1: nested `repr()` must follow CPython 3.11.15 `str.isprintable()`, not
+/// Rust `char::is_control()`. Separator/format/private/unassigned code points
+/// therefore escape (`\xa0`, `\u200b`, `\u2029`, `\U0001d173`) instead of
+/// riding into the subject verbatim. Expected subjects are the pinned
+/// source's own committed subjects.
+#[test]
+fn legacy_nested_nonprintable_unicode_repr_matches_the_pinned_source() {
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let source = Fixture::with_positive_primary();
+    source.checkout_new("topic");
+
+    let cases = [
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FC0",
+            r#"{"k":"a\u00a0b"}"#,
+            "\"x\"",
+            r"op({'k': 'a\xa0b'}): x [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FC1",
+            r#"{"k":"a\u200bb"}"#,
+            "\"x\"",
+            r"op({'k': 'a\u200bb'}): x [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FC2",
+            r#"{"k":"a\u2029b"}"#,
+            "\"x\"",
+            r"op({'k': 'a\u2029b'}): x [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FC3",
+            r#"["a\u00adb","\ue000","\u0378"]"#,
+            "\"x\"",
+            r"op(['a\xadb', '\ue000', '\u0378']): x [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FC4",
+            r#"{"\u00a0":1}"#,
+            r#"["\udbff\udfff","\ud834\udd73"]"#,
+            r"op({'\xa0': 1}): ['\U0010ffff', '\U0001d173'] [01ARZ3ND]",
+        ),
+    ];
+    for (invocation_id, profile, action, expected) in cases {
+        let line = started_row(invocation_id, profile, action);
+        assert_eq!(
+            oracle_legacy_commit(&source, invocation_id, &line),
+            expected,
+            "{invocation_id}: the pinned source subject"
+        );
+        assert_legacy_commit(&fixture, invocation_id, &line, expected);
+    }
+}
+
+/// F-2: any *unused* value or key may carry a lone or non-paired surrogate
+/// escape. CPython's `json.loads` keeps those code points and the source
+/// commits normally, because the message never renders them. Native refused the
+/// whole row as an invalid record.
+#[test]
+fn legacy_unused_surrogate_values_and_keys_commit_like_the_pinned_source() {
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let source = Fixture::with_positive_primary();
+    source.checkout_new("topic");
+
+    let cases = [
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FC5",
+            r#"{"profile_id":"p","action":"a","unused":"\ud800"}"#,
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FC6",
+            r#"{"profile_id":"p","action":"a","unused":"\udc80"}"#,
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FC7",
+            r#"{"profile_id":"p","action":"a","unused":"\udc00"}"#,
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FC8",
+            r#"{"profile_id":"p","action":"a","unused":{"\ud800":1,"\ud800":2}}"#,
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FC9",
+            r#"{"profile_id":"p","action":"a","unused":"\ud800\u0041"}"#,
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCA",
+            r#"{"profile_id":"p","action":"a","unused":["\ud800\ud800\udc00","\ude00\ud83d"]}"#,
+        ),
+    ];
+    for (invocation_id, line) in cases {
+        let line = format!("{line}\n");
+        let expected = "op(p): a [01ARZ3ND]";
+        assert_eq!(
+            oracle_legacy_commit(&source, invocation_id, &line),
+            expected,
+            "{invocation_id}: the pinned source commits the unused code points"
+        );
+        assert_legacy_commit(&fixture, invocation_id, &line, expected);
+    }
+}
+
+/// F-2: a surrogate inside a *used* nested collection is preserved as Python
+/// string code points and rendered by the canonical `repr` formatter, which
+/// escapes them; the message therefore stays valid UTF-8. Native refused the
+/// whole row before.
+#[test]
+fn legacy_nested_surrogate_strings_and_keys_render_escaped_like_the_pinned_source() {
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let source = Fixture::with_positive_primary();
+    source.checkout_new("topic");
+
+    let cases = [
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCB",
+            r#"["\ud800","\udc80"]"#,
+            r"op(['\ud800', '\udc80']): x [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCC",
+            r#"{"\ud800":1}"#,
+            r"op({'\ud800': 1}): x [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCD",
+            r#"["\ud800\u0041"]"#,
+            r"op(['\ud800A']): x [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCE",
+            r#"{"a":"\udc00"}"#,
+            r"op({'a': '\udc00'}): x [01ARZ3ND]",
+        ),
+    ];
+    for (invocation_id, profile, expected) in cases {
+        let line = started_row(invocation_id, profile, "\"x\"");
+        assert_eq!(
+            oracle_legacy_commit(&source, invocation_id, &line),
+            expected,
+            "{invocation_id}: the pinned source subject"
+        );
+        assert_legacy_commit(&fixture, invocation_id, &line, expected);
+    }
+}
+
+/// Positive control for the code-point representation: a decoded surrogate pair
+/// is one astral scalar equal to the raw character, and duplicate decoded keys
+/// keep their first position and last value (Python `dict` semantics).
+#[test]
+fn legacy_surrogate_pair_equality_and_duplicate_decoded_keys_match_the_pinned_source() {
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let source = Fixture::with_positive_primary();
+    source.checkout_new("topic");
+
+    let cases = [
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCF",
+            r#"{"profile_id":"\ud83d\ude00","action":"a"}"#,
+            "op(\u{1f600}): a [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCG",
+            "{\"profile_id\":\"x\",\"profile_id\":\"\\ud83d\\ude00\",\"action\":\"a\"}",
+            "op(\u{1f600}): a [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCH",
+            "{\"profile_id\":\"\\ud83d\\ude00\",\"profile_id\":\"\u{1f600}\",\"action\":\"a\"}",
+            "op(\u{1f600}): a [01ARZ3ND]",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCJ",
+            r#"{"profile_id":{"\ud800\u0041":1,"\ud800\u0041":2},"action":"a"}"#,
+            r"op({'\ud800A': 2}): a [01ARZ3ND]",
+        ),
+    ];
+    for (invocation_id, line, expected) in cases {
+        let line = format!("{line}\n");
+        assert_eq!(
+            oracle_legacy_commit(&source, invocation_id, &line),
+            expected,
+            "{invocation_id}: the pinned source subject"
+        );
+        assert_legacy_commit(&fixture, invocation_id, &line, expected);
+    }
+}
+
+/// A surrogate in a *used top-level* string is not representable in the native
+/// UTF-8 commit-message seam. The source refuses `\ud800`/`\udc00` with a
+/// `UnicodeEncodeError`; the native outcome must be a truthful encoding
+/// refusal, not the false claim that the record itself is invalid.
+#[test]
+fn legacy_used_unencodable_surrogate_fields_refuse_truthfully() {
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let source = Fixture::with_positive_primary();
+    source.checkout_new("topic");
+
+    let cases = [
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCK",
+            r#"{"profile_id":"\ud800","action":"a"}"#,
+            "U+D800",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCM",
+            r#"{"profile_id":"\udc00","action":"a"}"#,
+            "U+DC00",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCN",
+            r#"{"profile_id":"\udc7f","action":"a"}"#,
+            "U+DC7F",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCP",
+            r#"{"profile_id":"p","action":"\ud800"}"#,
+            "U+D800",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCQ",
+            r#"{"profile_id":"\ud800\u0041","action":"a"}"#,
+            "U+D800",
+        ),
+    ];
+    for (invocation_id, body, code) in cases {
+        let line = format!("{body}\n");
+        fixture.write_record_line(invocation_id, &line);
+        source.write_record_line(invocation_id, &line);
+        let before = fixture.snapshot();
+        let source_head = source.head();
+        let reference = oracle_commit(&source.root, &source.root, invocation_id, "agent", None);
+        assert_eq!(
+            reference["committed"], false,
+            "{invocation_id}: the pinned source refuses a used high/low surrogate"
+        );
+        assert_eq!(source.head(), source_head);
+        assert_eq!(source.record_bytes(invocation_id), line.as_bytes());
+
+        let mut service = fixture.service();
+        let outcome = service.commit_op_record(&id(invocation_id), OpClosedBy::Agent);
+        assert!(!outcome.committed(), "{invocation_id}: {outcome:?}");
+        let refusal = outcome.refusal().expect("a truthful native refusal");
+        assert!(
+            refusal.contains("not representable as UTF-8"),
+            "{invocation_id}: truthful encoding refusal, got {refusal:?}"
+        );
+        assert!(
+            refusal.contains(code),
+            "{invocation_id}: names the unencodable code point, got {refusal:?}"
+        );
+        assert!(
+            !refusal.contains("Invalid invocation record"),
+            "{invocation_id}: the record is valid; got {refusal:?}"
+        );
+        assert_eq!(fixture.snapshot(), before);
+        assert_eq!(fixture.record_bytes(invocation_id), line.as_bytes());
+    }
+}
+
+/// Measured capability boundary, not a claim: POSIX argv uses `surrogateescape`,
+/// so the source really commits a *used* `\udc80..\udcff` and git stores the
+/// corresponding `U+0080..U+00FF` bytes. The native commit-message seam is
+/// UTF-8-only (`sk_git::SafeCommitRequest` takes `String`), so native refuses
+/// truthfully and preserves the durable row; closing this needs an explicit Git
+/// byte-message seam extension.
+#[test]
+fn legacy_used_low_surrogate_surrogateescape_boundary_is_measured() {
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let source = Fixture::with_positive_primary();
+    source.checkout_new("topic");
+
+    let cases = [
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCR",
+            r#"{"profile_id":"\udc80","action":"a"}"#,
+            b"op(\xc2\x80): a [01ARZ3ND]\n".as_slice(),
+            "U+DC80",
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCS",
+            r#"{"profile_id":"\udcff","action":"a"}"#,
+            b"op(\xc3\xbf): a [01ARZ3ND]\n".as_slice(),
+            "U+DCFF",
+        ),
+    ];
+    for (invocation_id, body, source_subject, code) in cases {
+        let line = format!("{body}\n");
+        fixture.write_record_line(invocation_id, &line);
+        source.write_record_line(invocation_id, &line);
+        let before = fixture.snapshot();
+        let source_head = source.head();
+        let reference = oracle_commit(&source.root, &source.root, invocation_id, "agent", None);
+        assert_eq!(
+            reference["committed"], true,
+            "{invocation_id}: the source commits through argv surrogateescape"
+        );
+        assert_ne!(source.head(), source_head);
+        assert_eq!(
+            source.git_ok(&["log", "-1", "--format=%s"]),
+            source_subject,
+            "{invocation_id}: measured source subject bytes"
+        );
+
+        let mut service = fixture.service();
+        let outcome = service.commit_op_record(&id(invocation_id), OpClosedBy::Agent);
+        assert!(!outcome.committed(), "{invocation_id}: {outcome:?}");
+        let refusal = outcome.refusal().expect("a truthful native refusal");
+        assert!(
+            refusal.contains("not representable as UTF-8") && refusal.contains(code),
+            "{invocation_id}: disclosed seam boundary, got {refusal:?}"
+        );
+        assert!(
+            !refusal.contains("Invalid invocation record"),
+            "{invocation_id}: the row is valid; got {refusal:?}"
+        );
+        assert_eq!(fixture.snapshot(), before);
+        assert_eq!(fixture.record_bytes(invocation_id), line.as_bytes());
+    }
+}
+
+/// Grammar control: surrogate *acceptance* must not loosen escape validation.
+/// Malformed second escapes, unknown escapes, unterminated strings and trailing
+/// unused data still refuse with no write in both implementations.
+#[test]
+fn legacy_surrogate_grammar_and_malformed_escapes_still_refuse() {
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let source = Fixture::with_positive_primary();
+    source.checkout_new("topic");
+    let mut service = fixture.service();
+
+    let cases = [
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCT",
+            r#"{"profile_id":"\ud800\uZZZZ"}"#,
+        ),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCV",
+            r#"{"profile_id":"\ud800\u00"}"#,
+        ),
+        ("01ARZ3NDEKTSV4RRFFQ69G5FCW", r#"{"profile_id":"\ud800\q"}"#),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCX",
+            r#"{"profile_id":"p","action":"a","unused":"\ud800"} x"#,
+        ),
+        ("01ARZ3NDEKTSV4RRFFQ69G5FCY", r#"{"profile_id":"\ud800"#),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FCZ",
+            r#"{"profile_id":"\ud800\udc0"}"#,
+        ),
+    ];
+    for (invocation_id, body) in cases {
+        let line = format!("{body}\n");
+        fixture.write_record_line(invocation_id, &line);
+        source.write_record_line(invocation_id, &line);
+        let before = fixture.snapshot();
+        let source_head = source.head();
+        let expected = format!("Invalid invocation record: {invocation_id}");
+        let reference = oracle_commit(&source.root, &source.root, invocation_id, "agent", None);
+        assert_eq!(
+            reference["committed"], false,
+            "{invocation_id}: the source refuses malformed input"
+        );
+        let outcome = service.commit_op_record(&id(invocation_id), OpClosedBy::Agent);
+        assert_eq!(
+            outcome.refusal(),
+            Some(expected.as_str()),
+            "{invocation_id}"
+        );
+        assert_eq!(fixture.snapshot(), before);
+        assert_eq!(source.head(), source_head);
+        assert_eq!(fixture.record_bytes(invocation_id), line.as_bytes());
+        assert_eq!(source.record_bytes(invocation_id), line.as_bytes());
+    }
+}
+
+/// Cross-side object identity for the corrected strings: fixed
+/// author/committer/date in a child process (never the parent environment), so
+/// equal heads prove equal complete commit objects, and `cat-file -p` proves
+/// the bytes rather than an inference from the subject alone.
+#[test]
+fn legacy_unicode_and_surrogate_commit_objects_match_the_pinned_source() {
+    const CHILD: &str = "SK_OP_LEGACY_UNICODE_OBJECT_CHILD";
+    if std::env::var_os(CHILD).is_some() {
+        let fixture = Fixture::with_positive_primary();
+        fixture.checkout_new("topic");
+        let source = Fixture::with_positive_primary();
+        source.checkout_new("topic");
+        let cases = [
+            (
+                "01ARZ3NDEKTSV4RRFFQ69G5FD0",
+                r#"{"event": "started", "invocation_id": "01ARZ3NDEKTSV4RRFFQ69G5FD0", "profile_id": {"k": "a\u00a0\u200b\u2029b"}, "action": "x"}"#,
+            ),
+            (
+                "01ARZ3NDEKTSV4RRFFQ69G5FD1",
+                r#"{"event": "started", "invocation_id": "01ARZ3NDEKTSV4RRFFQ69G5FD1", "profile_id": ["\ud800", "\udc80"], "action": "x"}"#,
+            ),
+            (
+                "01ARZ3NDEKTSV4RRFFQ69G5FD2",
+                r#"{"event": "started", "invocation_id": "01ARZ3NDEKTSV4RRFFQ69G5FD2", "profile_id": "p", "action": "a", "unused": {"\ud800": "\u2029"}}"#,
+            ),
+            (
+                "01ARZ3NDEKTSV4RRFFQ69G5FD3",
+                r#"{"event": "started", "invocation_id": "01ARZ3NDEKTSV4RRFFQ69G5FD3", "profile_id": "\ud83d\ude00", "action": "a"}"#,
+            ),
+        ];
+        for (invocation_id, body) in cases {
+            let line = format!("{body}\n");
+            let expected = oracle_legacy_commit(&source, invocation_id, &line);
+            assert_legacy_commit(&fixture, invocation_id, &line, &expected);
+            assert_eq!(
+                fixture.head(),
+                source.head(),
+                "{invocation_id}: fixed metadata binds the complete commit object"
+            );
+            assert_eq!(
+                fixture.git_ok(&["cat-file", "-p", "HEAD"]),
+                source.git_ok(&["cat-file", "-p", "HEAD"]),
+                "{invocation_id}: complete commit bytes"
+            );
+        }
+        return;
+    }
+    let scratch = tempfile::tempdir().expect("isolated child CWD");
+    let output = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "legacy_unicode_and_surrogate_commit_objects_match_the_pinned_source",
+            "--nocapture",
+        ])
+        .env(CHILD, "1")
+        .env("GIT_AUTHOR_NAME", "Test Author")
+        .env("GIT_AUTHOR_EMAIL", "test@example.com")
+        .env("GIT_COMMITTER_NAME", "Test Committer")
+        .env("GIT_COMMITTER_EMAIL", "test@example.com")
+        .env("GIT_AUTHOR_DATE", "2020-01-01T00:00:00+0000")
+        .env("GIT_COMMITTER_DATE", "2020-01-01T00:00:00+0000")
+        .current_dir(scratch.path())
+        .output()
+        .expect("run Unicode object child");
+    assert!(
+        output.status.success(),
+        "Unicode object child failed: {:?}\n{}\n{}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+const PRINTABILITY_FACTS_SCRIPT: &str = r#"
+import json, sys, unicodedata
+ranges = []
+for code in range(0x110000):
+    if not chr(code).isprintable():
+        if ranges and ranges[-1][1] + 1 == code:
+            ranges[-1][1] = code
+        else:
+            ranges.append([code, code])
+json.dump({
+    "unidata": unicodedata.unidata_version,
+    "nonprintable": sum(end - start + 1 for start, end in ranges),
+    "ranges": len(ranges),
+    "space_printable": " ".isprintable(),
+    "surrogates_printable": [chr(0xD800).isprintable(), chr(0xDFFF).isprintable()],
+}, sys.stdout)
+"#;
+
+const UNICODE_REPR_SCRIPT: &str = r#"
+import sys
+sys.stdout.write("\x00".join(
+    repr(chr(code)) for code in range(0x110000) if not 0xD800 <= code <= 0xDFFF
+))
+"#;
+
+/// Full-table equivalence: `python_repr` must render every Unicode scalar
+/// exactly as CPython 3.11.15 does, and the verified metadata must match the
+/// pinned interpreter (unidata 14.0.0, 969,596 non-printable code points in 701
+/// ranges). Surrogates cannot be Rust `char`s; their `\udXXX` escapes are
+/// covered by the nested-representation service tests.
+#[test]
+fn python_repr_matches_cpython_isprintable_for_every_unicode_scalar() {
+    let facts: serde_json::Value =
+        serde_json::from_str(&support::run_python(PRINTABILITY_FACTS_SCRIPT, None))
+            .expect("oracle printability facts");
+    assert_eq!(
+        facts["unidata"], "14.0.0",
+        "the pinned interpreter's Unicode version"
+    );
+    assert_eq!(facts["nonprintable"], 969_596);
+    assert_eq!(facts["ranges"], 701);
+    assert_eq!(facts["space_printable"], true, "ASCII space is printable");
+    assert_eq!(
+        facts["surrogates_printable"],
+        json!([false, false]),
+        "every surrogate code unit is non-printable"
+    );
+
+    let oracle = support::run_python(UNICODE_REPR_SCRIPT, None);
+    let expected: Vec<&str> = oracle.split('\u{0}').collect();
+    let scalars: Vec<u32> = (0..0x110000)
+        .filter(|code| !(0xD800..=0xDFFF).contains(code))
+        .collect();
+    assert_eq!(
+        expected.len(),
+        scalars.len(),
+        "one oracle repr per Unicode scalar"
+    );
+
+    let mut native = String::with_capacity(oracle.len());
+    for (index, code) in scalars.iter().enumerate() {
+        if index > 0 {
+            native.push('\u{0}');
+        }
+        let character = char::from_u32(*code).expect("scalar code point");
+        native.push_str(&python_repr(&character.to_string()));
+    }
+    if native != oracle {
+        let mut mismatches = Vec::new();
+        let mut count = 0usize;
+        for (index, code) in scalars.iter().enumerate() {
+            let character = char::from_u32(*code).unwrap();
+            let produced = python_repr(&character.to_string());
+            if produced != expected[index] {
+                count += 1;
+                if mismatches.len() < 8 {
+                    mismatches.push(format!(
+                        "U+{code:04X}: native {produced:?} source {:?}",
+                        expected[index]
+                    ));
+                }
+            }
+        }
+        panic!(
+            "python_repr diverges from CPython 3.11.15 for {count} of {} scalars (first 8): {mismatches:?}",
+            scalars.len()
+        );
+    }
+}
+
+/// Decision-order control: the reference only fails on a used surrogate when it
+/// encodes the message at the commit step, so an earlier skip or protected-
+/// branch decision still wins. Native defers its encoding refusal past skip,
+/// but its UTF-8-only seam precedes the canonical protection guard. This test
+/// records that measured residual, not identical decision precedence or error
+/// classification; the source's staged-index-on-error also remains open.
+#[test]
+fn legacy_used_surrogate_keeps_source_decision_order() {
+    let line = format!("{}\n", r#"{"profile_id":"\ud800","action":"a"}"#);
+
+    // (a) The primary tracks no Op records: both skip before any encoding.
+    let fixture = Fixture::new("main");
+    fixture.checkout_new("topic");
+    let source = Fixture::new("main");
+    source.checkout_new("topic");
+    fixture.write_record_line(RECORD, &line);
+    source.write_record_line(RECORD, &line);
+    let reference = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+    assert_eq!(reference["committed"], false);
+    assert!(
+        reference["skipped"].is_string(),
+        "the source skips before encoding: {reference:?}"
+    );
+    let mut service = fixture.service();
+    let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
+    assert!(!outcome.committed(), "{outcome:?}");
+    assert_eq!(outcome.refusal(), None, "{outcome:?}");
+    assert!(outcome.skipped().is_some(), "{outcome:?}");
+    assert!(!fixture.subject().contains("op("), "no commit landed");
+
+    // (b) A protected current branch: the source's `safe_commit` refuses on
+    // protection before it ever encodes the message, while the native message
+    // must already be UTF-8 *before* `safe_commit` runs. That precedence is the
+    // disclosed UTF-8-only-seam residual: both refuse, nothing lands, but the
+    // native refusal is the encoding one.
+    let fixture = Fixture::with_positive_primary();
+    protect(&fixture.root, "[main]");
+    let source = Fixture::with_positive_primary();
+    protect(&source.root, "[main]");
+    fixture.write_record_line(RECORD, &line);
+    source.write_record_line(RECORD, &line);
+    let head = fixture.head();
+    let reference = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+    assert_eq!(reference["committed"], false);
+    assert!(
+        reference["refusal"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("protected branch")),
+        "the source refuses on protection before encoding: {reference:?}"
+    );
+    let mut service = fixture.service();
+    let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
+    assert!(!outcome.committed(), "{outcome:?}");
+    assert_eq!(fixture.head(), head, "nothing landed");
+    let refusal = outcome.refusal().expect("a native refusal");
+    assert!(
+        refusal.contains("not representable as UTF-8"),
+        "the encoding refusal precedes native safe_commit: {refusal:?}"
+    );
+    assert_eq!(fixture.record_bytes(RECORD), line.as_bytes());
 }

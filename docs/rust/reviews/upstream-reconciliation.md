@@ -1,8 +1,13 @@
 # Upstream reconciliation: current fork, older rewrite baseline
 
 Fork `main` and upstream `main` both resolve to
-`ba53b7aa6af82d01e56fdb5e3c9de23194816b76` (fork fast-forwarded and both remotes
-rechecked). Total gap: **695 commits**. Newest14 after1bff48901 changes56 files
+`de5f4dc5f374170226a5331129c80927946e5d64` (fork fast-forwarded and both remotes
+rechecked). Total gap: **705 commits**. Newest10 afterba53b7aa6 changes36 files
+(+1898/-73); production tracer_append.py and retrospective/tracer_writer.py
+(+101/-33) add owned-checkout tracer routing and preserve mission protection for
+owned aliases. Tests/docs/Mission records also change. No dependency/pack/service/
+toolchain pins; semantics remain unadopted. Evidence `/tmp/sk-unicode-upstream-refresh.log`.
+The preceding14 after1bff48901 changes56 files
 (+2,710/-59), including owned evidence/ownership-unresolved handling, canceled-WP
 owned acceptance, unreadable move-task refusal and orchestrator contract1.23.
 Production source delta spans accept.py, agent/tasks_move_task.py, consolidation
