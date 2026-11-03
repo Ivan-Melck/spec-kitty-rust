@@ -1,6 +1,12 @@
 # Language CLI binding report (FINAL)
 
-Status: **FINAL** — binding implemented, gated and reported in place.
+Status: **historical 1eb binding checkpoint**, not current composition approval.
+The later independent review confirms the signal/P1 consolidation but finds F1–F4
+composition/evidence defects. In particular the withdrawn cited-tactic assertion
+was withdrawn for the wrong reason: skipped org graph loading, not renderer
+breadth. Preserve the original sequence below; see
+`COMPOSITION-REMEDIATION-REPORT.md` for corrected composition, non-vacuous
+positive/missing-profile controls, BOM ownership and current bound hashes.
 
 Task: bind the live CLI language signal to the canonical `sk_doctrine` language-scope
 service (independent review P1), delete the CLI's second catalog/tier/interview

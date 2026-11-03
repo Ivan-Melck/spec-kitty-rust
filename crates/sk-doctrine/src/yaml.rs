@@ -37,18 +37,22 @@ pub struct YamlDocument {
 impl YamlDocument {
     /// Parse `text` as one YAML document.
     pub fn parse(text: &str, path: &Path) -> Result<Self, DoctrineError> {
+        // Parse semantic/syntax content without a leading UTF-8 BOM. Keep
+        // original bytes as the precondition and restore the BOM on rendering;
+        // read-only activation lookup must not fail on a valid config either.
+        let content = text.strip_prefix('\u{feff}').unwrap_or(text);
         let semantic: serde_yaml_ng::Value =
-            serde_yaml_ng::from_str(text).map_err(|error| DoctrineError::Yaml {
+            serde_yaml_ng::from_str(content).map_err(|error| DoctrineError::Yaml {
                 path: path.to_path_buf(),
                 message: error.to_string(),
             })?;
         let source = match semantic {
-            serde_yaml_ng::Value::Mapping(_) => text.to_owned(),
+            serde_yaml_ng::Value::Mapping(_) => content.to_owned(),
             serde_yaml_ng::Value::Null => {
                 // A null/empty ledger is an empty mapping, never a scalar we
                 // can silently fail to update. Preserve its comment text.
                 let mut source = String::new();
-                for line in text.lines() {
+                for line in content.lines() {
                     if line.trim_start().starts_with('#') {
                         source.push_str(line);
                         source.push('\n');
@@ -266,7 +270,12 @@ impl YamlDocument {
 
     /// Render the document.
     pub fn to_text(&self) -> String {
-        self.document.to_string()
+        let rendered = self.document.to_string();
+        if self.original.starts_with('\u{feff}') {
+            format!("\u{feff}{rendered}")
+        } else {
+            rendered
+        }
     }
 
     /// Whether the document changed since it was parsed.
@@ -594,6 +603,36 @@ mod tests {
                 Err(DoctrineError::YamlRootNotMapping { .. })
             ));
         }
+    }
+
+    #[test]
+    fn bom_documents_are_read_losslessly_and_keep_the_bom_on_mutation() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("config.yaml");
+        let original = "\u{feff}agents:\n  available: [codex]\n# user comment\nactivated_directives: [a] # keep\nother: 'authored value'\n";
+        fs::write(&path, original).unwrap();
+        let mut document = YamlDocument::open(&path).unwrap();
+        assert_eq!(document.original(), original);
+        assert_eq!(document.to_text(), original);
+        assert!(!document.changed());
+        document.set_string_list("activated_directives", &["a".to_owned(), "b".to_owned()]);
+        let text = document.to_text();
+        assert!(text.starts_with("\u{feff}agents:\n"));
+        assert!(text.contains("# user comment\n"));
+        assert!(text.contains("# keep"));
+        assert!(text.contains("other: 'authored value'\n"));
+        PreparedWrite::prepare(&path, text.as_bytes().to_vec())
+            .unwrap()
+            .apply(DEFAULT_LOCK_TIMEOUT)
+            .unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), text);
+        assert_eq!(
+            YamlDocument::open(&path)
+                .unwrap()
+                .get_string_list("activated_directives")
+                .unwrap(),
+            Some(vec!["a".to_owned(), "b".to_owned()])
+        );
     }
 
     #[test]

@@ -14,7 +14,7 @@ Coordinator handles the bounded findings directly:
 
 | Finding | Disposition |
 | --- | --- |
-| P1: existing wired CLI catalog/tier/interview duplicate; profile family/sentinel copy | **Binding implemented; independent integration review pending.** CLI duplicate deleted and canonical service/family rules consumed; real-CLI Zig red29/1 then scoped69 green, doctrine174 unchanged. Do not infer full prompt/cited-tactic or whole-language parity. |
+| P1: existing wired CLI catalog/tier/interview duplicate; profile family/sentinel copy | **Signal binding/consolidation independently accepted at1eb, with composition findings.** CLI duplicate deleted and canonical family rules consumed. Later review found skipped canonical org graphs, invalid fixture and vacuous admitted-side tests; coordinator corrections restore actual cited delivery and negative controls. No whole-language/N5 approval follows. |
 | P2: valid BOM-prefixed multi-key input disappears | Four-reader live-oracle red, fixed with read-only BOM normalization. |
 | P3: unknown-tag artifact contributes plain/tagged items | Whole-file skip restored; untagged and explicit standard-string positives remain. |
 | P4: unrelated config validation drops org packs | Canonical registry-only API reuses the org-block/pack validator; strict whole-project validation stays strict. |
@@ -33,3 +33,15 @@ Later canonical binding checkpoint: coordinator2,112/0/9 helpers,181 suites,
 strict workspace Clippy/fmt/releases. This does not turn the original additive
 review into CLI approval. P5/P6/P7 remain real differences. See the CLI binding
 report and newest verification section.
+
+Subsequent integration review `/tmp/sk-rust-language-binding-review.md` proves
+P1 signal semantics but finds F1–F4. Coordinator runtime red28/7, true BOM
+round-trip red0/1 (two comment-led shapes passed, not reproductions). Fixes
+cover fragment/root-graph/project-schema separation, actual profile links and
+context diagnostics, valid org artifacts/fixtures, missing-profile/failure
+controls and lossless BOM YAML. The strict sk-charter reader already supported
+BOM; activation's later YAML reader caused F4. Python project overlays use root
+graphs, not org-shaped project fragments. Corrected source attributions are in
+`crates/sk-cli/COMPOSITION-REMEDIATION-REPORT.md`. Stable2,117/0/9 helpers,
+181 suites, strict Clippy/fmt/releases. New corrections are tested, not newly
+independently approved; P5/P6/P7 and all broader gates remain open.

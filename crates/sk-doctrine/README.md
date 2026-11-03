@@ -225,8 +225,11 @@ The doctrine-side half of the language signal, ported from
 defaults. The runtime CLI's profile gate now calls this service with an explicit
 caller-owned cache and the same selected packs override as context composition.
 The old CLI catalog/tier/interview implementation and private profile family copy
-are deleted. Binding has scoped tests, but independent integration review is
-pending; this is not whole language or runtime parity.
+are deleted. Signal binding/consolidation has scoped independent acceptance. The review
+also found skipped org graphs and vacuous positive admission tests; coordinator
+fixes now load graph shapes separately and assert real profile links/delivered
+tactics with missing-profile/failure controls. Those fixes are not new independent
+whole-language or runtime approval.
 
 - `scoped_language_vocabulary(repo_root, packs_root)` is a lightweight YAML scan
   of `applies_to_languages` over exactly the five scoped kinds (tactics,
@@ -293,8 +296,8 @@ are unchanged.
 
 ## Verification
 
-- `CARGO_BUILD_JOBS=2 cargo test -p sk-doctrine --locked`: **174 passed,**
-  **0 failed** (120 unit + 18 checked-in baseline conformance + 21
+- `CARGO_BUILD_JOBS=2 cargo test -p sk-doctrine --locked`: **175 passed,**
+  **0 failed** (121 unit + 18 checked-in baseline conformance + 21
   oracle-generated governance fixtures/regressions + 13 oracle-generated
   language-scope differential tests + 2 doctests). The pre-existing 149 all
   still pass; the language-scope tests are additive.
@@ -421,14 +424,15 @@ These are real missing behaviours, not aliases for a successful stub.
     unknown mission type), can still resolve where the reference degrades to
     directly loaded locals. The 149-test / 52-check review does not approve
     those cases.
-15. **Language binding implemented; independent integration review pending.**
+15. **Signal binding reviewed; composition corrections tested, not approved.**
     Runtime `next` profile composition now calls `LanguageScopeService` and
     shares canonical family/sentinel rules. Custom Zig admission fails red on
     the old CLI, then passes alongside Rust/no-signal controls. Admission is
-    observed through scope diagnostics and authored WP fields/metadata, not
-    exact full-prompt/cited-tactic delivery parity. P5/P6/P7 Unicode, numeric
-    repr and full transcript encoding remain real differences. No broad N5,
-    language, governance or `next` acceptance is claimed before review.
+    now requires actual profile links AND delivered tactic IDs, plus live
+    reference context positives/missing-profile and root-graph controls. Shared
+    lossless YAML reads/mutations preserve BOMs. These corrections are not new
+    independent N5/whole-prompt approval. P5/P6/P7 Unicode, numeric repr and full
+    transcript encoding remain real differences; no broad governance/next parity.
 
 ## API map for the coordinator CLI
 

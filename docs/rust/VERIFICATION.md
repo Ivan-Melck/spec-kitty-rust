@@ -8,7 +8,41 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Canonical language CLI binding checkpoint — after `5909598e1`
+## Governance composition correction checkpoint — after `1eb5c99ef`
+
+Owners idle: **2,117 passed / 0 failed / 9 parent-exercised helpers**,181 suites
+including doctests; strict workspace all-target Clippy/full fmt and both release
+binaries pass. Logs `/tmp/sk-native-composition-stable-{aggregate,clippy,fmt,release}.log`.
+Completion still599/PERF27/pending, accounting valid,0/16 workflows;
+`/tmp/sk-composition-stable-completion-report.json`. No inventory/speed promotion.
+
+Independent review accepts signal binding/consolidation but finds actual
+composition/evidence defects. Coordinator restores cited-tactic assertions on
+reference-valid plural-kind/profile-node/real-artifact fixtures; runtime red
+**28 pass/7 failures**, shared YAML true leading-map BOM red **0/1**. Two initial
+comment-led BOM probes passed1/0 and are not reproductions, despite log names.
+Fixed scoped CLI73 (runtime35/lib9/compat26/library3), doctrine175 incl doctests.
+
+Runtime loads org root graphs and canonical fragments separately, retains
+configured pack names/order, and keeps the reference's project root-graph
+schema. Actual model profile links/context diagnostics are rendered. Positive
+admission requires selected-profile link AND delivered tactic, with missing
+profile/governance-failure controls; root-only, fragment-only, both-shapes and
+project controls compare against real required-oracle context delivery.
+
+Shared lossless YAML reader now accepts BOM without dropping authored BOM,
+comments, quoting or unchanged bytes. The strict sk-charter config reader
+already supported BOM; the later activation/YAML reader caused F4. Thus two
+review source attributions are corrected rather than blindly implemented:
+project input is not an org-shaped fragment, and F4 is not sk-charter config.
+Full source/evidence: `crates/sk-cli/COMPOSITION-REMEDIATION-REPORT.md`.
+
+These bounded corrections are tested, not new independent N5/whole-language/
+next approval. P5 Unicode/P6 float repr/P7 full charset ingestion and separate
+Op/StepContract/protected-main false advance remain open. No source/pin/oracle
+rebinding, release publication, measured campaign or performance acceptance.
+
+## Previous canonical language CLI binding checkpoint — after `5909598e1`
 
 All owners stopped: **2,112 passed / 0 failed / 9 parent-exercised helpers**,
 181 suites including doctests. Strict workspace all-target Clippy, full fmt

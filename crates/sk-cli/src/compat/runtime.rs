@@ -1430,6 +1430,13 @@ fn render_governance(facts: &GovernanceFacts) -> String {
         &entry_ids(&facts.context.procedures),
         false,
     );
+    let profile_links: Vec<String> = facts
+        .context
+        .profile_links
+        .iter()
+        .map(|link| format!("{} -> {}", link.profile, link.urn))
+        .collect();
+    append("Profile Links", &profile_links, false);
     append("Section Anchors", &[], true);
     if !facts.diagnostics.is_empty() {
         lines.push(format!(
@@ -1477,17 +1484,24 @@ fn action_context(
     profile_id: Option<&str>,
 ) -> Result<GovernanceFacts, String> {
     let packs_override = packs_root(repo_root);
-    let (built_in, org_roots, project) = doctrine_roots(repo_root, packs_override.as_deref())?;
-    let built_in_graph =
+    let (built_in, org_packs, project) = doctrine_roots(repo_root, packs_override.as_deref())?;
+    let org_roots: Vec<PathBuf> = org_packs.iter().map(|pack| pack.root.clone()).collect();
+    let mut built_in_graph =
         sk_doctrine::load_graph_or_dir(&built_in).map_err(|error| error.to_string())?;
     let mut fragments = Vec::new();
-    for (index, root) in org_roots.iter().enumerate() {
+    for (index, pack) in org_packs.iter().enumerate() {
+        let root = &pack.root;
+        // Root-level charter graphs and org-shaped fragments are distinct
+        // inputs in the reference. A root graph must not gate the fragment,
+        // nor imply that a fragment exists. Both can contribute to one pack.
         if sk_doctrine::has_graph_files(root) {
-            let name = root
-                .file_name()
-                .map(|name| name.to_string_lossy().into_owned())
-                .unwrap_or_else(|| format!("org-{index}"));
-            let fragment = sk_doctrine::load_org_pack(&name, root, index)
+            let root_graph =
+                sk_doctrine::load_graph_or_dir(root).map_err(|error| error.to_string())?;
+            built_in_graph = sk_doctrine::merge_layers(&built_in_graph, Some(&root_graph))
+                .map_err(|error| error.to_string())?;
+        }
+        if root.join(sk_doctrine::ORG_FRAGMENT).exists() {
+            let fragment = sk_doctrine::load_org_pack(&pack.name, root, index + 1)
                 .map_err(|error| error.to_string())?;
             fragments.push(fragment);
         }
@@ -1610,6 +1624,12 @@ fn action_context(
         ));
     }
 
+    diagnostics.extend(
+        context
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.clone()),
+    );
     Ok(GovernanceFacts {
         context,
         paradigms,
@@ -1623,7 +1643,7 @@ fn action_context(
 fn doctrine_roots(
     repo_root: &Path,
     packs_root: Option<&Path>,
-) -> Result<(PathBuf, Vec<PathBuf>, Option<PathBuf>), String> {
+) -> Result<(PathBuf, Vec<sk_charter::OrgPackRoot>, Option<PathBuf>), String> {
     let config = sk_charter::load_project_config(repo_root, &sk_charter::Limits::default())
         .map_err(|error| error.to_string())?;
     let expansion = sk_charter::PathExpansion::from_env();
@@ -1636,12 +1656,7 @@ fn doctrine_roots(
     let built_in = roots
         .built_in
         .ok_or_else(|| "no built-in pack root could be resolved".to_string())?;
-    let org_roots = roots
-        .organizations
-        .iter()
-        .map(|pack| pack.root.clone())
-        .collect();
-    Ok((built_in, org_roots, roots.project))
+    Ok((built_in, roots.organizations, roots.project))
 }
 
 // ---------------------------------------------------------------------------

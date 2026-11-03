@@ -1496,9 +1496,8 @@ fn advance_prompt_body(root: &Path, home: &Path, slug: &str) -> String {
     fs::read_to_string(decision["prompt_file"].as_str().expect("prompt")).expect("prompt body")
 }
 
-/// A board whose `WP01` is pinned to a Zig-scoped profile. The Rust-scoped
-/// sibling makes the language filter observable in both directions. These
-/// tests check profile-scope diagnostics, not delivery of cited org tactics.
+/// Reference-valid profiles, artifacts and plural-kind org graph. The selected
+/// profile's unique channel link is a positive signal, unlike missing exclusions.
 fn language_scoped_profile_mission(interview: Option<&str>) -> (TempDir, PathBuf, String) {
     let (temp, home, slug) = board_mission(
         "software-dev",
@@ -1513,7 +1512,7 @@ fn language_scoped_profile_mission(interview: Option<&str>) -> (TempDir, PathBuf
     );
     write(
         &org.join("drg/fragment.yaml"),
-        "pack_name: acme\nnodes:\n  - id: zig-practice\n    kind: tactic\n    title: Zig practice\n  - id: rust-practice\n    kind: tactic\n    title: Rust practice\nedges:\n  - source: agent_profile:zig-specialist\n    target: tactic:zig-practice\n    relation: requires\n  - source: agent_profile:rust-specialist\n    target: tactic:rust-practice\n    relation: requires\n",
+        "pack_name: acme\nnodes:\n  - id: zig-specialist\n    kind: agent_profiles\n  - id: rust-specialist\n    kind: agent_profiles\n  - id: zig-practice\n    kind: tactics\n    title: Zig practice\n  - id: rust-practice\n    kind: tactics\n    title: Rust practice\nedges:\n  - source: agent_profile:zig-specialist\n    target: tactic:zig-practice\n    relation: requires\n  - source: agent_profile:rust-specialist\n    target: tactic:rust-practice\n    relation: requires\n",
     );
     write(
         &org.join("org-charter.yaml"),
@@ -1548,8 +1547,174 @@ fn language_scoped_profile_mission(interview: Option<&str>) -> (TempDir, PathBuf
         );
     }
     git(root, &["add", "-A"]);
+    for language in ["zig", "rust"] {
+        write(
+            &org.join(format!("tactics/{language}-practice.tactic.yaml")),
+            &format!(
+                "schema_version: '1.0'\nid: {language}-practice\nname: {language} practice\npurpose: Authored specialist practice.\napplies_to_languages: [{language}]\n"
+            ),
+        );
+    }
+    write(
+        &root.join(".kittify/charter/charter.yaml"),
+        "catalog:\n  mission: software-dev\n",
+    );
+    git(root, &["add", "-A"]);
     git(root, &["commit", "-qm", "language-scoped profile fixture"]);
     (temp, home, slug)
+}
+
+fn profile_channel_delivered(body: &str, profile: &str, tactic: &str) -> bool {
+    !body.contains("governance context unavailable")
+        && body
+            .lines()
+            .any(|line| line == format!("  - {profile} -> tactic:{tactic}"))
+        && body.lines().any(|line| line == format!("  - {tactic}"))
+}
+
+fn pin_profile(root: &Path, slug: &str, profile: &str) {
+    let path = root
+        .join("kitty-specs")
+        .join(slug)
+        .join("tasks/WP01-first.md");
+    let text = fs::read_to_string(&path).unwrap();
+    fs::write(
+        path,
+        text.replace(
+            "agent_profile: zig-specialist",
+            &format!("agent_profile: {profile}"),
+        ),
+    )
+    .unwrap();
+}
+
+fn oracle_profile_channel_delivered(project: &Path, profile: &str, tactic: &str) -> bool {
+    let repo = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .unwrap();
+    let script = "import json,sys\nfrom pathlib import Path\nfrom charter.activation.context import build_charter_context\nc=build_charter_context(Path(sys.argv[1]),action='implement',mission_type='software-dev',profile=sys.argv[2],mark_loaded=False)\nheader='Profile-Cited Tactics ('+sys.argv[2]+'):'\ntail=c.text.partition(header)[2]\nprint(json.dumps(bool(tail) and sys.argv[3] in tail))\n";
+    let output = Command::new(oracle_support::python())
+        .arg("-c")
+        .arg(script)
+        .arg(project)
+        .arg(profile)
+        .arg(tactic)
+        .current_dir(project)
+        .env("PYTHONPATH", repo.join("src"))
+        .env("SPEC_KITTY_PACKS_ROOT", repo.join("packs"))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "reference-valid context fixture required: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&output.stdout).unwrap()
+}
+
+const PROFILE_ROOT_GRAPH: &str = "schema_version: '1.0'\ngenerated_at: STATIC\ngenerated_by: test\nnodes:\n  - urn: agent_profile:zig-specialist\n    kind: agent_profile\n  - urn: tactic:zig-practice\n    kind: tactic\nedges:\n  - source: agent_profile:zig-specialist\n    target: tactic:zig-practice\n    relation: requires\n";
+
+#[test]
+fn missing_selected_profile_cannot_satisfy_admission_evidence() {
+    let (temp, home, slug) =
+        language_scoped_profile_mission(Some("answers:\n  languages_frameworks: Zig\n"));
+    fs::remove_file(
+        temp.path()
+            .join("org-packs/acme/agent_profiles/zig-specialist.agent.yaml"),
+    )
+    .unwrap();
+    assert!(!oracle_profile_channel_delivered(
+        temp.path(),
+        "zig-specialist",
+        "zig-practice"
+    ));
+    let body = advance_prompt_body(temp.path(), &home, &slug);
+    assert!(!profile_channel_delivered(
+        &body,
+        "zig-specialist",
+        "zig-practice"
+    ));
+    assert!(
+        body.contains("profile \"zig-specialist\" could not be resolved"),
+        "unresolved profile must be observable: {body}"
+    );
+}
+
+#[test]
+fn governance_failure_cannot_satisfy_no_signal_admission_evidence() {
+    let (temp, home, slug) = language_scoped_profile_mission(None);
+    write(&temp.path().join(".kittify/config.yaml"), "charter: 123\n");
+    let body = advance_prompt_body(temp.path(), &home, &slug);
+    assert!(
+        body.contains("governance context unavailable"),
+        "positive failure control: {body}"
+    );
+    assert!(!profile_channel_delivered(
+        &body,
+        "zig-specialist",
+        "zig-practice"
+    ));
+}
+
+#[test]
+fn bom_config_keeps_governance_composition_and_profile_delivery() {
+    let (temp, home, slug) =
+        language_scoped_profile_mission(Some("answers:\n  languages_frameworks: Zig\n"));
+    let config = temp.path().join(".kittify/config.yaml");
+    let text = fs::read_to_string(&config).unwrap();
+    fs::write(&config, format!("\u{feff}{text}")).unwrap();
+    // This reader already supports BOM. The later activation/YAML reader is a
+    // separate dependency; do not attribute its failure to sk-charter config.
+    assert!(sk_charter::load_project_config(temp.path(), &sk_charter::Limits::default()).is_ok());
+    assert_eq!(oracle_infer_languages(temp.path()), json!(["zig"]));
+    let body = advance_prompt_body(temp.path(), &home, &slug);
+    assert!(
+        !body.contains("governance context unavailable"),
+        "BOM must not abort composition: {body}"
+    );
+    assert!(
+        profile_channel_delivered(&body, "zig-specialist", "zig-practice"),
+        "{body}"
+    );
+    assert_eq!(
+        fs::read_to_string(config).unwrap(),
+        format!("\u{feff}{text}")
+    );
+}
+
+#[test]
+fn root_graph_only_org_and_canonical_project_graph_both_deliver() {
+    for (project_layer, keep_fragment) in [(false, false), (true, false), (false, true)] {
+        let (temp, home, slug) =
+            language_scoped_profile_mission(Some("answers:\n  languages_frameworks: Zig\n"));
+        if !keep_fragment {
+            fs::remove_file(temp.path().join("org-packs/acme/drg/fragment.yaml")).unwrap();
+        }
+        let graph = if project_layer {
+            temp.path().join(".kittify/charter-packs/graph.yaml")
+        } else {
+            temp.path().join("org-packs/acme/graph.yaml")
+        };
+        write(&graph, PROFILE_ROOT_GRAPH);
+        assert!(oracle_profile_channel_delivered(
+            temp.path(),
+            "zig-specialist",
+            "zig-practice"
+        ));
+        let body = advance_prompt_body(temp.path(), &home, &slug);
+        assert!(
+            profile_channel_delivered(&body, "zig-specialist", "zig-practice"),
+            "root graph/project={project_layer}/fragment={keep_fragment}: {body}"
+        );
+        assert_eq!(
+            body.lines()
+                .filter(|line| *line == "  - zig-specialist -> tactic:zig-practice")
+                .count(),
+            1,
+            "duplicate layered edges must not duplicate profile deliveries"
+        );
+    }
 }
 
 #[test]
@@ -1684,9 +1849,16 @@ fn a_custom_zig_interview_admits_a_zig_scoped_profile() {
         language_scoped_profile_mission(Some("answers:\n  languages_frameworks: Zig\n"));
     let body = advance_prompt_body(temp.path(), &home, &slug);
 
-    // The custom language is vocabulary the Zig profile itself contributes,
-    // so the interview declaration must admit the profile. This regression
-    // does not establish delivery of its cited org tactic.
+    assert!(
+        profile_channel_delivered(&body, "zig-specialist", "zig-practice"),
+        "positive cited-doctrine delivery is required: {body}"
+    );
+    assert!(oracle_profile_channel_delivered(
+        temp.path(),
+        "zig-specialist",
+        "zig-practice"
+    ));
+    // Both the profile channel and its actual delivered tactic must be present.
     assert!(
         !body.contains("Agent profile zig-specialist was excluded by the active language scope."),
         "the Zig-scoped profile must be admitted: {body}"
@@ -1717,7 +1889,12 @@ fn a_custom_zig_interview_admits_a_zig_scoped_profile() {
 fn changing_the_declaration_from_zig_to_rust_filters_the_zig_profile() {
     let (temp, home, slug) =
         language_scoped_profile_mission(Some("answers:\n  languages_frameworks: Rust and Cargo\n"));
+    pin_profile(temp.path(), &slug, "rust-specialist");
     let body = advance_prompt_body(temp.path(), &home, &slug);
+    assert!(
+        profile_channel_delivered(&body, "rust-specialist", "rust-practice"),
+        "Rust channel must deliver: {body}"
+    );
 
     assert!(
         body.contains("Agent profile zig-specialist was excluded by the active language scope."),
@@ -1737,6 +1914,10 @@ fn removing_the_language_declaration_admits_every_scoped_profile() {
     let (temp, home, slug) = language_scoped_profile_mission(None);
     let body = advance_prompt_body(temp.path(), &home, &slug);
 
+    assert!(
+        profile_channel_delivered(&body, "zig-specialist", "zig-practice"),
+        "no-signal admission needs a positive delivery: {body}"
+    );
     assert!(
         !body.contains("excluded by the active language scope"),
         "no signal admits every scoped profile: {body}"
@@ -1770,7 +1951,22 @@ fn the_cli_language_decision_matches_the_required_oracle() {
         let (temp, home, slug) = language_scoped_profile_mission(Some(interview));
         let oracle = oracle_infer_languages(temp.path());
         assert_eq!(oracle, expected, "oracle signal for {interview:?}");
+        pin_profile(temp.path(), &slug, admitted);
         let body = advance_prompt_body(temp.path(), &home, &slug);
+        let tactic = if admitted == "zig-specialist" {
+            "zig-practice"
+        } else {
+            "rust-practice"
+        };
+        assert!(oracle_profile_channel_delivered(
+            temp.path(),
+            admitted,
+            tactic
+        ));
+        assert!(
+            profile_channel_delivered(&body, admitted, tactic),
+            "selected profile channel must actually deliver: {body}"
+        );
         assert!(
             !body.contains(&format!(
                 "Agent profile {admitted} was excluded by the active language scope."
