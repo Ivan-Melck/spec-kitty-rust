@@ -24,6 +24,7 @@ pub mod locks;
 pub mod no_follow;
 pub mod pack_tiers;
 pub mod paths;
+pub mod reference_path;
 pub mod user_dirs;
 
 pub use atomic::{
@@ -52,4 +53,5 @@ pub use paths::{
     resolve_built_in_pack_root, resolve_built_in_pack_root_from, resolve_installed_sibling,
     to_posix,
 };
+pub use reference_path::{ReferencePathError, resolve_reference_path};
 pub use user_dirs::{user_cache_dir, user_state_dir};

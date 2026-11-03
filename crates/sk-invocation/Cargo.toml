@@ -13,8 +13,6 @@ serde_json.workspace = true
 thiserror.workspace = true
 ulid.workspace = true
 sk-kernel = { path = "../sk-kernel" }
-
-[dev-dependencies]
 tempfile.workspace = true
 
 [lints]

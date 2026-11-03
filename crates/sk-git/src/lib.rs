@@ -129,6 +129,7 @@
 
 mod branch;
 mod error;
+mod ignore;
 mod index_authority;
 mod merge;
 mod merge_start;

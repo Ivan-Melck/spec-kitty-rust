@@ -11,7 +11,9 @@
 //! implemented here, and no capability is claimed. Its only effectful
 //! authorities are the `sk-kernel` event-log protocol (lock placement, locked
 //! append, torn-tail refusal, fsync/readback), the `sk-kernel` clock, and
-//! `sk-kernel` Git topology; it introduces no second lock and mutates no
+//! `sk-kernel` Git topology; path identity uses the kernel's read-only
+//! `reference_path` authority (the Python non-strict profile, not the
+//! containment/lock resolver). It introduces no second lock and mutates no
 //! process-global environment.
 //!
 //! Byte fidelity: Op lines are rendered with Python's `json.dumps` defaults
@@ -25,7 +27,6 @@ mod modes;
 mod op_custody;
 mod python_json;
 mod record;
-mod resolve;
 mod writer;
 
 pub use error::{

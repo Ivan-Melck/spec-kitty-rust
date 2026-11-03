@@ -19,16 +19,17 @@
 //! stage does not depend on, so no admission decision is faked here.
 
 use std::io;
+use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use sk_kernel::git_topology::{git_common_dir, git_toplevel};
+use sk_kernel::resolve_reference_path;
 use thiserror::Error;
 
 use crate::python_json::python_repr;
 use crate::record::InvocationId;
-use crate::resolve::resolve_non_strict;
 use crate::writer::InvocationWriter;
 
 /// Error code of the protected-branch admission refusal.
@@ -250,8 +251,10 @@ fn holds_record(checkout: &Path, invocation_id: &InvocationId) -> bool {
 
 /// Every checkout `git worktree list --porcelain` reports for the repository.
 ///
-/// A failing, timed-out, or absent Git binary degrades to no extra checkouts,
-/// exactly like the reference's `_git_lines`.
+/// The listing is drained while Git runs (a file-backed capture, so a large
+/// repository cannot deadlock the probe). A failing, timed-out, or absent Git
+/// binary degrades to no extra checkouts, exactly like the reference's
+/// `_git_lines`; a `None` here is the reference's empty list.
 fn repository_checkouts(project_root: &Path) -> Vec<PathBuf> {
     let Some(stdout) = git_lines(project_root, &["worktree", "list", "--porcelain"]) else {
         return Vec::new();
@@ -264,44 +267,58 @@ fn repository_checkouts(project_root: &Path) -> Vec<PathBuf> {
 }
 
 fn git_lines(cwd: &Path, arguments: &[&str]) -> Option<String> {
+    // Git writes to a regular temporary file, never a pipe: `subprocess.run(
+    // capture_output=True)` drains concurrently, while reading a pipe only
+    // after exit deadlocks as soon as the listing exceeds the pipe capacity
+    // (a repository with several hundred worktrees). No output cap is added;
+    // the full listing is what the reference parses.
+    let mut captured = tempfile::tempfile().ok()?;
+    let child_stdout = captured.try_clone().ok()?;
     let mut child = Command::new("git")
         .args(arguments)
         .current_dir(cwd)
         .stdin(Stdio::null())
-        .stdout(Stdio::piped())
+        .stdout(Stdio::from(child_stdout))
         .stderr(Stdio::null())
         .spawn()
         .ok()?;
     let deadline = Instant::now() + GIT_TIMEOUT;
-    loop {
+    let status = loop {
         match child.try_wait() {
-            Ok(Some(status)) => {
-                if !status.success() {
-                    return None;
-                }
-                let output = child.wait_with_output().ok()?;
-                let text = String::from_utf8_lossy(&output.stdout).into_owned();
-                return if text.trim().is_empty() {
-                    None
-                } else {
-                    Some(text)
-                };
-            }
-            Ok(None) if Instant::now() < deadline => {
-                std::thread::sleep(Duration::from_millis(10));
-            }
+            Ok(Some(status)) => break status,
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(10)),
             Ok(None) => {
+                // The direct child only; no process group or global signal.
                 let _ = child.kill();
                 let _ = child.wait();
                 return None;
             }
-            Err(_) => return None,
+            Err(_) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
         }
+    };
+    if !status.success() {
+        return None;
+    }
+    captured.seek(std::io::SeekFrom::Start(0)).ok()?;
+    let mut bytes = Vec::new();
+    captured.read_to_end(&mut bytes).ok()?;
+    let text = String::from_utf8_lossy(&bytes).into_owned();
+    if text.trim().is_empty() {
+        None
+    } else {
+        Some(text)
     }
 }
 
+/// Resolve a checkout path for identity comparison, keeping it verbatim when
+/// reference-path resolution refuses it (Python's `except OSError: keep`).
+/// Requires no lock and reads no record.
 fn resolve_or_keep(path: &Path) -> PathBuf {
-    resolve_non_strict(path).unwrap_or_else(|_| path.to_path_buf())
+    resolve_reference_path(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
 /// A Git probe that could not run at all.

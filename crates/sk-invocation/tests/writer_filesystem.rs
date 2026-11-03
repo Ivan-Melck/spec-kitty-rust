@@ -117,6 +117,57 @@ fn a_preexisting_trail_is_a_collision() {
 }
 
 #[test]
+fn a_record_larger_than_the_kernel_default_remains_completable() {
+    let temp = tempfile::tempdir().unwrap();
+    let writer = InvocationWriter::new(temp.path());
+    let record = started_with(ID, |fields| {
+        fields.request_text = "x".repeat(9 * 1024 * 1024)
+    });
+    let started_path = writer.write_started(&record).unwrap().path;
+    assert!(fs::metadata(&started_path).unwrap().len() > 8 * 1024 * 1024);
+    writer
+        .write_completed(&completed(ID))
+        .expect("a record accepted by start is still completable");
+    let text = fs::read_to_string(&started_path).unwrap();
+    assert_eq!(text.lines().count(), 2);
+    assert_eq!(
+        writer
+            .read_started(&InvocationId::parse(ID).unwrap())
+            .unwrap()
+            .request_text(),
+        record.request_text()
+    );
+}
+
+#[test]
+fn malformed_first_rows_are_not_absent_evidence_modes() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::create_dir_all(temp.path().join("kitty-ops")).unwrap();
+    let writer = InvocationWriter::new(temp.path());
+    let id = InvocationId::parse(ID).unwrap();
+    for first in ["[]", "\"bogus\"", "5", "null"] {
+        fs::write(trail(temp.path()), format!("{first}\n")).unwrap();
+        let error = writer
+            .read_started_mode(&id)
+            .expect_err("malformation is not absence");
+        assert_eq!(
+            error.to_string(),
+            format!("Invalid invocation record: {ID}")
+        );
+    }
+    fs::write(trail(temp.path()), "{\"mode_of_work\": false}\n").unwrap();
+    assert!(matches!(
+        writer.read_started_mode(&id).unwrap(),
+        RecordedMode::Undetermined(_)
+    ));
+    fs::write(trail(temp.path()), "{}\n").unwrap();
+    assert!(matches!(
+        writer.read_started_mode(&id).unwrap(),
+        RecordedMode::Absent
+    ));
+}
+
+#[test]
 fn completed_appends_one_line_after_started() {
     let temp = tempfile::tempdir().unwrap();
     let writer = InvocationWriter::new(temp.path());
@@ -669,4 +720,29 @@ fn normalise_ref_resolves_inside_outside_and_relative_refs() {
         let loop_ref = first.to_string_lossy().into_owned();
         assert_eq!(normalise_ref(&loop_ref, &repo), loop_ref);
     }
+}
+
+#[test]
+fn an_unresolvable_git_marker_renders_the_lock_unavailable_vocabulary() {
+    // `event_log_lock_path` refuses rather than locking beside the anchor when
+    // a `.git` marker exists but cannot be resolved. The rendered message is
+    // the pinned interim-protocol vocabulary; nothing is written.
+    let temp = tempfile::tempdir().unwrap();
+    fs::write(temp.path().join(".git"), "not a gitdir pointer\n").unwrap();
+    let writer = InvocationWriter::new(temp.path());
+    let error = writer.write_started(&started(ID)).unwrap_err();
+    let message = error.to_string();
+    assert!(
+        message.starts_with("Failed to write invocation record: "),
+        "{message}"
+    );
+    assert!(
+        message.contains("cannot place the event-log lock"),
+        "{message}"
+    );
+    assert!(
+        message.contains("Error code: EVENT_LOG_LOCK_UNAVAILABLE."),
+        "{message}"
+    );
+    assert!(!trail(temp.path()).exists(), "no record may be created");
 }

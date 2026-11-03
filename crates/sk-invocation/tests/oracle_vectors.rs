@@ -16,14 +16,15 @@
 mod support;
 
 use std::collections::BTreeMap;
+use std::fs;
 
 use serde_json::{Value, json};
 use sk_invocation::{
-    CorrelationLink, InvocationWriter, OpEvent, RecordParseError, append_op_closure,
+    CorrelationLink, InvocationId, InvocationWriter, OpEvent, RecordParseError, append_op_closure,
     closed_invocation_ids, parse_op_event,
 };
 
-use support::{completed, python, run_python, started};
+use support::{completed, python, run_python, started, started_with};
 
 const LINE_SCRIPT: &str = r#"
 import json, sys
@@ -534,4 +535,99 @@ json.dump(out, sys.stdout)
 
     // Non-vacuity: the oracle must actually be in the loop.
     assert!(python().is_file());
+}
+
+const LARGE_RECORD_SCRIPT: &str = r#"
+import json, sys
+from pathlib import Path
+from specify_cli.invocation.record import OpCompletedEvent, OpStartedEvent
+from specify_cli.invocation.writer import InvocationWriter
+
+payload = json.load(sys.stdin)
+root = Path(payload["root"])
+writer = InvocationWriter(root)
+if payload["action"] == "complete":
+    writer.write_completed(OpCompletedEvent.model_validate(payload["completed"]))
+else:
+    writer.write_started(OpStartedEvent.model_validate(payload["started"]))
+print("ok")
+"#;
+
+fn run_record_script(payload: &Value) -> String {
+    run_python(LARGE_RECORD_SCRIPT, Some(&payload.to_string()))
+}
+
+#[test]
+fn an_over_eight_mebibyte_record_closes_through_both_writers() {
+    // F1 control, independent of the coordinator's regression: a trail this
+    // writer creates above the kernel's generic 8 MiB precondition default
+    // must be closed by the reference and vice versa, byte-for-byte. The
+    // reference reads the whole owned record, so neither side may refuse it.
+    const LARGE_ID: &str = "01KQZ5N8X3V4R7T2B6M9C1D0EF";
+    let temp = tempfile::tempdir().expect("isolated project");
+    let native_root = temp.path().join("native-started");
+    let oracle_root = temp.path().join("oracle-started");
+    fs::create_dir_all(&native_root).unwrap();
+    fs::create_dir_all(&oracle_root).unwrap();
+
+    let started_record = started_with(LARGE_ID, |fields| {
+        fields.request_text = "x".repeat(9 * 1024 * 1024);
+    });
+    let started_fields: Value =
+        serde_json::from_str(&started_record.to_jsonl_line()).expect("started fields");
+    let completed_record = completed(LARGE_ID);
+    let completed_fields: Value =
+        serde_json::from_str(&completed_record.to_jsonl_line()).expect("completed fields");
+
+    // Native start -> reference close.
+    let native_path = InvocationWriter::new(&native_root)
+        .write_started(&started_record)
+        .expect("native start of a large record")
+        .path;
+    assert!(
+        fs::metadata(&native_path).unwrap().len() > 8 * 1024 * 1024,
+        "the fixture must be above the generic 8 MiB precondition default"
+    );
+    assert_eq!(
+        run_record_script(&json!({
+            "root": native_root.to_string_lossy(),
+            "action": "complete",
+            "completed": completed_fields,
+        })),
+        "ok"
+    );
+
+    // Reference start -> native close.
+    assert_eq!(
+        run_record_script(&json!({
+            "root": oracle_root.to_string_lossy(),
+            "action": "start",
+            "started": started_fields,
+        })),
+        "ok"
+    );
+    let oracle_path = InvocationWriter::new(&oracle_root)
+        .write_completed(&completed_record)
+        .expect("native close of a reference-created large record");
+    assert!(fs::metadata(&oracle_path).unwrap().len() > 8 * 1024 * 1024);
+
+    // Closure comparison: both roots hold exactly the two reference lines.
+    let native_bytes = fs::read(&native_path).expect("native trail");
+    let oracle_bytes = fs::read(&oracle_path).expect("oracle-started trail");
+    assert_eq!(native_bytes, oracle_bytes);
+    let trail = String::from_utf8(native_bytes).expect("UTF-8 trail");
+    assert_eq!(trail.lines().count(), 2);
+    let lines: Vec<&str> = trail.lines().collect();
+    assert_eq!(lines[0].len(), started_record.to_jsonl_line().len());
+    assert_eq!(lines[1], completed_record.to_jsonl_line());
+
+    // The completed record is readable through either writer's own root.
+    assert_eq!(
+        InvocationWriter::new(&native_root)
+            .read_started(&InvocationId::parse(LARGE_ID).unwrap())
+            .expect("read the large started row")
+            .request_text()
+            .len(),
+        9 * 1024 * 1024
+    );
 }

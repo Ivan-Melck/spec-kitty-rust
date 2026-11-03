@@ -24,9 +24,10 @@
 //! marker state, and never rolls back or deletes a possibly landed commit.
 //!
 //! A rejected `pre-commit`/`commit-msg` hook (a completed command with a failure
-//! status) is a plain command failure only when the state proves nothing landed:
-//! `HEAD` is still the pinned commit and the operation marker still records the
-//! pinned tip. A command that started and then failed without a status (timeout,
+//! status) is a plain command failure only when `HEAD` is still pinned, the
+//! operation marker records the pinned tip, and no created commit is identified.
+//! Unbound history does not prove that no object ever existed. A command that
+//! started and then failed without a status (timeout,
 //! capture bound, readback I/O) may already have landed, so it is reported as
 //! unconfirmed evidence instead of an ordinary retryable error.
 

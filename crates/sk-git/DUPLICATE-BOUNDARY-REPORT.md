@@ -5,6 +5,12 @@ Input: `/tmp/sk-rust-git-boundary-recheck.md`, which accepts G1–G4 at publishe
 predicate wording). Provisional record `/tmp/sk-git-duplicate-boundary-plan.md`
 predates implementation. This delivery is not independent acceptance.
 
+Subsequent review `/tmp/sk-rust-git-snapshot-recheck.md` independently gives a
+**scoped PASS for B1/B2 at `1ad605bb7`**, preserves G1–G4 and the workspace
+consumer contract, and reproduces 262/0/3. It does not approve CLI wiring or
+performance. Its remaining S1 limitation is explicit below; S2's module-level
+predicate wording has now been corrected without changing behavior.
+
 ## Correction
 
 A newest-record byte match is not an ordinal: a hook can append an identical
@@ -23,6 +29,15 @@ argv/hooks/signing/index and blob/capture bounds are unchanged. A saturated
 fallback does not block normal commits: this child's own summary remains an
 independent evidence channel. No new generic input refusal, rollback or ref
 mutation is introduced.
+
+**S1 coverage limit:** this fallback cannot identify creation when the pre- or
+post-history reaches 256 entries. With a capped pre-history, the nested-create /
+restore-HEAD-and-marker B1 shape can still return ordinary `CommandFailed`
+because no candidate is identifiable. The object may still exist. This is not
+complete retained-creation evidence on long-lived branches, nor proof no object
+was created; ordinary commits still confirm through their own summary. The
+pre-read is now up to 256 records rather than one, with bounded but unmeasured
+cost. No oldest-equal/count-only fallback is allowed to hide this limitation.
 
 ## Red/green evidence
 

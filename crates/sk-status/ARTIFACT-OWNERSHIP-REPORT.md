@@ -5,6 +5,13 @@ Baseline `bfc79fdfd413e69059b6a1475d31e70317f8b6b8`; independent input:
 `/tmp/sk-status-f1c-remediation.md`, written before changes. Implementation is
 not independent approval.
 
+Subsequent independent review at `1ad605bb7` **approves F1c only**:
+`/tmp/sk-rust-artifact-ownership-recheck.md`. It independently verifies the
+library ownership/error controls, six real-CLI rejection/approval races,
+canonical hold scope and retained evidence under fault/commit failures.
+See `docs/rust/reviews/artifact-ownership-disposition.md`. The review explicitly
+does not approve the whole tranche, unported routes, platforms or performance.
+
 ## Defect and correction
 
 The old `write_new` cleanup included failed `create_new`: an `Existing` error

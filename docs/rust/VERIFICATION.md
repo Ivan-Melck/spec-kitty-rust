@@ -8,7 +8,32 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Op/ownership Linux checkpoint — 2026-11-03, after `bfc79fdfd`
+## Custody/resolver Linux checkpoint — 2026-11-03, after `1ad605bb7`
+
+Stable coordinator gates: **2,073 passed / 0 failed / 9 parent-exercised
+helpers**, 178 suites including doctests; strict workspace all-target Clippy
+and fmt pass. Logs `/tmp/sk-native-custody-stable-{aggregate,clippy,fmt}.log`.
+The combined shell hit its 300-second tool budget during release compilation,
+after those gates completed. No build/test process remained when inspected;
+partial artifacts and the original release log were preserved. A release-only
+continuation with a larger budget passes (`…-release-resumed.log`). This is an
+explained interrupted build, not a waived failure or an initial release pass.
+
+Included: **80 Op / 199 Kernel / 276 Git** tests, not added again to the total.
+Large Op trails close across native/Python, non-object modes refuse, >64 KiB
+worktree output is file-captured, and reference resolution is a shared additive
+Kernel API with real-loop detection and no total-link cap. Existing containment
+and lock authorities remain unchanged. The generic tracked-aware ignore probe
+has exact exit/argv/read-only/index tests. Both deliveries await fresh independent
+review; no executor/admission/CLI/capability is wired or promoted.
+
+Fresh completion: **599 findings / 27 PERF / false / pending**, accounting
+valid (`/tmp/sk-custody-stable-completion-report.json`). Source remains
+`9aed3a80`; no workflow, platform, real-fork, campaign, build receipt or speed
+acceptance. Prior 90 migration/16 performance-workload omissions and developer-
+tool lint findings remain open.
+
+## Previous Op/ownership Linux checkpoint — 2026-11-03, after `bfc79fdfd`
 
 All owners finished before these coordinator gates: **2,042 passed / 0 failed /
 8 parent-exercised helpers**, 176 suite results including doctests. Strict
@@ -23,17 +48,24 @@ pin changes. No CLI depends on it and no invocation capability is promoted.
   comparisons and real bidirectional Python/native lock contention. Typed
   records/writer/custody exist; admission decision, profile execution and Op
   commit/composition do not. Declared divergences remain in its implementation
-  report; independent review still required.
+  report. Independent review rejects stage-1 acceptance for large-record
+  completion, malformed mode, pipe-deadlocked lookup and resolver/composition
+  defects. Coordinator F1/F2 red-first corrections pass 74 scoped Op tests;
+  remaining remediation is recorded in `reviews/op-foundation-disposition.md`.
 - **Status F1c:** independent review verified F1a/F1b, two real post-emit OS
   fault shapes, and F2–F6, then found concurrent losers deleting the winner's
   evidence. Strengthened ownership unit + 12-process real CLI test both fail
   red; correction separates create ownership and holds the canonical Mission
   lock before lane observation/allocation even without auto-commit. Scoped
-  234 status / 58 CLI status / 9 CLI lib green; re-review pending.
+  234 status / 58 CLI status / 9 CLI lib green. Fresh independent review
+  approves F1c with library races, six real-CLI rejection/approval races,
+  failure retention and prior-artifact controls. No whole-tranche approval;
+  see `reviews/artifact-ownership-disposition.md`.
 - **Git B1/B2:** complete bounded pre/post histories with exact prior suffix
   replace ambiguous newest-record matching. Duplicate regression fails red,
   now retains created-commit evidence; capped-history normal summary control
-  passes. Scoped Git 262. One initial test fixture assumed same-OID soft reset
+  passes. Scoped Git 262; independent recheck accepts B1/B2 at `1ad605bb7`.
+  S1's capped-history fallback limitation remains explicit; see the disposition. One initial test fixture assumed same-OID soft reset
   appended entries; its setup assertion failed and was corrected to alternate
   real tips, explicitly recorded in `DUPLICATE-BOUNDARY-REPORT.md`.
 - **Next:** independent review accepts both prompt corrections with live oracle

@@ -26,6 +26,37 @@ fn hold_record(checkout: &Path, invocation_id: &str) {
     fs::write(directory.join(format!("{invocation_id}.jsonl")), "{}\n").expect("write record");
 }
 
+/// Register `checkout` as a linked worktree of `primary` by writing the same
+/// two back-pointer files `git worktree add` writes, so a large listing costs
+/// almost nothing to build. `git worktree list` reports the checkout as
+/// `detached`, which is irrelevant to the placement question under test.
+fn add_linked_worktree(primary: &Path, checkout: &Path, name: &str) {
+    let admin = primary.join(".git").join("worktrees").join(name);
+    fs::create_dir_all(&admin).expect("create worktree admin dir");
+    fs::create_dir_all(checkout).expect("create linked checkout");
+    fs::write(
+        admin.join("gitdir"),
+        format!("{}\n", checkout.join(".git").display()),
+    )
+    .expect("write admin gitdir");
+    fs::write(
+        checkout.join(".git"),
+        format!("gitdir: {}\n", admin.display()),
+    )
+    .expect("write checkout gitdir pointer");
+}
+
+/// The porcelain listing length, used to prove the fixture is discriminating.
+fn porcelain_len(primary: &Path) -> usize {
+    let output = std::process::Command::new("git")
+        .args(["worktree", "list", "--porcelain"])
+        .current_dir(primary)
+        .output()
+        .expect("run git worktree list");
+    assert!(output.status.success());
+    output.stdout.len()
+}
+
 fn canonical(path: &Path) -> std::path::PathBuf {
     path.canonicalize().expect("path canonicalizes")
 }
@@ -183,6 +214,58 @@ fn locate_never_finds_an_invalid_id() {
     for invocation_id in ["../../etc/passwd", "nested/path", ".", "", "lowercase"] {
         assert_eq!(locate_op_record_root(&primary, invocation_id, None), None);
     }
+}
+
+#[test]
+fn a_small_worktree_listing_finds_a_record_in_another_checkout() {
+    // Small control: the parser path works well below the pipe capacity, so a
+    // failure of the large case below is the deadlock, not the parser.
+    let temp = tempfile::tempdir().unwrap();
+    let primary = temp.path().join("primary");
+    init_repository(&primary);
+    let mut last = None;
+    for index in 0..20 {
+        let lane = temp.path().join(format!("lane-{index:02}"));
+        add_linked_worktree(&primary, &lane, &format!("w{index:02}"));
+        last = Some(lane);
+    }
+    let lane = last.expect("one linked checkout");
+    hold_record(&lane, ID);
+    assert!(porcelain_len(&primary) < 65536);
+
+    assert_eq!(
+        locate_op_record_root(&primary, ID, Some(&canonical(&primary))),
+        Some(canonical(&lane))
+    );
+}
+
+#[test]
+fn a_large_worktree_listing_still_finds_a_record_in_another_checkout() {
+    // F3 (red-first): a repository with hundreds of worktrees emits a
+    // porcelain listing larger than the 64 KiB pipe buffer. Git must be
+    // drained while it runs; a piped stdout that is only read after exit
+    // deadlocks, hits the 30 s probe bound and silently loses cross-checkout
+    // lookup (the record below is in the last listed worktree).
+    let temp = tempfile::tempdir().unwrap();
+    let primary = temp.path().join("primary");
+    init_repository(&primary);
+    let mut last = None;
+    for index in 0..800 {
+        let lane = temp.path().join(format!("lane-{index:04}"));
+        add_linked_worktree(&primary, &lane, &format!("w{index:04}"));
+        last = Some(lane);
+    }
+    let lane = last.expect("one linked checkout");
+    hold_record(&lane, ID);
+    assert!(
+        porcelain_len(&primary) > 65536,
+        "the fixture must exceed the pipe capacity"
+    );
+
+    assert_eq!(
+        locate_op_record_root(&primary, ID, Some(&canonical(&primary))),
+        Some(canonical(&lane))
+    );
 }
 
 #[test]

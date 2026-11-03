@@ -1,9 +1,11 @@
 # `sk-invocation` — Stage 1 implementation report (FINAL)
 
-Status: **implementation complete for the stage-1 scope below; not approved.**
-The provisional version of this file was written before any crate body existed
-(see "Provisional record, retained and corrected"). This version records what
-was built, the evidence, the exact failures, and what stage 2 still needs.
+Status: **implementation complete for the stage-1 scope below; the F1–F7
+review findings are remediated on top (see `REMEDIATION-REPORT.md`); not
+approved.** The provisional version of this file was written before any crate
+body existed (see "Provisional record, retained and corrected"). This version
+records what was built, the evidence, the exact failures, and what stage 2
+still needs.
 
 No caller is wired. `compat/capabilities.rs`, the dispatcher, the manifests and
 `Cargo.lock` were not touched by the implementation owner, and no invocation
@@ -12,10 +14,16 @@ addition.
 
 > Coordinator follow-up: three symlink unit tests in `src/resolve.rs` used
 > unconditional `std::os::unix` imports. They are now `cfg(unix)`; Linux still
-> exercises all 72 cases. No Windows execution/compile result is claimed. The
-> original source-hash table below is the owner's delivered snapshot; this
-> test-gating change alters `resolve.rs`. The duplicate resolver remains
-> explicitly pending canonical-authority review, not proven equivalent.
+> exercised all 72 cases. No Windows execution/compile result is claimed.
+>
+> **Remediation follow-up (see `REMEDIATION-REPORT.md`):** the F1/F2 findings
+> were fixed by the coordinator before this round (own-trail precondition
+> ceiling, object-only mode rows), and this remediation round fixed F3–F7.
+> The duplicate `src/resolve.rs` is **deleted**; path identity now uses the new
+> kernel authority `sk_kernel::reference_path::resolve_reference_path` (the
+> Python non-strict profile, not the containment resolver). The hash table in
+> §3 is the stage-1 delivered snapshot; §3.1 records the post-remediation
+> snapshot, including the deleted row.
 
 ## 1. Scope delivered
 
@@ -113,8 +121,8 @@ pub fn locate_op_record_root(&Path, &str, Option<&Path>) -> Option<PathBuf>;
 
 `python_json` is a private, domain-local line renderer (`PythonJsonObject`,
 `python_repr`, `python_seconds`); nothing depends on `sk-status` and there is
-no generic JSON facade. `resolve.rs` is a private non-strict resolver used only
-by `normalise_ref` (see divergence D11).
+no generic JSON facade. Reference-path identity is the kernel's
+`reference_path` authority (see D11); this crate carries no resolver copy.
 
 ## 3. Source binding (sha256)
 
@@ -153,13 +161,37 @@ cc2b8be5b60c95965d788db398a2ca423707d0e5d005c5cf261754e68ff862cb  src/modes.rs  
 2d7a33ff372e0f47faf166ed3e27ad3d37e279976b31adfd4acd9a88aaed5da9  src/op_custody.rs       (376)
 f2d853f62d05aa36774ea746d7a5e1117aa6c49390f5e2dd9140f48f38bf1d5c  src/python_json.rs      (231)
 0170e3a2152edad0dcfa702d4a3a291965c001f004c76ae3ce7487a84e335671  src/record.rs           (959)
-a7250dd3dd9a4453739ab4a9b1334ebd1a2598abc15f019ab8fda4f2d6da1f46  src/resolve.rs          (171)
+# src/resolve.rs (171 lines, hash a7250dd3…) was deleted in the F5
+# remediation: superseded by the kernel reference_path authority; see §3.1.
 0a703b07f58476b03a6588a093124dc1a3eb4b69974c8d5301057032fab3cde5  src/writer.rs           (865)
 c24a6fd64dfc79347a314e83cf9486f42fec8c4d9e1ccaedd65f92f840c634c5  tests/lock_contention.rs    (231)
 f9e2f070716f84bbb9ce6a6503f6b0395df7ff49e7205feed0ecfbdf0fefb9ad  tests/op_custody_roots.rs   (227)
 9ab35bf7b62f960369e7d916f8f870c0517ecba025f7c72a0eff9da0bdf7a9c3  tests/oracle_vectors.rs     (537)
 16f6f6d74d1c577d4ed418efe2c46b04a4097aeaa267b24345b2a366d515749b  tests/writer_filesystem.rs  (672)
 e6cca12a437bf7a47ad567de52c283e2d202932292fcc697ff6fdd2f0d539d65  tests/support/mod.rs        (198)
+```
+
+### 3.1 Post-remediation snapshot (this round)
+
+Current files: the coordinator's F1/F2 edits are in `writer.rs`, `Cargo.toml`
+and `tests/writer_filesystem.rs`; the rest is this remediation round.
+`src/resolve.rs` no longer exists.
+
+```
+843f1c3766d57516a54098542b92a4bf08621b27b89b70a3c756dc440a3e819e  src/error.rs
+833a971b33a0340b2c35a120398efadfb16a8ff8daf3cb9278c62ce14f165bc5  src/lib.rs
+cc2b8be5b60c95965d788db398a2ca423707d0e5d005c5cf261754e68ff862cb  src/modes.rs
+7694f7bff9f5c8258e020cc2ce7a4059126d12a318dad2bae8ef00b46a161da4  src/op_custody.rs
+53cad7da714c82bc956e9fe166e8a22b608badf333c61fe1a97316a72960e4b9  src/python_json.rs
+0170e3a2152edad0dcfa702d4a3a291965c001f004c76ae3ce7487a84e335671  src/record.rs
+7d5cd86a6895b5b98bc51ca93d165fe043a712d354916e79b8ded759bdd2fef5  src/writer.rs
+c24a6fd64dfc79347a314e83cf9486f42fec8c4d9e1ccaedd65f92f840c634c5  tests/lock_contention.rs
+8ff3ef84d1966362624645fdbefd3f28b426ccd65fd900e214fe780b0f474107  tests/op_custody_roots.rs
+17513e96a55c53bb0a45a8d42217e4c1930ca99f26452cd5a41be232439f7e64  tests/oracle_vectors.rs
+e5cf9cf85683d1562761674e276c11bfbe0d10412437fc5c49923d95529b3201  tests/reference_path_oracle.rs  (new)
+e6cca12a437bf7a47ad567de52c283e2d202932292fcc697ff6fdd2f0d539d65  tests/support/mod.rs
+bd7488fea14b397ae79276fb02afa3486a014c2c890fa093159d455c7f8d137a  ../sk-kernel/src/reference_path.rs (new)
+ed1bec27c6e2e60988f53975b79db97b38e485f30b264e14656b8c03a8221c7d  ../sk-kernel/src/lib.rs  (module + re-export lines only)
 ```
 
 Native checkpoint the work was applied on: `bfc79fdfd413e69059b6a1475d31e70317f8b6b8`
@@ -248,36 +280,34 @@ protocol):
   `0o600`, create-parents by the caller's `mkdir`), never the family anchor;
   `read_op_closures` skips blank/malformed/started lines.
 
-Exact messages asserted by tests (all reference strings):
+Message vocabulary (every string is the reference's). The trigger column is
+where this port asserts it, so a rendered-but-unasserted message is visible:
 
-```
-Invocation record not found: <id>
-Invocation record must not be a symbolic link: <path>
-Refusing to access path outside trusted roots: <resolved>
-ULID collision on <path> — retry with a new invocation_id
-Failed to write invocation record: <error>
-Failed to open invocation record safely: <protocol text>
-Invocation record is unreadable: <id>
-Invocation record is unreadable: <id> (<protocol text with Error code: EVENT_LOG_TORN_TAIL.>)
-Invocation record has no started event: <id>
-Invocation record identity mismatch: requested='<id>', embedded='<id>'
-Invocation <id> is already closed.
-Failed to append completed event: <error>
-Failed to append correlation event: <error>
-Exactly one of ref or sha must be provided
-Refusing to open the Op: its Op record would be written in <root> on protected branch 'main',
-  where the record cannot be committed. Nothing was written. Run the command from a topic
-  branch, or from a worktree whose branch is not protected.
-Refusing to close the Op: … (same shape)
-Refusing to open the Op: the branch protection settings for <root> cannot be read (<reason>).
-  Nothing was written. Fix the protection: block in .kittify/config.yaml, then run the
-  command again.
-```
+| Message | Asserted by |
+|---|---|
+| `Invocation record not found: <id>` | filesystem integration |
+| `Invocation record must not be a symbolic link: <path>` | filesystem integration |
+| `Refusing to access path outside trusted roots: <resolved>` | filesystem integration |
+| `ULID collision on <path> — retry with a new invocation_id` | filesystem integration |
+| `Failed to write invocation record: <error>` | filesystem + lock integration |
+| `Failed to open invocation record safely: <protocol text>` | refusal-seam unit test (`writer::tests`); the kernel's own no-follow error is asserted in `sk-kernel` |
+| `Invocation record is unreadable: <id>` | filesystem integration |
+| `Invocation record is unreadable: <id> (<protocol text with Error code: EVENT_LOG_TORN_TAIL.>)` | filesystem integration |
+| `Invocation record has no started event: <id>` | filesystem integration |
+| `Invocation record identity mismatch: requested='<id>', embedded='<id>'` | filesystem integration |
+| `Invocation <id> is already closed.` | filesystem integration |
+| `Failed to append completed event: <error>` | lock-contention integration (real timeout) |
+| `Failed to append correlation event: <error>` | refusal-seam unit test (`writer::tests`) |
+| `Exactly one of ref or sha must be provided` | filesystem integration |
+| `Refusing to open the Op: …` / `Refusing to close the Op: …` (protected branch, invalid protection config) | unit tests (`op_custody::tests`) |
 
 Protocol refusal text rendered from the kernel's typed error (the pinned
-interim protocol's own wording): torn tail, final-component symlink, lock
+interim protocol's own wording): torn tail, final-component symlink
+(`Error code: EVENT_LOG_SYMLINK.`, seam-asserted), lock
 timeout (`<anchor>: event-log lock <path> was not acquired within <n>s … Error
-code: EVENT_LOG_LOCK_TIMEOUT.`), lock unavailable, from
+code: EVENT_LOG_LOCK_TIMEOUT.`), and lock unavailable
+(`Error code: EVENT_LOG_LOCK_UNAVAILABLE.`, exercised end-to-end by an
+unresolvable `.git` marker), from
 `kernel.event_log_append`. `python_seconds` renders the timeout the way the
 reference's f-string does (`10.0`, `0.2`).
 
@@ -291,10 +321,11 @@ no aggregate, no release, no clean.
 | Gate | Result | Log |
 |---|---|---|
 | `cargo check -p sk-invocation --locked --offline` | pass | `/tmp/sk-invocation-stage1-check.log` |
-| `cargo test -p sk-invocation --locked --offline` | **72 passed, 0 failed, 0 ignored** (30 unit; 4 lock contention; 12 custody/roots; 3 oracle; 23 filesystem; 0 doctests) | `/tmp/sk-invocation-stage1-test.log` |
-| `cargo clippy -p sk-invocation --all-targets --locked --offline -- -D warnings` | pass, no warnings | `/tmp/sk-invocation-stage1-clippy.log` |
-| `cargo fmt -p sk-invocation -- --check` | pass | `/tmp/sk-invocation-stage1-fmt.log` |
-| `git diff --name-only` | only the pre-existing `Cargo.lock`/`docs/rust` edits; no manifest, CLI, capability or production-Python change | — |
+| `cargo test -p sk-invocation --locked --offline` (stage-1 snapshot) | **72 passed, 0 failed, 0 ignored** (30 unit; 4 lock contention; 12 custody/roots; 3 oracle; 23 filesystem; 0 doctests) | `/tmp/sk-invocation-stage1-test.log` |
+| `cargo test -p sk-invocation -p sk-kernel --locked --offline` (post-remediation) | `sk-invocation` **80 passed, 0 failed, 0 ignored**; `sk-kernel` 199 passed/1 ignored helper. Full breakdown in `REMEDIATION-REPORT.md` §4 | `/tmp/sk-op-remediation-*.log` |
+| `cargo clippy -p sk-invocation -p sk-kernel --all-targets --locked --offline -- -D warnings` | pass, no warnings | `/tmp/sk-op-remediation-clippy.log` |
+| `rustfmt --edition 2024 --check` on every file this work touched | pass | `/tmp/sk-op-remediation-fmt.log` |
+| `git diff --name-only` | only `crates/sk-invocation/**` (minus `Cargo.toml`), the new kernel `reference_path` module + its two `lib.rs` lines, and the pre-existing other-owner edits; no manifest, CLI, capability or production-Python change | — |
 
 Cross-process lock contention is real, both directions
 (`tests/lock_contention.rs`):
@@ -332,7 +363,7 @@ During implementation (all real, none waived):
    `record.rs` re-import instead of `error.rs`. Module wiring only; fixed.
 2. Dead-code warning for an unused `started_fields` helper; the helper and its
    `#[allow(clippy::too_many_arguments)]` were removed rather than carried.
-3. `record::tests::id_boundary_is_the_regex_not_ulids_range` **failed**: I had
+3. `record::tests::id_boundary_is_the_regex_not_ulids_decoder` **failed**: I had
    claimed `as_ulid()` would be `None` for 26 `Z`s, but `ulid` 1.2.1 accepts the
    spelling and truncates the overflow bits. The **API was the defect** (a
    lossy conversion with no consumer); `as_ulid` was deleted and the test now
@@ -368,19 +399,22 @@ lock test.
   (`"<field>: <constraint>"`) instead of Pydantic's multi-line
   `ValidationError` dump. The error type, the legacy trigger conditions, and
   the outer template (`Legacy Op record[ <id>]: <reason>. Run 'spec-kitty
-  upgrade' …`) are preserved; reproducing Pydantic's text would require
-  Pydantic.
+  upgrade' …`) are preserved. Exact residual: the detail text (Pydantic's
+  per-error lines, its final "or", and its value/type hints) is not
+  reproduced; it is operator detail inside a typed error, not wire text.
 - **D4** Kernel-owned refusal classes are rendered from the kernel's typed
   error into the pinned interim-protocol wording (torn tail, symlink, lock
   timeout, lock unavailable). Other kernel failures (`TooLarge`, `ShortWrite`,
   `ReadbackMismatch`, `AppendRollbackFailed`, generic I/O) use the kernel's own
   display text, so their detail text differs from Python's exception text; the
   writer's own wrapper (`Failed to append completed event: …`) is preserved.
-- **D5** The append precondition reads at most the kernel default 8 MiB
-  (`DEFAULT_MAX_PRECONDITION_BYTES`) where Python reads the whole record; a
-  larger trail refuses with the kernel's `TooLarge`. Larger-record conformance
-  is not established; this is a legitimate-input parity limitation, not evidence
-  that such records cannot occur.
+- **D5** **Resolved in remediation (F1).** The Op append precondition reads
+  the whole owned trail (`max_precondition_bytes = u64::MAX`) because the
+  reference reads the whole record and this writer created it; the generic
+  kernel default (8 MiB) is unchanged for every other consumer. Covered by the
+  coordinator's 9 MiB close/read regression and by
+  `an_over_eight_mebibyte_record_closes_through_both_writers` (native start →
+  reference close, reference start → native close, byte-equal trails).
 - **D6** `invocation_path` on a missing `kitty-ops` directory validates the id
   and returns the lexical path (Python resolves a nonexistent root and accepts
   it too). If `kitty-ops` exists but is not a directory, this port refuses with
@@ -394,33 +428,64 @@ lock test.
 - **D8** `read_op_closures` returns a typed error when the spine itself is
   unreadable (Python raises `OSError`); per-line tolerance (malformed, blank,
   started lines skipped) matches.
-- **D9** `read_started`/`read_started_mode` are composed readers: message text
-  comes from the reference writer (`Invocation record not found: <id>`) and the
-  CLI claim reader (`Op record not found for invocation_id='<id>'`,
-  `First Op record is not a started event …`, identity mismatch with `repr`).
-  They have no caller in stage 1; `read_started_mode` maps an unparseable first
-  line to `Invalid invocation record: <id>` where Python would surface
-  `JSONDecodeError`.
+- **D9** **Corrected in remediation (F4).** `read_started` and
+  `read_started_mode` read **at this writer's record root only**; they are not
+  the composed claim reader. Their message text comes from the reference writer
+  (`Invocation record not found: <id>`) and the CLI claim reader
+  (`Op record not found for invocation_id='<id>'`, `First Op record is not a
+  started event …`, identity mismatch with `repr`). The reference claim reader
+  first composes the root (`locate_op_record_root(repo_root, id, preferred =
+  resolve_op_record_root(repo_root)) or repo_root`) and then reads; a record
+  opened in a linked worktree is therefore *missing* from the wrong root here.
+  The stage-2 claim reader must compose the locator explicitly; the method doc
+  comments say so and no implicit redirect is invented. `read_started_mode`
+  requires an object first row (F2), so malformation is never absence; an
+  unparseable first line maps to `Invalid invocation record: <id>` where Python
+  would surface `JSONDecodeError` (detail-text residual).
 - **D10** JSON text with a lone surrogate escape cannot be read: `serde_json`
   rejects it while Python's `json.loads` can hold a lone surrogate in a `str`.
   Rust `String` cannot represent one; this is a reader limitation, not a
   writer divergence.
-- **D11** `normalise_ref` needs non-strict resolution with symlink expansion,
-  and `sk-kernel` keeps its `fs_resolve::resolve_non_strict` private. Rather
-  than change a frozen kernel scope, `src/resolve.rs` carries the minimal
-  equivalent (40-link budget, dangling links expanded, `..` applied after
-  expansion; no locking, no mutation). **Request to the coordinator: export
-  `sk_kernel::fs_resolve::resolve_non_strict` and delete `resolve.rs`.**
-  Behaviour covered: inside/outside/relative-from-root/URL/NUL/loop/`"."`.
+- **D11** **Resolved in remediation (F5).** The duplicate `src/resolve.rs` is
+  deleted. Path identity (`normalise_ref`, custody `resolve_or_keep`) uses the
+  new shared kernel authority `sk_kernel::reference_path::
+  resolve_reference_path`, whose documented profile is Python's **non-strict**
+  `resolve_rejecting_loops`: missing/dangling/unreadable (`EACCES`) components
+  carried lexically, `..` applied after expansion, real cycle detection only,
+  **no total-link cap** (41/42/200-link acyclic chains resolve), interior NUL
+  refused, finite repeated links memoised. That profile is deliberately
+  **distinct** from the containment/lock policy (`resolve_within` /
+  `fs_resolve::resolve_non_strict`: 40-link budget, non-`NotFound` errors
+  propagate), whose behaviour is unchanged. The old copy was *not* an
+  equivalent of the strict kernel resolver (link budget, error tolerance), so
+  exporting that resolver unchanged was never the fix. Evidence:
+  `tests/reference_path_oracle.rs` compares both `normalise_ref` and the raw
+  kernel API against the pinned Python module for long chains, loops, EACCES,
+  dangling/missing, `..`, repeated reuse, absolute/relative/URL and NUL.
 - **D12** `python_repr` (used only in operator messages) keeps printable
-  non-ASCII verbatim and escapes controls; Python's `str.isprintable()` has
-  Unicode-table edges (e.g. NBSP is escaped there and kept here) that this port
-  does not reproduce.
+  non-ASCII verbatim and escapes controls. Exact residual: Python's
+  `str.isprintable()` is Unicode-category driven, so NBSP-class and other
+  format/space code points are escaped there and kept here; ids, branches and
+  paths in practice are unaffected. F7 also fixed the source-backed float
+  details: timeout seconds and JSON-number reprs now use CPython's float repr
+  (`1e-07`, `1e+20`).
 - **D13** WP05 lifecycle records (`kitty-ops/lifecycle/<ulid>.json`, the legacy
   `lifecycle.jsonl` reader, pairing/orphan helpers) are **not** ported; they
   are plan §10 P12 / §11 stage 5, not stage 1. No claim.
 - **D14** `OpWriteRefused` is a value you can construct; nothing in this crate
   raises it. Admission ordering (probe → mint → started) remains stage 2.
+- **D15** Custody's `git worktree list` probe captures Git's stdout in a
+  temporary regular file and polls `try_wait` against the same 30 s bound as
+  the reference (F3). That is an implementation choice, not a divergence: it
+  drains every listing size, keeps the reference's `None` degradation for
+  spawn/non-zero/timeout failure, and reaps the direct child on every path.
+  Exact residual: the timeout still abandons a listing that takes longer than
+  30 s (as the reference's `subprocess` timeout does); no output cap is added.
+  Related detail residuals, all refusal-only: `append_op_closure` when
+  `kitty-ops` is a regular file wraps the `mkdir` failure as
+  `Failed to write Op closure: …` where Python raises a raw
+  `FileExistsError`; `read_op_closures` on an unreadable spine is typed where
+  Python raises `OSError` (D8).
 
 ## 10. Remaining stage-2 prerequisites (explicit)
 
@@ -449,13 +514,17 @@ lock test.
    rules first, union protection preflight, and `last_op_commit`; failures are
    non-fatal for the invocation.
 5. **Root placement wiring**: call `resolve_op_record_root` /
-   `locate_op_record_root` from the executor and the claim reader; add the
+   `locate_op_record_root` from the executor **and explicitly from the claim
+   reader** (compose `preferred = resolve_op_record_root(repo_root)` then
+   `locate_op_record_root(...) or repo_root`, then read at that root — D9; the
+   current `read_started*` methods only read this writer's root); add the
    owned-checkout / owned record root option (P7) rather than faking `owned`.
 6. **WP05 lifecycle + `MissionNextInvoked`** (P12/A15) and the `next`
    composition seam (§8): not started here.
-7. **Optional tidy**: export the kernel non-strict resolver (D11); move the
-   protocol-message rendering into a shared authority if a second writer
-   ever needs it (today it is the only one).
+7. **Optional tidy**: move the protocol-message rendering into a shared
+   authority if a second writer ever needs it (today it is the only one). The
+   kernel resolver export requested by the old D11 is done
+   (`sk_kernel::reference_path`, D11).
 
 ## 11. Provisional record, retained and corrected
 
@@ -473,3 +542,10 @@ hashes and plan corrections; three claims changed as the code met the source:
 No capability, dispatcher, manifest, lockfile, aggregate or release gate was
 touched, and this report is not an approval of the stage-1 code or of the
 invocation feature.
+
+### 11.1 Remediation round (F1–F7)
+
+The independent review's F1–F5 defects and F6/F7 report/detail findings are
+addressed; `REMEDIATION-REPORT.md` holds the red-first failures, the exact
+commands, the final hashes and the residual scope. This section keeps the
+stage-1 narrative; it is not a re-review and does not promote the crate.

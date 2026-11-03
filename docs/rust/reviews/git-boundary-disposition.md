@@ -36,6 +36,11 @@ validation, never blindly choose the oldest matching bytes or count-only slices
 that could re-admit history. That bounded snapshot/suffix correction is now
 implemented with a pure ambiguity control and a real-Git saturated-history
 positive. Scoped Git is 262/0/3; see
-`crates/sk-git/DUPLICATE-BOUNDARY-REPORT.md`. Independent acceptance of the
-new correction is still pending; the earlier scoped PASS is not extended by
-coordinator tests.
+`crates/sk-git/DUPLICATE-BOUNDARY-REPORT.md`. Subsequent independent report `/tmp/sk-rust-git-snapshot-recheck.md`
+**accepts B1/B2 at `1ad605bb7`**, with 262/0/3, fresh Clippy/fmt and real duplicate,
+rewritten/count-growth/cap/amend controls. The low S1 limit remains: fallback is
+disabled at the 256-entry cap, so a nested-create/restore shape on a saturated
+history can still have no identified candidate. Ordinary long-history commits
+confirm through their summary; no unconditional “no object existed” claim.
+The module predicate text is now corrected; cost remains unmeasured. This is
+not full attribution, CLI/Op/coordination wiring or performance acceptance.

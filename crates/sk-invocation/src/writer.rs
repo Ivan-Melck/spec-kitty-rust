@@ -28,8 +28,9 @@
 //! the created trail is fsynced (Python closes a buffered handle) so a
 //! returned start is durable; failure *detail* text from the kernel protocol
 //! is rendered from the kernel's typed error through the pinned
-//! interim-protocol wording; the precondition read is bounded by the kernel
-//! default (8 MiB) where Python reads the whole file.
+//! interim-protocol wording; the Op precondition reads the whole owned trail
+//! (no generic 8 MiB ceiling) because the reference reads the whole record and
+//! this writer accepted it.
 
 use std::collections::BTreeSet;
 use std::fs::{self, OpenOptions};
@@ -41,14 +42,13 @@ use sk_kernel::event_log_append::{
     EVENT_LOG_LOCK_TIMEOUT, EventLogAppendOptions, TornTailPolicy, append_event_log_lines,
     append_event_log_lines_guarded, event_log_lock_path,
 };
-use sk_kernel::{FileLock, KernelError, clock};
+use sk_kernel::{FileLock, KernelError, clock, resolve_reference_path};
 
 use crate::error::InvocationError;
 use crate::error::RecordParseError;
 use crate::modes::{RecordedMode, classify_mode_of_work};
 use crate::python_json::{PythonJsonObject, python_repr, python_repr_json, python_seconds};
 use crate::record::{InvocationId, OpCompletedEvent, OpEvent, OpStartedEvent, parse_op_event};
-use crate::resolve::resolve_non_strict;
 
 /// Directory holding every Op artifact.
 pub const EVENTS_DIR: &str = "kitty-ops";
@@ -336,11 +336,22 @@ impl InvocationWriter {
         }
     }
 
-    /// Read and validate the durable `started` event for `invocation_id`.
+    /// Read and validate the durable `started` event for `invocation_id` at
+    /// **this writer's record root**.
     ///
-    /// Composed from the reference's writer not-found wording and the CLI
-    /// claim-reader's validation messages (`.cli.commands.agent.workflow
-    /// ._read_op_started_event`): the embedded id must equal the requested id.
+    /// This is not the composed claim reader. The reference's
+    /// `_read_op_started_event` first picks the checkout that holds the record
+    /// (`locate_op_record_root(repo_root, id, preferred =
+    /// resolve_op_record_root(repo_root)) or repo_root`) and only then reads;
+    /// this method reads exactly `self.record_root()` and never searches other
+    /// checkouts. The messages match the reference readers for a record that
+    /// is at this root, and a record opened in a linked worktree is therefore
+    /// reported `Op record not found` here. The stage-2 claim reader must
+    /// compose `resolve_op_record_root`/`locate_op_record_root` explicitly;
+    /// no implicit redirect is invented in this layer.
+    ///
+    /// Validation is the reference claim reader's: the embedded id must equal
+    /// the requested id.
     pub fn read_started(
         &self,
         invocation_id: &InvocationId,
@@ -397,7 +408,17 @@ impl InvocationWriter {
         }
     }
 
-    /// Read the recorded mode of an Op in its three distinct states.
+    /// Read the recorded mode of an Op at **this writer's record root**.
+    ///
+    /// Same placement contract as [`Self::read_started`]: the root is the one
+    /// this writer was built for, not a located checkout. A record opened in a
+    /// linked worktree is `Invocation record not found` here; the stage-2
+    /// claim reader composes the locator.
+    ///
+    /// A first row that is not a JSON object is malformed, never absence:
+    /// malformation must not permit evidence. An object without
+    /// `mode_of_work` is [`RecordedMode::Absent`], and a present but unknown
+    /// value is [`RecordedMode::Undetermined`].
     pub fn read_started_mode(
         &self,
         invocation_id: &InvocationId,
@@ -424,7 +445,10 @@ impl InvocationWriter {
         let value: serde_json::Value = serde_json::from_str(first_line).map_err(|_| {
             InvocationError::Record(format!("Invalid invocation record: {invocation_id}"))
         })?;
-        Ok(classify_mode_of_work(value.get("mode_of_work")))
+        let object = value.as_object().ok_or_else(|| {
+            InvocationError::Record(format!("Invalid invocation record: {invocation_id}"))
+        })?;
+        Ok(classify_mode_of_work(object.get("mode_of_work")))
     }
 
     /// Invocation ids already closed on the Op-closure spine.
@@ -483,6 +507,10 @@ impl InvocationWriter {
             no_follow: true,
             mode: RECORD_MODE,
             torn_tail: TornTailPolicy::Refuse,
+            // Op start accepts the full request, and the reference reads the
+            // entire owned trail before closing. A generic 8 MiB precondition
+            // cap must not strand a record this writer successfully created.
+            max_precondition_bytes: u64::MAX,
             timeout: self.lock_timeout,
             ..EventLogAppendOptions::default()
         };
@@ -778,7 +806,13 @@ pub fn closed_invocation_ids(repo_root: &Path) -> Result<BTreeSet<InvocationId>,
 /// filesystem path, and is returned verbatim. Otherwise the ref is resolved
 /// (following symlinks, non-strict) and returned repo-relative when it is
 /// under `repo_root`, else as the resolved absolute path. An unresolvable ref
-/// (symlink loop, interior NUL, permission failure) is returned verbatim.
+/// (symlink loop, interior NUL, an unreadable current directory) is returned
+/// verbatim — the reference's `except (OSError, ValueError)`.
+///
+/// Resolution uses the kernel's reference-path authority
+/// (`sk_kernel::resolve_reference_path`), the profile that tolerates missing,
+/// dangling and unreadable components and has no total-link cap. It is not the
+/// containment/lock resolver, whose fail-closed policy is unchanged.
 pub fn normalise_ref(reference: &str, repo_root: &Path) -> String {
     if is_url_scheme(reference) {
         return reference.to_owned();
@@ -788,10 +822,10 @@ pub fn normalise_ref(reference: &str, repo_root: &Path) -> String {
     } else {
         repo_root.join(reference)
     };
-    let Ok(resolved) = resolve_non_strict(&candidate) else {
+    let Ok(resolved) = resolve_reference_path(&candidate) else {
         return reference.to_owned();
     };
-    let root = resolve_non_strict(repo_root).unwrap_or_else(|_| repo_root.to_path_buf());
+    let root = resolve_reference_path(repo_root).unwrap_or_else(|_| repo_root.to_path_buf());
     match resolved.strip_prefix(&root) {
         Ok(relative) if relative.as_os_str().is_empty() => ".".to_owned(),
         Ok(relative) => relative.to_string_lossy().into_owned(),
@@ -861,5 +895,49 @@ mod tests {
             "mission"
         );
         assert!(CorrelationLink::commit("abc123").reference.is_none());
+    }
+
+    // The two wrappers below are only reachable through a kernel refusal that
+    // a deterministic filesystem fixture cannot force (a TOCTOU symlink, or an
+    // append I/O failure), so the rendered message is asserted at the seam
+    // that owns it. The kernel's own refusal text is asserted elsewhere.
+    #[test]
+    fn a_symbolic_link_refusal_renders_the_safe_open_wrapper() {
+        let writer = InvocationWriter::new("/repo");
+        let id = InvocationId::parse("01ARZ3NDEKTSV4RRFFQ69G5FAW").unwrap();
+        let refusal = map_kernel_error(
+            writer.events_dir(),
+            &KernelError::NoFollow {
+                path: PathBuf::from("/repo/kitty-ops/record.jsonl"),
+            },
+        );
+        assert_eq!(
+            writer.record_error(&id, refusal).to_string(),
+            "Failed to open invocation record safely: /repo/kitty-ops/record.jsonl: refusing to \
+             append through a symbolic link. Error code: EVENT_LOG_SYMLINK."
+        );
+    }
+
+    #[test]
+    fn a_kernel_append_failure_renders_the_correlation_wrapper() {
+        let writer = InvocationWriter::new("/repo");
+        let id = InvocationId::parse("01ARZ3NDEKTSV4RRFFQ69G5FAW").unwrap();
+        let refusal = map_kernel_error(
+            writer.events_dir(),
+            &KernelError::Io {
+                action: "open append target",
+                path: PathBuf::from("/repo/kitty-ops/record.jsonl"),
+                source: std::io::Error::from_raw_os_error(13),
+            },
+        );
+        let rendered = writer.correlation_error(&id, refusal).to_string();
+        assert!(
+            rendered.starts_with("Failed to append correlation event: "),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("failed to open append target /repo/kitty-ops/record.jsonl"),
+            "{rendered}"
+        );
     }
 }

@@ -149,6 +149,12 @@ pub fn python_repr_json(value: &serde_json::Value) -> String {
         serde_json::Value::Null => "None".to_owned(),
         serde_json::Value::Bool(true) => "True".to_owned(),
         serde_json::Value::Bool(false) => "False".to_owned(),
+        // `json.loads` decodes a JSON float to a Python `float`, whose repr is
+        // CPython's float repr (`1e+20`, `5.0`), not serde's source text.
+        serde_json::Value::Number(number) if number.is_f64() => match number.as_f64() {
+            Some(float) if float.is_finite() => python_float_repr(float),
+            _ => number.to_string(),
+        },
         serde_json::Value::Number(number) => number.to_string(),
         serde_json::Value::String(text) => python_repr(text),
         serde_json::Value::Array(items) => {
@@ -165,14 +171,43 @@ pub fn python_repr_json(value: &serde_json::Value) -> String {
     }
 }
 
+/// CPython `repr()` for a finite float.
+///
+/// Python uses shortest round-trip digits and switches to exponent form when
+/// the decimal exponent is below `-4` or at least `16` (`1e-05`, `1e+20`),
+/// with a two-digit minimum exponent and an always-present `.0` on integral
+/// positional values. Rust's `Display` never uses exponents for `f64`, so the
+/// threshold is applied here. Used only in operator-facing message text.
+fn python_float_repr(value: f64) -> String {
+    if value == 0.0 {
+        return if value.is_sign_negative() {
+            "-0.0".to_owned()
+        } else {
+            "0.0".to_owned()
+        };
+    }
+    let exponential = format!("{value:e}");
+    let Some((mantissa, exponent)) = exponential.split_once('e') else {
+        return exponential;
+    };
+    let Ok(exponent) = exponent.parse::<i32>() else {
+        return exponential;
+    };
+    if !(-4..16).contains(&exponent) {
+        let sign = if exponent < 0 { '-' } else { '+' };
+        return format!("{mantissa}e{sign}{:02}", exponent.abs());
+    }
+    let positional = format!("{value}");
+    if positional.contains('.') {
+        positional
+    } else {
+        format!("{positional}.0")
+    }
+}
+
 /// Render a `Duration` the way Python renders the float `timeout_s`.
 pub fn python_seconds(duration: std::time::Duration) -> String {
-    let seconds = duration.as_secs_f64();
-    if seconds.fract() == 0.0 {
-        format!("{seconds:.1}")
-    } else {
-        format!("{seconds}")
-    }
+    python_float_repr(duration.as_secs_f64())
 }
 
 #[cfg(test)]
@@ -227,5 +262,49 @@ mod tests {
     fn python_seconds_matches_float_rendering() {
         assert_eq!(python_seconds(std::time::Duration::from_secs(10)), "10.0");
         assert_eq!(python_seconds(std::time::Duration::from_millis(200)), "0.2");
+        // Sub-millisecond timeouts are caller-supplied; Python's f-string uses
+        // `repr(float)`, which switches to exponent form below 1e-4.
+        assert_eq!(python_seconds(std::time::Duration::from_micros(1)), "1e-06");
+        assert_eq!(
+            python_seconds(std::time::Duration::from_nanos(100)),
+            "1e-07"
+        );
+    }
+
+    // Expected strings below are CPython 3.11 `repr()` output, produced by the
+    // pinned oracle (`/tmp/sk-op-float-repr-probe.log`).
+    #[test]
+    fn python_float_repr_uses_cpython_thresholds() {
+        for (value, expected) in [
+            (10.0_f64, "10.0"),
+            (0.2, "0.2"),
+            (0.0001, "0.0001"),
+            (0.00001, "1e-05"),
+            (0.000001, "1e-06"),
+            (0.0000001, "1e-07"),
+            (1.5e-7, "1.5e-07"),
+            (1234.5678, "1234.5678"),
+            (1.2345678901234568e-5, "1.2345678901234568e-05"),
+            (1e15, "1000000000000000.0"),
+            (1e16, "1e+16"),
+            (1e20, "1e+20"),
+            (1e300, "1e+300"),
+            (-0.0, "-0.0"),
+        ] {
+            assert_eq!(python_float_repr(value), expected, "repr({value:?})");
+        }
+    }
+
+    #[test]
+    fn python_repr_json_renders_json_floats_like_python() {
+        use serde_json::json;
+        assert_eq!(python_repr_json(&json!(1e20)), "1e+20");
+        assert_eq!(python_repr_json(&json!(5.0)), "5.0");
+        assert_eq!(python_repr_json(&json!(5)), "5");
+        assert_eq!(python_repr_json(&json!(-0.0)), "-0.0");
+        assert_eq!(
+            python_repr_json(&json!([1e20, true, null])),
+            "[1e+20, True, None]"
+        );
     }
 }
