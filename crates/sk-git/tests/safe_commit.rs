@@ -821,19 +821,29 @@ fn a_failing_configured_signature_never_moves_the_ref() {
         if pinned {
             request = request.with_expected_parent(parent);
         }
-        let error = repo.open().safe_commit(&request).unwrap_err();
-
-        assert!(
-            matches!(
-                error,
-                GitError::SafeCommitCommitFailed {
-                    status: Some(1),
-                    ..
-                }
-            ),
-            "unexpected error: {error:?}"
-        );
-        assert_eq!(repo.head(), head, "a signing failure must not move the ref");
+        let result = repo.open().safe_commit(&request);
+        if pinned {
+            let error = result.unwrap_err();
+            assert!(
+                matches!(
+                    error,
+                    GitError::SafeCommitCommitFailed {
+                        status: Some(1),
+                        ..
+                    }
+                ),
+                "unexpected error: {error:?}"
+            );
+            assert_eq!(repo.head(), head, "a signing failure must not move the ref");
+        } else {
+            result.expect("ordinary upstream route explicitly forces unsigned commits");
+            assert_ne!(repo.head(), head);
+            assert!(
+                !repo
+                    .git(&["cat-file", "commit", "HEAD"])
+                    .contains("\ngpgsig ")
+            );
+        }
     }
 }
 

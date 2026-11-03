@@ -22,15 +22,30 @@
 //!    lane manifest, [`journal`] records allocation intent, and [`allocation`]
 //!    performs real, preconditioned, journaled lane/worktree allocation,
 //!    reuse, crash recovery, and retention.
+//! 5. **Where does a bookkeeping write actually land, and what proves it?** —
+//!    [`coord`] is the coordination transaction store: read-only surface
+//!    resolution (including the `EMPTY`/`UNMATERIALIZED` split that never mutates
+//!    on a read), materialization/seeding with journals, claim-then-Mission
+//!    locking, path-scoped commits with pinned bytes, typed landed/not-landed/
+//!    indeterminate outcomes, and interrupted-journal recovery. [`planning`]
+//!    adds the planning-commit partition/metadata/ancestry guards and
+//!    fast-forward integration of planning commits and dependency lane tips.
+//! 6. **What is protected, and which branch may this process write?** —
+//!    [`protection`] resolves the live policy from `.kittify/config.yaml`
+//!    (explicit list replaces defaults, `[]` unprotects, malformed fails closed),
+//!    the remote default branch, the operator hatch, and a `single_branch`
+//!    mission's own `commit_to_target`. [`topology`] supplies the branch/lane
+//!    tips and checkout occupancy those decisions need.
 //!
 //! # Dependencies
 //!
 //! `sk-workspace` depends on `sk-mission` for Mission identity, metadata, and
 //! topology, on `sk-kernel` for validated identifiers, bounded reads, atomic
-//! writes, and the cross-process file lock, and on `sk-git` for read-only
-//! inspection and typed mutation plans. It never depends on a higher layer, and
-//! it never shells out to Git itself: every Git operation goes through the one
-//! `sk-git` seam.
+//! writes, path confinement, and the cross-process file lock, and on `sk-git`
+//! for read-only inspection and typed mutation plans. It never depends on a
+//! higher layer, and it never shells out to Git itself: every Git operation goes
+//! through the one `sk-git` seam. The canonical Mission lock is taken through
+//! `sk-mission`'s door so the alias holds are never re-implemented here.
 //!
 //! # Placeholder ownership is impossible
 //!
@@ -42,12 +57,16 @@
 //!
 //! Allocation refuses to create a lane on a protected branch or on the
 //! mission target branch, and a protected mission integration branch is
-//! refused before creation. Nothing here silently writes the default branch.
+//! refused before creation. Coordination and planning commits resolve the live
+//! policy with [`protection::ProtectionPolicy`] and pass the result to the Git
+//! adapter; nothing here relies on the adapter's empty library default.
+//! Nothing silently writes the default branch.
 
 #![deny(missing_docs)]
 
 pub mod allocation;
 pub mod artifact;
+pub mod coord;
 pub mod coordination;
 pub mod error;
 pub mod journal;
@@ -55,11 +74,39 @@ pub mod lanes;
 pub mod lifecycle;
 pub mod naming;
 pub mod owned;
+pub mod planning;
 pub mod policy;
+pub mod protection;
 pub mod surface;
+pub mod topology;
 pub mod workspace;
 
 pub use error::WorkspaceError;
+
+pub use coord::{
+    COORD_JOURNAL_DIRECTORY, COORD_SEED_TRAILER, COORD_TRANSACTION_LOCK_TIMEOUT,
+    CoordBootstrapReceipt, CoordCommitOutcome, CoordEstablishment, CoordJournal, CoordPhase,
+    CoordReceipt, CoordRecord, CoordRecordKind, CoordRecoveryConflict, CoordRecoveryRepair,
+    CoordRecoveryReport, CoordSeedReceipt, CoordSurfaceRead, CoordTransaction, LandedCommit,
+    MissionHold, OwnershipProof, bootstrap_coordination, read_coordination_surface,
+    recover_interrupted,
+};
+pub use planning::{
+    DependencyIntegration, IntegrationOutcome, IntegrationReport, LandedAdvance,
+    MAX_PLANNING_ARTIFACT_BYTES, MetaDemotionGuard, PinClass, PlanningCommitPlan,
+    PlanningCommitReceipt, classify_recorded_pin, integrate_dependency_lanes,
+    integrate_planning_commit, integrate_tip, is_planning_kind, lane_contains_planning_commit,
+    planning_paths, record_planning_commit, recorded_pin,
+};
+pub use protection::{
+    CONFIG_REL_PATH, DEFAULT_PROTECTED_BRANCHES, PROTECTION_HATCH_ENV, ProtectionPolicy,
+};
+pub use topology::{
+    BranchTip, CheckoutOccupancy, LANE_TIP_REF_PREFIX, LaneBranchTip, LaneOccupancy,
+    LaneTipOutcome, LaneTipRecord, MissionBranchTips, OccupancyReport, RepoRootOccupancy,
+    coordination_mission_dir, coordination_worktree_path, lane_tip_ref, mission_branch_tips,
+    mission_occupancy, read_lane_tip, record_lane_tip, record_lane_tip_at,
+};
 
 pub use allocation::{
     AllocationRoute, LaneAllocation, LaneAllocator, LaneBaseDecision, LaneTopology,

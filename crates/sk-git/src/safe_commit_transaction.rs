@@ -225,18 +225,32 @@ fn create_commit(
     let message_path = message_file.path().to_path_buf();
     let cleanup = MessageCleanup::resolve(process, isolate_hooks)?;
 
-    let intended_tree = if isolate_hooks {
-        Some(seed_stage_and_write_tree(process, target, parent, plan)?)
+    let (intended_tree, initially_empty) = if isolate_hooks {
+        (
+            Some(seed_stage_and_write_tree(process, target, parent, plan)?),
+            false,
+        )
     } else {
         seed_and_stage(process, target, parent, plan)?;
-        None
+        (
+            None,
+            write_tree(process, target)? == tree_of(process, parent)?,
+        )
     };
 
     record_hook_warnings(
         warnings,
         "pre-commit",
-        run_commit_hook(process, target, "pre-commit", &[])?,
+        run_commit_hook(process, target, "pre-commit", &[], !isolate_hooks)?,
     );
+    // git commit --only runs pre-commit even for an initially empty
+    // changeset, but a formatter cannot turn that snapshot into a commit.
+    if initially_empty {
+        return Err(GitError::SafeCommitNothingToCommit {
+            destination: plan.destination().as_str().to_owned(),
+            detail: "the requested snapshot matched HEAD before the pre-commit hook".to_owned(),
+        });
+    }
     cleanup.apply(process, target, &message_path)?;
     record_hook_warnings(
         warnings,
@@ -246,12 +260,19 @@ fn create_commit(
             target,
             "prepare-commit-msg",
             &[message_path.as_os_str(), OsStr::new("message")],
+            !isolate_hooks,
         )?,
     );
     record_hook_warnings(
         warnings,
         "commit-msg",
-        run_commit_hook(process, target, "commit-msg", &[message_path.as_os_str()])?,
+        run_commit_hook(
+            process,
+            target,
+            "commit-msg",
+            &[message_path.as_os_str()],
+            !isolate_hooks,
+        )?,
     );
 
     let final_message = cleanup.apply(process, target, &message_path)?;
@@ -298,19 +319,17 @@ fn create_commit(
         &tree,
         parent,
         &message_path,
+        isolate_hooks,
         plan.destination().as_str(),
     )?;
     // The private index is no longer needed: the commit object exists.
     drop(index);
 
     let audit_message = if isolate_hooks {
-        String::from_utf8_lossy(&final_message).into_owned()
+        plan.message().to_owned()
     } else {
-        let subject = process.checked(&["show", "-s", "--format=%s", new_sha.as_str()])?;
-        format!(
-            "commit: {}",
-            String::from_utf8_lossy(strip_line_feed(&subject.stdout))
-        )
+        let message = String::from_utf8_lossy(&final_message);
+        format!("commit: {}", message.lines().next().unwrap_or_default())
     };
     let advance = repository
         .plan_ref_transaction(
@@ -478,7 +497,13 @@ fn finish_landed_commit(
         }
     }
     // `post-commit` runs after the ref moved and the index is reconciled.
-    match run_hook(process, IndexTarget::Operator, "post-commit", &[]) {
+    match run_hook(
+        process,
+        IndexTarget::Operator,
+        "post-commit",
+        &[],
+        plan.route() != SafeCommitRoute::PinnedParent,
+    ) {
         Ok(_) => {}
         Err(error) => warnings.push(format!(
             "the commit landed but its post-commit hook could not complete: {error}"
@@ -859,8 +884,9 @@ fn run_commit_hook(
     target: IndexTarget<'_>,
     hook: &str,
     extra: &[&OsStr],
+    no_editor: bool,
 ) -> Result<CommandOutput, GitError> {
-    run_hook(process, target, hook, extra)
+    run_hook(process, target, hook, extra, no_editor)
 }
 
 /// A hook's non-empty stderr on an otherwise successful run is an operator
@@ -884,6 +910,7 @@ fn run_hook(
     target: IndexTarget<'_>,
     hook: &str,
     extra: &[&OsStr],
+    no_editor: bool,
 ) -> Result<CommandOutput, GitError> {
     let mut args: Vec<OsString> = vec![
         OsString::from("hook"),
@@ -895,7 +922,11 @@ fn run_hook(
         args.push(OsString::from("--"));
         args.extend(extra.iter().map(|value| value.to_os_string()));
     }
-    let output = target.run(process, &args)?;
+    let index = match target {
+        IndexTarget::Operator => None,
+        IndexTarget::Scoped(index) => Some(index),
+    };
+    let output = process.run_commit_hook(&args, index, no_editor)?;
     if output.status.success() {
         return Ok(output);
     }
@@ -911,10 +942,11 @@ fn create_commit_object(
     tree: &Oid,
     parent: &Oid,
     message_path: &Path,
+    honor_signing: bool,
     destination: &str,
 ) -> Result<Oid, GitError> {
     let mut args: Vec<OsString> = vec![OsString::from("commit-tree")];
-    if commit_is_signed(process)? {
+    if honor_signing && commit_is_signed(process)? {
         args.push(OsString::from("-S"));
     }
     args.push(OsString::from(tree.as_str()));
@@ -935,7 +967,7 @@ fn create_commit_object(
 }
 
 /// Translate `commit.gpgsign` into `commit-tree`'s explicit option, exactly as
-/// upstream's ordinary and pinned-parent routes do: unset means unsigned, a non-boolean
+/// upstream's pinned-parent route does (ordinary routes force unsigned): unset means unsigned, a non-boolean
 /// value is a hard refusal.
 fn commit_is_signed(process: &GitProcess) -> Result<bool, GitError> {
     let output = process.allowing(&["config", "--bool", "--get", "commit.gpgsign"], &[1])?;

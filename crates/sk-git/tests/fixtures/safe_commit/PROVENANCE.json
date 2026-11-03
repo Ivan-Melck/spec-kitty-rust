@@ -1,0 +1,19 @@
+{
+  "baseline": "9aed3a8012cb5eb22c0128b14d525039f95fea7a",
+  "case_count": 32,
+  "cases_digest": "fe6a1978e94d4b1b2b9997569af3f33a3668bb58a026008f1dceb51f2ffde77d",
+  "generator": "generate_oracle.py",
+  "generator_sha256": "934ea7ecbd7855c5b5e7c423838e48d9ab8ae8db95b84f5d04c4d6e85c49a058",
+  "git_version": "git version 2.43.0",
+  "python": "3.11.15",
+  "verify_oracle": {
+    "checked_runtime_requirements": 53,
+    "drift": [],
+    "duplicate_versions": [],
+    "installed_count": 53,
+    "missing": [],
+    "ok": true,
+    "python": "3.11.15",
+    "unsatisfied": []
+  }
+}

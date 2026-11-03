@@ -1,0 +1,245 @@
+{
+  "after": {
+    "branch": "lane",
+    "committed_paths": [
+      "other.txt",
+      "spec.md"
+    ],
+    "custom_index": null,
+    "files": [
+      {
+        "path": "a.txt",
+        "sha256": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+        "text": "one\n"
+      },
+      {
+        "path": "other.txt",
+        "sha256": "8b120efc6a54ee789de951b9fa14ee2a120955ad68ec498d58e9552b1dd09fa9",
+        "text": "operator modified\n"
+      },
+      {
+        "path": "partial.txt",
+        "sha256": "67117a01b0c95df8867b8077878b5bfa42eb68710b69305b9a11789ec91feaad",
+        "text": "p0\np1\np2\n"
+      },
+      {
+        "path": "seed.txt",
+        "sha256": "4a6689419b00b11700c9b6246bcfa8936c8f5e1e824db3a7e57030e2d1c1a684",
+        "text": "seed\n"
+      },
+      {
+        "path": "spec.md",
+        "sha256": "1b355baa30768cee67e2f1f9ff2d45584cb42f9413881d9104579d26cff1d2e8",
+        "text": "# spec\n"
+      }
+    ],
+    "head": "4aec0843807aaa7367ff7cd54878535f90c5c3e2",
+    "index": [
+      "100644 5626abf0f72e58d7a153368ba57db4c673c0e171 0 a.txt",
+      "100644 867efe274298dd8acc75f2ea719b8033f6114a78 0 other.txt",
+      "100644 2ebfd8e28731959dd720d01f8eaae04f68f1e793 0 partial.txt",
+      "100644 e31de1f3a235fd5e8f97207b8e43cd2aa06a6417 0 seed.txt",
+      "100644 06b29dd69454ba25076e749d3b52592ca94ba484 0 spec.md"
+    ],
+    "index_flags": [
+      "H a.txt",
+      "H other.txt",
+      "H partial.txt",
+      "H seed.txt",
+      "H spec.md"
+    ],
+    "message": "diff: sweep\n",
+    "message_sha256": "9c7e17949f53da07780c93d5c6d8ef4972cfee1377a7bb6edc06bc00a067dc26",
+    "parents": [
+      "da07b550ebe35aee8354af1346f7c45319cb30b2"
+    ],
+    "reflog": [
+      "4aec0843807aaa7367ff7cd54878535f90c5c3e2|commit: diff: sweep",
+      "da07b550ebe35aee8354af1346f7c45319cb30b2|commit (initial): initial"
+    ],
+    "refs": [
+      "refs/heads/lane 4aec0843807aaa7367ff7cd54878535f90c5c3e2"
+    ],
+    "status": [],
+    "tree": "3044f8d6959a88ae76d02f76480324cb74ad5cc7"
+  },
+  "before": {
+    "branch": "lane",
+    "committed_paths": [
+      "a.txt",
+      "other.txt",
+      "partial.txt",
+      "seed.txt"
+    ],
+    "custom_index": null,
+    "files": [
+      {
+        "path": "a.txt",
+        "sha256": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+        "text": "one\n"
+      },
+      {
+        "path": "other.txt",
+        "sha256": "8b120efc6a54ee789de951b9fa14ee2a120955ad68ec498d58e9552b1dd09fa9",
+        "text": "operator modified\n"
+      },
+      {
+        "path": "partial.txt",
+        "sha256": "67117a01b0c95df8867b8077878b5bfa42eb68710b69305b9a11789ec91feaad",
+        "text": "p0\np1\np2\n"
+      },
+      {
+        "path": "seed.txt",
+        "sha256": "4a6689419b00b11700c9b6246bcfa8936c8f5e1e824db3a7e57030e2d1c1a684",
+        "text": "seed\n"
+      },
+      {
+        "path": "spec.md",
+        "sha256": "1b355baa30768cee67e2f1f9ff2d45584cb42f9413881d9104579d26cff1d2e8",
+        "text": "# spec\n"
+      }
+    ],
+    "head": "da07b550ebe35aee8354af1346f7c45319cb30b2",
+    "index": [
+      "100644 5626abf0f72e58d7a153368ba57db4c673c0e171 0 a.txt",
+      "100644 df967b96a579e45a18b8251732d16804b2e56a55 0 other.txt",
+      "100644 2ebfd8e28731959dd720d01f8eaae04f68f1e793 0 partial.txt",
+      "100644 e31de1f3a235fd5e8f97207b8e43cd2aa06a6417 0 seed.txt"
+    ],
+    "index_flags": [
+      "H a.txt",
+      "H other.txt",
+      "H partial.txt",
+      "H seed.txt"
+    ],
+    "message": "initial\n",
+    "message_sha256": "da68f54607d5f5644954096ce1597c006c5bb9f2497e07441bf064b81003ef8a",
+    "parents": [],
+    "reflog": [
+      "da07b550ebe35aee8354af1346f7c45319cb30b2|commit (initial): initial"
+    ],
+    "refs": [
+      "refs/heads/lane da07b550ebe35aee8354af1346f7c45319cb30b2"
+    ],
+    "status": [
+      " M other.txt",
+      "?? spec.md"
+    ],
+    "tree": "d040f51e6115e0475db6ed600c7e1400f410ef83"
+  },
+  "description": "A hook that stages a tracked extra lands the commit and reports the unrequested paths as a landed follow-up.",
+  "detail_tokens": [],
+  "divergence": null,
+  "expectation": "match",
+  "hooks": [
+    {
+      "argv": [],
+      "cached": [
+        "spec.md"
+      ],
+      "cwd_is_worktree": "yes",
+      "extra": [],
+      "git_dir": "<unset>",
+      "git_editor": "set::",
+      "git_prefix": "",
+      "hook": "pre-commit",
+      "index": "private",
+      "index_in_git_dir": "yes",
+      "nargs": 0,
+      "status": [
+        " M other.txt",
+        "A  spec.md"
+      ]
+    }
+  ],
+  "name": "hook_stages_extra_paths_landed",
+  "native": {
+    "landed_kind": "UnrequestedPaths",
+    "variant": "SafeCommitLanded"
+  },
+  "oracle": {
+    "commit": "4aec0843807aaa7367ff7cd54878535f90c5c3e2",
+    "error_detail": "safe_commit: commit 4aec0843807aaa7367ff7cd54878535f90c5c3e2 landed, but it also carries path(s) the operation did not request (a pre-commit hook staged them): other.txt",
+    "facts": [],
+    "landed_kind": "UnrequestedPaths",
+    "outcome": "error",
+    "refusal_class": "landed_with_followup",
+    "warnings": []
+  },
+  "oracle_environment": {
+    "baseline": "9aed3a8012cb5eb22c0128b14d525039f95fea7a",
+    "git": "git version 2.43.0",
+    "python": "3.11.15",
+    "verify_oracle_ok": true
+  },
+  "request": {
+    "capability": "standard",
+    "custom_index": false,
+    "expected_parent": null,
+    "index_deletions": [],
+    "message": "diff: sweep",
+    "paths": [
+      "spec.md"
+    ],
+    "protection": null,
+    "wait_for_sentinel": false
+  },
+  "route": "worktree",
+  "setup": {
+    "branch": "lane",
+    "files": [
+      {
+        "content": "seed\n",
+        "path": "seed.txt"
+      },
+      {
+        "content": "one\n",
+        "path": "a.txt"
+      },
+      {
+        "content": "base\n",
+        "path": "other.txt"
+      },
+      {
+        "content": "p0\np1\np2\n",
+        "path": "partial.txt"
+      }
+    ],
+    "hooks": [
+      {
+        "name": "pre-commit",
+        "script": "#!/bin/sh\nLOG=\"${SK_SAFE_COMMIT_HOOK_LOG:?}\"\n{\n  echo \"hook=pre-commit\"\n  echo \"nargs=$#\"\n  i=0\n  for a in \"$@\"; do\n    i=$((i+1))\n    if [ -f \"$a\" ]; then\n      echo \"argv$i=file:$(git hash-object --no-filters -- \"$a\")\"\n    else\n      echo \"argv$i=text:$a\"\n    fi\n  done\n  if [ -n \"${GIT_INDEX_FILE-}\" ]; then\n    real=\"$(git rev-parse --absolute-git-dir)/index\"\n    if [ \"$GIT_INDEX_FILE\" = \"$real\" ]; then echo \"index=real\"; else echo \"index=private\"; fi\n    case \"$GIT_INDEX_FILE\" in\n      \"$(git rev-parse --absolute-git-dir)\"/*) echo \"index_in_git_dir=yes\";;\n      *) echo \"index_in_git_dir=no\";;\n    esac\n  else\n    echo \"index=unset\"\n    echo \"index_in_git_dir=no\"\n  fi\n  if [ \"$(pwd -P)\" = \"$(git rev-parse --show-toplevel)\" ]; then\n    echo \"cwd_is_worktree=yes\"\n  else\n    echo \"cwd_is_worktree=no\"\n  fi\n  echo \"git_dir=${GIT_DIR-<unset>}\"\n  echo \"git_prefix=${GIT_PREFIX-<unset>}\"\n  if [ -n \"${GIT_EDITOR-}\" ]; then echo \"git_editor=set:$GIT_EDITOR\"; else echo \"git_editor=unset\"; fi\n  git status --porcelain | sed 's/^/status=/'\n  git diff --cached --name-only | sed 's/^/cached=/'\n} >> \"$LOG\"\ngit add -u\nexit 0\n"
+      }
+    ],
+    "steps": [
+      {
+        "argv": [
+          "git",
+          "add",
+          "-A"
+        ]
+      },
+      {
+        "argv": [
+          "git",
+          "commit",
+          "-q",
+          "-m",
+          "initial"
+        ]
+      },
+      {
+        "write": {
+          "content": "operator modified\n",
+          "path": "other.txt"
+        }
+      },
+      {
+        "write": {
+          "content": "# spec\n",
+          "path": "spec.md"
+        }
+      }
+    ]
+  }
+}

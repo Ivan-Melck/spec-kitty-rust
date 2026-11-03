@@ -218,6 +218,17 @@ impl LanesManifest {
         !self.lanes.is_empty() && self.lanes.iter().all(ExecutionLane::is_planning)
     }
 
+    /// A copy with `planning_commit_sha` set to `commit`.
+    ///
+    /// The pin is the only durable link between a lane cut from the
+    /// coordination branch and the planning lineage; it is written by the
+    /// planning-commit owner after the commit lands, never predicted.
+    pub fn with_planning_commit(&self, commit: &sk_git::Oid) -> Self {
+        let mut manifest = self.clone();
+        manifest.planning_commit_sha = Some(commit.to_string());
+        manifest
+    }
+
     /// Lanes grouped by parallel group, deterministic by group then lane id.
     pub fn parallel_groups(&self) -> BTreeMap<u32, Vec<&ExecutionLane>> {
         let mut groups: BTreeMap<u32, Vec<&ExecutionLane>> = BTreeMap::new();

@@ -1,0 +1,276 @@
+{
+  "after": {
+    "branch": "lane",
+    "committed_paths": [
+      "a.txt",
+      "new.txt"
+    ],
+    "custom_index": null,
+    "files": [
+      {
+        "path": "a.txt",
+        "sha256": "27dd8ed44a83ff94d557f9fd0412ed5a8cbca69ea04922d88c01184a07300a5a",
+        "text": "two\n"
+      },
+      {
+        "path": "new.txt",
+        "sha256": "7aa7a5359173d05b63cfd682e3c38487f3cb4f7f1d60659fe59fab1505977d4c",
+        "text": "new\n"
+      },
+      {
+        "path": "other.txt",
+        "sha256": "7f8b1dfc466b6249f06cbe55c9174df2578e7754da793fded244ef5cba2a38f1",
+        "text": "changed\n"
+      },
+      {
+        "path": "partial.txt",
+        "sha256": "d6c9bcb9bf518a2968095fb1a9af6154a8d376ef7107b4bc2055992087e21424",
+        "text": "p0\np1-WIP\np2-WIP\n"
+      },
+      {
+        "path": "seed.txt",
+        "sha256": "4a6689419b00b11700c9b6246bcfa8936c8f5e1e824db3a7e57030e2d1c1a684",
+        "text": "seed\n"
+      },
+      {
+        "path": "u.txt",
+        "sha256": "ea46748e171abd2dd4dba5b86bb6589334d86bba2df8d50cbb16b36c83b0856a",
+        "text": "u\n"
+      }
+    ],
+    "head": "e2374c1d9bbe6f0c04c9cb555b1d36367bf7d183",
+    "index": [
+      "100644 f719efd430d52bcfc8566a43b2eb655688d38871 0 a.txt",
+      "100644 3e757656cf36eca53338e520d134963a44f793f8 0 new.txt",
+      "100644 5ea2ed416fbd4a4cbe227b75fe255dd7fa6bd4d6 0 other.txt",
+      "100644 66c4a100d8f68fc029a72e8360560466fae360e8 0 partial.txt",
+      "100644 e31de1f3a235fd5e8f97207b8e43cd2aa06a6417 0 seed.txt"
+    ],
+    "index_flags": [
+      "H a.txt",
+      "H new.txt",
+      "H other.txt",
+      "H partial.txt",
+      "H seed.txt"
+    ],
+    "message": "diff: two\n",
+    "message_sha256": "29ab55ce25c11b8c78fd49eab35f449d019806d26970c8817f26a97c8458e1a5",
+    "parents": [
+      "da07b550ebe35aee8354af1346f7c45319cb30b2"
+    ],
+    "reflog": [
+      "e2374c1d9bbe6f0c04c9cb555b1d36367bf7d183|commit: diff: two",
+      "da07b550ebe35aee8354af1346f7c45319cb30b2|commit (initial): initial"
+    ],
+    "refs": [
+      "refs/heads/lane e2374c1d9bbe6f0c04c9cb555b1d36367bf7d183"
+    ],
+    "status": [
+      "M  other.txt",
+      "MM partial.txt",
+      "?? u.txt"
+    ],
+    "tree": "8f186a18e3fef217ac81b83fabd956fa2be2ef0d"
+  },
+  "before": {
+    "branch": "lane",
+    "committed_paths": [
+      "a.txt",
+      "other.txt",
+      "partial.txt",
+      "seed.txt"
+    ],
+    "custom_index": null,
+    "files": [
+      {
+        "path": "a.txt",
+        "sha256": "27dd8ed44a83ff94d557f9fd0412ed5a8cbca69ea04922d88c01184a07300a5a",
+        "text": "two\n"
+      },
+      {
+        "path": "new.txt",
+        "sha256": "7aa7a5359173d05b63cfd682e3c38487f3cb4f7f1d60659fe59fab1505977d4c",
+        "text": "new\n"
+      },
+      {
+        "path": "other.txt",
+        "sha256": "7f8b1dfc466b6249f06cbe55c9174df2578e7754da793fded244ef5cba2a38f1",
+        "text": "changed\n"
+      },
+      {
+        "path": "partial.txt",
+        "sha256": "d6c9bcb9bf518a2968095fb1a9af6154a8d376ef7107b4bc2055992087e21424",
+        "text": "p0\np1-WIP\np2-WIP\n"
+      },
+      {
+        "path": "seed.txt",
+        "sha256": "4a6689419b00b11700c9b6246bcfa8936c8f5e1e824db3a7e57030e2d1c1a684",
+        "text": "seed\n"
+      },
+      {
+        "path": "u.txt",
+        "sha256": "ea46748e171abd2dd4dba5b86bb6589334d86bba2df8d50cbb16b36c83b0856a",
+        "text": "u\n"
+      }
+    ],
+    "head": "da07b550ebe35aee8354af1346f7c45319cb30b2",
+    "index": [
+      "100644 5626abf0f72e58d7a153368ba57db4c673c0e171 0 a.txt",
+      "100644 5ea2ed416fbd4a4cbe227b75fe255dd7fa6bd4d6 0 other.txt",
+      "100644 66c4a100d8f68fc029a72e8360560466fae360e8 0 partial.txt",
+      "100644 e31de1f3a235fd5e8f97207b8e43cd2aa06a6417 0 seed.txt"
+    ],
+    "index_flags": [
+      "H a.txt",
+      "H other.txt",
+      "H partial.txt",
+      "H seed.txt"
+    ],
+    "message": "initial\n",
+    "message_sha256": "da68f54607d5f5644954096ce1597c006c5bb9f2497e07441bf064b81003ef8a",
+    "parents": [],
+    "reflog": [
+      "da07b550ebe35aee8354af1346f7c45319cb30b2|commit (initial): initial"
+    ],
+    "refs": [
+      "refs/heads/lane da07b550ebe35aee8354af1346f7c45319cb30b2"
+    ],
+    "status": [
+      " M a.txt",
+      "M  other.txt",
+      "MM partial.txt",
+      "?? new.txt",
+      "?? u.txt"
+    ],
+    "tree": "d040f51e6115e0475db6ed600c7e1400f410ef83"
+  },
+  "description": "Unrelated fully staged, partially staged and untracked content survives.",
+  "detail_tokens": [],
+  "divergence": null,
+  "expectation": "match",
+  "hooks": [],
+  "name": "preserve_unrelated_staged_partial_untracked",
+  "native": {
+    "landed_kind": null,
+    "variant": null
+  },
+  "oracle": {
+    "commit": "e2374c1d9bbe6f0c04c9cb555b1d36367bf7d183",
+    "error_detail": null,
+    "facts": [],
+    "landed_kind": null,
+    "outcome": "ok",
+    "refusal_class": null,
+    "warnings": []
+  },
+  "oracle_environment": {
+    "baseline": "9aed3a8012cb5eb22c0128b14d525039f95fea7a",
+    "git": "git version 2.43.0",
+    "python": "3.11.15",
+    "verify_oracle_ok": true
+  },
+  "request": {
+    "capability": "standard",
+    "custom_index": false,
+    "expected_parent": null,
+    "index_deletions": [],
+    "message": "diff: two",
+    "paths": [
+      "a.txt",
+      "new.txt"
+    ],
+    "protection": null,
+    "wait_for_sentinel": false
+  },
+  "route": "worktree",
+  "setup": {
+    "branch": "lane",
+    "files": [
+      {
+        "content": "seed\n",
+        "path": "seed.txt"
+      },
+      {
+        "content": "one\n",
+        "path": "a.txt"
+      },
+      {
+        "content": "base\n",
+        "path": "other.txt"
+      },
+      {
+        "content": "p0\np1\np2\n",
+        "path": "partial.txt"
+      }
+    ],
+    "hooks": [],
+    "steps": [
+      {
+        "argv": [
+          "git",
+          "add",
+          "-A"
+        ]
+      },
+      {
+        "argv": [
+          "git",
+          "commit",
+          "-q",
+          "-m",
+          "initial"
+        ]
+      },
+      {
+        "write": {
+          "content": "two\n",
+          "path": "a.txt"
+        }
+      },
+      {
+        "write": {
+          "content": "changed\n",
+          "path": "other.txt"
+        }
+      },
+      {
+        "argv": [
+          "git",
+          "add",
+          "other.txt"
+        ]
+      },
+      {
+        "write": {
+          "content": "p0\np1-WIP\np2\n",
+          "path": "partial.txt"
+        }
+      },
+      {
+        "argv": [
+          "git",
+          "add",
+          "partial.txt"
+        ]
+      },
+      {
+        "write": {
+          "content": "p0\np1-WIP\np2-WIP\n",
+          "path": "partial.txt"
+        }
+      },
+      {
+        "write": {
+          "content": "u\n",
+          "path": "u.txt"
+        }
+      },
+      {
+        "write": {
+          "content": "new\n",
+          "path": "new.txt"
+        }
+      }
+    ]
+  }
+}

@@ -286,23 +286,38 @@ impl MissionWorkspace {
 
     /// Probe the coordination surface's materialization state.
     ///
-    /// * a coord-less topology is [`CoordState::None`];
-    /// * a declared branch that no longer resolves is [`CoordState::Deleted`];
-    /// * a registered worktree on that branch is [`CoordState::Materialized`];
-    /// * a branch that exists without a registered worktree is
-    ///   [`CoordState::Unmaterialized`] (materialize it; never silently read the
-    ///   primary checkout).
+    /// The four-way answer mirrors upstream's shared `probe_coord_state`:
     ///
-    /// The upstream `EMPTY` versus `UNMATERIALIZED` distinction depends on
-    /// coordination-seeding state that `sk-git` does not expose yet; this probe
-    /// reports the fail-closed `Unmaterialized` answer for both rather than
-    /// guessing.
+    /// * a coord-less topology is [`CoordState::None`];
+    /// * the canonical coordination worktree is registered on the declared
+    ///   branch and its Mission directory exists → [`CoordState::Materialized`];
+    /// * that worktree is registered but its Mission directory is absent →
+    ///   [`CoordState::Empty`] (a seed ticket, never a silent primary read);
+    /// * no worktree is registered but the branch still exists locally or on a
+    ///   remote → [`CoordState::Unmaterialized`];
+    /// * the declared branch is gone everywhere → [`CoordState::Deleted`].
+    ///
+    /// This probe is strictly read-only: it creates no worktree and writes no
+    /// file, so a read of an `Empty` or `Unmaterialized` surface cannot mutate
+    /// the repository. A registered worktree whose checkout is on a different
+    /// branch is a typed refusal (never auto-corrected): switching a checkout
+    /// back would discard whatever the operator has in flight there.
+    ///
+    /// Only the `Deleted` question consults remotes, and only after the local
+    /// head and the `refs/remotes/` view both miss — the same last arm upstream
+    /// uses. `sk-git` bounds each remote contact with its own timeout, so this
+    /// cannot hang indefinitely; a remote that answers nothing or errors keeps
+    /// the branch `Unmaterialized` rather than reporting data loss.
     pub fn probe_coordination(&self) -> Result<CoordinationProbe, WorkspaceError> {
         if !routes_through_coordination(self.topology) {
             return Ok(CoordinationProbe {
                 state: CoordState::None,
                 branch: None,
                 worktree: None,
+                mission_dir: None,
+                local_head: false,
+                stray_directory: None,
+                tip: None,
             });
         }
         let Some(branch_text) = self.coordination_branch() else {
@@ -313,42 +328,101 @@ impl MissionWorkspace {
                 state: CoordState::Deleted,
                 branch: None,
                 worktree: None,
+                mission_dir: None,
+                local_head: false,
+                stray_directory: None,
+                tip: None,
             });
         };
         let branch = BranchName::parse(&branch_text)?;
-        let tip = self.workspace.repository().read_branch_tip(&branch)?;
-        if tip.is_none() {
-            return Ok(CoordinationProbe {
-                state: CoordState::Deleted,
-                branch: Some(branch_text),
-                worktree: None,
-            });
-        }
-        let registered: Vec<PathBuf> = self
-            .workspace
-            .repository()
-            .worktrees()?
-            .into_iter()
-            .filter(|worktree| worktree.branch() == Some(branch_text.as_str()))
-            .map(|worktree| worktree.path().to_path_buf())
-            .collect();
-        match registered.into_iter().next() {
-            Some(worktree) => Ok(CoordinationProbe {
-                state: CoordState::Materialized,
-                branch: Some(branch_text),
-                worktree: Some(worktree),
-            }),
-            None => {
-                // Name proposes, the worktree registry disposes: an existing
-                // directory that git does not register is a husk, never a
-                // materialized coordination surface.
-                Ok(CoordinationProbe {
+        let repository = self.workspace.repository();
+        let local_tip = repository.read_branch_tip(&branch)?;
+        let coord_root = self.coord_worktree_path();
+        let mission_dir = coord_root.as_ref().map(|root| {
+            root.join(SPECS_DIR_NAME)
+                .join(self.canonical_mission_dir_name())
+        });
+        let worktrees = repository.worktrees()?;
+
+        if let Some(root) = &coord_root
+            && root.exists()
+        {
+            let registered = worktrees
+                .iter()
+                .find(|worktree| same_path(worktree.path(), root));
+            return match registered {
+                Some(worktree) => {
+                    if worktree.branch() != Some(branch_text.as_str()) {
+                        return Err(WorkspaceError::CoordRefused {
+                            code: "COORDINATION_WORKTREE_BRANCH_MISMATCH",
+                            message: format!(
+                                "coordination worktree {} is on {:?}, expected {branch_text:?}; refusing to switch it automatically",
+                                root.display(),
+                                worktree.branch().unwrap_or("<detached>")
+                            ),
+                        });
+                    }
+                    let state = if mission_dir.as_ref().is_some_and(|dir| dir.is_dir()) {
+                        CoordState::Materialized
+                    } else {
+                        CoordState::Empty
+                    };
+                    Ok(CoordinationProbe {
+                        state,
+                        branch: Some(branch_text),
+                        worktree: Some(root.clone()),
+                        mission_dir,
+                        local_head: local_tip.is_some(),
+                        stray_directory: None,
+                        tip: local_tip,
+                    })
+                }
+                None => Ok(CoordinationProbe {
+                    // Name proposes, the registry disposes: a directory Git does
+                    // not register is a husk, never a materialized surface.
                     state: CoordState::Unmaterialized,
                     branch: Some(branch_text),
                     worktree: None,
-                })
-            }
+                    mission_dir,
+                    local_head: local_tip.is_some(),
+                    stray_directory: Some(root.clone()),
+                    tip: local_tip,
+                }),
+            };
         }
+
+        if local_tip.is_some() {
+            return Ok(CoordinationProbe {
+                state: CoordState::Unmaterialized,
+                branch: Some(branch_text),
+                worktree: None,
+                mission_dir,
+                local_head: true,
+                stray_directory: None,
+                tip: local_tip,
+            });
+        }
+        // No local head. A branch that lives only on a remote is present, not
+        // deleted: a fresh clone, a single-branch checkout, or a pruned
+        // tracking ref must never be reported as data loss.
+        let remote = repository.remote_branch_lookup(&branch)?;
+        let present_on_remote = matches!(
+            remote,
+            sk_git::RemoteBranchLookup::Hit { .. } | sk_git::RemoteBranchLookup::Error { .. }
+        );
+        Ok(CoordinationProbe {
+            state: if present_on_remote {
+                CoordState::Unmaterialized
+            } else {
+                CoordState::Deleted
+            },
+            branch: Some(branch_text),
+            worktree: None,
+            mission_dir,
+            local_head: false,
+            stray_directory: None,
+            tip: None,
+        })
     }
 }
 
@@ -364,8 +438,23 @@ pub struct CoordinationProbe {
     pub state: CoordState,
     /// The declared branch, when known.
     pub branch: Option<String>,
-    /// The materialised worktree, when present.
+    /// The materialised worktree, when present and registered.
     pub worktree: Option<PathBuf>,
+    /// The canonical coordination Mission directory
+    /// (`<worktree>/kitty-specs/<slug>-<mid8>`), whether or not it exists.
+    pub mission_dir: Option<PathBuf>,
+    /// Does the declared branch resolve as a local head?
+    pub local_head: bool,
+    /// A directory at the canonical worktree path that Git does not register.
+    /// It is reported, never adopted and never deleted.
+    pub stray_directory: Option<PathBuf>,
+    /// The local branch tip, when the branch exists locally.
+    pub tip: Option<sk_git::Oid>,
+}
+
+fn same_path(left: &Path, right: &Path) -> bool {
+    std::fs::canonicalize(left).unwrap_or_else(|_| left.to_path_buf())
+        == std::fs::canonicalize(right).unwrap_or_else(|_| right.to_path_buf())
 }
 
 /// Resolve a mission's canonical directory from any checkout path.

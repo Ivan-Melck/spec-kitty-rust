@@ -1,0 +1,215 @@
+{
+  "after": {
+    "branch": "main",
+    "committed_paths": [
+      "a.txt",
+      "other.txt",
+      "partial.txt",
+      "seed.txt"
+    ],
+    "custom_index": null,
+    "files": [
+      {
+        "path": "a.txt",
+        "sha256": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+        "text": "one\n"
+      },
+      {
+        "path": "gated.txt",
+        "sha256": "d6d4b7dad6432378b3f79837011b83742f768d13129fa4ab3ca22ac61c40d9b7",
+        "text": "gated\n"
+      },
+      {
+        "path": "other.txt",
+        "sha256": "f34848ca92665c342abd5816c9e3eda0e82180671195362bcd0080544a3bc2ac",
+        "text": "base\n"
+      },
+      {
+        "path": "partial.txt",
+        "sha256": "67117a01b0c95df8867b8077878b5bfa42eb68710b69305b9a11789ec91feaad",
+        "text": "p0\np1\np2\n"
+      },
+      {
+        "path": "seed.txt",
+        "sha256": "4a6689419b00b11700c9b6246bcfa8936c8f5e1e824db3a7e57030e2d1c1a684",
+        "text": "seed\n"
+      }
+    ],
+    "head": "da07b550ebe35aee8354af1346f7c45319cb30b2",
+    "index": [
+      "100644 5626abf0f72e58d7a153368ba57db4c673c0e171 0 a.txt",
+      "100644 df967b96a579e45a18b8251732d16804b2e56a55 0 other.txt",
+      "100644 2ebfd8e28731959dd720d01f8eaae04f68f1e793 0 partial.txt",
+      "100644 e31de1f3a235fd5e8f97207b8e43cd2aa06a6417 0 seed.txt"
+    ],
+    "index_flags": [
+      "H a.txt",
+      "H other.txt",
+      "H partial.txt",
+      "H seed.txt"
+    ],
+    "message": "initial\n",
+    "message_sha256": "da68f54607d5f5644954096ce1597c006c5bb9f2497e07441bf064b81003ef8a",
+    "parents": [],
+    "reflog": [
+      "da07b550ebe35aee8354af1346f7c45319cb30b2|commit (initial): initial"
+    ],
+    "refs": [
+      "refs/heads/main da07b550ebe35aee8354af1346f7c45319cb30b2"
+    ],
+    "status": [
+      "?? gated.txt"
+    ],
+    "tree": "d040f51e6115e0475db6ed600c7e1400f410ef83"
+  },
+  "before": {
+    "branch": "main",
+    "committed_paths": [
+      "a.txt",
+      "other.txt",
+      "partial.txt",
+      "seed.txt"
+    ],
+    "custom_index": null,
+    "files": [
+      {
+        "path": "a.txt",
+        "sha256": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+        "text": "one\n"
+      },
+      {
+        "path": "gated.txt",
+        "sha256": "d6d4b7dad6432378b3f79837011b83742f768d13129fa4ab3ca22ac61c40d9b7",
+        "text": "gated\n"
+      },
+      {
+        "path": "other.txt",
+        "sha256": "f34848ca92665c342abd5816c9e3eda0e82180671195362bcd0080544a3bc2ac",
+        "text": "base\n"
+      },
+      {
+        "path": "partial.txt",
+        "sha256": "67117a01b0c95df8867b8077878b5bfa42eb68710b69305b9a11789ec91feaad",
+        "text": "p0\np1\np2\n"
+      },
+      {
+        "path": "seed.txt",
+        "sha256": "4a6689419b00b11700c9b6246bcfa8936c8f5e1e824db3a7e57030e2d1c1a684",
+        "text": "seed\n"
+      }
+    ],
+    "head": "da07b550ebe35aee8354af1346f7c45319cb30b2",
+    "index": [
+      "100644 5626abf0f72e58d7a153368ba57db4c673c0e171 0 a.txt",
+      "100644 df967b96a579e45a18b8251732d16804b2e56a55 0 other.txt",
+      "100644 2ebfd8e28731959dd720d01f8eaae04f68f1e793 0 partial.txt",
+      "100644 e31de1f3a235fd5e8f97207b8e43cd2aa06a6417 0 seed.txt"
+    ],
+    "index_flags": [
+      "H a.txt",
+      "H other.txt",
+      "H partial.txt",
+      "H seed.txt"
+    ],
+    "message": "initial\n",
+    "message_sha256": "da68f54607d5f5644954096ce1597c006c5bb9f2497e07441bf064b81003ef8a",
+    "parents": [],
+    "reflog": [
+      "da07b550ebe35aee8354af1346f7c45319cb30b2|commit (initial): initial"
+    ],
+    "refs": [
+      "refs/heads/main da07b550ebe35aee8354af1346f7c45319cb30b2"
+    ],
+    "status": [
+      "?? gated.txt"
+    ],
+    "tree": "d040f51e6115e0475db6ed600c7e1400f410ef83"
+  },
+  "description": "A protected destination without a bookkeeping capability is refused before mutation.",
+  "detail_tokens": [],
+  "divergence": null,
+  "expectation": "match",
+  "hooks": [],
+  "name": "protected_branch_refused",
+  "native": {
+    "landed_kind": null,
+    "variant": "SafeCommitProtectedBranch"
+  },
+  "oracle": {
+    "commit": null,
+    "error_detail": "safe_commit: refusing to commit to protected branch 'main' in <RUN_ROOT>/repo. Retry against a non-protected topic branch, or set SPEC_KITTY_ALLOW_PROTECTED_BRANCH_COMMITS=1 if you own this branch.",
+    "facts": [],
+    "landed_kind": null,
+    "outcome": "error",
+    "refusal_class": "protected_branch",
+    "warnings": []
+  },
+  "oracle_environment": {
+    "baseline": "9aed3a8012cb5eb22c0128b14d525039f95fea7a",
+    "git": "git version 2.43.0",
+    "python": "3.11.15",
+    "verify_oracle_ok": true
+  },
+  "request": {
+    "capability": "standard",
+    "custom_index": false,
+    "expected_parent": null,
+    "index_deletions": [],
+    "message": "gated",
+    "paths": [
+      "gated.txt"
+    ],
+    "protection": [
+      "main",
+      "master"
+    ],
+    "wait_for_sentinel": false
+  },
+  "route": "worktree",
+  "setup": {
+    "branch": "main",
+    "files": [
+      {
+        "content": "seed\n",
+        "path": "seed.txt"
+      },
+      {
+        "content": "one\n",
+        "path": "a.txt"
+      },
+      {
+        "content": "base\n",
+        "path": "other.txt"
+      },
+      {
+        "content": "p0\np1\np2\n",
+        "path": "partial.txt"
+      }
+    ],
+    "hooks": [],
+    "steps": [
+      {
+        "argv": [
+          "git",
+          "add",
+          "-A"
+        ]
+      },
+      {
+        "argv": [
+          "git",
+          "commit",
+          "-q",
+          "-m",
+          "initial"
+        ]
+      },
+      {
+        "write": {
+          "content": "gated\n",
+          "path": "gated.txt"
+        }
+      }
+    ]
+  }
+}

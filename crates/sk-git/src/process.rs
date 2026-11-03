@@ -103,6 +103,11 @@ pub(crate) enum EnvProfile {
     RemoteRead { ssh_command: Option<OsString> },
     /// A path-scoped index transaction against one private index file.
     ScopedIndex { index: PathBuf },
+    /// A commit hook: private-index scope plus git commit's no-editor context.
+    CommitHook {
+        index: Option<PathBuf>,
+        no_editor: bool,
+    },
 }
 
 /// A private index file used by one path-scoped index transaction.
@@ -229,6 +234,23 @@ impl GitProcess {
             None,
             EnvProfile::ScopedIndex {
                 index: index.path().to_path_buf(),
+            },
+        )
+    }
+
+    /// Run a hook in the route's private-index and editor context.
+    pub(crate) fn run_commit_hook<S: AsRef<OsStr>>(
+        &self,
+        args: &[S],
+        index: Option<&ScopedIndex>,
+        no_editor: bool,
+    ) -> Result<CommandOutput, GitError> {
+        self.run_profiled(
+            args,
+            None,
+            EnvProfile::CommitHook {
+                index: index.map(|index| index.path().to_path_buf()),
+                no_editor,
             },
         )
     }
@@ -479,6 +501,17 @@ impl GitProcess {
 
     fn command_with_profile<S: AsRef<OsStr>>(&self, args: &[S], profile: &EnvProfile) -> Command {
         let mut command = Command::new(&self.program);
+        if matches!(
+            profile,
+            EnvProfile::CommitHook {
+                no_editor: true,
+                ..
+            }
+        ) {
+            // Ordinary upstream safe_commit forces unsigned git commits; the
+            // config must also propagate to commands invoked by its hooks.
+            command.args(["-c", "commit.gpgsign=false"]);
+        }
         command.args(args.iter().map(AsRef::as_ref));
         command.current_dir(&self.cwd);
         command.stdin(Stdio::null());
@@ -501,10 +534,22 @@ impl GitProcess {
             // passed through unchanged (never silently replaced).
             command.env("GIT_SSH_COMMAND", ssh_command);
         }
-        if let EnvProfile::ScopedIndex { index } = profile {
-            // The one allowed repository-redirecting variable, and only for a
-            // value this crate generated inside the checkout's own git dir.
+        if let EnvProfile::ScopedIndex { index }
+        | EnvProfile::CommitHook {
+            index: Some(index), ..
+        } = profile
+        {
+            // Only a private index allocated by this crate, never caller argv.
             command.env("GIT_INDEX_FILE", index);
+        }
+        if matches!(
+            profile,
+            EnvProfile::CommitHook {
+                no_editor: true,
+                ..
+            }
+        ) {
+            command.env("GIT_EDITOR", ":");
         }
         command
     }

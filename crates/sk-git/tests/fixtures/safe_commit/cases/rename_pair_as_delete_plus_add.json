@@ -1,0 +1,223 @@
+{
+  "after": {
+    "branch": "lane",
+    "committed_paths": [
+      "new.txt",
+      "old.txt"
+    ],
+    "custom_index": null,
+    "files": [
+      {
+        "path": "a.txt",
+        "sha256": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+        "text": "one\n"
+      },
+      {
+        "path": "new.txt",
+        "sha256": "40eda80edfc38b36bdcdc408aa6ff2cc40b708e46ece9dfd2b2801a05a18a5fc",
+        "text": "old content\n"
+      },
+      {
+        "path": "other.txt",
+        "sha256": "f34848ca92665c342abd5816c9e3eda0e82180671195362bcd0080544a3bc2ac",
+        "text": "base\n"
+      },
+      {
+        "path": "partial.txt",
+        "sha256": "67117a01b0c95df8867b8077878b5bfa42eb68710b69305b9a11789ec91feaad",
+        "text": "p0\np1\np2\n"
+      },
+      {
+        "path": "seed.txt",
+        "sha256": "4a6689419b00b11700c9b6246bcfa8936c8f5e1e824db3a7e57030e2d1c1a684",
+        "text": "seed\n"
+      }
+    ],
+    "head": "532bc3e735a5c13c7bea16adcf4c93d96c44ac1c",
+    "index": [
+      "100644 5626abf0f72e58d7a153368ba57db4c673c0e171 0 a.txt",
+      "100644 33194a0a6f3f99e366d606c24d9b1ab0e0086e69 0 new.txt",
+      "100644 df967b96a579e45a18b8251732d16804b2e56a55 0 other.txt",
+      "100644 2ebfd8e28731959dd720d01f8eaae04f68f1e793 0 partial.txt",
+      "100644 e31de1f3a235fd5e8f97207b8e43cd2aa06a6417 0 seed.txt"
+    ],
+    "index_flags": [
+      "H a.txt",
+      "H new.txt",
+      "H other.txt",
+      "H partial.txt",
+      "H seed.txt"
+    ],
+    "message": "diff: rename\n",
+    "message_sha256": "db7d2ef00cf2f646c1c23dbacfd737f643fb076eea587edc6cbf84f4271cb686",
+    "parents": [
+      "ad3d71a6744dae54636993351daf18f02b15cb1b"
+    ],
+    "reflog": [
+      "532bc3e735a5c13c7bea16adcf4c93d96c44ac1c|commit: diff: rename",
+      "ad3d71a6744dae54636993351daf18f02b15cb1b|commit (initial): initial"
+    ],
+    "refs": [
+      "refs/heads/lane 532bc3e735a5c13c7bea16adcf4c93d96c44ac1c"
+    ],
+    "status": [],
+    "tree": "460e8d9a1b008ee95757666a8dda155dc837b1cb"
+  },
+  "before": {
+    "branch": "lane",
+    "committed_paths": [
+      "a.txt",
+      "old.txt",
+      "other.txt",
+      "partial.txt",
+      "seed.txt"
+    ],
+    "custom_index": null,
+    "files": [
+      {
+        "path": "a.txt",
+        "sha256": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+        "text": "one\n"
+      },
+      {
+        "path": "new.txt",
+        "sha256": "40eda80edfc38b36bdcdc408aa6ff2cc40b708e46ece9dfd2b2801a05a18a5fc",
+        "text": "old content\n"
+      },
+      {
+        "path": "other.txt",
+        "sha256": "f34848ca92665c342abd5816c9e3eda0e82180671195362bcd0080544a3bc2ac",
+        "text": "base\n"
+      },
+      {
+        "path": "partial.txt",
+        "sha256": "67117a01b0c95df8867b8077878b5bfa42eb68710b69305b9a11789ec91feaad",
+        "text": "p0\np1\np2\n"
+      },
+      {
+        "path": "seed.txt",
+        "sha256": "4a6689419b00b11700c9b6246bcfa8936c8f5e1e824db3a7e57030e2d1c1a684",
+        "text": "seed\n"
+      }
+    ],
+    "head": "ad3d71a6744dae54636993351daf18f02b15cb1b",
+    "index": [
+      "100644 5626abf0f72e58d7a153368ba57db4c673c0e171 0 a.txt",
+      "100644 33194a0a6f3f99e366d606c24d9b1ab0e0086e69 0 new.txt",
+      "100644 df967b96a579e45a18b8251732d16804b2e56a55 0 other.txt",
+      "100644 2ebfd8e28731959dd720d01f8eaae04f68f1e793 0 partial.txt",
+      "100644 e31de1f3a235fd5e8f97207b8e43cd2aa06a6417 0 seed.txt"
+    ],
+    "index_flags": [
+      "H a.txt",
+      "H new.txt",
+      "H other.txt",
+      "H partial.txt",
+      "H seed.txt"
+    ],
+    "message": "initial\n",
+    "message_sha256": "da68f54607d5f5644954096ce1597c006c5bb9f2497e07441bf064b81003ef8a",
+    "parents": [],
+    "reflog": [
+      "ad3d71a6744dae54636993351daf18f02b15cb1b|commit (initial): initial"
+    ],
+    "refs": [
+      "refs/heads/lane ad3d71a6744dae54636993351daf18f02b15cb1b"
+    ],
+    "status": [
+      "R  new.txt <- old.txt"
+    ],
+    "tree": "a327b32f6bafcab348d8e317d8a9f4f82e67a1f8"
+  },
+  "description": "A git-mv rename pair is committed as delete plus add and leaves a clean index.",
+  "detail_tokens": [],
+  "divergence": null,
+  "expectation": "match",
+  "hooks": [],
+  "name": "rename_pair_as_delete_plus_add",
+  "native": {
+    "landed_kind": null,
+    "variant": null
+  },
+  "oracle": {
+    "commit": "532bc3e735a5c13c7bea16adcf4c93d96c44ac1c",
+    "error_detail": null,
+    "facts": [],
+    "landed_kind": null,
+    "outcome": "ok",
+    "refusal_class": null,
+    "warnings": []
+  },
+  "oracle_environment": {
+    "baseline": "9aed3a8012cb5eb22c0128b14d525039f95fea7a",
+    "git": "git version 2.43.0",
+    "python": "3.11.15",
+    "verify_oracle_ok": true
+  },
+  "request": {
+    "capability": "standard",
+    "custom_index": false,
+    "expected_parent": null,
+    "index_deletions": [],
+    "message": "diff: rename",
+    "paths": [
+      "old.txt",
+      "new.txt"
+    ],
+    "protection": null,
+    "wait_for_sentinel": false
+  },
+  "route": "worktree",
+  "setup": {
+    "branch": "lane",
+    "files": [
+      {
+        "content": "seed\n",
+        "path": "seed.txt"
+      },
+      {
+        "content": "one\n",
+        "path": "a.txt"
+      },
+      {
+        "content": "base\n",
+        "path": "other.txt"
+      },
+      {
+        "content": "p0\np1\np2\n",
+        "path": "partial.txt"
+      },
+      {
+        "content": "old content\n",
+        "path": "old.txt"
+      }
+    ],
+    "hooks": [],
+    "steps": [
+      {
+        "argv": [
+          "git",
+          "add",
+          "-A"
+        ]
+      },
+      {
+        "argv": [
+          "git",
+          "commit",
+          "-q",
+          "-m",
+          "initial"
+        ]
+      },
+      {
+        "argv": [
+          "git",
+          "mv",
+          "old.txt",
+          "new.txt"
+        ]
+      }
+    ]
+  }
+}

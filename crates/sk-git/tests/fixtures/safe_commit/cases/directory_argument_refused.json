@@ -1,0 +1,232 @@
+{
+  "after": {
+    "branch": "lane",
+    "committed_paths": [
+      "a.txt",
+      "other.txt",
+      "partial.txt",
+      "seed.txt",
+      "sub/one.txt",
+      "sub/two.txt"
+    ],
+    "custom_index": null,
+    "files": [
+      {
+        "path": "a.txt",
+        "sha256": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+        "text": "one\n"
+      },
+      {
+        "path": "other.txt",
+        "sha256": "f34848ca92665c342abd5816c9e3eda0e82180671195362bcd0080544a3bc2ac",
+        "text": "base\n"
+      },
+      {
+        "path": "partial.txt",
+        "sha256": "67117a01b0c95df8867b8077878b5bfa42eb68710b69305b9a11789ec91feaad",
+        "text": "p0\np1\np2\n"
+      },
+      {
+        "path": "seed.txt",
+        "sha256": "4a6689419b00b11700c9b6246bcfa8936c8f5e1e824db3a7e57030e2d1c1a684",
+        "text": "seed\n"
+      },
+      {
+        "path": "sub/one.txt",
+        "sha256": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+        "text": "one\n"
+      },
+      {
+        "path": "sub/two.txt",
+        "sha256": "27dd8ed44a83ff94d557f9fd0412ed5a8cbca69ea04922d88c01184a07300a5a",
+        "text": "two\n"
+      }
+    ],
+    "head": "1dab46adbfff414ca3222ffe56d2188b5e8f5b05",
+    "index": [
+      "100644 5626abf0f72e58d7a153368ba57db4c673c0e171 0 a.txt",
+      "100644 df967b96a579e45a18b8251732d16804b2e56a55 0 other.txt",
+      "100644 2ebfd8e28731959dd720d01f8eaae04f68f1e793 0 partial.txt",
+      "100644 e31de1f3a235fd5e8f97207b8e43cd2aa06a6417 0 seed.txt",
+      "100644 5626abf0f72e58d7a153368ba57db4c673c0e171 0 sub/one.txt",
+      "100644 f719efd430d52bcfc8566a43b2eb655688d38871 0 sub/two.txt"
+    ],
+    "index_flags": [
+      "H a.txt",
+      "H other.txt",
+      "H partial.txt",
+      "H seed.txt",
+      "H sub/one.txt",
+      "H sub/two.txt"
+    ],
+    "message": "initial\n",
+    "message_sha256": "da68f54607d5f5644954096ce1597c006c5bb9f2497e07441bf064b81003ef8a",
+    "parents": [],
+    "reflog": [
+      "1dab46adbfff414ca3222ffe56d2188b5e8f5b05|commit (initial): initial"
+    ],
+    "refs": [
+      "refs/heads/lane 1dab46adbfff414ca3222ffe56d2188b5e8f5b05"
+    ],
+    "status": [],
+    "tree": "94be674efa4dc9aa5c2032c847603660b0fb8bd8"
+  },
+  "before": {
+    "branch": "lane",
+    "committed_paths": [
+      "a.txt",
+      "other.txt",
+      "partial.txt",
+      "seed.txt",
+      "sub/one.txt",
+      "sub/two.txt"
+    ],
+    "custom_index": null,
+    "files": [
+      {
+        "path": "a.txt",
+        "sha256": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+        "text": "one\n"
+      },
+      {
+        "path": "other.txt",
+        "sha256": "f34848ca92665c342abd5816c9e3eda0e82180671195362bcd0080544a3bc2ac",
+        "text": "base\n"
+      },
+      {
+        "path": "partial.txt",
+        "sha256": "67117a01b0c95df8867b8077878b5bfa42eb68710b69305b9a11789ec91feaad",
+        "text": "p0\np1\np2\n"
+      },
+      {
+        "path": "seed.txt",
+        "sha256": "4a6689419b00b11700c9b6246bcfa8936c8f5e1e824db3a7e57030e2d1c1a684",
+        "text": "seed\n"
+      },
+      {
+        "path": "sub/one.txt",
+        "sha256": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+        "text": "one\n"
+      },
+      {
+        "path": "sub/two.txt",
+        "sha256": "27dd8ed44a83ff94d557f9fd0412ed5a8cbca69ea04922d88c01184a07300a5a",
+        "text": "two\n"
+      }
+    ],
+    "head": "1dab46adbfff414ca3222ffe56d2188b5e8f5b05",
+    "index": [
+      "100644 5626abf0f72e58d7a153368ba57db4c673c0e171 0 a.txt",
+      "100644 df967b96a579e45a18b8251732d16804b2e56a55 0 other.txt",
+      "100644 2ebfd8e28731959dd720d01f8eaae04f68f1e793 0 partial.txt",
+      "100644 e31de1f3a235fd5e8f97207b8e43cd2aa06a6417 0 seed.txt",
+      "100644 5626abf0f72e58d7a153368ba57db4c673c0e171 0 sub/one.txt",
+      "100644 f719efd430d52bcfc8566a43b2eb655688d38871 0 sub/two.txt"
+    ],
+    "index_flags": [
+      "H a.txt",
+      "H other.txt",
+      "H partial.txt",
+      "H seed.txt",
+      "H sub/one.txt",
+      "H sub/two.txt"
+    ],
+    "message": "initial\n",
+    "message_sha256": "da68f54607d5f5644954096ce1597c006c5bb9f2497e07441bf064b81003ef8a",
+    "parents": [],
+    "reflog": [
+      "1dab46adbfff414ca3222ffe56d2188b5e8f5b05|commit (initial): initial"
+    ],
+    "refs": [
+      "refs/heads/lane 1dab46adbfff414ca3222ffe56d2188b5e8f5b05"
+    ],
+    "status": [],
+    "tree": "94be674efa4dc9aa5c2032c847603660b0fb8bd8"
+  },
+  "description": "A requested directory is refused before staging.",
+  "detail_tokens": [],
+  "divergence": null,
+  "expectation": "match",
+  "hooks": [],
+  "name": "directory_argument_refused",
+  "native": {
+    "landed_kind": null,
+    "variant": "SafeCommitDirectoryArgument"
+  },
+  "oracle": {
+    "commit": null,
+    "error_detail": "safe_commit: refusing directory path 'sub'. safe_commit commits exact file paths; expand the directory first (git status --untracked-files=all) and request those files.",
+    "facts": [],
+    "landed_kind": null,
+    "outcome": "error",
+    "refusal_class": "directory_argument",
+    "warnings": []
+  },
+  "oracle_environment": {
+    "baseline": "9aed3a8012cb5eb22c0128b14d525039f95fea7a",
+    "git": "git version 2.43.0",
+    "python": "3.11.15",
+    "verify_oracle_ok": true
+  },
+  "request": {
+    "capability": "standard",
+    "custom_index": false,
+    "expected_parent": null,
+    "index_deletions": [],
+    "message": "diff: dir",
+    "paths": [
+      "sub"
+    ],
+    "protection": null,
+    "wait_for_sentinel": false
+  },
+  "route": "worktree",
+  "setup": {
+    "branch": "lane",
+    "files": [
+      {
+        "content": "seed\n",
+        "path": "seed.txt"
+      },
+      {
+        "content": "one\n",
+        "path": "a.txt"
+      },
+      {
+        "content": "base\n",
+        "path": "other.txt"
+      },
+      {
+        "content": "p0\np1\np2\n",
+        "path": "partial.txt"
+      },
+      {
+        "content": "one\n",
+        "path": "sub/one.txt"
+      },
+      {
+        "content": "two\n",
+        "path": "sub/two.txt"
+      }
+    ],
+    "hooks": [],
+    "steps": [
+      {
+        "argv": [
+          "git",
+          "add",
+          "-A"
+        ]
+      },
+      {
+        "argv": [
+          "git",
+          "commit",
+          "-q",
+          "-m",
+          "initial"
+        ]
+      }
+    ]
+  }
+}

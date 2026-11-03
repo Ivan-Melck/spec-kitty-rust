@@ -113,9 +113,89 @@ operation goes through `sk-git`.
   may be discarded, branch deletion refuses unique commits and protected
   branches.
 
+### Live protection policy (`protection`)
+
+- `ProtectionPolicy::resolve` / `resolve_with_hatch` — the live contract from
+  `.kittify/config.yaml`: an explicit `protection.protected_branches` list
+  replaces the name defaults exactly, `[]` unprotects everything, an absent key
+  adds the remote default branch to `{main, master}`, and a malformed document
+  is a typed `ProtectionConfig` refusal. `SPEC_KITTY_ALLOW_PROTECTED_BRANCH_COMMITS`
+  is the operator hatch.
+- `ProtectionPolicy::scoped_to_mission` / `resolve_for_mission` /
+  `for_mission` — a `single_branch` mission's `commit_to_target: true`
+  un-protects exactly its own `target_branch`. A non-boolean value, an
+  unstored/other topology, or a missing target grants no bypass.
+- `is_protected_target(branch, primary_branch)` — the primary branch counts as
+  protected even when an explicit list replaced the defaults.
+- `branch_set()` — the resolved set as `sk-git`'s `ProtectedBranches`, with the
+  hatch/bypass already applied, so the adapter never sees an empty default.
+
+### Branch tips and occupancy (`topology`)
+
+- `mission_branch_tips` — target/mission/coordination tips, the recorded
+  planning commit, and every code lane's live tip plus recorded lane-work tip.
+- `mission_occupancy` — which registered checkouts hold each lane branch,
+  their dirty entries, unregistered stray directories at predicted paths, and
+  the shared repository-root checkout with its planning-lane work packages.
+- `record_lane_tip` / `record_lane_tip_at` / `read_lane_tip` / `lane_tip_ref` —
+  `refs/spec-kitty/lane-tip/<branch>` recording through a compare-and-swap
+  plan. Recording is monotonic: a tip unrelated to the record refuses
+  (`LANE_TIP_HISTORY_REWRITTEN`) instead of overwriting the only surviving
+  record of a destroyed lane.
+
+### Coordination transactions (`coord`)
+
+- `read_coordination_surface` — the read-only four-state answer
+  (`Materialized` / `Empty` / `Unmaterialized` / `Deleted`) with a declared
+  primary fallback. It never creates a worktree, so reading an `Empty` surface
+  cannot mutate the repository.
+- `MissionWorkspace::probe_coordination` — registry-verified state: an
+  unregistered directory at the canonical path is a reported husk, never a
+  materialized surface; a checkout on another branch is a typed refusal.
+- `CoordTransaction::acquire` — claim-lock-then-Mission-lock, journaled
+  materialization (attach an existing branch) and seeding (carry
+  COORD-partition artifacts from the primary checkout with a
+  `Spec-Kitty-Coordination-Seed` trailer), then a pinned-bytes commit path.
+  Seeding refuses (`COORD_SEED_FORK_REFUSED` / `COORD_SURFACE_RESTORE_REQUIRED`)
+  when the branch already carries coordination-only commits this store cannot
+  account for.
+- `CoordTransaction::write_artifact` / `stage_path` / `commit` / `abort` /
+  `seal` — confined writes with byte snapshots, exact-bytes commit assertions,
+  and typed outcomes: `Landed` (immutable), `NoOp`, `NotLanded` (provably
+  nothing landed; the transaction's own writes are restored) and
+  `Indeterminate` (nothing undone).
+- `CoordReceipt` + `OwnershipProof` — the landed commit plus the evidence that
+  the write owned the checkout it names: surface, destination, worktree branch,
+  observed tip, claim-lock path, and the canonical Mission lock key/holder.
+- `CoordJournal` / `recover_interrupted` — a durable per-mission store under
+  `<git-common-dir>/spec-kitty-workspace/coord/`. Recovery proves each pending
+  record's outcome from Git state, marks landed candidates applied, clears
+  provably-unlanded ones, and reports the rest as conflicts without touching
+  anything.
+- `bootstrap_coordination` — mint-or-validate the declared coordination branch
+  at the target tip, then materialize/seed its surface. An unaccounted ahead
+  branch or a genuinely diverged branch refuses; this is the workspace-owned
+  half of a coordination-topology `mission create`.
+
+### Planning commits and integration (`planning`)
+
+- `classify_recorded_pin` — `Advanced` / `Orphaned` / `Foreign` /
+  `Indeterminate` for a recorded `planning_commit_sha` against the target tip.
+- `PlanningCommitPlan::prepare` / `apply` — the destination is the mission
+  target branch of the primary checkout; COORD-partition artifacts are refused
+  (`PLANNING_PARTITION_REFUSED`), a `meta.json` that drops `coordination_branch`
+  is refused (`META_DEMOTION_REFUSED`), an unusable recorded pin is refused,
+  and the commit pins the observed target tip plus every file's exact bytes.
+- `record_planning_commit` — persist the landed commit into `lanes.json`
+  through the locked store.
+- `integrate_planning_commit` / `integrate_dependency_lanes` / `integrate_tip`
+  — real fast-forward integration with clean-checkout resync, and
+  `MergeRequired` (naming both tips, changing nothing) when a merge commit is
+  needed.
+
 ## Verification
 
-`cargo test -p sk-workspace` (65 tests at the time of writing) covers:
+`cargo test -p sk-workspace` (126 tests at the time of writing) covers:
 
 - all 23 artifact kinds, partitions, 4 topologies, 5 surfaces, and every
   `(kind, topology, coord-state)` cell;
@@ -125,7 +205,17 @@ operation goes through `sk-git`.
 - real lane allocation: fresh, reuse, dirty refusal, crash recovery, journal
   repair of interrupted creation, unhonorable bases, protected-branch refusal,
   stale plans after a ref moves, and custom-file retention with guarded branch
-  deletion.
+  deletion;
+- real protection-policy resolution: absent/explicit/empty/malformed configs,
+  the remote default branch, the operator hatch, and `commit_to_target`;
+- real coordination transactions: `EMPTY` reads that do not mutate,
+  materialization and seeding with the seed trailer, protected/deleted refusals
+  before mutation, proven no-ops, aborted-write restoration, a blocked ref
+  advance reported as `NotLanded`, journal recovery of landed/unlanded/
+  ambiguous records, and creation bootstrap;
+- real planning commits: partition refusal, metadata demotion refusal, pin
+  classification, landed-byte verification, manifest pin recording, and
+  fast-forward/`MergeRequired` integration of planning and dependency tips.
 
 `cargo clippy -p sk-workspace --all-targets -- -D warnings` and
 `cargo fmt -p sk-workspace -- --check` are clean.
@@ -134,14 +224,16 @@ operation goes through `sk-git`.
 
 These are real gaps, not hidden fallbacks:
 
-1. **`EMPTY` vs `UNMATERIALIZED` coordination states.**
-   `MissionWorkspace::probe_coordination` reports `Unmaterialized` for a
-   declared branch with no registered worktree, because the distinction
-   upstream draws depends on coordination-seeding state
-   (`specify_cli/coordination/coord_seed.py`, `surface_resolver.probe_coord_state`)
-   that `sk-git` does not expose. Reads therefore refuse rather than take the
-   upstream `EMPTY` primary degrade. Needs a narrow `sk-git` read for
-   "coordination surface seeded/empty".
+1. **`EMPTY` on a *foreign* branch (no tree read).**
+   `probe_coordination` now distinguishes `EMPTY` (registered worktree, mission
+   directory absent) from `UNMATERIALIZED` without mutating, and reads of both
+   resolve the declared primary directory. Seeding an `EMPTY` surface is refused
+   when the coordination branch already carries coordination-only commits this
+   store cannot account for. Upstream distinguishes pre-fix from post-fix by
+   reading a seed trailer and the COORD-kind paths *at the branch tip*
+   (`git log --format=%(trailers:...)`, `git ls-tree`), which `sk-git` does not
+   expose; this crate uses its own journal plus `unique_commits` instead and
+   refuses where a tip read would be required.
 
 2. **`merge-base` for detached-base refusal.**
    `LaneAllocator::guard_planning_ancestry` uses direct `is_ancestor` in both
@@ -169,14 +261,13 @@ These are real gaps, not hidden fallbacks:
    directory is reported as a conflict. Needs a guarded prune plan in
    `sk-git`.
 
-5. **Coordination-worktree creation and sparse checkout.**
-   Upstream `specify_cli/coordination/workspace.py` /
-   `worktree_allocator._register_sparse_checkout_if_coord` create the
-   coordination worktree and register the status-file sparse-checkout policy.
-   This crate resolves and probes coordination surfaces and refuses a
-   non-materialized one; it does not yet create the coordination worktree or
-   install the sparse-checkout policy. That belongs with the coordination
-   transaction work and needs the same journaled allocation discipline.
+5. **Lane sparse-checkout policy.**
+   `CoordTransaction::acquire` creates the coordination worktree (journaled,
+   registry-verified, branch-verified) and seeds it. The upstream *lane*
+   sparse-checkout policy (`register_lane_sparse_checkout`: `sparse-checkout
+   init --no-cone`, a per-worktree `info/sparse-checkout`, `read-tree -mu HEAD`)
+   is not installed: `sk-git` exposes no sparse-checkout operation, and writing
+   another checkout's gitdir files directly would bypass that seam.
 
 6. **Frozen-membership provenance sources.**
    `LanePlannerInput::frozen_lane_bindings` accepts already-resolved started
@@ -193,22 +284,28 @@ These are real gaps, not hidden fallbacks:
    `_backfill_context_if_missing` / `find_context_for_wp` semantics are absent.
 
 8. **Repo-root checkout occupancy.**
-   `specify_cli/lanes/checkout_occupancy.py` inspects in-progress WPs and dirty
-   paths for the shared single-branch write checkout. Only the manifest-derived
-   `repo_root_lane_wps` helper is present; status-based occupancy is not.
+   `mission_occupancy` now reports the primary checkout's branch/HEAD, its dirty
+   entries, and the manifest's planning-lane work packages. Upstream's
+   `checkout_occupancy.py` additionally folds *status-event* in-progress WP
+   claims into that decision; the status projection is not consumed here, so a
+   caller that needs the claim-based refusal must supply it.
 
-9. **Lane-tip recording and retention policy.**
-   Upstream records `refs/spec-kitty/lane-tip/*` and installs a hook
-   (`specify_cli/policy/lane_tip_recorder.py`) so a destroyed lane is detectable.
-   This crate's journal covers interrupted allocation, and guarded branch
-   deletion refuses unique commits, but it does not install hooks or write
-   lane-tip refs.
+9. **Lane-tip recording hooks.**
+   `record_lane_tip`/`record_lane_tip_at` write `refs/spec-kitty/lane-tip/<branch>`
+   through a compare-and-swap plan, and `mission_branch_tips` reads them back so
+   a destroyed lane is never reported empty. The upstream *hook* that records a
+   tip after every lane commit (`policy/lane_tip_recorder.py`) is not installed
+   here: installing hooks into a user checkout is an application-layer action.
 
-10. **Protected-branch policy sources.**
-    The protected set is supplied by the caller, matching `sk-git`'s boundary.
-    This crate does not read `.kittify/config.yaml`, the
-    `SPEC_KITTY_ALLOW_PROTECTED_BRANCH_COMMITS` escape hatch, or the commit-guard
-    hook configuration (`specify_cli/policy/{config,commit_guard}.py`).
+10. **Protected-branch configuration reader scope.**
+    `protection::ProtectionPolicy` reads `.kittify/config.yaml` live (explicit
+    list / empty list / absent-key remote default), the operator hatch and a
+    mission's `commit_to_target`, and hands `sk-git` the resolved set. It reads
+    only the `protection.protected_branches` shape with a narrow, non-reserializing
+    scanner: anchors, tags and multi-document streams are refused rather than
+    guessed, and the remote default is read from the local
+    `refs/remotes/origin/HEAD` file (upstream additionally asks the remote with
+    `ls-remote --symref` when that file is absent).
 
 11. **Brand-new-name heuristics.** `mid8_from_slug` remains only as a legacy
     reconstruction fallback and is never used for a correctness path; all

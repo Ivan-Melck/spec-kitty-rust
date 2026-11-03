@@ -1,0 +1,284 @@
+{
+  "baseline": "9aed3a8012cb5eb22c0128b14d525039f95fea7a",
+  "cases": [
+    {
+      "expectation": "match",
+      "file": "cases/preserve_unrelated_staged_partial_untracked.json",
+      "name": "preserve_unrelated_staged_partial_untracked",
+      "route": "worktree",
+      "sha256": "1c717c774b5ef4fd1e882ead2537e24fa977532dc0263c9152ff58b396acb849"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/rename_pair_as_delete_plus_add.json",
+      "name": "rename_pair_as_delete_plus_add",
+      "route": "worktree",
+      "sha256": "5149724d884e32cfdfad13a1862087e1f8082cdddb88309bf638efde39c5807d"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/noop_runs_hooks_before_classification.json",
+      "name": "noop_runs_hooks_before_classification",
+      "route": "worktree",
+      "sha256": "ed5d244e55ba450db817f9f6ab4d54900040883fb75d553bac6fc7c97fda1283"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/hook_formatter_makes_candidate_nonempty.json",
+      "name": "hook_formatter_makes_candidate_nonempty",
+      "route": "worktree",
+      "sha256": "277233a68faecadb85f6e10952693044d507ccd2ac41f61e25f92674ff87494b"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/prepare_and_commit_msg_rewrite.json",
+      "name": "prepare_and_commit_msg_rewrite",
+      "route": "worktree",
+      "sha256": "72b33214d24270ffc0a08b223eb2f59079b4d2531b94999df64cf03d2f271ca1"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/commit_msg_rejection_refused.json",
+      "name": "commit_msg_rejection_refused",
+      "route": "worktree",
+      "sha256": "ae2be31d2be832e0d4df7838db4965f2b7359b8dc2f5c194100ce0c219f8402c"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/pre_commit_rejection_usage_phrase_not_environment.json",
+      "name": "pre_commit_rejection_usage_phrase_not_environment",
+      "route": "worktree",
+      "sha256": "241a5384541eb5e1ba6c9f91a2f106bd01b6ecdcb3185d4062cd7a82e6ba0510"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/message_cleanup_whitespace.json",
+      "name": "message_cleanup_whitespace",
+      "route": "worktree",
+      "sha256": "8c27500365e540fb114f48377ac0fbcd4c4f1c04f4738cb5a0a9be7428a52dc9"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/message_cleanup_strip_config.json",
+      "name": "message_cleanup_strip_config",
+      "route": "worktree",
+      "sha256": "ddab86e7a6c5b993d024983fd38d54d980bd781ed986c6361dd9b5b78614cf2b"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/message_cleanup_verbatim_config.json",
+      "name": "message_cleanup_verbatim_config",
+      "route": "worktree",
+      "sha256": "f921d38552681966717546892cb7b760a1e91881cb0c9a74b50bb11453734257"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/whitespace_only_message_refused.json",
+      "name": "whitespace_only_message_refused",
+      "route": "worktree",
+      "sha256": "a2cd5fb2e1faa4f24512c3442bb62824b0c63aba317716b685161da08d6bc1c0"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/pinned_message_verbatim.json",
+      "name": "pinned_message_verbatim",
+      "route": "pinned",
+      "sha256": "5cb67b9ba9d4e9753ed970c1fdf7ba60aec3da395829c010a41c88592398c46d"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/pinned_commit_msg_rewrite_reflog_source.json",
+      "name": "pinned_commit_msg_rewrite_reflog_source",
+      "route": "pinned",
+      "sha256": "d9f2bf093d25e93921f5f91ddc9210741e1bedd660de4aef3d1dbea2b561b9ca"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/pinned_signing_failure_typed.json",
+      "name": "pinned_signing_failure_typed",
+      "route": "pinned",
+      "sha256": "a37f68397921ad3dd6b2b7110fe8018323f59ed064e918ff32482af6a6974edd"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/worktree_signing_enforced_divergence.json",
+      "name": "worktree_signing_enforced_divergence",
+      "route": "worktree",
+      "sha256": "1dfc76c2567800e626aa0555dd4068058415f6796497a31fe23822eea1ea4c58"
+    },
+    {
+      "expectation": "open_mismatch",
+      "file": "cases/git_index_file_selector_refused.json",
+      "name": "git_index_file_selector_refused",
+      "route": "worktree",
+      "sha256": "b35de7b03bb9e8958eaa96ba279ddfefb1110f2dc6b8d9984dc64a92f7843ee8"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/index_only_deletion_keeps_file.json",
+      "name": "index_only_deletion_keeps_file",
+      "route": "index_deletions",
+      "sha256": "2d173b1a74cc418353c8d24f489bfd11c02e81924e9bad595aaae2a1d6a16b36"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/worktree_deletion_committed.json",
+      "name": "worktree_deletion_committed",
+      "route": "worktree",
+      "sha256": "1f1fee3b2eb519505386b57557a2ce5992df610a9e2dd75213f9b823c492df5a"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/literal_unusual_filenames.json",
+      "name": "literal_unusual_filenames",
+      "route": "worktree",
+      "sha256": "0141642c16c365030593a3478d9843f9d015722bf0d16c5496fd28cca978be31"
+    },
+    {
+      "expectation": "documented_divergence",
+      "file": "cases/pathspec_magic_literal_name.json",
+      "name": "pathspec_magic_literal_name",
+      "route": "worktree",
+      "sha256": "90baacc6f8111490ebe8f1a07d94be69e8dc56aac55d4f13c15c7362e70a70b2"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/sparse_in_cone_preserves_skip_worktree.json",
+      "name": "sparse_in_cone_preserves_skip_worktree",
+      "route": "worktree",
+      "sha256": "3f9af2f0b5e1b493a72ecc79727e3a8a447f2fbf81b3ecd3259c67ca7e10020a"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/sparse_out_of_cone_refused.json",
+      "name": "sparse_out_of_cone_refused",
+      "route": "worktree",
+      "sha256": "da51f3c81b4ca09aba20909bae175981cca24df64860dd9bace6c6d8331e394c"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/intent_to_add_and_staged_deletion_preserved.json",
+      "name": "intent_to_add_and_staged_deletion_preserved",
+      "route": "worktree",
+      "sha256": "3c0146c242eac095600c0b55ee5d514d902b9e93bf7bbdb230e202fca2abb50f"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/unmerged_entries_preserved.json",
+      "name": "unmerged_entries_preserved",
+      "route": "worktree",
+      "sha256": "beb5baec597d702a368badbad893786a9407a8a6bdb731600dc2735b34091204"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/nested_hook_advance_conflict.json",
+      "name": "nested_hook_advance_conflict",
+      "route": "pinned",
+      "sha256": "28d02d24f2aacee8d503cb66aae8568deb5b90ea8ee72861e981317c2045b245"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/post_cas_competitor_reconciled_to_landed_commit.json",
+      "name": "post_cas_competitor_reconciled_to_landed_commit",
+      "route": "pinned",
+      "sha256": "16cf76175039ae933a8b36abf633fbe39d9b18b20158e5aff22fa54bca9f95a8"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/ordinary_soft_wrapped_reflog_source.json",
+      "name": "ordinary_soft_wrapped_reflog_source",
+      "route": "worktree",
+      "sha256": "52f4fc26ffdddbbf8bee7b5f5081056a36de109757b38b8daa4180711ca50e4e"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/protected_branch_refused.json",
+      "name": "protected_branch_refused",
+      "route": "worktree",
+      "sha256": "416e6fcdb1e468d79fc2ace44b4f5490e3e13382428cd31819b3a8c97ec55d17"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/directory_argument_refused.json",
+      "name": "directory_argument_refused",
+      "route": "worktree",
+      "sha256": "700a3fc6b69660c0143d2161c5212f0f9c446f329ea30d77ed49c333a8f42ba4"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/dot_relative_path_committed.json",
+      "name": "dot_relative_path_committed",
+      "route": "worktree",
+      "sha256": "b4670f4994a7afa15284a89f0ad1906b765b91cae76bf32d3412b9942930dfe1"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/hook_stages_extra_paths_landed.json",
+      "name": "hook_stages_extra_paths_landed",
+      "route": "worktree",
+      "sha256": "3f55cd5c5c6b7720f89a1a90342e5c62ad9163ff6f441572875901671814a3b5"
+    },
+    {
+      "expectation": "match",
+      "file": "cases/pinned_hook_changes_requested_content.json",
+      "name": "pinned_hook_changes_requested_content",
+      "route": "pinned",
+      "sha256": "d96630e41aa9116066b879659234789598361e6f21a4adcc20539fd30febd964"
+    }
+  ],
+  "corpus": "scoped-safe-commit-differential",
+  "generator": "generate_oracle.py",
+  "generator_sha256": "934ea7ecbd7855c5b5e7c423838e48d9ab8ae8db95b84f5d04c4d6e85c49a058",
+  "git_version": "git version 2.43.0",
+  "normalizations": [
+    "reflog entries are compared as (new commit id, reflog subject); timestamps and identities are not re-derived",
+    "error text is compared as a canonical refusal class plus explicit detail tokens, never as a raw cross-language message; recorded oracle error text replaces the throw-away run root with <RUN_ROOT> so the corpus is host-independent",
+    "hook arguments are compared as (text | file content sha256); the temporary message-file path is not compared",
+    "hook fields git_editor, git_prefix and index_in_git_dir are recorded but excluded from the compared hook-environment subset; they are asserted explicitly where they differ (see CONFORMANCE-REPORT.md)"
+  ],
+  "python": "3.11.15",
+  "required_case_names": [
+    "preserve_unrelated_staged_partial_untracked",
+    "rename_pair_as_delete_plus_add",
+    "noop_runs_hooks_before_classification",
+    "hook_formatter_makes_candidate_nonempty",
+    "prepare_and_commit_msg_rewrite",
+    "commit_msg_rejection_refused",
+    "pre_commit_rejection_usage_phrase_not_environment",
+    "message_cleanup_whitespace",
+    "message_cleanup_strip_config",
+    "message_cleanup_verbatim_config",
+    "whitespace_only_message_refused",
+    "pinned_message_verbatim",
+    "pinned_commit_msg_rewrite_reflog_source",
+    "pinned_signing_failure_typed",
+    "worktree_signing_enforced_divergence",
+    "git_index_file_selector_refused",
+    "index_only_deletion_keeps_file",
+    "worktree_deletion_committed",
+    "literal_unusual_filenames",
+    "pathspec_magic_literal_name",
+    "sparse_in_cone_preserves_skip_worktree",
+    "sparse_out_of_cone_refused",
+    "intent_to_add_and_staged_deletion_preserved",
+    "unmerged_entries_preserved",
+    "nested_hook_advance_conflict",
+    "post_cas_competitor_reconciled_to_landed_commit",
+    "ordinary_soft_wrapped_reflog_source",
+    "protected_branch_refused",
+    "directory_argument_refused",
+    "dot_relative_path_committed",
+    "hook_stages_extra_paths_landed",
+    "pinned_hook_changes_requested_content"
+  ],
+  "verify_oracle": {
+    "checked_runtime_requirements": 53,
+    "drift": [],
+    "duplicate_versions": [],
+    "installed_count": 53,
+    "missing": [],
+    "ok": true,
+    "python": "3.11.15",
+    "unsatisfied": []
+  }
+}

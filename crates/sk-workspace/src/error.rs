@@ -244,4 +244,35 @@ pub enum WorkspaceError {
         /// Detail.
         detail: String,
     },
+
+    /// `.kittify/config.yaml` cannot be read as a protection policy. A
+    /// malformed value is never silently replaced by a default.
+    #[error("invalid protection configuration {path}: {detail}")]
+    ProtectionConfig {
+        /// Configuration path.
+        path: PathBuf,
+        /// What is malformed.
+        detail: String,
+    },
+
+    /// A coordination operation refused before mutating anything.
+    ///
+    /// `code` is stable and machine-readable (`COORD_*`); the message names the
+    /// violated invariant and the recovery step.
+    #[error("coordination refused ({code}): {message}")]
+    CoordRefused {
+        /// Stable refusal code.
+        code: &'static str,
+        /// Human explanation.
+        message: String,
+    },
+
+    /// The coordination journal cannot be decoded or reconciled.
+    #[error("coordination journal {path} is unusable: {detail}")]
+    CoordJournal {
+        /// Journal document path.
+        path: PathBuf,
+        /// What is wrong.
+        detail: String,
+    },
 }

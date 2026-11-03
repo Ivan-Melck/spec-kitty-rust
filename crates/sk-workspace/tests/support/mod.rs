@@ -81,6 +81,12 @@ pub fn commit_all(cwd: &Path, message: &str) {
     git(cwd, &["commit", "-m", message]);
 }
 
+/// Commit one file (and only that file) in `cwd`.
+pub fn commit_file(cwd: &Path, file: &str, message: &str) {
+    git(cwd, &["add", "--", file]);
+    git(cwd, &["commit", "-m", message]);
+}
+
 /// A valid 26-character ULID-shaped mission id with the given numeric tail.
 pub fn mission_id(tail: u8) -> String {
     format!("01KNXQS9ATWWFXS3K5ZJ9E50{tail:02}")
@@ -112,4 +118,83 @@ pub fn write_mission(
 /// The current tip of `branch`.
 pub fn branch_tip(root: &Path, branch: &str) -> String {
     git(root, &["rev-parse", &format!("refs/heads/{branch}")])
+}
+
+/// Write a mission manifest with extra `meta.json` keys.
+pub fn write_mission_with(
+    root: &Path,
+    slug: &str,
+    mission_id: &str,
+    topology: &str,
+    target_branch: &str,
+    extra: serde_json::Value,
+) -> PathBuf {
+    let dir = root.join("kitty-specs").join(slug);
+    let mut meta = serde_json::json!({
+        "mission_id": mission_id,
+        "mission_slug": slug,
+        "topology": topology,
+        "target_branch": target_branch,
+        "mission_type": "software-dev",
+    });
+    if let (Some(meta), Some(extra)) = (meta.as_object_mut(), extra.as_object()) {
+        for (key, value) in extra {
+            meta.insert(key.clone(), value.clone());
+        }
+    }
+    write(
+        &dir.join("meta.json"),
+        &format!("{}\n", serde_json::to_string_pretty(&meta).unwrap()),
+    );
+    dir
+}
+
+/// The canonical `<slug>-<mid8>` mission directory name for a fixture.
+pub fn canonical_dir_name(slug: &str, mission_id: &str) -> String {
+    format!("{slug}-{}", &mission_id[..8])
+}
+
+/// Create a branch at the current `HEAD` and return its tip.
+pub fn create_branch(root: &Path, branch: &str) -> String {
+    git(root, &["branch", branch]);
+    branch_tip(root, branch)
+}
+
+/// Read a path's content at a commit (`git show <rev>:<path>`).
+pub fn show_at(root: &Path, rev: &str, path: &str) -> String {
+    git(root, &["show", &format!("{rev}:{path}")])
+}
+
+/// Count commits reachable from `branch` but from no other branch.
+pub fn unique_commit_count(root: &Path, branch: &str) -> usize {
+    let output = git(
+        root,
+        &[
+            "rev-list",
+            branch,
+            "--not",
+            "--branches",
+            "--remotes",
+            "--tags",
+        ],
+    );
+    output
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .count()
+}
+
+/// The commit trailer value for `key` in `rev`'s message.
+pub fn trailer(root: &Path, rev: &str, key: &str) -> String {
+    git(
+        root,
+        &[
+            "log",
+            "-1",
+            &format!("--format=%(trailers:key={key},valueonly)"),
+            rev,
+        ],
+    )
+    .trim()
+    .to_owned()
 }

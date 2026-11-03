@@ -57,9 +57,11 @@ before these fixes. The review is not approval of the subsequently changed bytes
 | F10 weak differential artifacts | Still open: require committed regeneration, input/output provenance and broader independent recheck before CLI wiring. |
 
 Repair argv also includes `--literal-pathspecs`, matching the live writer rather
-than exposing a different path interpretation to the operator. Both routes now
-honor configured commit signing; controlled failing-backend tests confirm the
-ref remains unchanged.
+than exposing a different path interpretation to the operator. Later generated
+oracle evidence corrected the signing assumption in this checkpoint: ordinary
+upstream routes explicitly force unsigned commits; only pinned routes honor
+configured signing. See `git-coordination-continuation.md` for that correction
+and exact hook/reflog/no-op comparisons.
 
 ## Actual aggregate evidence
 

@@ -1,18 +1,15 @@
-//! Pinned differential tests against the upstream Python safe-commit oracle.
+//! Historical frozen native expectations for eight safe-commit shapes.
 //!
-//! Oracle: `spec-kitty/spec-kitty` at
-//! `9aed3a8012cb5eb22c0128b14d525039f95fea7a`, executed with
-//! `.venv-rust-oracle/bin/python` (Python 3.11, `PYTHONPATH=src`, temporary
-//! `HOME`/`XDG_*`), calling `specify_cli.git.commit_helpers.safe_commit` on a
-//! fresh temporary repository with a pinned branch name and pinned file
-//! contents. The expectations below are the *observable structural outcome* the
-//! oracle produced (committed path set, index/worktree status, whether HEAD
-//! moved, which typed refusal fired). Object ids and timestamps are deliberately
-//! not pinned: they are not part of the contract.
-//!
-//! Regenerate by running the same eight scenarios through the oracle and
-//! replacing the `Oracle*` constants. Python is development tooling only; the
-//! tests below never invoke it.
+//! **These constants are not oracle evidence.** They were frozen by hand from
+//! earlier native observations; they never invoke Python, carry no baseline
+//! digest and cannot detect oracle drift. The reproducible, digest-checked
+//! oracle corpus is `safe_commit_conformance.rs` with
+//! `tests/fixtures/safe_commit/` (generated from the pinned baseline
+//! `9aed3a8012cb5eb22c0128b14d525039f95fea7a`), and that suite fails when the
+//! corpus is missing or drifted. The eight tests below remain as fast
+//! native-only regression checks for the same observable shapes (committed path
+//! set, index/worktree status, whether HEAD moved, which typed refusal fired);
+//! they are not used to claim conformance.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -26,7 +23,7 @@ use tempfile::TempDir;
 
 const LANE: &str = "kitty/mission-diff-01ABCDEF";
 
-// Pinned oracle expectations -------------------------------------------------
+// Frozen native expectations (historical; not oracle-derived) ----------------
 
 const ORACLE_PRESERVE_STATUS: &[&str] = &["?? u.txt", "M  other.txt", "MM partial.txt"];
 const ORACLE_PRESERVE_COMMITTED: &[&str] = &["a.txt", "new.txt"];

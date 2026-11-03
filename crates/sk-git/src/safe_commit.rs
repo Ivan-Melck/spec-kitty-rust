@@ -101,9 +101,10 @@
 //!   times when *another* writer holds git's `index.lock`. Each attempt writes
 //!   the same idempotent result and never removes the other writer's lock. The
 //!   commit itself is never retried.
-//! * Hooks run before no-op classification, like upstream; a formatter can make
-//!   an initially unchanged candidate nonempty. Ordinary messages use configured
-//!   git cleanup; pinned-parent messages retain their verbatim contract.
+//! * Ordinary pre-commit hooks run before initially-empty snapshot refusal,
+//!   matching upstream; they cannot rescue that initial no-op. Message hooks
+//!   observe GIT_EDITOR=: on ordinary routes, which force unsigned commits;
+//!   pinned-parent routes retain configured signing and verbatim messages.
 
 use std::ffi::{OsStr, OsString};
 use std::fmt;
