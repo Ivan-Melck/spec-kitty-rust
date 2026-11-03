@@ -6,6 +6,9 @@
 //! Every fixture is a temporary repository; nothing here touches a real
 //! checkout, runtime directory, or the user's home.
 
+#[path = "../../sk-kernel/tests/support/oracle.rs"]
+mod oracle;
+
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -21,9 +24,9 @@ use sk_status::mutation::{
 };
 
 const SLUG: &str = "060-test";
-const MID8: &str = "01COORD0";
-const COORD_NAME: &str = "060-test-01COORD0";
-const MISSION_ID: &str = "01TESTMISSIONIDXXXXXXXXXX";
+const MID8: &str = "01C00RD0";
+const COORD_NAME: &str = "060-test-01C00RD0";
+const MISSION_ID: &str = "01C00RD0000000000000000000";
 const WAIT: Duration = Duration::from_secs(5);
 
 fn git(repo: &Path, args: &[&str]) {
@@ -54,7 +57,7 @@ fn write_meta(directory: &Path, meta: &serde_json::Value) -> PathBuf {
 
 /// A repository with a legacy bare-directory coordination Mission: the primary
 /// directory is `kitty-specs/060-test` and the coordination surface is named by
-/// the composed key `060-test-01COORD0`.
+/// the composed key `060-test-01C00RD0`.
 struct CoordMission {
     _temp: tempfile::TempDir,
     repo: PathBuf,
@@ -308,6 +311,51 @@ fn a_birth_lock_keys_on_the_directory_name_without_reading_meta() {
 }
 
 #[test]
+fn an_exhausted_legacy_mid8_uses_recorded_slug_not_a_renamed_directory() {
+    for recorded_slug in [Some("042-legacy"), None] {
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        init_repo(&repo);
+        let mission = repo.join("kitty-specs/042-legacy-moved");
+        let mut meta = serde_json::json!({"coordination_branch": "kitty/mission-042-legacy"});
+        if let Some(slug) = recorded_slug {
+            meta["mission_slug"] = serde_json::json!(slug);
+        }
+        write_meta(&mission, &meta);
+        let expected = recorded_slug.unwrap_or("042-legacy-moved");
+        assert_eq!(mission_lock_key(&mission, &repo).unwrap(), expected);
+        let lock = acquire_mission_lock(&mission, Some(&repo), LockWait::Bounded(WAIT)).unwrap();
+        assert!(lock.path().ends_with(format!("{expected}.status.lock")));
+    }
+}
+
+#[test]
+fn oversized_identity_metadata_never_silently_changes_the_lock_key() {
+    let temp = tempfile::tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    init_repo(&repo);
+    let mission = repo.join("kitty-specs/big-mission");
+    let meta_path = write_meta(
+        &mission,
+        &serde_json::json!({
+            "mission_slug": "big-mission", "mid8": "01B1G000",
+            "coordination_branch": "kitty/coord", "padding": "x".repeat(1024 * 1024),
+        }),
+    )
+    .join("meta.json");
+    let before = fs::read(&meta_path).unwrap();
+    assert!(
+        matches!(mission_lock_key(&mission, &repo), Err(MutationError::Kernel(KernelError::TooLarge { path, .. })) if path == meta_path)
+    );
+    assert!(matches!(
+        acquire_mission_lock_with(&mission, Some(&repo), LockWait::Bounded(WAIT), true, false),
+        Err(MutationError::Kernel(KernelError::TooLarge { .. }))
+    ));
+    assert_eq!(fs::read(meta_path).unwrap(), before);
+    assert!(!repo.join(".git/spec-kitty-locks").exists());
+}
+
+#[test]
 fn a_legacy_numbered_mission_with_no_mid8_keys_on_the_bare_directory_name() {
     let temp = tempfile::tempdir().unwrap();
     let repo = temp.path().to_path_buf();
@@ -529,13 +577,13 @@ else:
     raise SystemExit(2)
 "#;
 
-fn oracle_repo_root() -> Option<PathBuf> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+fn oracle_repo_root() -> PathBuf {
+    let _verified = oracle::python();
+    Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .find(|candidate| candidate.join("src/specify_cli").is_dir())?
-        .to_path_buf();
-    let python = root.join(".venv-rust-oracle/bin/python");
-    python.is_file().then_some(root)
+        .find(|candidate| candidate.join("src/specify_cli").is_dir())
+        .expect("the pinned oracle source checkout is required")
+        .to_path_buf()
 }
 
 struct OracleProcess {
@@ -549,12 +597,12 @@ impl OracleProcess {
         // checkout/home: the fixture repository's own temporary parent is the
         // only writable location it is given.
         let temp_home = repo.parent().unwrap_or(repo);
-        let mut child = Command::new(root.join(".venv-rust-oracle/bin/python"))
+        let mut child = Command::new(oracle::python())
             .arg(script)
             .arg(mode)
             .arg(mission)
             .arg(repo)
-            .current_dir(root)
+            .current_dir(repo)
             .env("PYTHONPATH", root.join("src"))
             .env("SPEC_KITTY_PACKS_ROOT", root.join("packs"))
             .env("PYTHONDONTWRITEBYTECODE", "1")
@@ -562,6 +610,7 @@ impl OracleProcess {
             .env("XDG_CACHE_HOME", temp_home.join(".cache"))
             .env("XDG_CONFIG_HOME", temp_home.join(".config"))
             .env("XDG_DATA_HOME", temp_home.join(".local/share"))
+            .env("XDG_STATE_HOME", temp_home.join(".state"))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
@@ -594,13 +643,14 @@ fn oracle_fixture() -> (tempfile::TempDir, PathBuf, PathBuf, PathBuf) {
     let temp = tempfile::tempdir().unwrap();
     let repo = temp.path().join("repo");
     init_repo(&repo);
-    let mission = repo.join("kitty-specs").join("cross-lang-01ABCDEF");
+    let mission = repo.join("kitty-specs").join("cross-lang-primary");
     fs::create_dir_all(&mission).unwrap();
     fs::write(
         mission.join("meta.json"),
         serde_json::json!({
             "mission_slug": "cross-lang",
-            "mission_id": "01ABCDEFXXXXXXXXXXXXXXXXXX",
+            "mission_id": "01ABCDEF000000000000000000",
+            "coordination_branch": "kitty/coord-cross-lang",
         })
         .to_string(),
     )
@@ -611,11 +661,45 @@ fn oracle_fixture() -> (tempfile::TempDir, PathBuf, PathBuf, PathBuf) {
 }
 
 #[test]
+fn a_renamed_legacy_mission_uses_one_cross_language_lock_in_both_directions() {
+    let root = oracle_repo_root();
+    let (_temp, repo, original, script) = oracle_fixture();
+    let mission = repo.join("kitty-specs/042-legacy-moved");
+    fs::rename(original, &mission).unwrap();
+    write_meta(
+        &mission,
+        &serde_json::json!({
+            "mission_slug": "042-legacy", "coordination_branch": "kitty/mission-042-legacy",
+        }),
+    );
+    {
+        let lock = acquire_mission_lock(&mission, Some(&repo), LockWait::Bounded(WAIT)).unwrap();
+        assert_eq!(lock.key(), "042-legacy");
+        let mut contender = OracleProcess::spawn(&root, &script, "try", &mission, &repo);
+        assert_eq!(contender.read_line(), "TIMEOUT");
+        assert_eq!(contender.finish().code(), Some(3));
+    }
+    let mut holder = OracleProcess::spawn(&root, &script, "hold", &mission, &repo);
+    assert_eq!(holder.read_line(), "READY");
+    assert!(matches!(
+        acquire_mission_lock(
+            &mission,
+            Some(&repo),
+            LockWait::Bounded(Duration::from_millis(100))
+        ),
+        Err(MutationError::Kernel(KernelError::StatusLockTimeout { .. }))
+    ));
+    holder.release();
+    assert_eq!(holder.read_line(), "RELEASED");
+    assert!(holder.finish().success());
+    let released_lock =
+        acquire_mission_lock(&mission, Some(&repo), LockWait::Bounded(WAIT)).unwrap();
+    drop(released_lock);
+}
+
+#[test]
 fn the_python_oracle_cannot_enter_a_held_native_mission_lock() {
-    let Some(root) = oracle_repo_root() else {
-        eprintln!("skipping: pinned Rust oracle is not provisioned");
-        return;
-    };
+    let root = oracle_repo_root();
     let (_temp, repo, mission, script) = oracle_fixture();
     let _lock = acquire_mission_lock(&mission, Some(&repo), LockWait::Bounded(WAIT)).unwrap();
 
@@ -626,10 +710,7 @@ fn the_python_oracle_cannot_enter_a_held_native_mission_lock() {
 
 #[test]
 fn a_native_writer_cannot_enter_a_held_python_oracle_lock() {
-    let Some(root) = oracle_repo_root() else {
-        eprintln!("skipping: pinned Rust oracle is not provisioned");
-        return;
-    };
+    let root = oracle_repo_root();
     let (_temp, repo, mission, script) = oracle_fixture();
     let mut holder = OracleProcess::spawn(&root, &script, "hold", &mission, &repo);
     assert_eq!(holder.read_line(), "READY");

@@ -1,5 +1,9 @@
 # Mission-write lock protocol — implementation report
 
+> Original implementation report; counts below are historical. Independent review
+> and subsequent corrections are recorded in
+> `docs/rust/reviews/mission-lock-disposition.md`.
+
 Date: 2026-11-02  
 Checkpoint: `ab3e0fcc8`  
 Python behavior baseline: `9aed3a8012cb5eb22c0128b14d525039f95fea7a`  
@@ -18,8 +22,9 @@ The reference is not just the old lock filename. It is
   coordination directory name `<slug>-<mid8>` when the canonical primary
   `meta.json` records `coordination_branch`. Resolution is the baseline cascade:
   `meta.mid8` → declared `mission_id[:8]` → the slug's eight-character Crockford
-  tail. A legacy `NNN-` slug and a flattened/meta-less Mission route to the bare
-  directory name. A modern coordination Mission with an exhausted cascade is
+  tail. An exhausted legacy `NNN-` coordination identity uses the recorded
+  `mission_slug`, falling back to the directory name only when absent; flattened
+  or meta-less Missions use the directory name. A modern coordination Mission with an exhausted cascade is
   refused (`MissionLockKeyUnresolved`), never given an invented key.
 - **Canonical primary metadata.** The key is read from the main checkout's
   `kitty-specs/<name>/meta.json`. A linked worktree's stale copy never decides,
@@ -209,8 +214,10 @@ This is not a blanket full-parity claim.
 - **Windows/other platforms.** The code is portable, but only Linux was
   exercised. Fork/PID-fence and cross-process `.holder` behaviour on non-Unix
   platforms remain review obligations.
-- **No independent review.** The implementation and tests are from this
-  sub-agent; they are regression evidence, not an independent approval.
+- **Independent review completed after this report.** The lock and authoring
+  mechanics were accepted conditionally; the recorded-slug and oversized-meta
+  findings now have coordinator fixes and additional permanent regressions.
+  This does not certify verified log rollback, rekey consumers or platform parity.
 - **Aggregate gates** (workspace tests, release build, benchmark, full CLI
   lifecycle) were intentionally not run under the shared-disk/job limits, so the
   completion-loop and performance gates remain open.

@@ -222,9 +222,9 @@ pub fn mission_lock_key_with(
             ),
         })?;
     let meta = if is_under_kitty_specs(feature_dir) {
-        canonical_primary_meta(&lock_root, name).unwrap_or_default()
+        canonical_primary_meta(&lock_root, name)?.unwrap_or_default()
     } else {
-        read_meta(feature_dir).unwrap_or_default()
+        read_meta(feature_dir)?.unwrap_or_default()
     };
     lock_name_from_meta(&meta, name)
 }
@@ -253,7 +253,7 @@ fn lock_name_from_meta(
         }
     })?;
     if mid8.is_empty() {
-        return Ok(directory_name.to_owned());
+        return Ok(mission_slug.to_owned());
     }
     Ok(coordination_dir_name(mission_slug, &mid8))
 }
@@ -272,21 +272,24 @@ fn optional_text<'a>(meta: &'a Map<String, Value>, key: &str) -> Option<&'a str>
 /// copy never decides the key. When the main checkout records nothing for
 /// `name` (an owned linked worktree whose Mission exists only in its own
 /// checkout), that checkout's own copy is the only record there is.
-fn canonical_primary_meta(root: &Path, name: &str) -> Option<Map<String, Value>> {
+fn canonical_primary_meta(
+    root: &Path,
+    name: &str,
+) -> Result<Option<Map<String, Value>>, MutationError> {
     if !is_single_segment(name) {
-        return None;
+        return Ok(None);
     }
-    let own = read_meta(&root.join(KITTY_SPECS_DIR).join(name));
+    let own = read_meta(&root.join(KITTY_SPECS_DIR).join(name))?;
     if root.join(".git").is_dir() {
-        return own;
+        return Ok(own);
     }
     let main_root = main_repo_root(root);
     let canonical = if main_root == root {
         own.clone()
     } else {
-        read_meta(&main_root.join(KITTY_SPECS_DIR).join(name))
+        read_meta(&main_root.join(KITTY_SPECS_DIR).join(name))?
     };
-    canonical.or(own)
+    Ok(canonical.or(own))
 }
 
 /// The main checkout root for `root`: a worktree `.git` pointer is followed to
@@ -426,7 +429,7 @@ fn primary_alias(root: &Path, key: &str) -> Result<Option<String>, MutationError
     let candidate: String = characters[..characters.len() - MID8_SUFFIX_LENGTH]
         .iter()
         .collect();
-    let meta = canonical_primary_meta(root, &candidate).unwrap_or_default();
+    let meta = canonical_primary_meta(root, &candidate)?.unwrap_or_default();
     if lock_name_from_meta(&meta, &candidate)? == key {
         Ok(Some(candidate))
     } else {
@@ -878,11 +881,16 @@ fn registered_worktrees(path: &Path) -> Option<Vec<PathBuf>> {
     Some(registered)
 }
 
-fn read_meta(directory: &Path) -> Option<Map<String, Value>> {
+fn read_meta(directory: &Path) -> Result<Option<Map<String, Value>>, MutationError> {
     let path = directory.join("meta.json");
-    let bytes = sk_kernel::read_bounded(&path, MAX_META_BYTES).ok()?;
-    let value: Value = serde_json::from_slice(&bytes).ok()?;
-    value.as_object().cloned()
+    let bytes = match sk_kernel::read_bounded(&path, MAX_META_BYTES) {
+        Ok(bytes) => bytes,
+        Err(error @ sk_kernel::KernelError::TooLarge { .. }) => return Err(error.into()),
+        Err(_) => return Ok(None),
+    };
+    Ok(serde_json::from_slice::<Value>(&bytes)
+        .ok()
+        .and_then(|value| value.as_object().cloned()))
 }
 
 fn resolve_existing(path: &Path) -> PathBuf {
