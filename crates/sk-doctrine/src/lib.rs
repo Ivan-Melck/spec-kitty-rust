@@ -22,8 +22,8 @@
 //! * the read-only language-scope service: the doctrine-derived scoped-language
 //!   vocabulary (built-in, project overlay and configured org chain) and the
 //!   configured → compiled → interview inference tiers, with the three-state
-//!   no-signal / explicit-empty / declared contract. It is a library seam only —
-//!   no CLI detector is bound to it yet.
+//!   no-signal / explicit-empty / declared contract. The runtime CLI profile
+//!   gate consumes this service; full language/next parity remains unapproved.
 //!
 //! Boundaries (contract mirrors under `src/charter/**`, never invoked at runtime):
 //!

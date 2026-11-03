@@ -14,7 +14,7 @@ Coordinator handles the bounded findings directly:
 
 | Finding | Disposition |
 | --- | --- |
-| P1: existing wired CLI catalog/tier/interview duplicate; profile family/sentinel copy | **OPEN, binding precondition.** Replace/delete the old implementation, do not add a third path; real CLI behavior change needs acceptance/differential and independent integration review. |
+| P1: existing wired CLI catalog/tier/interview duplicate; profile family/sentinel copy | **Binding implemented; independent integration review pending.** CLI duplicate deleted and canonical service/family rules consumed; real-CLI Zig red29/1 then scoped69 green, doctrine174 unchanged. Do not infer full prompt/cited-tactic or whole-language parity. |
 | P2: valid BOM-prefixed multi-key input disappears | Four-reader live-oracle red, fixed with read-only BOM normalization. |
 | P3: unknown-tag artifact contributes plain/tagged items | Whole-file skip restored; untagged and explicit standard-string positives remain. |
 | P4: unrelated config validation drops org packs | Canonical registry-only API reuses the org-block/pack validator; strict whole-project validation stays strict. |
@@ -28,3 +28,8 @@ Charter API controls. Stable coordinator workspace **2,105/0/9 helpers**,
 and charter80. See `crates/sk-doctrine/LANGUAGE-REMEDIATION-REPORT.md` for exact
 source bindings and retained logs. These new corrections are tested, not newly
 independently approved. No capability/inventory or performance gate promotion.
+
+Later canonical binding checkpoint: coordinator2,112/0/9 helpers,181 suites,
+strict workspace Clippy/fmt/releases. This does not turn the original additive
+review into CLI approval. P5/P6/P7 remain real differences. See the CLI binding
+report and newest verification section.

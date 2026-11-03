@@ -217,15 +217,16 @@ Contract mirrors (reference only):
   and tension annotations are typed API fields, deliberately outside the JSON
   contract.
 
-### Language scope (read-only provider; not CLI-bound yet)
+### Language scope (read-only provider with runtime CLI binding)
 
 The doctrine-side half of the language signal, ported from
 `charter/activation/{language_vocabulary,language_scope,language_authority}.py`,
 `charter/offering/shared/{scoping,language_catalog}.py` and the interview
-defaults. It is a library seam: **no CLI detector, dispatcher or runtime path is
-bound to it**. The CLI retains its separate catalog/configured/compiled/interview
-implementation, which lacks the doctrine vocabulary and differs in other tier details
-(see the remaining gap below).
+defaults. The runtime CLI's profile gate now calls this service with an explicit
+caller-owned cache and the same selected packs override as context composition.
+The old CLI catalog/tier/interview implementation and private profile family copy
+are deleted. Binding has scoped tests, but independent integration review is
+pending; this is not whole language or runtime parity.
 
 - `scoped_language_vocabulary(repo_root, packs_root)` is a lightweight YAML scan
   of `applies_to_languages` over exactly the five scoped kinds (tactics,
@@ -278,8 +279,9 @@ unrelated invalid config fields (strict whole-config validation unchanged).
 Unicode casefolding, numeric exponent repr, and transcript encoding recovery
 remain real differences; artifacts are strict UTF-8 in the reference, but
 interview transcripts use the broader charter ingestion authority. The CLI
-binding must remove its existing implementation rather than add another path.
-See `LANGUAGE-REMEDIATION-REPORT.md`.
+binding now removes its old implementation rather than adding another path.
+See `LANGUAGE-REMEDIATION-REPORT.md` for the provider checkpoint and
+`../sk-cli/LANGUAGE-BINDING-REPORT.md` for the later binding and its limits.
 
 ### Installer integration
 
@@ -419,14 +421,14 @@ These are real missing behaviours, not aliases for a successful stub.
     unknown mission type), can still resolve where the reference degrades to
     directly loaded locals. The 149-test / 52-check review does not approve
     those cases.
-15. **Scoped language vocabulary (provider landed, CLI binding open).** The
-    doctrine-side provider now exists (`scoped_language_vocabulary`,
-    `LanguageScopeService`, oracle-verified), but the CLI's `compat/runtime.rs`
-    catalog/tier/interview implementation does not call it, so the
-    consumer-side behaviour is unchanged: a scoped custom `zig` declaration can
-    still exclude a profile that the reference admits. Binding it — and the
-    prompt/registry paths that consume the signal — is a separate, unreviewed
-    step. No N5 end-to-end fix is claimed here.
+15. **Language binding implemented; independent integration review pending.**
+    Runtime `next` profile composition now calls `LanguageScopeService` and
+    shares canonical family/sentinel rules. Custom Zig admission fails red on
+    the old CLI, then passes alongside Rust/no-signal controls. Admission is
+    observed through scope diagnostics and authored WP fields/metadata, not
+    exact full-prompt/cited-tactic delivery parity. P5/P6/P7 Unicode, numeric
+    repr and full transcript encoding remain real differences. No broad N5,
+    language, governance or `next` acceptance is claimed before review.
 
 ## API map for the coordinator CLI
 

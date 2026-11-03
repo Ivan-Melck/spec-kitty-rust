@@ -8,7 +8,34 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Language/input Linux checkpoint — after `38834239d`
+## Canonical language CLI binding checkpoint — after `5909598e1`
+
+All owners stopped: **2,112 passed / 0 failed / 9 parent-exercised helpers**,
+181 suites including doctests. Strict workspace all-target Clippy, full fmt
+check and both release binaries pass without interruption.
+Logs `/tmp/sk-native-language-binding-stable-{aggregate,clippy,fmt,release}.log`.
+Completion still599/PERF27/pending, accounting valid,0/16 workflows
+(`/tmp/sk-language-binding-stable-completion-report.json`). No inventory or
+performance promotion; source/oracle/pins stay unchanged.
+
+The CLI's duplicate catalog/tier/interview logic is deleted; runtime profile
+composition calls `LanguageScopeService`. Private profile family/sentinel
+copies now reuse canonical rules. Genuine live-CLI red **29 pass/1 failure**
+for Zig admission is retained separately from the owner's two earlier fixture/
+expectation errors. Final scoped CLI69 (31 runtime_next,9 lib,26 compat,3 new
+language-binding tests) and doctrine174 pass. The3 tier/matcher tests use the
+library; CLI scope diagnostics are not full-prompt/cited-tactic equivalence.
+Coordinator corrected stale test comments to say precisely that. Independent
+integration review is pending before declaring N5 accepted; Unicode/numeric/
+encoding and StepContract/protected-main issues remain open. Exact current
+binding hashes and limits: `crates/sk-cli/LANGUAGE-BINDING-REPORT.md`.
+
+Public docs changed after gates only to describe this binding accurately;
+scoped doctests and full formatting are repeated. No new runtime change is
+hidden in that documentation correction. Draft PR stays draft; coordinator
+commits and pushes each verified checkpoint under the user's standing order.
+
+## Previous language/input Linux checkpoint — after `38834239d`
 
 All implementation owners idle: **2,105 passed / 0 failed / 9 parent-exercised
 helpers**, 180 suites including doctests. Strict workspace all-target Clippy,

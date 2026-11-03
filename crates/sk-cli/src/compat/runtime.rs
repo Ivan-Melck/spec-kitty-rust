@@ -35,7 +35,7 @@
 //! actionable failure. `capabilities` records the same state; this module never
 //! reports a success it did not perform.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::env;
 use std::ffi::OsStr;
 use std::fs;
@@ -1448,314 +1448,26 @@ fn entry_ids(entries: &[sk_doctrine::ArtifactEntry]) -> Vec<String> {
 // Active project languages (the profile `applies_to_languages` filter)
 // ---------------------------------------------------------------------------
 //
-// The reference derives one signal, `infer_repo_languages(repo_root)`, and
-// feeds it to the agent-profile repository so a language-scoped profile is
-// filtered before composition. The native workspace has no charter-language
-// module yet, so this adapter carries the read-only catalog and the three
-// source tiers (configured -> compiled -> interview). It is data only; the
-// artifact vocabulary itself stays in `sk-doctrine`.
+// The signal itself is the canonical `sk_doctrine` language-scope service: the
+// doctrine-derived vocabulary, the configured -> compiled -> interview tiers
+// and the no-signal / explicit-empty / declared projection all live there. This
+// adapter only binds that service to the CLI's repository and the already
+// resolved pack root, and it propagates a real service failure instead of
+// inventing a no-signal result.
 
-/// One shipped language: token, declared-output rank, declared patterns and
-/// the family it implies (mirror of `charter/offering/shared/language_catalog.py`).
-struct LanguageSpec {
-    token: &'static str,
-    rank: u8,
-    patterns: &'static [&'static str],
-    family: Option<&'static str>,
-}
-
-const JVM_FAMILY: &str = "jvm";
-
-const LANGUAGE_CATALOG: &[LanguageSpec] = &[
-    LanguageSpec {
-        token: "python",
-        rank: 0,
-        patterns: &["python", "pytest", "mypy", "ruff"],
-        family: None,
-    },
-    LanguageSpec {
-        token: "typescript",
-        rank: 1,
-        patterns: &["typescript", "tsc"],
-        family: None,
-    },
-    LanguageSpec {
-        token: "javascript",
-        rank: 2,
-        patterns: &[
-            "javascript",
-            "jest",
-            "node",
-            "node.js",
-            "npm",
-            "pnpm",
-            "yarn",
-        ],
-        family: None,
-    },
-    LanguageSpec {
-        token: "rust",
-        rank: 3,
-        patterns: &["rust", "cargo", "rustc"],
-        family: None,
-    },
-    LanguageSpec {
-        token: "java",
-        rank: 4,
-        patterns: &["java"],
-        family: Some(JVM_FAMILY),
-    },
-    LanguageSpec {
-        token: "kotlin",
-        rank: 5,
-        patterns: &["kotlin"],
-        family: Some(JVM_FAMILY),
-    },
-    LanguageSpec {
-        token: "swift",
-        rank: 6,
-        patterns: &["swift", "xctest"],
-        family: None,
-    },
-    LanguageSpec {
-        token: "ruby",
-        rank: 7,
-        patterns: &["ruby", "rspec", "rails"],
-        family: None,
-    },
-    LanguageSpec {
-        token: "php",
-        rank: 8,
-        patterns: &["php", "phpunit"],
-        family: None,
-    },
-    LanguageSpec {
-        token: "go",
-        rank: 9,
-        patterns: &[],
-        family: None,
-    },
-];
-
-/// Build/test tools that name only their family (never a language).
-const BUILD_TOOL_FAMILIES: &[(&str, u8, &str)] = &[
-    ("gradle", 4, JVM_FAMILY),
-    ("maven", 4, JVM_FAMILY),
-    ("junit", 4, JVM_FAMILY),
-];
-
-/// The shipped default `languages_frameworks` answer declares nothing.
-const SHIPPED_DEFAULT_LANGUAGES_ANSWER: &str =
-    "use only the languages, frameworks, and tools explicitly declared by this project.";
-
-/// Whether `token` is a catalog language or a language family.
-fn is_catalog_language(token: &str) -> bool {
-    token == JVM_FAMILY || LANGUAGE_CATALOG.iter().any(|spec| spec.token == token)
-}
-
-/// Whole-word occurrence with the reference's `(?<!\w-)` compound guard.
-fn contains_word(haystack: &str, needle: &str) -> bool {
-    let mut start = 0;
-    while let Some(offset) = haystack[start..].find(needle) {
-        let index = start + offset;
-        let before_ok = match haystack[..index].chars().next_back() {
-            None => true,
-            Some(prev) if prev.is_alphanumeric() || prev == '_' => false,
-            Some('-') => {
-                // `librespot-java` is a compound name, not a declaration.
-                !haystack[..index - 1]
-                    .chars()
-                    .next_back()
-                    .is_some_and(|earlier| earlier.is_alphanumeric() || earlier == '_')
-            }
-            Some(_) => true,
-        };
-        let end = index + needle.len();
-        let after_ok = match haystack[end..].chars().next() {
-            None => true,
-            Some(next) => !(next.is_alphanumeric() || next == '_'),
-        };
-        if before_ok && after_ok {
-            return true;
-        }
-        start = end.max(index + 1);
-    }
-    false
-}
-
-/// Canonical languages a free-form declaration names, in declared-rank order.
-fn declared_languages(text: &str) -> Vec<String> {
-    let haystack = text.to_lowercase();
-    let mut matches: Vec<(u8, &str)> = Vec::new();
-    let mut families: BTreeSet<&str> = BTreeSet::new();
-    for spec in LANGUAGE_CATALOG {
-        if spec
-            .patterns
-            .iter()
-            .any(|pattern| contains_word(&haystack, pattern))
-        {
-            matches.push((spec.rank, spec.token));
-            if let Some(family) = spec.family {
-                families.insert(family);
-            }
-        }
-    }
-    for (token, rank, family) in BUILD_TOOL_FAMILIES {
-        if !families.contains(family) && contains_word(&haystack, token) {
-            matches.push((*rank, family));
-            families.insert(family);
-        }
-    }
-    matches.sort_by(|left, right| left.0.cmp(&right.0).then(left.1.cmp(right.1)));
-    let tokens: Vec<String> = matches
-        .into_iter()
-        .map(|(_, token)| token.to_string())
-        .collect();
-    sk_doctrine::normalize_languages(&tokens)
-}
-
-/// The reference's "this answer declares nothing" test.
-fn is_placeholder_language_answer(value: &str) -> bool {
-    const PLACEHOLDERS: [&str; 13] = [
-        "",
-        "[]",
-        "-",
-        "n/a",
-        "na",
-        "none",
-        "null",
-        "tbd",
-        "language-agnostic",
-        "language agnostic",
-        "unknown",
-        "all",
-        "any",
-    ];
-    let normalized = value
-        .to_lowercase()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
-    PLACEHOLDERS.contains(&normalized.as_str())
-        || normalized.starts_with("[needs clarification")
-        || normalized == SHIPPED_DEFAULT_LANGUAGES_ANSWER
-}
-
-/// The real declaration contained in one interview answer, or `None`.
-fn real_language_declaration(raw: &str) -> Option<String> {
-    let text = raw.trim();
-    let items: Vec<String> = if text.starts_with('[') && text.ends_with(']') {
-        match serde_yaml_ng::from_str::<Value>(text) {
-            Ok(Value::Array(values)) => values
-                .iter()
-                .filter_map(Value::as_str)
-                .map(str::to_owned)
-                .collect(),
-            _ => vec![text.to_string()],
-        }
-    } else {
-        vec![text.to_string()]
+fn active_project_languages(
+    service: &mut sk_doctrine::LanguageScopeService,
+    repo_root: &Path,
+    packs_root: Option<&Path>,
+) -> Result<Option<Vec<String>>, String> {
+    let request = sk_doctrine::InferRequest {
+        repo_root: Some(repo_root),
+        interview: None,
+        prefer_interview: false,
+        packs_root,
     };
-    let mut parts = Vec::new();
-    for item in items {
-        if is_placeholder_language_answer(&item) {
-            continue;
-        }
-        for piece in item.split([',', ';']) {
-            for sub in piece.split('/') {
-                let sub = sub.trim();
-                if !sub.is_empty() && !is_placeholder_language_answer(sub) {
-                    parts.push(sub.to_string());
-                }
-            }
-        }
-    }
-    (!parts.is_empty()).then(|| parts.join(", "))
-}
-
-/// Tier 0: the operator-confirmed `.kittify/config.yaml` `languages` list.
-fn configured_languages(repo_root: &Path) -> Option<Vec<String>> {
-    let text = fs::read_to_string(repo_root.join(".kittify").join("config.yaml")).ok()?;
-    let value: Value = serde_yaml_ng::from_str(&text).ok()?;
-    let items = value.get("languages")?.as_array()?;
-    let mut valid = Vec::new();
-    for item in items {
-        let Some(token) = item.as_str() else {
-            continue;
-        };
-        let token = token.trim().to_lowercase();
-        if token.is_empty() || !is_catalog_language(&token) || valid.contains(&token) {
-            continue;
-        }
-        valid.push(token);
-    }
-    (!valid.is_empty()).then_some(valid)
-}
-
-/// Tier 1: the compiled `charter.yaml` `catalog.languages` value.
-fn compiled_languages(repo_root: &Path) -> Option<Vec<String>> {
-    let path = repo_root.join(sk_charter::CHARTER_YAML);
-    let text = fs::read_to_string(path).ok()?;
-    let value: Value = serde_yaml_ng::from_str(&text).ok()?;
-    let items = value.get("catalog")?.get("languages")?.as_array()?;
-    let tokens: Vec<String> = items
-        .iter()
-        .filter_map(Value::as_str)
-        .map(str::to_owned)
-        .collect();
-    Some(sk_doctrine::normalize_languages(&tokens))
-}
-
-/// Tier 2: the on-disk charter interview transcript.
-fn interview_languages(repo_root: &Path) -> Option<Vec<String>> {
-    let path = repo_root
-        .join(".kittify")
-        .join("charter")
-        .join("interview")
-        .join("answers.yaml");
-    let text = fs::read_to_string(path).ok()?;
-    let value: Value = serde_yaml_ng::from_str(&text).ok()?;
-    let answers = value.get("answers")?;
-    if let Some(answer) = answers.get("languages_frameworks") {
-        let raw = match answer {
-            Value::String(text) => Some(text.clone()),
-            Value::Null => None,
-            other => Some(other.to_string()),
-        };
-        if let Some(real) = raw.as_deref().and_then(real_language_declaration) {
-            let mut recognized = declared_languages(&real);
-            if recognized.is_empty() {
-                recognized.push("unknown".to_string());
-            }
-            recognized.sort();
-            recognized.dedup();
-            return Some(recognized);
-        }
-    }
-    let combined = answers
-        .as_object()
-        .map(|mapping| {
-            mapping
-                .values()
-                .filter_map(|answer| match answer {
-                    Value::String(text) => Some(text.clone()),
-                    Value::Null => None,
-                    other => Some(other.to_string()),
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-        })
-        .unwrap_or_default();
-    let found = declared_languages(&combined);
-    (!found.is_empty()).then_some(found)
-}
-
-/// The reference's `infer_repo_languages`: configured, then compiled, then the
-/// interview. `None` means "no signal" (admit every scoped profile).
-fn active_project_languages(repo_root: &Path) -> Option<Vec<String>> {
-    configured_languages(repo_root)
-        .or_else(|| compiled_languages(repo_root))
-        .or_else(|| interview_languages(repo_root))
+    let inferred = service.infer(&request).map_err(|error| error.to_string())?;
+    Ok(inferred.into_option())
 }
 
 fn action_context(
@@ -1764,7 +1476,8 @@ fn action_context(
     action: &str,
     profile_id: Option<&str>,
 ) -> Result<GovernanceFacts, String> {
-    let (built_in, org_roots, project) = doctrine_roots(repo_root)?;
+    let packs_override = packs_root(repo_root);
+    let (built_in, org_roots, project) = doctrine_roots(repo_root, packs_override.as_deref())?;
     let built_in_graph =
         sk_doctrine::load_graph_or_dir(&built_in).map_err(|error| error.to_string())?;
     let mut fragments = Vec::new();
@@ -1793,7 +1506,9 @@ fn action_context(
     let mut identity =
         sk_doctrine::IdentityIndex::from_roots(&built_in, &org_roots, project.as_deref());
     sk_doctrine::scan_all(&mut identity);
-    let active_languages = active_project_languages(repo_root);
+    let mut language_service = sk_doctrine::LanguageScopeService::new();
+    let active_languages =
+        active_project_languages(&mut language_service, repo_root, packs_override.as_deref())?;
     let profiles = sk_doctrine::ProfileRepository::load_with_languages(
         &built_in,
         &org_roots,
@@ -1905,12 +1620,15 @@ fn action_context(
 }
 
 /// Doctrine roots resolved with the same pack-root convention as templates.
-fn doctrine_roots(repo_root: &Path) -> Result<(PathBuf, Vec<PathBuf>, Option<PathBuf>), String> {
+fn doctrine_roots(
+    repo_root: &Path,
+    packs_root: Option<&Path>,
+) -> Result<(PathBuf, Vec<PathBuf>, Option<PathBuf>), String> {
     let config = sk_charter::load_project_config(repo_root, &sk_charter::Limits::default())
         .map_err(|error| error.to_string())?;
     let expansion = sk_charter::PathExpansion::from_env();
     let mut search = sk_charter::BuiltInSearch::from_env(repo_root);
-    if let Some(root) = packs_root(repo_root) {
+    if let Some(root) = packs_root {
         search = search.with_packs_root_env(root);
     }
     let roots = sk_charter::PackRoots::resolve(repo_root, &config, &expansion, Some(&search))

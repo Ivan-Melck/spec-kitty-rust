@@ -18,6 +18,9 @@ use std::process::{Command, Output};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
+#[path = "../../sk-kernel/tests/support/oracle.rs"]
+mod oracle_support;
+
 fn binary() -> &'static str {
     env!("CARGO_BIN_EXE_spec-kitty")
 }
@@ -1137,6 +1140,30 @@ fn run_with_packs(dir: &Path, home: &Path, packs: &Path, args: &[&str]) -> Outpu
         .expect("run spec-kitty")
 }
 
+/// The required, lock-exact reference signal for `project`.
+fn oracle_infer_languages(project: &Path) -> Value {
+    let repo = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("repo root");
+    let script = "import json,sys\nfrom pathlib import Path\nfrom charter.activation.language_scope import infer_repo_languages\nprint(json.dumps(infer_repo_languages(Path(sys.argv[1]))))\n";
+    let output = Command::new(oracle_support::python())
+        .arg("-c")
+        .arg(script)
+        .arg(project)
+        .current_dir(project)
+        .env("PYTHONPATH", repo.join("src"))
+        .env("SPEC_KITTY_PACKS_ROOT", repo.join("packs"))
+        .output()
+        .expect("run required Python oracle");
+    assert!(
+        output.status.success(),
+        "oracle failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&output.stdout).expect("oracle emitted JSON")
+}
+
 fn advance(root: &Path, home: &Path, slug: &str) -> Output {
     run(
         root,
@@ -1469,6 +1496,62 @@ fn advance_prompt_body(root: &Path, home: &Path, slug: &str) -> String {
     fs::read_to_string(decision["prompt_file"].as_str().expect("prompt")).expect("prompt body")
 }
 
+/// A board whose `WP01` is pinned to a Zig-scoped profile. The Rust-scoped
+/// sibling makes the language filter observable in both directions. These
+/// tests check profile-scope diagnostics, not delivery of cited org tactics.
+fn language_scoped_profile_mission(interview: Option<&str>) -> (TempDir, PathBuf, String) {
+    let (temp, home, slug) = board_mission(
+        "software-dev",
+        BOARD_TEMPLATE,
+        &[("WP01", "genesis", "planned")],
+    );
+    let root = temp.path();
+    let org = root.join("org-packs/acme");
+    write(
+        &org.join("pack.yaml"),
+        "pack_id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\nname: acme\npack_level: org\n",
+    );
+    write(
+        &org.join("drg/fragment.yaml"),
+        "pack_name: acme\nnodes:\n  - id: zig-practice\n    kind: tactic\n    title: Zig practice\n  - id: rust-practice\n    kind: tactic\n    title: Rust practice\nedges:\n  - source: agent_profile:zig-specialist\n    target: tactic:zig-practice\n    relation: requires\n  - source: agent_profile:rust-specialist\n    target: tactic:rust-practice\n    relation: requires\n",
+    );
+    write(
+        &org.join("org-charter.yaml"),
+        "schema_version: 2\norg_name: Acme\n",
+    );
+    write(
+        &org.join("agent_profiles/zig-specialist.agent.yaml"),
+        "profile-id: zig-specialist\nname: Zig Specialist\npurpose: Implement Zig modules.\nroles: [implementer]\napplies_to_languages: [zig]\ntactic-references:\n  - id: zig-practice\n    rationale: Zig-specific practice\nspecialization:\n  primary-focus: Zig\n",
+    );
+    write(
+        &org.join("agent_profiles/rust-specialist.agent.yaml"),
+        "profile-id: rust-specialist\nname: Rust Specialist\npurpose: Implement Rust modules.\nroles: [implementer]\napplies_to_languages: [rust]\ntactic-references:\n  - id: rust-practice\n    rationale: Rust-specific practice\nspecialization:\n  primary-focus: Rust\n",
+    );
+    write(
+        &root.join(".kittify/config.yaml"),
+        &format!(
+            "agents:\n  available: [codex]\ncharter_packs:\n  org:\n    packs:\n      - name: acme\n        local_path: {}\n",
+            org.display()
+        ),
+    );
+    write(
+        &root
+            .join("kitty-specs")
+            .join(&slug)
+            .join("tasks/WP01-first.md"),
+        "---\nwork_package_id: WP01\ntitle: WP01 task\nlane: planned\ndependencies: []\nowned_files: [\"src/**\"]\nagent_profile: zig-specialist\n---\n\n# WP01\n",
+    );
+    if let Some(interview) = interview {
+        write(
+            &root.join(".kittify/charter/interview/answers.yaml"),
+            interview,
+        );
+    }
+    git(root, &["add", "-A"]);
+    git(root, &["commit", "-qm", "language-scoped profile fixture"]);
+    (temp, home, slug)
+}
+
 #[test]
 fn an_org_required_tactic_survives_a_deny_and_the_active_language_scope() {
     // An `implement` board dispatch renders the WP governance block, which is
@@ -1593,6 +1676,120 @@ fn an_interview_language_declaration_filters_a_language_specific_profile() {
         body.contains("Agent profile rust-specialist was excluded by the active language scope."),
         "the interview language declaration must filter the rust profile: {body}"
     );
+}
+
+#[test]
+fn a_custom_zig_interview_admits_a_zig_scoped_profile() {
+    let (temp, home, slug) =
+        language_scoped_profile_mission(Some("answers:\n  languages_frameworks: Zig\n"));
+    let body = advance_prompt_body(temp.path(), &home, &slug);
+
+    // The custom language is vocabulary the Zig profile itself contributes,
+    // so the interview declaration must admit the profile. This regression
+    // does not establish delivery of its cited org tactic.
+    assert!(
+        !body.contains("Agent profile zig-specialist was excluded by the active language scope."),
+        "the Zig-scoped profile must be admitted: {body}"
+    );
+    assert!(
+        body.contains("Agent profile rust-specialist was excluded by the active language scope."),
+        "the Rust-scoped sibling must stay filtered: {body}"
+    );
+    // The authored WP profile pin and project metadata are untouched by the
+    // language binding.
+    assert!(
+        body.contains(
+            "work_package_id: WP01\ntitle: WP01 task\nlane: planned\ndependencies: []\nowned_files: [\"src/**\"]\nagent_profile: zig-specialist"
+        ),
+        "the authored work-package prompt must arrive whole: {body}"
+    );
+    assert!(body.contains(&format!("Mission: {slug}")), "{body}");
+    assert!(body.contains("Mission Type: software-dev"), "{body}");
+    assert!(body.contains("Agent: claude"), "{body}");
+    assert!(body.contains("WORKING DIRECTORY:"), "{body}");
+    assert!(
+        !body.contains("profile \"zig-specialist\" could not be resolved"),
+        "{body}"
+    );
+}
+
+#[test]
+fn changing_the_declaration_from_zig_to_rust_filters_the_zig_profile() {
+    let (temp, home, slug) =
+        language_scoped_profile_mission(Some("answers:\n  languages_frameworks: Rust and Cargo\n"));
+    let body = advance_prompt_body(temp.path(), &home, &slug);
+
+    assert!(
+        body.contains("Agent profile zig-specialist was excluded by the active language scope."),
+        "the Rust declaration must filter the Zig-scoped profile: {body}"
+    );
+    assert!(
+        !body.contains("Agent profile rust-specialist was excluded by the active language scope."),
+        "the Rust-scoped sibling must be admitted: {body}"
+    );
+    assert!(body.contains(&format!("Mission: {slug}")), "{body}");
+    assert!(body.contains("Mission Type: software-dev"), "{body}");
+    assert!(body.contains("Agent: claude"), "{body}");
+}
+
+#[test]
+fn removing_the_language_declaration_admits_every_scoped_profile() {
+    let (temp, home, slug) = language_scoped_profile_mission(None);
+    let body = advance_prompt_body(temp.path(), &home, &slug);
+
+    assert!(
+        !body.contains("excluded by the active language scope"),
+        "no signal admits every scoped profile: {body}"
+    );
+    assert!(
+        body.contains("agent_profile: zig-specialist"),
+        "the authored Zig profile pin is preserved: {body}"
+    );
+    assert!(
+        body.contains(&format!("Mission: {slug}")),
+        "project metadata stays authored: {body}"
+    );
+}
+
+#[test]
+fn the_cli_language_decision_matches_the_required_oracle() {
+    for (interview, expected, admitted, filtered) in [
+        (
+            "answers:\n  languages_frameworks: Zig\n",
+            json!(["zig"]),
+            "zig-specialist",
+            "rust-specialist",
+        ),
+        (
+            "answers:\n  languages_frameworks: Rust and Cargo\n",
+            json!(["rust"]),
+            "rust-specialist",
+            "zig-specialist",
+        ),
+    ] {
+        let (temp, home, slug) = language_scoped_profile_mission(Some(interview));
+        let oracle = oracle_infer_languages(temp.path());
+        assert_eq!(oracle, expected, "oracle signal for {interview:?}");
+        let body = advance_prompt_body(temp.path(), &home, &slug);
+        assert!(
+            !body.contains(&format!(
+                "Agent profile {admitted} was excluded by the active language scope."
+            )),
+            "the oracle-admitted profile {admitted} must load: {body}"
+        );
+        assert!(
+            body.contains(&format!(
+                "Agent profile {filtered} was excluded by the active language scope."
+            )),
+            "the oracle-filtered profile {filtered} must be dropped: {body}"
+        );
+        // A built-in Python-scoped profile is filtered by both declarations,
+        // proving the CLI profile surface follows the same resolved signal.
+        assert!(
+            body.contains("Agent profile python-pedro was excluded by the active language scope."),
+            "the Python-scoped built-in profile must be filtered: {body}"
+        );
+    }
 }
 
 #[test]

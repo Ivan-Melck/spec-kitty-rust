@@ -774,22 +774,14 @@ pub fn normalize_languages(values: &[String]) -> Vec<String> {
     normalized
 }
 
-/// The `java`/`kotlin` family both languages imply (the only family in the
-/// upstream catalogue).
-fn expand_language_families(values: &BTreeSet<String>) -> BTreeSet<String> {
-    let mut expanded = values.clone();
-    if values.contains("java") || values.contains("kotlin") {
-        expanded.insert("jvm".to_owned());
-    }
-    expanded
-}
-
 /// Whether a profile scoped to `artifact_languages` loads for `active`.
 ///
 /// Unscoped profiles always load; `None` active disables filtering; an
 /// explicitly empty/`unknown` active set admits no scoped profile; `any`/`all`
 /// sentinels make the profile unscoped (defense in depth against a file that
-/// bypassed authoring validation).
+/// bypassed authoring validation). Family expansion and the reserved/sentinel
+/// token sets are the canonical `language_scope` authorities, never a local
+/// copy.
 pub fn applies_to_languages_match(
     artifact_languages: &[String],
     active_languages: Option<&[String]>,
@@ -800,14 +792,16 @@ pub fn applies_to_languages_match(
     if raw.is_empty() {
         return true;
     }
-    let artifact_scope: BTreeSet<String> =
-        raw.into_iter().filter(|token| token != "unknown").collect();
+    let artifact_scope: BTreeSet<String> = raw
+        .into_iter()
+        .filter(|token| !crate::language_scope::RESERVED_LANGUAGE_TOKENS.contains(&token.as_str()))
+        .collect();
     if artifact_scope.is_empty() {
         return false;
     }
     if artifact_scope
         .iter()
-        .all(|token| token == "any" || token == "all")
+        .all(|token| crate::language_scope::SENTINEL_LANGUAGE_TOKENS.contains(&token.as_str()))
     {
         return true;
     }
@@ -816,12 +810,16 @@ pub fn applies_to_languages_match(
     };
     let active_scope: BTreeSet<String> = normalize_languages(active)
         .into_iter()
-        .filter(|token| token != "unknown")
+        .filter(|token| !crate::language_scope::RESERVED_LANGUAGE_TOKENS.contains(&token.as_str()))
         .collect();
     if active_scope.is_empty() {
         return false;
     }
-    !artifact_scope.is_disjoint(&expand_language_families(&active_scope))
+    let expanded: BTreeSet<String> =
+        crate::language_scope::expand_language_families(active_scope.iter().map(String::as_str))
+            .into_iter()
+            .collect();
+    !artifact_scope.is_disjoint(&expanded)
 }
 
 fn item_key(item: &Value) -> String {
