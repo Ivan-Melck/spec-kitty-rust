@@ -4,21 +4,24 @@
 //! (`kitty-ops/<ULID>.jsonl`, the index, and the closure spine), the typed
 //! `started`/`completed` models with pre-v2 detection, `ModeOfWork` and its
 //! entry-command derivation, the canonical invocation-id boundary, Op
-//! record-root placement with the admission refusal vocabulary, and the
-//! read-only Git-backed commit-or-skip probes (`primary` tracking and the
-//! exact-path ignore/tracking decision).
+//! record-root placement with the admission refusal vocabulary, the read-only
+//! Git-backed commit-or-skip probes (`primary` tracking and the exact-path
+//! ignore/tracking decision), source-backed write admission, and the actual
+//! best-effort per-record / closure-spine commit.
 //!
 //! This crate is deliberately unwired: no dispatcher calls it, the executor /
 //! catalog / router / governance / glossary / StepContract surfaces are not
-//! implemented here, and no capability is claimed. The commit-or-skip probes
-//! decide only whether an `op(...)` commit would be skipped; they do not admit,
-//! protect, or perform a commit. Its only effectful
-//! authorities are the `sk-kernel` event-log protocol (lock placement, locked
-//! append, torn-tail refusal, fsync/readback), the `sk-kernel` clock, and
-//! `sk-kernel` Git topology; path identity uses the kernel's read-only
-//! `reference_path` authority (the Python non-strict profile, not the
-//! containment/lock resolver). It introduces no second lock and mutates no
-//! process-global environment.
+//! implemented here, and no capability is claimed. [`OpCommitService`] composes
+//! the accepted skip probes, canonical protection policies, and the real
+//! `sk-git` `plan_safe_commit` / `safe_commit`; it does not implement profile
+//! dispatch or CLI wiring. Its only effectful authorities are the `sk-kernel`
+//! event-log protocol (lock placement, locked append, torn-tail refusal,
+//! fsync/readback), the `sk-kernel` clock, `sk-kernel` Git topology, the
+//! `sk-git` commit transaction, and the `sk-workspace` protection-policy
+//! reader; path identity uses the kernel's read-only `reference_path`
+//! authority (the Python non-strict profile, not the containment/lock
+//! resolver). It introduces no second lock and mutates no process-global
+//! environment.
 //!
 //! Byte fidelity: Op lines are rendered with Python's `json.dumps` defaults
 //! (declared field order, `", "`/`": "` separators, `ensure_ascii=True`), not
@@ -28,6 +31,8 @@
 
 mod error;
 mod modes;
+mod op_admission;
+mod op_commit;
 mod op_commit_policy;
 mod op_custody;
 mod python_json;
@@ -41,6 +46,11 @@ pub use error::{
 pub use modes::{
     ENTRY_COMMAND_MODES, ModeOfWork, RecordedMode, classify_mode_of_work, derive_mode,
     mode_permits_evidence,
+};
+pub use op_admission::{OpAdmissionError, admission_probe_path};
+pub use op_commit::{
+    ADMISSION_PROBE_RECORD, OP_GIT_PROBE_TIMEOUT, OpClosedBy, OpCommitEvidence, OpCommitOutcome,
+    OpCommitService, op_git_options,
 };
 pub use op_commit_policy::{
     COMMON_PRIMARY_BRANCHES, OpCommitProbeError, OpCommitSkipProbe, PrimaryTracking,

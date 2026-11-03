@@ -1,10 +1,14 @@
 # Upstream reconciliation: current fork, older rewrite baseline
 
 Fork `main` and upstream `main` both resolve to
-`d357958b6fbf6bb45bb62b22ee946e647f454e03` (fork fast-forwarded and both remotes
-rechecked). Total gap: **662 commits**. The newest9-commit tail from dcdacbd2e
-changes seven test/development-doc files (+348/−3), no production source or
-dependency/pack pins. No semantic adoption is inferred from that sync. The two commits from
+`1bff48901c62ac971ba11e286c94a4de214f0752` (fork fast-forwarded and both remotes
+rechecked). Total gap: **681 commits**. The newest19-commit tail after d357958b6
+changes45 files (+1,446/−1): contract-test primary-worktree root selection,
+development docs and Mission/Op records, no production source or dependency/pack/
+service/toolchain pins. Evidence `/tmp/sk-admission-upstream-refresh.log`.
+The preceding9-commit tail from dcdacbd2e changes seven test/development-doc files
+(+348/−3), also no production source or dependency/pack pins. No semantic adoption
+is inferred from either sync. The two commits from
 `7c50fd38b` through `b91a226a1` changed neither source nor pins; the preceding
 10-commit tail changes charter `_common.py`, generation and interview commands
 (no dependency/pack pins). Those new command semantics are not adopted or

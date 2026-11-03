@@ -8,6 +8,39 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
+## Op admission / actual commit integration — after `42994b2c2`
+
+Owners idle: **2,188 pass / 0 fail / 11 parent-exercised helpers**,184 suites
+including doctests; strict workspace all-target Clippy, full fmt and both release
+binaries pass without interruption. Logs
+`/tmp/sk-native-admission-stable-{aggregate,clippy,fmt,release}.log`.
+Includes Op138/Git293; no additional totals. Exact Python3.11.15 oracle verifies
+all53 requirements, no drift/missing. Completion still599/PERF27/pending,
+accounting valid,0/16 workflows (`/tmp/sk-admission-stable-completion-report.json`).
+
+Unwired Op service now performs read-only admission, canonical project+record
+protection union/STANDARD preflight and real per-record or doctor-spine safe
+commits, with source30s Git handle and durable audit preservation. Coordinator
+reproduces real trailing-NBSP current-branch false refusal and nested-hook typed
+uncertain-evidence loss, each0/1 red, then fixes source stripping at one shared
+Op policy seam and retains candidate/destination/observed-tip/detail. No generic
+Git spelling change or commit success inferred from uncertainty. Owner signing
+misattribution corrected: both source and native ordinary paths force unsigned,
+proven with real live-oracle controls under configured unusable signing.
+
+Bindings, historical owner compiler/harness failures and boundaries:
+`crates/sk-invocation/ADMISSION-COMMIT-INTEGRATION-REPORT.md`. New larger surface
+awaits independent review. Raw legacy JSON map-order/nonfinite/encoding, abbrev
+fallback, constructor-time repository binding and remaining branch/topology/error
+breadth remain real gaps. No executor/catalogue/CLI/StepContract acceptance,
+protected-main false-advance repair, workflow/platform or ≥3× promotion.
+
+Fork/upstream main rechecked and fast-forwarded separately to
+`1bff48901c62ac971ba11e286c94a4de214f0752`,681 commits ahead of unchanged behavior
+source. New19 tail changes tests/docs/Mission+Op records only, no source/pins.
+This is synchronization, not semantic adoption. Verified work committed+PUSHED;
+PR stays draft.
+
 ## Op probe scoped review / long-ref correction — after `d94f6f6e9`
 
 Independent read-only seam review **SCOPED PASS**,407/0/5 helpers plus strict

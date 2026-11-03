@@ -104,6 +104,13 @@ const UNRESOLVED_PRIMARY: &str = "primary branch unresolved";
 /// The best-effort skip prefix used when a probe needed for the decision fails.
 const PROBE_FAILED_PREFIX: &str = "git probe failed while deciding whether to commit the Op record";
 
+/// Python `stdout.strip()` at the Op policy boundary, not the raw Git API.
+pub(crate) fn strip_git_stdout(value: &str) -> &str {
+    value.trim_matches(|character: char| {
+        character.is_whitespace() || matches!(character, '\u{1c}'..='\u{1f}')
+    })
+}
+
 /// Whether the primary branch tracks Op records, and which ref was asked.
 ///
 /// This is the reference's frozen dataclass: `primary` is the short name of the
@@ -267,9 +274,7 @@ pub fn resolve_primary_refs(
         // Python strips the whole stdout before removeprefix. Unicode
         // whitespace is legal in ref names, so changing this order changes
         // real branch selection. Leave the generic Git read byte-faithful.
-        let target = target.trim_matches(|character: char| {
-            character.is_whitespace() || matches!(character, '\u{1c}'..='\u{1f}')
-        });
+        let target = strip_git_stdout(&target);
         let name = target.strip_prefix(ORIGIN_PREFIX).unwrap_or(target);
         if name.is_empty() {
             None

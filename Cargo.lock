@@ -979,6 +979,7 @@ dependencies = [
  "serde_json",
  "sk-git",
  "sk-kernel",
+ "sk-workspace",
  "tempfile",
  "thiserror",
  "ulid",
