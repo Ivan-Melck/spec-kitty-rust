@@ -34,7 +34,7 @@ use serde::Serialize;
 
 use crate::agent::RenderFamily;
 use crate::error::InstallError;
-use crate::lock::{LOCK_REL, ProjectLock};
+use crate::lock::ProjectLock;
 use crate::manifest::{
     AssetManifest, MANIFEST_REL, ManifestEntry, content_hash, validate_relative_posix,
 };
@@ -589,7 +589,7 @@ impl InstallPlan {
     /// Apply the plan: lock, re-check, write, then persist the manifest.
     pub fn commit(&self, lock_wait: Duration) -> Result<ApplicationReport, InstallError> {
         self.validate()?;
-        let lock = ProjectLock::acquire(&self.project_root.join(LOCK_REL), lock_wait)?;
+        let lock = ProjectLock::for_project(&self.project_root, lock_wait)?;
 
         // Precondition re-check: the plan was built from these observations.
         for asset in &self.assets {

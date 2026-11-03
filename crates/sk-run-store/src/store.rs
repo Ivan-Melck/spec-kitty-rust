@@ -199,8 +199,10 @@ impl RunStore {
                     "run_dir": self.run_dir_token(&run.run_dir)?,
                     "mission_type": state.mission_key,
                     "mission_key": state.mission_key,
-                    "mission_id": state.mission_id,
-                    "mission_slug": state.mission_slug,
+                    // The cursor starts with a null identity (pinned engine
+                    // shape); the index is what names the mission.
+                    "mission_id": request.mission_id,
+                    "mission_slug": request.mission_slug,
                 }),
             );
             self.write_index(&index)?;
@@ -317,8 +319,12 @@ impl RunStore {
                 decisions: BTreeMap::new(),
                 pending_decisions: BTreeMap::new(),
                 blocked_reason: None,
-                mission_id: request.mission_id.clone(),
-                mission_slug: Some(request.mission_slug.clone()),
+                // The pinned engine starts a run with a null cursor identity;
+                // the mission slug/id live in `inputs` and in the identity
+                // index (`feature-runs.json`). Writing them here would be a
+                // start-state byte divergence from the reference cursor.
+                mission_id: None,
+                mission_slug: None,
             };
             write_state_file(&run_dir, &state)?;
 
@@ -335,8 +341,8 @@ impl RunStore {
                         "model": null,
                         "tool": null,
                     },
-                    "mission_id": request.mission_id,
-                    "mission_slug": request.mission_slug,
+                    "mission_id": Value::Null,
+                    "mission_slug": Value::Null,
                 }),
             );
             append_records(&run_dir.join(EVENTS_FILENAME), &[started])?;
@@ -780,6 +786,32 @@ impl RunStore {
         step_id: &str,
     ) -> Result<PathBuf, RunStoreError> {
         prompt_file_path(&run.run_dir, step_id)
+    }
+
+    /// Author a derived prompt artifact inside the run directory.
+    ///
+    /// The CLI composes a richer prompt than the store's own issued-step
+    /// header (work-package body, workspace, governance context) and needs a
+    /// contained place to put it. The path uses the same escaping grammar as an
+    /// issued prompt, so `key` can be any `step` / `step--WP01` token without
+    /// escaping the run directory. Prompt files are derived artifacts: recovery
+    /// never reads them.
+    pub fn write_derived_prompt(
+        &self,
+        run: &RunRef,
+        key: &str,
+        content: &str,
+    ) -> Result<PathBuf, RunStoreError> {
+        let path = prompt_file_path(&run.run_dir, key)?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|source| sk_kernel::KernelError::Io {
+                action: "create prompt directory",
+                path: parent.to_path_buf(),
+                source,
+            })?;
+        }
+        sk_kernel::atomic_write(&path, content.as_bytes())?;
+        Ok(path)
     }
 }
 

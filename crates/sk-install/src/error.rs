@@ -283,6 +283,10 @@ pub enum InstallError {
     #[error("skills catalog {path} is unavailable: {detail}")]
     SkillsCatalogMissing { path: PathBuf, detail: String },
 
+    /// The asset set has no charter agent-profile catalog.
+    #[error("agent-profile catalog {path} is unavailable: {detail}")]
+    AgentProfileCatalogMissing { path: PathBuf, detail: String },
+
     /// An unowned file occupies a managed skill destination.
     #[error("cannot install skill file {path}: destination is unowned or modified")]
     SkillCollision { path: PathBuf },
@@ -407,6 +411,7 @@ impl InstallError {
             Self::AgentChoiceInvalid { .. } => "invalid_agent_choice",
             Self::SkillsManifestInvalid { .. } => "skills_manifest_invalid",
             Self::SkillsCatalogMissing { .. } => "skills_catalog_missing",
+            Self::AgentProfileCatalogMissing { .. } => "agent_profile_catalog_missing",
             Self::SkillCollision { .. } => "skill_collision",
             Self::SkillDrift { .. } => "skill_drift",
             Self::IdentityInvalid { .. } => "identity_invalid",

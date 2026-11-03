@@ -369,18 +369,21 @@ impl Holding {
         if self.holder.pid != std::process::id() {
             return;
         }
-        // Truncate before the descriptor closes. The OS lock is released when
-        // the last descriptor for this open file description closes; the inode
-        // itself must survive (no unlink-on-release).
+        // Release explicitly after clearing the holder. A concurrent fork can
+        // inherit this open file description until exec; closing only our fd
+        // would leave the lock held beyond the owning guard's lifetime.
+        // Only the owning PID reaches this unlock; a forked child must not
+        // unlock the shared description while its parent still owns it.
         let _ = self.file.set_len(0);
         let _ = self.file.sync_data();
+        let _ = FileExt::unlock(&self.file);
     }
 }
 
 impl Drop for Holding {
     fn drop(&mut self) {
         // Safety net for a guard whose explicit depth release did not run.
-        // Truncation is idempotent and the OS lock releases with the file.
+        // Holder cleanup and explicit unlock are idempotent.
         self.release();
     }
 }
@@ -536,7 +539,7 @@ impl Drop for FileLock {
         // not strand the inner guard or remove the thread-local entry.
         if self.holding.depth.fetch_sub(1, Ordering::SeqCst) == 1 {
             // The last Arc drops Holding immediately after this method,
-            // truncating/syncing once before closing its locked descriptor.
+            // clearing the holder and explicitly releasing its OS lock.
             if self.registered {
                 let key = self.key.clone();
                 HELD.with(|held| {
@@ -861,6 +864,22 @@ fn host_name() -> String {
 #[cfg(all(test, unix))]
 mod process_ownership_tests {
     use super::*;
+
+    #[test]
+    fn owner_drop_releases_even_when_the_open_file_description_is_duplicated() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("duplicated.lock");
+        let guard = FileLock::acquire(&path, Duration::ZERO).unwrap();
+        // A fork-before-exec can duplicate the same open file description.
+        // Simulate that descriptor lifetime deterministically without forking.
+        let duplicate = guard.holding.file.try_clone().unwrap();
+        drop(guard);
+        let next = FileLock::try_acquire(&path)
+            .unwrap()
+            .expect("the owning guard must release independently of duplicate descriptors");
+        drop(duplicate);
+        drop(next);
+    }
 
     #[test]
     fn inherited_process_ownership_cannot_reenter_or_truncate() {

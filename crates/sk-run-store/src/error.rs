@@ -29,8 +29,11 @@ pub struct ErrorInfo {
 #[derive(Debug, Error)]
 pub enum RunStoreError {
     /// A kernel primitive (bounded read, atomic write, display lock) failed.
+    ///
+    /// Converted through the manual `From` impl below so a bounded-read
+    /// oversize refusal keeps the store's own `TOO_LARGE` code.
     #[error(transparent)]
-    Kernel(#[from] KernelError),
+    Kernel(KernelError),
 
     /// The project root passed to [`crate::RunStore::open`] is unusable.
     #[error("project root {root} is not an existing directory")]
@@ -349,6 +352,17 @@ impl From<RuntimeError> for RunStoreError {
             other => Self::TemplateInvalid {
                 message: other.to_string(),
             },
+        }
+    }
+}
+
+impl From<KernelError> for RunStoreError {
+    fn from(error: KernelError) -> Self {
+        match error {
+            // A bounded read that exceeded its limit is a run-store input
+            // refusal with its own stable code, not an anonymous kernel fault.
+            KernelError::TooLarge { path, limit } => Self::TooLarge { path, limit },
+            other => Self::Kernel(other),
         }
     }
 }

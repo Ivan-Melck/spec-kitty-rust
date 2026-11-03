@@ -7,6 +7,16 @@
 > index remain explicit. See `docs/rust/reviews/git-coordination-continuation.md`;
 > hashes and counts below describe the original delivery.
 
+> **Forward note (operator-index continuation).** The open mismatch recorded in
+> §5 is closed. `GIT_INDEX_FILE` is captured at repository open and bound to
+> every operator-index read, write, lock check and reconciliation; the renamed
+> case `git_index_file_selector_honoured` is now an exact oracle match, and the
+> corpus is **31 exact matches + 1 documented literal-path divergence + 0 open
+> mismatches**. The historical text below is retained unchanged except for this
+> note. See `OPERATIONS-CONTINUATION-REPORT.md` for the current evidence and
+> `docs/rust/reviews/git-coordination-continuation.md` for the coordinator's
+> correction.
+
 Status: **evidence report for the native safe-commit substrate; not an
 independent review and not overall safe-commit/CLI signoff.**
 

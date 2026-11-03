@@ -61,9 +61,6 @@ pub const LEGACY_SCHEMA_VERSION: &str = "5.0.0";
 /// Suffix of the one-shot pre-migration snapshot.
 pub const MIGRATION_BACKUP_SUFFIX: &str = ".pre-migration.bak";
 
-/// Default bounded wait for the migration lock (baseline 10 s).
-const DEFAULT_LOCK_WAIT_SECONDS: u64 = 10;
-
 /// The UUID URL namespace from RFC 4122 (`6ba7b811-9dad-11d1-80b4-00c04fd430c8`).
 const NAMESPACE_URL: [u8; 16] = [
     0x6b, 0xa7, 0xb8, 0x11, 0x9d, 0xad, 0x11, 0xd1, 0x80, 0xb4, 0x00, 0xc0, 0x4f, 0xd4, 0x30, 0xc8,
@@ -227,11 +224,31 @@ pub fn migrate_lifecycle_envelope(
             .unwrap_or("events")
     ));
     if backup_path.exists() {
+        // Baseline MIG4: the refusal manifest is zeroed, not the computed one.
+        manifest.total_rows = 0;
+        manifest.migrated_count = 0;
+        manifest.unchanged_count = 0;
+        manifest.skipped_count = 0;
+        manifest.rows.clear();
         manifest.refused_reason = Some(format!(
             "refusing to migrate: a prior snapshot already exists at {} (migration is one-shot per file; remove the snapshot manually once satisfied with the prior run before re-migrating)",
             backup_path.display()
         ));
         return Ok(manifest);
+    }
+    let mut content = String::new();
+    for line in new_lines {
+        content.push_str(&line);
+        content.push('\n');
+    }
+    // Check the result bound BEFORE planting the snapshot: a refusal that leaves
+    // a `.pre-migration.bak` behind would make every retry hit the one-shot
+    // snapshot refusal for a write that never happened.
+    if content.len() as u64 > MAX_EVENT_LOG_BYTES {
+        return Err(MutationError::Kernel(sk_kernel::KernelError::TooLarge {
+            path: log_path.to_path_buf(),
+            limit: MAX_EVENT_LOG_BYTES,
+        }));
     }
     let original = read_log_text(log_path)?.unwrap_or_default();
     sk_kernel::atomic_write_with_options(
@@ -241,17 +258,6 @@ pub fn migrate_lifecycle_envelope(
             create_parents: true,
         },
     )?;
-    let mut content = String::new();
-    for line in new_lines {
-        content.push_str(&line);
-        content.push('\n');
-    }
-    if content.len() as u64 > MAX_EVENT_LOG_BYTES {
-        return Err(MutationError::Kernel(sk_kernel::KernelError::TooLarge {
-            path: log_path.to_path_buf(),
-            limit: MAX_EVENT_LOG_BYTES,
-        }));
-    }
     sk_kernel::atomic_write_with_options(
         log_path,
         content.as_bytes(),
@@ -271,10 +277,17 @@ enum LogLock {
     None,
 }
 
+/// The migration's wait policy: the baseline's unbounded writer default unless
+/// the caller supplied an explicit bound.
+fn effective_wait(wait: Option<LockWait>) -> LockWait {
+    // `_lock_for_log_path` takes the ordinary writer lock with its
+    // `UNBOUNDED_LOCK_WAIT` default, so a migration queues behind a legitimate
+    // holder instead of refusing.
+    wait.unwrap_or(LockWait::Unbounded)
+}
+
 fn lock_for_log(log_path: &Path, wait: Option<LockWait>) -> Result<LogLock, MutationError> {
-    let wait = wait.unwrap_or(LockWait::Bounded(std::time::Duration::from_secs(
-        DEFAULT_LOCK_WAIT_SECONDS,
-    )));
+    let wait = effective_wait(wait);
     let Some(parent) = log_path.parent() else {
         return Ok(LogLock::None);
     };
@@ -451,5 +464,19 @@ fn render_scalar(value: &Value) -> String {
     match value {
         Value::String(text) => text.clone(),
         other => other.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod wait_policy_tests {
+    use super::*;
+
+    #[test]
+    fn the_migration_door_defaults_to_the_baselines_unbounded_wait() {
+        assert_eq!(effective_wait(None), LockWait::Unbounded);
+        assert_eq!(
+            effective_wait(Some(LockWait::Bounded(std::time::Duration::from_secs(10)))),
+            LockWait::Bounded(std::time::Duration::from_secs(10))
+        );
     }
 }

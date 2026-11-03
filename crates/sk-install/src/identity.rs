@@ -203,7 +203,7 @@ pub fn ensure_identity(
         std::fs::create_dir_all(parent)
             .map_err(|source| InstallError::io("create directory", parent, source))?;
     }
-    let _lock = ProjectLock::acquire(&project_root.join(crate::lock::LOCK_REL), lock_wait)?;
+    let _lock = ProjectLock::for_project(project_root, lock_wait)?;
     let text = match std::fs::read(&config_path) {
         Ok(raw) => String::from_utf8(raw).map_err(|error| InstallError::IdentityInvalid {
             path: config_path.clone(),

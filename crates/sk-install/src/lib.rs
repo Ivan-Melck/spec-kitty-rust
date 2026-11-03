@@ -71,7 +71,9 @@ pub mod migrations;
 pub mod pack;
 pub mod pin;
 pub mod plan;
+pub mod profiles;
 pub mod render;
+pub mod session;
 pub mod skills;
 pub mod template_tree;
 pub mod upgrade;
@@ -92,7 +94,8 @@ pub use agent::{
 pub use archive::{ArchiveKind, ArchiveLimits, extract_archive};
 pub use attributes::{
     GITHUB_DIFF_ATTRIBUTES, MERGE_DRIVERS, MergeDriver, MergeDriverConfigEntry,
-    MergeDriverWiringPlan, ensure_attribute_lines, merge_attribute_seed_lines,
+    MergeDriverCustomization, MergeDriverWiringPlan, MergeDriverWiringState, command_on_path,
+    ensure_attribute_lines, merge_attribute_seed_lines,
 };
 pub use digest::{TREE_DIGEST_ALGORITHM, clean_tree_digest, full_tree_digest, refuse_symlinks};
 pub use error::InstallError;
@@ -116,10 +119,10 @@ pub use ledger::{
 };
 pub use lifecycle::{
     PROJECT_EVENTS_REL, PROJECT_INITIALIZED, ProjectEventAppendPlan, ProjectEventLine,
-    ProjectInitializedPayload, emit_project_initialized, payload_for_init,
+    ProjectInitializedPayload, emit_project_initialized, now_utc_z, payload_for_init,
     plan_project_initialized,
 };
-pub use lock::ProjectLock;
+pub use lock::{ProjectLock, project_lock_path};
 pub use manifest::{AssetManifest, MANIFEST_REL, ManifestEntry, content_hash};
 pub use metadata::{ProjectMetadata, stamp_schema_metadata};
 pub use pack::{
@@ -132,9 +135,19 @@ pub use plan::{
     ApplicationReport, InstallPlan, Observed, PlanOptions, PlanSummary, PlannedAction,
     PlannedAsset, now_utc_iso, observe,
 };
+pub use profiles::{
+    AgentProfile, PROFILES_MANIFEST_REL, PROJECTION_VERSION, ProfileCatalog, ProfileFormat,
+    ProfileManifest, ProfileManifestEntry, ProfileProjectionReport, project_agent_profiles,
+    render_codex_agent, render_markdown_agent, render_profile,
+};
 pub use render::{
     RenderedAsset, ResolvedTemplate, TemplateSource, command_file_rel_path, command_skill_rel_path,
     process_spdd_blocks, render_asset, render_command_template, render_skill_body,
+};
+pub use session::{
+    CLAUDE_SETTINGS_REL, ORIENTATION_INVOCATION, OrientationContent, OrientationHealth,
+    SECTION_CLOSE, SECTION_OPEN, SESSION_START_CMD, SESSION_STOP_CMD, SessionPresenceReport,
+    apply_healthy_orientation, apply_session_presence,
 };
 pub use skills::{
     CanonicalSkill, ManagedFileEntry, ManagedSkillManifest, SKILLS_MANIFEST_REL, SkillCatalog,
@@ -143,7 +156,8 @@ pub use skills::{
 };
 pub use template_tree::{
     RemovalVerdict, TemplateMode, TemplateTreeOptions, TemplateTreeReport, TemplateTreeSource,
-    cleanup_init_scratch, global_runtime_available, guard_destructive_removal,
+    cleanup_init_scratch, discover_pack_agent_profiles, discover_pack_missions,
+    discover_pack_presets, global_runtime_available, guard_destructive_removal,
     install_template_tree,
 };
 pub use upgrade::{

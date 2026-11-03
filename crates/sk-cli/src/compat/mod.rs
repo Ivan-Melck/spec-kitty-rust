@@ -276,9 +276,9 @@ pub enum AgentStatusCommand {
     Validate(MissionJsonArgs),
     /// Rebuild status.json from the canonical event log.
     Materialize(MissionJsonArgs),
-    /// Emit a status transition (blocked: no canonical writer yet).
-    Emit(UnsupportedArgs),
-    /// Show canonical lifecycle state (blocked: no lifecycle reducer yet).
+    /// Emit a canonical status transition.
+    Emit(Box<status::EmitArgs>),
+    /// Show canonical mission lifecycle state.
     Lifecycle(MissionJsonArgs),
 }
 
@@ -336,12 +336,12 @@ pub enum AgentTasksCommand {
         #[arg(long)]
         json: bool,
     },
-    /// Move a WP between lanes (blocked: no canonical writer yet).
+    /// Move a work package between lanes.
     #[command(name = "move-task")]
-    MoveTask(UnsupportedArgs),
-    /// Record subtask status (blocked: no canonical writer yet).
+    MoveTask(Box<tasks::MoveTaskArgs>),
+    /// Record subtask status in the canonical event log.
     #[command(name = "mark-status")]
-    MarkStatus(UnsupportedArgs),
+    MarkStatus(tasks::MarkStatusArgs),
 }
 
 /// `agent mission` subcommands.
@@ -729,9 +729,15 @@ pub fn dispatch(command: Command) -> Result<u8, CompatError> {
                     status::materialize(&root, args.mission.as_deref(), args.json)?;
                     Ok(0)
                 }
-                AgentStatusCommand::Emit(args) => unsupported("agent status emit", args.json),
+                AgentStatusCommand::Emit(args) => {
+                    let root = support::project_root()?;
+                    status::emit(&root, &args)?;
+                    Ok(0)
+                }
                 AgentStatusCommand::Lifecycle(args) => {
-                    unsupported("agent status lifecycle", args.json)
+                    let root = support::project_root()?;
+                    status::lifecycle(&root, args.mission.as_deref(), args.json)?;
+                    Ok(0)
                 }
             },
             AgentCommand::Tasks { command } => match command {
@@ -772,10 +778,14 @@ pub fn dispatch(command: Command) -> Result<u8, CompatError> {
                     Ok(0)
                 }
                 AgentTasksCommand::MoveTask(args) => {
-                    unsupported("agent tasks move-task", args.json)
+                    let root = support::project_root()?;
+                    tasks::move_task(&root, &args)?;
+                    Ok(0)
                 }
                 AgentTasksCommand::MarkStatus(args) => {
-                    unsupported("agent tasks mark-status", args.json)
+                    let root = support::project_root()?;
+                    tasks::mark_status(&root, &args)?;
+                    Ok(0)
                 }
             },
             AgentCommand::Mission { command } => match command {

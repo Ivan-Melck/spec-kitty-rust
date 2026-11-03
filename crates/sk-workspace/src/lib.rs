@@ -92,11 +92,12 @@ pub use coord::{
     recover_interrupted,
 };
 pub use planning::{
-    DependencyIntegration, IntegrationOutcome, IntegrationReport, LandedAdvance,
-    MAX_PLANNING_ARTIFACT_BYTES, MetaDemotionGuard, PinClass, PlanningCommitPlan,
-    PlanningCommitReceipt, classify_recorded_pin, integrate_dependency_lanes,
-    integrate_planning_commit, integrate_tip, is_planning_kind, lane_contains_planning_commit,
-    planning_paths, record_planning_commit, recorded_pin,
+    DependencyIntegration, IntegrationError, IntegrationOutcome, IntegrationReport,
+    IntegrationRollback, LandedAdvance, MAX_PLANNING_ARTIFACT_BYTES, MetaDemotionGuard, PinClass,
+    PlanningCommitPlan, PlanningCommitReceipt, PlanningLockReceipt, PlanningPinMode,
+    SkippedDependency, classify_recorded_pin, integrate_dependency_lanes,
+    integrate_planning_commit, is_planning_kind, lane_contains_planning_commit, planning_paths,
+    record_planning_commit, record_planning_commit_with, recorded_pin,
 };
 pub use protection::{
     CONFIG_REL_PATH, DEFAULT_PROTECTED_BRANCHES, PROTECTION_HATCH_ENV, ProtectionPolicy,
@@ -124,9 +125,9 @@ pub use coordination::{
 };
 pub use journal::{AllocationJournal, AllocationRecord, JournalPhase};
 pub use lanes::{
-    CollapseEvent, CollapseReport, CollapseRule, ExecutionLane, LANES_FILE_NAME, LanePlannerInput,
-    LaneReadiness, LanesManifest, LanesStore, WpPlan, compute_lanes, globs_overlap, infer_surfaces,
-    lane_dependency_readiness,
+    CollapseEvent, CollapseReport, CollapseRule, ExecutionLane, LANES_FILE_NAME,
+    LANES_LOCK_DIRECTORY, LanePlannerInput, LaneReadiness, LanesManifest, LanesStore, WpPlan,
+    compute_lanes, globs_overlap, infer_surfaces, lane_dependency_readiness, lanes_json_lock_path,
 };
 pub use lifecycle::{
     LifecycleEvidence, LifecyclePhase, Probe, baseline_merge_commit_from_meta,
@@ -136,8 +137,8 @@ pub use lifecycle::{
 pub use naming::{
     MissionIdentity, PLANNING_LANE_ID, code_lane_branch_name, coord_branch_name, coord_dir_name,
     coord_mission_dir_name, coord_reconstruct_branch, is_mid8_shape, lane_branch_name,
-    mid8_from_slug, mission_branch_name, mission_branch_name_required, mission_dir_name,
-    strip_numeric_prefix, worktree_dir_name, worktree_path,
+    legacy_branch_body, mid8_from_slug, mission_branch_name, mission_branch_name_required,
+    mission_dir_name, strip_numeric_prefix, worktree_dir_name, worktree_path,
 };
 pub use owned::OwnedCheckout;
 pub use policy::{
@@ -146,7 +147,7 @@ pub use policy::{
 pub use surface::{
     CommitTarget, CoordState, PlacementInputs, PlacementRef, ResolvedSurface, SurfaceLocationField,
     SurfaceLocations, SurfaceTotalityViolation, TopologySurface, assert_surface_totality,
-    consolidated_location, resolve_artifact_surface, translate_surface,
+    consolidated_location, coord_read_surface, resolve_artifact_surface, translate_surface,
 };
 pub use workspace::{
     CoordinationProbe, MissionWorkspace, ProjectWorkspace, mission_dir_from, repo_root_lane_wps,

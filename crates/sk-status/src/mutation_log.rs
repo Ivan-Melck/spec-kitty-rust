@@ -375,6 +375,13 @@ pub fn capture_log_snapshot(path: &Path) -> Result<LogSnapshot, MutationError> {
 /// writer's rows, and deleting a file that is no longer the one this caller
 /// wrote. Returns `true` when the previous state was restored, `false` when the
 /// log already matched the snapshot (nothing to do).
+///
+/// This is the **single-writer byte snapshot** primitive. It is not the
+/// Mission-write verified rollback protocol: it does not require the registered
+/// Mission hold, does not cut a partial tail by whole rows, and does not refuse
+/// rows already committed at `HEAD`. Use
+/// [`crate::mutation_rollback::capture_rollback_point`] /
+/// [`crate::mutation_rollback::rollback_events_log`] for that protocol.
 pub fn restore_log_snapshot(
     snapshot: &LogSnapshot,
     expected_current: &[u8],

@@ -14,11 +14,17 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use sha2::{Digest, Sha256};
 use sk_kernel::FileLock;
 
 use crate::error::InstallError;
 
-/// Project-relative path of the install lock file.
+/// Legacy project-relative path of the install lock file.
+///
+/// New callers use [`project_lock_path`], which places the lock in the machine
+/// state directory so an init leaves no untracked residue in the checkout. The
+/// constant stays for source compatibility with callers that still pass an
+/// explicit path.
 pub const LOCK_REL: &str = ".kittify/.install.lock";
 
 /// An exclusive advisory lock guarding one project's install commit.
@@ -85,6 +91,21 @@ impl ProjectLock {
         }
     }
 
+    /// Acquire the canonical per-project install lock.
+    ///
+    /// The lock file lives under the machine state directory, keyed by the
+    /// resolved project root, so `init` never creates `.kittify/.install.lock`
+    /// (untracked residue that `git add -A` would otherwise commit) and the
+    /// same project's concurrent init/install commits still exclude each other.
+    pub fn for_project(project_root: &Path, wait: Duration) -> Result<Self, InstallError> {
+        let path = project_lock_path(project_root)?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|source| InstallError::io("create directory", parent, source))?;
+        }
+        Self::acquire(&path, wait)
+    }
+
     /// The lock file path.
     pub fn path(&self) -> &Path {
         &self.path
@@ -94,6 +115,26 @@ impl ProjectLock {
     pub fn file_lock(&self) -> &FileLock {
         &self.file_lock
     }
+}
+
+/// The canonical per-project install lock path in the machine state directory.
+pub fn project_lock_path(project_root: &Path) -> Result<PathBuf, InstallError> {
+    let unresolved = |error: sk_kernel::KernelError| InstallError::LedgerInvalid {
+        path: project_root.to_path_buf(),
+        detail: format!("could not resolve install lock authority: {error}"),
+    };
+    let state = sk_kernel::user_state_dir().map_err(unresolved)?;
+    let resolved = sk_kernel::paths::resolve_path_non_strict(project_root).map_err(unresolved)?;
+    let digest = Sha256::digest(resolved.to_string_lossy().as_bytes());
+    let key: String = digest[..16]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    Ok(state
+        .join("spec-kitty")
+        .join("locks")
+        .join("install")
+        .join(format!("{key}.lock")))
 }
 
 fn is_contention(error: &sk_kernel::KernelError) -> bool {

@@ -23,7 +23,7 @@ use crate::events::{
     DECISION_INPUT_REQUESTED, EventRecord, MISSION_RUN_COMPLETED, NEXT_STEP_AUTO_COMPLETED,
     NEXT_STEP_ISSUED, SIGNIFICANCE_EVALUATED, append_records,
 };
-use crate::model::{RunRef, RunState, actor_payload, now_iso, request_payload};
+use crate::model::{RunRef, RunState, actor_payload, request_payload, state_now_iso};
 use crate::prompt::write_prompt;
 use crate::recovery::{Mode, RecoveryReport, reconcile};
 use crate::store::{RunStore, persist_state};
@@ -316,7 +316,9 @@ impl RunStore {
                         ),
                     };
                 if !next_state.pending_decisions.contains_key(&decision_id) {
-                    let requested_at = now_iso();
+                    // `requested_at` is a cursor datetime, so it uses the
+                    // Pydantic `Z` shape rather than the journal shape.
+                    let requested_at = state_now_iso();
                     next_state.pending_decisions.insert(
                         decision_id.clone(),
                         request_payload(

@@ -64,11 +64,15 @@
 //! absence here is a scope boundary, not a claimed implementation.
 
 mod advance;
+mod analysis;
 mod answer;
+mod compose;
 mod decision;
 mod error;
+mod occurrence;
 mod planner;
 mod raci;
+mod requirements;
 mod retrospective;
 mod significance;
 mod snapshot;
@@ -79,21 +83,48 @@ pub use advance::{
     AdvancePlan, AppliedResult, StepResult, apply_result, commit_advance, plan_advance,
     plan_advance_with_actor,
 };
+pub use analysis::{
+    ANALYSIS_CURRENCY_UNAVAILABLE, ANALYSIS_INPUT_KEYS, ANALYSIS_MISSING_MESSAGE,
+    ANALYSIS_REPORT_ARTIFACT_TYPE, ANALYSIS_REPORT_FILENAME, ANALYSIS_REPORT_MISSING,
+    ANALYSIS_REPORT_STALE, ANALYSIS_STALE_PREFIX, ANALYSIS_UNAVAILABLE_MESSAGE, AnalysisVerdict,
+    check_analysis_report, normalize_tasks_md,
+};
 pub use answer::{
     AUDIT_PREFIX, AnswerEffect, AnswerError, AppliedAnswer, AuthorityDenial, DecisionAnswered,
     DecisionAuthority, INPUT_PREFIX, apply_decision_answer, authorize_decision_answer,
+};
+pub use compose::{
+    ALL_WPS_IN_PROGRESS, BoardFacts, BoardStep, ClaimablePreview, CliDecisionKind,
+    DEFAULT_LANE_WEIGHTS, DEPENDENCIES_NOT_SATISFIED, DecisionEnvelope, NO_PLANNED_WPS,
+    NO_TASKS_DIR, NO_WP_FILES, NOT_FINALIZED, Origin, STATE_ALIASES, WpProgress,
+    finalized_board_step, is_display_lane, lane_weight, preview_claimable_wp, state_alias,
+    weighted_percentage, wp_progress,
 };
 pub use decision::{
     BlockedDecision, DecisionKind, DecisionRequired, DecisionRequirement, NextDecision,
     StepContextBundle, StepDecision, TerminalDecision,
 };
 pub use error::RuntimeError;
+pub use occurrence::{
+    MIN_ADMISSIBLE_CATEGORIES, OccurrenceValidation, PLACEHOLDER_TERMS, STANDARD_CATEGORIES,
+    VALID_ACTIONS, VALID_OPERATIONS, check_admissibility as check_occurrence_admissibility,
+    evaluate_occurrence_gate, validate_occurrence_map,
+};
 pub use planner::{
     TEMPLATE_DRIFT_REASON, TERMINAL_REASON, UNSCHEDULABLE_REASON, find_step, plan_next,
 };
 pub use raci::{
     HUMAN_IN_CHARGE_ACTOR_ID, RaciRoleBinding, RaciRule, RaciSource, ResolvedRaciSnapshot, StepRef,
     UNKNOWN_ACTOR_ID, bind_actor, infer_raci, resolve_raci, validate_raci_assignment,
+};
+pub use requirements::{
+    BareProseCandidate, DeclaredRequirementIds, FOREIGN_QUALIFIED, MALFORMED, RefVerdict,
+    RequirementId, RequirementKind, RequirementMappingFacts, UNKNOWN_SPEC_ID, blank_html_comments,
+    canonical as canonical_requirement_id, classify as classify_requirement_ref, declared_ids,
+    evaluate_bare_prose_requirements, evaluate_requirement_mapping, failing_reasons,
+    find_all as find_requirement_ids, find_bare_prose_requirement_ids, is_compound_tail,
+    parse as parse_requirement_id, parse_requirement_ids_from_spec_md,
+    parse_requirement_refs_from_tasks_md, tokenize_refs,
 };
 pub use retrospective::{
     DEFAULT_SKIP_REASON, DEFERRED_ACTION_ID, DEFERRED_FACILITATOR_ID, HicChoice, RequesterActor,

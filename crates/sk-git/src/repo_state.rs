@@ -129,7 +129,11 @@ impl GitRepository {
     ///
     /// Both the per-worktree git directory and the shared common directory are
     /// scanned, because a rebase lives in the former and some locks in the
-    /// latter. This is a conservative filesystem probe: it never runs git.
+    /// latter. The held-index lock is resolved through the repository's
+    /// [operator index authority](crate::OperatorIndex): a captured
+    /// `GIT_INDEX_FILE` is locked at its own `.lock`, never at
+    /// `<git-dir>/index.lock`. This is a conservative filesystem probe for the
+    /// operation markers: it never runs git.
     pub fn in_progress_operations(&self) -> Result<Vec<InProgressOperation>, GitError> {
         let dirs = self.git_dirs()?;
         let mut found = Vec::new();
@@ -140,12 +144,14 @@ impl GitRepository {
             InProgressOperation::CherryPick,
             InProgressOperation::Revert,
             InProgressOperation::Sequencer,
-            InProgressOperation::IndexLock,
         ] {
             let marker = operation.marker();
             if dirs.git_dir().join(marker).exists() || dirs.common_dir().join(marker).exists() {
                 found.push(operation);
             }
+        }
+        if self.operator_index_lock_path()?.exists() {
+            found.push(InProgressOperation::IndexLock);
         }
         Ok(found)
     }

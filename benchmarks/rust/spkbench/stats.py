@@ -158,3 +158,135 @@ def noise_level(rust_cv: float, oracle_cv: float, ci_low: float, ci_high: float)
     if worst_cv <= 0.30 and width <= 2.00:
         return "moderate"
     return "high"
+
+
+# ---------------------------------------------------------------------------
+# Paired (interleaved) statistics
+#
+# Each repetition runs the Python and Rust side adjacent in the same pair, in
+# randomized order. A per-pair ratio is therefore a much better estimator than
+# a difference of independent medians: shared machine noise cancels instead of
+# inflating the interval. The point estimate used for the checker-facing
+# speedup stays median(python)/median(rust) (that is what the completion
+# checker recomputes), while uncertainty is derived from the paired ratios.
+# ---------------------------------------------------------------------------
+
+
+def paired_ratios(numerator: Sequence[float], denominator: Sequence[float]) -> list[float]:
+    """Ratio per matched pair; requires equal, positive, pair-aligned samples."""
+    if len(numerator) != len(denominator):
+        raise ValueError("paired samples must have equal length")
+    ratios = []
+    for num, den in zip(numerator, denominator):
+        if num <= 0 or den <= 0:
+            raise ValueError("paired ratios require positive latencies")
+        ratios.append(num / den)
+    return ratios
+
+
+def bootstrap_median_ci_of(values: Sequence[float], *, iterations: int = 2000,
+                           confidence: float = 0.95, seed: int = 0) -> tuple[float, float]:
+    """Percentile bootstrap CI for the median of ``values`` (seeded)."""
+    if not values:
+        raise ValueError("bootstrap of empty sequence")
+    rng = random.Random(seed)
+    n = len(values)
+    medians = [median([values[rng.randrange(n)] for _ in range(n)]) for _ in range(max(1, iterations))]
+    medians.sort()
+    alpha = (1.0 - confidence) / 2.0
+    lo = medians[max(0, int(math.floor(alpha * len(medians))))]
+    hi = medians[min(len(medians) - 1, int(math.ceil((1.0 - alpha) * len(medians))) - 1)]
+    return lo, hi
+
+
+def paired_ratio_ci(numerator: Sequence[float], denominator: Sequence[float], *,
+                    iterations: int = 2000, confidence: float = 0.95, seed: int = 0) -> dict:
+    """Median paired ratio with a seeded paired bootstrap CI."""
+    ratios = paired_ratios(numerator, denominator)
+    point = median(ratios)
+    lo, hi = bootstrap_median_ci_of(ratios, iterations=iterations, confidence=confidence, seed=seed)
+    return {
+        "pairs": len(ratios),
+        "point": point,
+        "ci95": [lo, hi],
+        "pair_ratios": ratios,
+        "seed": seed,
+        "iterations": iterations,
+    }
+
+
+def geomean_ci(
+    per_workload: dict[str, Sequence[float]],
+    *,
+    iterations: int = 2000,
+    confidence: float = 0.95,
+    seed: int = 0,
+) -> dict:
+    """Geometric mean over workloads with an uncertainty interval.
+
+    Every bootstrap iteration resamples the *pairs* of every workload (so
+    per-workload sampling error is represented), recomputes each workload's
+    median paired ratio, and takes the geometric mean across workloads. This
+    answers the question the gate actually asks: how uncertain is the aggregate
+    floor, not how noisy one machine happened to be.
+    """
+    if not per_workload:
+        raise ValueError("geomean CI needs at least one workload")
+    point_ratios = {wid: median(list(values)) for wid, values in per_workload.items()}
+    point = geometric_mean(point_ratios.values())
+    rng = random.Random(seed)
+    draws: list[float] = []
+    items = [(wid, list(values)) for wid, values in per_workload.items()]
+    for _ in range(max(1, iterations)):
+        sampled = []
+        for _wid, values in items:
+            n = len(values)
+            sampled.append(median([values[rng.randrange(n)] for _ in range(n)]))
+        draws.append(geometric_mean(sampled))
+    draws.sort()
+    alpha = (1.0 - confidence) / 2.0
+    lo = draws[max(0, int(math.floor(alpha * len(draws))))]
+    hi = draws[min(len(draws) - 1, int(math.ceil((1.0 - alpha) * len(draws))) - 1)]
+    return {
+        "point": point,
+        "ci95": [lo, hi],
+        "workloads": len(items),
+        "iterations": iterations,
+        "seed": seed,
+    }
+
+
+def regression_verdict(
+    ratio: float,
+    ci_low: float,
+    ci_high: float,
+    max_regression_fraction: float,
+) -> tuple[str, str]:
+    """Classify a slow-down with uncertainty.
+
+    ``ok``            the point estimate is within the allowed regression.
+    ``material``      the whole interval is below the allowed floor: the
+                      candidate is confidently more than ``max_regression``
+                      slower, which fails the gate.
+    ``uncertain``     the point estimate regresses but the interval still
+                      reaches the allowed region: not evidence of a pass, so
+                      the gate blocks instead of certifying.
+    """
+    floor = 1.0 - max_regression_fraction
+    if ratio >= floor:
+        return "ok", ""
+    if ci_high < floor:
+        return "material", (
+            f"speedup {ratio:.4f} with 95% CI {ci_low:.4f}-{ci_high:.4f} is confidently "
+            f"more than {max_regression_fraction:.0%} slower than Python"
+        )
+    if ci_high < 1.0:
+        return "uncertain", (
+            f"speedup {ratio:.4f} with 95% CI {ci_low:.4f}-{ci_high:.4f} is confidently "
+            f"slower than Python, but the interval does not exclude the "
+            f"{floor:.3f} floor"
+        )
+    return "uncertain", (
+        f"speedup {ratio:.4f} with 95% CI {ci_low:.4f}-{ci_high:.4f} regresses at the "
+        f"point estimate; the interval still reaches the allowed region"
+    )

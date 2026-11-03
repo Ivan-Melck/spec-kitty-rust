@@ -42,11 +42,13 @@
 //!
 //! # Scope boundary
 //!
-//! This crate does not implement the full `spec-kitty next` CLI surface
-//! (mission-board overrides, WP iteration, workspace claims, retrospective
-//! gates, decision-log git commits, significance evaluation, or the CLI decision
-//! envelope). It also does not implement the event write service. See the crate
-//! README for the explicit gap list.
+//! This crate is the storage substrate, not the command surface. The
+//! `spec-kitty next` composition (mission-board override, WP iteration and
+//! workspace resolution, guards, prompt authoring, the CLI decision envelope)
+//! lives in the `sk-cli` adapter; significance/RACI evaluation and answer policy
+//! stay in [`sk_runtime`]. This crate does not implement the event write
+//! service. See the crate README, and `NEXT-CONTINUATION-REPORT.md` for the
+//! integration evidence and the explicit remaining gaps.
 
 mod advance;
 mod answer;

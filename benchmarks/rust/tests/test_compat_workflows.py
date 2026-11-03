@@ -1,19 +1,16 @@
-"""Equivalence and self-tests for the native compatibility benchmark surface.
+"""Equivalence and registration tests for the native compatibility surface.
 
-Scope: adapters, fixture recipes, workload registration and the additive
-mutation executor. The frozen measurement core (runner/gate/stats/identity) is
-not exercised for timing and is not modified.
+Scope: adapters, fixture recipes, workload registration, the frozen registry
+binding and the additive mutation executor. No timing campaign is run.
 
-Oracle-dependent tests are skipped when the lock-exact interpreter or the
-compat binary is absent. They must be run with::
-
-    PYTHONPATH=src .venv-rust-oracle/bin/python -m pytest benchmarks/rust/tests -q
+Oracle-dependent tests use the lock-exact interpreter; the autouse session
+fixture in ``conftest.py`` fails the suite when it (or a release binary) is
+absent instead of skipping.
 """
 
 from __future__ import annotations
 
 import hashlib
-import os
 import sys
 from pathlib import Path
 
@@ -28,6 +25,7 @@ from spkbench.mutation import (
     run_mutation_pair,
     tree_manifest,
 )
+from spkbench.registry import PerformanceRegistry
 from spkbench.workloads import (
     CommandSpec,
     MutationSpec,
@@ -42,23 +40,9 @@ from spkbench.workloads import (
 REPO = Path(__file__).resolve().parents[3]
 BENCH = REPO / "benchmarks" / "rust"
 ADAPTERS = BENCH / "adapters"
-ORACLE = Path(os.environ.get("SPKBENCH_ORACLE_PYTHON", REPO / ".venv-rust-oracle" / "bin" / "python"))
+ORACLE = Path(__import__("os").environ.get("SPKBENCH_ORACLE_PYTHON", REPO / ".venv-rust-oracle" / "bin" / "python"))
 COMPAT_BINARY = REPO / "target" / "release" / "spec-kitty"
 SEED = 20261102
-
-requires_oracle = pytest.mark.skipif(
-    not ORACLE.exists(), reason="lock-exact oracle interpreter not provisioned"
-)
-requires_binary = pytest.mark.skipif(
-    not COMPAT_BINARY.exists(), reason="release compat binary not built"
-)
-
-
-@pytest.fixture()
-def oracle_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PYTHONPATH", str(REPO / "src"))
-    monkeypatch.setenv("SPEC_KITTY_PACKS_ROOT", str(REPO / "packs"))
-    monkeypatch.setenv("PYTHONDONTWRITEBYTECODE", "1")
 
 
 def _workloads(builder: FixtureBuilder, binary: Path = COMPAT_BINARY) -> list[Workload]:
@@ -67,6 +51,8 @@ def _workloads(builder: FixtureBuilder, binary: Path = COMPAT_BINARY) -> list[Wo
         rust_binary=binary,
         oracle_python=ORACLE,
         adapters_dir=ADAPTERS,
+        registry=PerformanceRegistry.load(),
+        repo_root=REPO,
         include_micro=True,
     )
 
@@ -80,7 +66,11 @@ def _run_side(workload: Workload, side: str, fixture: Path, run_dir: Path) -> tu
     assert spec is not None
     executor = Executor(run_dir=run_dir, cwd=fixture)
     observation = executor.run(protocol=spec.protocol, argv=spec.argv, cwd=fixture)
-    payload = rust_payload(observation.stdout) if spec.protocol == "rust" else oracle_payload(observation.stdout)
+    payload = (
+        rust_payload(observation.stdout)
+        if spec.protocol == "rust"
+        else oracle_payload(observation.stdout)
+    )
     if workload.normalize is not None:
         payload = workload.normalize(payload)
     return payload, observation.exit_code
@@ -96,6 +86,9 @@ def test_compat_fixture_is_deterministic_and_manifest_clean(tmp_path: Path) -> N
     second = FixtureBuilder(tmp_path / "b", seed=SEED).get("compat-project")
 
     assert first.manifest == second.manifest
+    assert first.as_dict(include_manifest=False)["content_digest"] == second.as_dict(
+        include_manifest=False
+    )["content_digest"]
     assert ".git/HEAD" in first.manifest
     assert verify_manifest(first)["unchanged"]
     assert first.recipe["git"] == "unborn-main"
@@ -105,64 +98,95 @@ def test_compat_fixture_is_deterministic_and_manifest_clean(tmp_path: Path) -> N
     assert not any((first.path / ".git" / "objects").glob("??"))
 
 
-def test_registration_replaces_stale_pending_entries(tmp_path: Path) -> None:
+def test_replay_fixture_declares_its_exact_event_count(tmp_path: Path) -> None:
+    fixture = FixtureBuilder(tmp_path, seed=SEED).get("replay-project")
+    events = (fixture.path / "kitty-specs" / "002-bench-mission-002" / "status.events.jsonl").read_text()
+    counted = [line for line in events.splitlines() if line.strip()]
+    assert len(counted) == fixture.recipe["coherent_events"] == 2800
+    assert fixture.recipe["coherent_work_packages"] == 200
+    assert fixture.recipe["blocked_cycles_per_work_package"] == 4
+
+
+def test_registration_uses_the_frozen_ids(tmp_path: Path) -> None:
+    registry = PerformanceRegistry.load()
     workloads = _by_id(_workloads(FixtureBuilder(tmp_path, seed=SEED, dry_run=True)))
-    assert "lifecycle.mutations" not in workloads
-    assert "status.replay" not in workloads
-    assert {"tasks.list", "status.materialize", "status.validate", "tasks.finalize", "mission.create"} <= set(workloads)
+    frozen = {wid: workloads[wid] for wid in registry.required_ids}
+    assert set(frozen) == set(registry.required_ids)
+    for wid, workload in frozen.items():
+        assert workload.required is True
+        assert workload.source == "registry"
+
+    # The first harness's independent ids must not survive as required rows.
+    for stale in ("mission.inventory.full", "lifecycle.mutations", "startup.version"):
+        if stale in workloads:
+            assert workloads[stale].required is False or stale in registry.required_ids
 
     tasks = workloads["tasks.list"]
-    assert tasks.counts_for_gate() is True
-    materialize = workloads["status.materialize"]
-    assert materialize.mutation is not None
-    assert materialize.mutation.timing_ready is False
-    assert materialize.runnable is False, "a mutation without a runner hook must not be timed read-only"
-    assert materialize.required is True
-    assert "Rust sk-status has no canonical reducer" not in (materialize.pending_reason or "")
+    assert tasks.required is False, "non-frozen strict pairs are diagnostics"
+    assert tasks.counts_for_gate() is False
+    replay = workloads["status.replay"]
+    assert replay.mutation is not None
+    assert replay.mutation.timing_ready is True
+    assert replay.runnable is True
+    assert replay.counts_for_gate() is True
+    assert replay.fixture == "replay-project"
 
 
-def test_every_pending_workload_has_a_specific_reason(tmp_path: Path) -> None:
-    workloads = _workloads(FixtureBuilder(tmp_path, seed=SEED, dry_run=True))
-    for workload in workloads:
-        if workload.equivalence == "pending":
-            assert workload.pending_reason, f"{workload.id} is pending without a reason"
-            assert len(workload.pending_reason) > 80, f"{workload.id} reason is not specific"
-        if workload.required:
-            assert workload.equivalence != "pending" or workload.pending_reason
+def test_unimplemented_frozen_workloads_are_absent_not_faked(tmp_path: Path) -> None:
+    workloads = _by_id(_workloads(FixtureBuilder(tmp_path, seed=SEED, dry_run=True)))
+    for wid in ("state.event-append", "state.move-task", "workflow.consolidate", "workflow.merge"):
+        workload = workloads[wid]
+        assert workload.measurement == "absent"
+        assert workload.runnable is False
+        assert workload.pending_reason and len(workload.pending_reason) > 40
+        assert workload.rust is None and workload.oracle is None
+        assert workload.expectations is None
 
 
 def test_compat_routes_resolve_sibling_compat_binary(tmp_path: Path) -> None:
     inspection = REPO / "target" / "release" / "spec-kitty-rust"
     workloads = _by_id(_workloads(FixtureBuilder(tmp_path, seed=SEED, dry_run=True), binary=inspection))
+    assert Path(workloads["status.replay"].rust.argv[0]).name == "spec-kitty"
     assert Path(workloads["tasks.list"].rust.argv[0]).name == "spec-kitty"
-    assert Path(workloads["status.materialize"].rust.argv[0]).name == "spec-kitty"
 
 
-def test_compat_routes_stay_pending_when_compat_binary_is_absent(tmp_path: Path) -> None:
+def test_compat_routes_block_when_compat_binary_is_absent(tmp_path: Path) -> None:
     missing = tmp_path / "missing" / "spec-kitty-rust"
     workloads = _by_id(_workloads(FixtureBuilder(tmp_path, seed=SEED, dry_run=True), binary=missing))
-    for workload_id in ("tasks.list", "tasks.list_dependents.projection", "mission.branch_context.projection"):
+    replay = workloads["status.replay"]
+    assert replay.runnable is False
+    assert replay.runtime_blocker and "compatibility CLI" in replay.runtime_blocker
+    for workload_id in ("tasks.list", "tasks.list_dependents.projection"):
         workload = workloads[workload_id]
-        assert workload.equivalence == "pending"
         assert workload.runnable is False
-        assert "compatibility binary" in (workload.pending_reason or "")
+        reason = workload.runtime_blocker or workload.pending_reason or ""
+        assert "compatibility binary" in reason or "compatibility CLI" in reason
 
 
-def test_gate_population_includes_tasks_list_only(tmp_path: Path) -> None:
+def test_gate_population_is_only_measured_frozen_work(tmp_path: Path) -> None:
     workloads = _workloads(FixtureBuilder(tmp_path, seed=SEED, dry_run=True))
     gate_ids = {item.id for item in gate_workloads(workloads)}
-    assert "tasks.list" in gate_ids
-    assert "status.materialize" not in gate_ids
-    assert "mission.branch_context.projection" not in gate_ids
+    assert gate_ids == {"status.replay"}
+    for excluded in (
+        "tasks.list",
+        "mission.branch_context.projection",
+        "transition.check.approved-done",
+        "startup.version",
+        "cli.mission.list",
+    ):
+        assert excluded not in gate_ids
 
 
-def test_rust_payload_accepts_bare_compat_document_and_envelope() -> None:
+def test_rust_payload_accepts_all_documented_envelopes() -> None:
     bare = rust_payload(b'{"count": 0, "tasks": []}')
     assert bare == {"ok": True, "data": {"count": 0, "tasks": []}}
     enveloped = rust_payload(b'{"ok": true, "data": {"count": 0}}')
     assert enveloped == {"ok": True, "data": {"count": 0}}
-    refusal = rust_payload(b'{"error": "boom", "error_code": "X"}')
-    assert refusal == {"ok": True, "data": {"error": "boom", "error_code": "X"}}
+    versioned = rust_payload(b'{"command": "mission.list", "data": {"count": 1}}')
+    assert versioned["ok"] is True and versioned["data"] == {"count": 1}
+    refusal = rust_payload(b'{"command": "x", "error": {"message": "boom"}}')
+    assert refusal["ok"] is False and refusal["error"] == {"message": "boom"}
+    assert "_unparseable" in rust_payload(b"not json")
 
 
 def test_declared_projection_drops_do_not_hide_unrelated_changes(tmp_path: Path) -> None:
@@ -298,9 +322,7 @@ def test_mutation_executor_detects_post_state_divergence(tmp_path: Path) -> None
 # ---------------------------------------------------------------------------
 
 
-@requires_oracle
-@requires_binary
-def test_tasks_list_is_strictly_equal(tmp_path: Path, oracle_env: None) -> None:  # noqa: ARG001
+def test_tasks_list_is_strictly_equal(tmp_path: Path) -> None:
     fixture = FixtureBuilder(tmp_path / "fixtures", seed=SEED).get("compat-project")
     workload = _by_id(_workloads(FixtureBuilder(tmp_path / "fixtures", seed=SEED, dry_run=True)))[
         "tasks.list"
@@ -313,15 +335,12 @@ def test_tasks_list_is_strictly_equal(tmp_path: Path, oracle_env: None) -> None:
     assert verify_manifest(fixture)["unchanged"]
 
 
-@requires_oracle
-@requires_binary
-def test_tasks_list_dependents_projection_and_disclosed_gap(tmp_path: Path, oracle_env: None) -> None:  # noqa: ARG001
+def test_tasks_list_dependents_projection_and_disclosed_gap(tmp_path: Path) -> None:
     fixture = FixtureBuilder(tmp_path / "fixtures", seed=SEED).get("compat-project")
     workload = _by_id(_workloads(FixtureBuilder(tmp_path / "fixtures", seed=SEED, dry_run=True)))[
         "tasks.list_dependents.projection"
     ]
     rust_raw, rust_exit = _run_side(workload, "rust", fixture.path, tmp_path / "run")
-    # Raw payloads, before the projection is applied.
     rust_spec = workload.rust
     oracle_spec = workload.oracle
     assert rust_spec is not None and oracle_spec is not None
@@ -332,15 +351,12 @@ def test_tasks_list_dependents_projection_and_disclosed_gap(tmp_path: Path, orac
     )
     assert raw_rust["data"]["dependents"] == raw_oracle["dependents"] == ["WP04", "WP05"]
     assert rust_exit == 0
-    # The upstream scalar reader returns the raw list text; native parses it.
     assert raw_oracle["depends_on"] == ["[WP01]"]
     assert raw_rust["data"]["depends_on"] == ["WP01"]
     assert compare_canonical(rust_raw, workload.normalize(raw_oracle)) == (True, "")
 
 
-@requires_oracle
-@requires_binary
-def test_branch_context_projection_and_disclosed_gap(tmp_path: Path, oracle_env: None) -> None:  # noqa: ARG001
+def test_branch_context_projection_and_disclosed_gap(tmp_path: Path) -> None:
     fixture = FixtureBuilder(tmp_path / "fixtures", seed=SEED).get("compat-project")
     workload = _by_id(_workloads(FixtureBuilder(tmp_path / "fixtures", seed=SEED, dry_run=True)))[
         "mission.branch_context.projection"
@@ -353,7 +369,6 @@ def test_branch_context_projection_and_disclosed_gap(tmp_path: Path, oracle_env:
     assert rust["branch_matches_target"] is True
     assert "spec_kitty_version" not in rust
 
-    # The upstream field is present before projection and absent natively.
     executor = Executor(run_dir=tmp_path / "run", cwd=fixture.path)
     oracle_spec = workload.oracle
     assert oracle_spec is not None
@@ -364,12 +379,10 @@ def test_branch_context_projection_and_disclosed_gap(tmp_path: Path, oracle_env:
     assert "spec_kitty_version" not in (workload.normalize(raw_oracle) or {})
 
 
-@requires_oracle
-@requires_binary
-def test_status_materialize_mutation_equivalence(tmp_path: Path, oracle_env: None) -> None:  # noqa: ARG001
-    fixture = FixtureBuilder(tmp_path / "fixtures", seed=SEED).get("compat-project")
+def test_status_replay_mutation_equivalence(tmp_path: Path) -> None:
+    fixture = FixtureBuilder(tmp_path / "fixtures", seed=SEED).get("replay-project")
     workload = _by_id(_workloads(FixtureBuilder(tmp_path / "fixtures", seed=SEED, dry_run=True)))[
-        "status.materialize"
+        "status.replay"
     ]
     result = run_mutation_pair(
         workload=workload,
@@ -390,8 +403,8 @@ def test_status_materialize_mutation_equivalence(tmp_path: Path, oracle_env: Non
         preflight["rust"].delta["added_sha256"][status]
         == preflight["oracle"].delta["added_sha256"][status]
     )
-    # Transient lock contents are excluded, but the shared canonical Mission
-    # lock namespace must agree now that the native family is integrated.
+    # Only implementation-private lock artifacts are excluded; the canonical
+    # Mission lock namespace itself must agree.
     assert preflight["rust"].ignored
     assert preflight["oracle"].ignored
     assert set(preflight["rust"].ignored) == set(preflight["oracle"].ignored)

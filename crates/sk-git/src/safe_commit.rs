@@ -114,6 +114,7 @@ use std::path::{Component, Path, PathBuf};
 
 use crate::branch::ProtectedBranches;
 use crate::error::GitError;
+use crate::index_authority::OperatorIndex;
 use crate::oid::Oid;
 use crate::path::GitPath;
 use crate::refname::BranchName;
@@ -129,6 +130,9 @@ pub const WORKTREES_DIR: &str = ".worktrees";
 /// Only the *per-worktree* git directory is scanned: the index a safe commit
 /// reconciles is that checkout's own index, so a lock or merge state held in a
 /// sibling worktree (including the primary one) must not block this checkout.
+/// The held-index lock is not in this table: it is resolved through the
+/// captured [operator index authority](crate::OperatorIndex), so a custom
+/// `GIT_INDEX_FILE` is checked at its own `.lock`.
 const COMMIT_BLOCKING_MARKERS: &[(&str, &str)] = &[
     ("rebase-merge", "rebase-merge"),
     ("rebase-apply", "rebase-apply"),
@@ -136,7 +140,6 @@ const COMMIT_BLOCKING_MARKERS: &[(&str, &str)] = &[
     ("cherry-pick", "CHERRY_PICK_HEAD"),
     ("revert", "REVERT_HEAD"),
     ("sequencer", "sequencer"),
-    ("index-lock", "index.lock"),
 ];
 
 /// Maximum accepted commit message length.
@@ -432,6 +435,7 @@ pub struct SafeCommitPlan {
     expected_parent: Option<Oid>,
     expected_bytes: Vec<ExpectedBlob>,
     guard: CommitGuardVerdict,
+    index_authority: OperatorIndex,
 }
 
 impl SafeCommitPlan {
@@ -488,6 +492,15 @@ impl SafeCommitPlan {
     /// The protection verdict recorded at plan time.
     pub fn guard_verdict(&self) -> &CommitGuardVerdict {
         &self.guard
+    }
+
+    /// The operator index authority recorded at plan time.
+    ///
+    /// Applying the plan against a repository with a different authority (for
+    /// example a reopened handle whose `GIT_INDEX_FILE` changed) is refused, so
+    /// a plan can never reconcile an index other than the one it planned for.
+    pub fn index_authority(&self) -> &OperatorIndex {
+        &self.index_authority
     }
 
     /// Every path the commit is expected to carry (adds and removals).
@@ -1038,6 +1051,7 @@ impl GitRepository {
             expected_parent: request.expected_parent.clone(),
             expected_bytes,
             guard,
+            index_authority: self.operator_index().clone(),
         })
     }
 
@@ -1117,6 +1131,13 @@ impl GitRepository {
                 });
             }
         }
+        // The index lock belongs to the captured authority, which may be a
+        // custom index outside the git directory.
+        if self.operator_index_lock_path()?.exists() {
+            return Err(GitError::OperationInProgress {
+                operation: "index-lock".to_string(),
+            });
+        }
         Ok(())
     }
 }
@@ -1174,6 +1195,106 @@ mod tests {
         assert!(validate_commit_message("").is_err());
         assert!(validate_commit_message("has\0nul").is_err());
         assert!(validate_commit_message(&"x".repeat(MAX_COMMIT_MESSAGE_LEN + 1)).is_err());
+    }
+
+    fn git_in(root: &Path, args: &[&str]) -> Vec<u8> {
+        let output = std::process::Command::new("git")
+            .current_dir(root)
+            .args(args)
+            .env("HOME", root.join("home"))
+            .env("XDG_CONFIG_HOME", root.join("config"))
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_AUTHOR_NAME", "Test")
+            .env("GIT_AUTHOR_EMAIL", "test@example.invalid")
+            .env("GIT_COMMITTER_NAME", "Test")
+            .env("GIT_COMMITTER_EMAIL", "test@example.invalid")
+            .output()
+            .expect("run git");
+        assert!(
+            output.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        output.stdout
+    }
+
+    #[test]
+    fn applying_a_plan_under_a_different_captured_index_is_refused() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("repo");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(root.join("home")).unwrap();
+        git_in(&root, &["init", "-q", "-b", "work"]);
+        std::fs::write(root.join("a.txt"), b"one\n").unwrap();
+        git_in(&root, &["add", "-A"]);
+        git_in(&root, &["commit", "-q", "-m", "initial"]);
+        std::fs::write(root.join("a.txt"), b"two\n").unwrap();
+
+        let repository = GitRepository::open(&root).unwrap();
+        let request = SafeCommitRequest::new(
+            branch("work"),
+            "index authority",
+            [GitPath::from_git_bytes(b"a.txt").unwrap()],
+        );
+        let plan = repository.plan_safe_commit(&request).unwrap();
+        assert!(!plan.index_authority().is_captured());
+        let head_before = git_in(&root, &["rev-parse", "HEAD"]);
+
+        let mut other = repository.clone();
+        other.replace_index_authority_for_test(&root.join("custom-index"));
+        let error = other.apply_safe_commit(&plan).unwrap_err();
+        match error {
+            GitError::PlanStale { what, detail } => {
+                assert_eq!(what, "operator index");
+                assert!(detail.contains("custom-index"), "{detail}");
+            }
+            other => panic!("expected an index-authority refusal, got {other:?}"),
+        }
+        assert_eq!(git_in(&root, &["rev-parse", "HEAD"]), head_before);
+        assert!(!root.join("custom-index").exists());
+    }
+
+    #[test]
+    fn a_captured_index_lock_is_checked_on_the_captured_authority() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("repo");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(root.join("home")).unwrap();
+        git_in(&root, &["init", "-q", "-b", "work"]);
+        std::fs::write(root.join("a.txt"), b"one\n").unwrap();
+        git_in(&root, &["add", "-A"]);
+        git_in(&root, &["commit", "-q", "-m", "initial"]);
+        std::fs::write(root.join("a.txt"), b"two\n").unwrap();
+
+        let custom = root.join("custom-index");
+        std::fs::write(&custom, b"not an index yet").unwrap();
+        let mut repository = GitRepository::open(&root).unwrap();
+        repository.replace_index_authority_for_test(&custom);
+
+        let lock = root.join("custom-index.lock");
+        std::fs::write(&lock, b"held").unwrap();
+        let request = SafeCommitRequest::new(
+            branch("work"),
+            "locked",
+            [GitPath::from_git_bytes(b"a.txt").unwrap()],
+        );
+        let error = repository.plan_safe_commit(&request).unwrap_err();
+        assert!(
+            matches!(error, GitError::OperationInProgress { ref operation } if operation == "index-lock"),
+            "{error:?}"
+        );
+        assert!(
+            lock.exists(),
+            "the adapter never removes another writer's lock"
+        );
+        assert!(
+            !root.join(".git/index.lock").exists(),
+            "the default index lock is not the captured authority"
+        );
+
+        std::fs::remove_file(&lock).unwrap();
+        let plan = repository.plan_safe_commit(&request).unwrap();
+        assert!(plan.index_authority().is_captured());
     }
 
     #[test]

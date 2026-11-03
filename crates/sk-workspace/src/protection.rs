@@ -32,19 +32,34 @@
 //!
 //! # Configuration reading
 //!
-//! `sk-workspace` does not depend on a YAML serializer, and user YAML must never
-//! be re-serialized merely to inspect it. [`scan_protection_block`] is therefore
-//! a narrow, read-only scanner for the `protection.protected_branches` mapping
-//! and its block/flow sequence. Anything outside that shape (anchors, tags,
-//! multi-document streams, or a `protected_branches` value that is a mapping)
-//! is a typed refusal rather than a guessed answer. See
-//! `crates/sk-workspace/COORDINATION-REPORT.md` for the proposed shared-reader
-//! integration.
+//! User YAML is **deserialized, never reserialized**: the document is parsed
+//! once by the declared `serde_yaml_ng` reader into an in-memory value, which
+//! rewrites nothing on disk. That reader is the same YAML engine shape the
+//! pinned reference uses (YAML 1.2 core scalars), so it:
+//!
+//! * refuses a **multi-document** stream (the reference's ruamel `load` refuses
+//!   one too), instead of merging the documents;
+//! * refuses a **duplicate key** inside one mapping, instead of taking the first
+//!   or the last one;
+//! * **resolves anchors, aliases and `<<` merge keys** instead of silently
+//!   taking the absent-key default (which used to un-protect an explicit list);
+//! * keeps `yes` / `no` / `on` / `off` as strings, exactly like YAML 1.2.
+//!
+//! Items are then coerced with Python `str()` semantics, because the reference
+//! does `frozenset(str(b) for b in raw_value)`. Coercing (rather than refusing)
+//! keeps `- true` / `- 1` / `- null` behaving exactly as upstream instead of
+//! turning a readable list into a new refusal.
+//!
+//! The one resolution input this module does not read yet is a remote default
+//! branch when neither the loose `refs/remotes/origin/HEAD` symref nor the
+//! bounded `ls-remote --symref` seam yields one — that gap protects *fewer*
+//! branches than the reference in a repository whose remote is unreachable, and
+//! is recorded in `REMEDIATION-REPORT.md` rather than waived.
 
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use sk_git::{GitRepository, ProtectedBranches};
+use sk_git::{GitRepository, ProtectedBranches, RemoteName};
 use sk_mission::{Mission, MissionTopology, list_missions, select_mission};
 
 use crate::error::WorkspaceError;
@@ -246,6 +261,36 @@ fn default_branches_with_remote(repo_root: &Path) -> BTreeSet<String> {
 
 fn remote_default_branch(repo_root: &Path) -> Option<String> {
     let repository = GitRepository::open(repo_root).ok()?;
+    // First probe: the loose `refs/remotes/origin/HEAD` symref, byte-identical
+    // to the reference's `git symbolic-ref --quiet --short
+    // refs/remotes/origin/HEAD`. A symbolic ref cannot be packed, so reading the
+    // file is the same read without a Git process.
+    if let Some(branch) = symbolic_remote_head(&repository) {
+        return Some(branch);
+    }
+    // Second probe: ask the remote itself through the bounded, prompt-free seam
+    // (`git ls-remote --symref <remote> HEAD`), exactly where the reference
+    // falls back to `describe_remote_head`. An unreachable remote, a timeout, or
+    // a remote that advertises no branch yields no augmentation: the reference
+    // answers `None` there too, and this call must never turn a protection read
+    // into a network error.
+    if !repository
+        .configured_remotes()
+        .ok()?
+        .iter()
+        .any(|remote| remote.as_str() == "origin")
+    {
+        return None;
+    }
+    let origin = RemoteName::parse("origin").ok()?;
+    repository
+        .remote_default_branch(&origin)
+        .ok()
+        .flatten()
+        .map(|branch| branch.as_str().to_owned())
+}
+
+fn symbolic_remote_head(repository: &GitRepository) -> Option<String> {
     let common_dir = repository.git_dirs().ok()?.common_dir().to_path_buf();
     let path = common_dir.join("refs/remotes/origin/HEAD");
     let bytes = sk_kernel::read_bounded(&path, 4096).ok()?;
@@ -269,6 +314,10 @@ struct ProtectionScan {
     explicit: Option<Vec<String>>,
 }
 
+/// Read `.kittify/config.yaml` and answer what it says about protection.
+///
+/// The document is parsed by `serde_yaml_ng` and never written back, so every
+/// comment, quote style and block layout on disk survives untouched.
 fn read_protection_config(path: &Path) -> Result<ProtectionScan, WorkspaceError> {
     let bytes = match sk_kernel::read_bounded(path, MAX_CONFIG_BYTES) {
         Ok(bytes) => bytes,
@@ -283,335 +332,154 @@ fn read_protection_config(path: &Path) -> Result<ProtectionScan, WorkspaceError>
         path: path.to_path_buf(),
         detail: "configuration is not valid UTF-8".to_owned(),
     })?;
-    scan_protection_block(text, path)
+    parse_protection_config(text, path)
 }
 
-/// Scan the `protection` mapping for an explicit `protected_branches` list.
-///
-/// Read-only and non-reserializing: the document is inspected line by line and
-/// never written back.
-fn scan_protection_block(text: &str, path: &Path) -> Result<ProtectionScan, WorkspaceError> {
+fn parse_protection_config(text: &str, path: &Path) -> Result<ProtectionScan, WorkspaceError> {
     let error = |detail: String| WorkspaceError::ProtectionConfig {
         path: path.to_path_buf(),
         detail,
     };
+    // One document only. `from_str` refuses a second document (the reference's
+    // ruamel `load` refuses one too) and refuses a duplicate key, rather than
+    // letting either shape silently choose one of the competing values.
+    let mut document: serde_yaml_ng::Value = serde_yaml_ng::from_str(text)
+        .map_err(|cause| error(format!("could not parse the YAML document: {cause}")))?;
+    // Fold `<<` merge keys, so an anchored/merged mapping answers with its real
+    // keys instead of falling through to the absent-key default. Anchors and
+    // aliases are already resolved by the parser.
+    document
+        .apply_merge()
+        .map_err(|cause| error(format!("could not resolve a YAML merge key: {cause}")))?;
 
-    // (indent, content-without-indent) for every meaningful line.
-    let mut lines: Vec<(usize, &str)> = Vec::new();
-    for raw in text.lines() {
-        let line = raw.strip_suffix('\r').unwrap_or(raw);
-        let content = line.trim_start();
-        if content.is_empty() || content.starts_with('#') {
-            continue;
-        }
-        let marker = content.trim_end();
-        if marker == "---" || marker == "..." {
-            continue;
-        }
-        let indent = line.len() - content.len();
-        lines.push((indent, content));
-    }
-    // A document that *starts* with a block-sequence item is a sequence, not a
-    // mapping. A `- item` line at indentation 0 later in the document is the
-    // value of the preceding key (YAML allows a block sequence at its parent
-    // key's indentation), so it is not a second top-level key.
-    if let Some((_, first)) = lines.first()
-        && first.starts_with('-')
-    {
-        return Err(error(
-            "the top level is a YAML sequence, not a mapping".to_owned(),
-        ));
-    }
-    for (indent, content) in &lines {
-        if *indent == 0 && !content.starts_with('-') && split_key(content).is_none() {
+    let mapping = match document {
+        // An empty document (or `---` alone) parses as null, which the reference
+        // turns into `{}` before lookup. It is the absent-key arm, not an error.
+        serde_yaml_ng::Value::Null => return Ok(ProtectionScan::default()),
+        serde_yaml_ng::Value::Mapping(mapping) => mapping,
+        other => {
             return Err(error(format!(
-                "the top level is not a YAML mapping (line {content:?})"
+                "the configuration must be a YAML mapping at the top level; found {} instead",
+                python_type_name(&other)
             )));
         }
-    }
+    };
 
-    let Some(index) = lines.iter().position(|(indent, content)| {
-        *indent == 0 && split_key(content).is_some_and(|(key, _)| key == "protection")
-    }) else {
+    let Some(protection) = mapping.get("protection") else {
         return Ok(ProtectionScan::default());
     };
-    let inline = split_key(lines[index].1)
-        .map(|(_, value)| value)
-        .unwrap_or("");
-
-    // Collect the `protection:` block: following meaningful lines indented
-    // deeper than the key.
-    let mut block: Vec<(usize, &str)> = Vec::new();
-    for (indent, content) in lines.iter().skip(index + 1) {
-        let is_item = content.starts_with('-');
-        if *indent == 0 && !is_item {
-            break;
-        }
-        block.push((*indent, content));
-    }
-
-    let inline = strip_comment(inline).trim();
-    if !inline.is_empty() {
-        if inline == "{}" {
-            return Ok(ProtectionScan::default());
-        }
-        let Some(fields) = parse_flow_mapping(inline) else {
-            // A non-mapping value (`protection: yes`, `protection: [a]`) is the
-            // absent-key arm upstream, not an error.
-            return Ok(ProtectionScan::default());
-        };
-        let Some((_, value)) = fields
-            .into_iter()
-            .find(|(key, _)| key == "protected_branches")
-        else {
-            return Ok(ProtectionScan::default());
-        };
-        return explicit_from_inline(&value, path);
-    }
-
-    // Block mapping. Sequence-only blocks (`protection:` then `- a`) are not a
-    // mapping, matching upstream's `not isinstance(..., dict)` arm.
-    let child_indent = block
-        .iter()
-        .filter(|(_, content)| !content.starts_with('-'))
-        .map(|(indent, _)| *indent)
-        .min();
-    let Some(child_indent) = child_indent else {
+    // A non-mapping `protection` value (`protection: yes`, `protection: [a]`)
+    // is the reference's `not isinstance(..., dict)` arm: the defaults apply.
+    let Some(protection) = protection.as_mapping() else {
         return Ok(ProtectionScan::default());
     };
-    let Some(position) = block.iter().position(|(indent, content)| {
-        *indent == child_indent
-            && split_key(content).is_some_and(|(key, _)| key == "protected_branches")
-    }) else {
-        return Ok(ProtectionScan::default());
-    };
-    let (_, content) = block[position];
-    let value = strip_comment(split_key(content).map(|(_, value)| value).unwrap_or("")).trim();
-    if !value.is_empty() {
-        return explicit_from_inline(value, path);
+    match protection.get("protected_branches") {
+        // Absent key, or an explicit null: the reference treats both as absent.
+        None | Some(serde_yaml_ng::Value::Null) => Ok(ProtectionScan::default()),
+        Some(serde_yaml_ng::Value::Sequence(items)) => Ok(ProtectionScan {
+            // `frozenset(str(b) for b in raw_value)`: Python `str()` coercion,
+            // so `- true` is the branch name "True" and `- 1` is "1".
+            explicit: Some(items.iter().map(python_str).collect()),
+        }),
+        Some(other) => Err(error(format!(
+            "protection.protected_branches in .kittify/config.yaml must be a list, got {}: {}",
+            python_type_name(other),
+            python_repr(other)
+        ))),
     }
-
-    // Block sequence: deeper lines that begin with `-`.
-    let mut items = Vec::new();
-    for (indent, content) in block.iter().skip(position + 1) {
-        // Sequence items may sit at the key's own indentation (`key:` then
-        // `- item`); a non-item line at that indentation starts the next key.
-        if *indent < child_indent || (*indent == child_indent && !content.starts_with('-')) {
-            break;
-        }
-        let Some(item) = content.strip_prefix('-') else {
-            return Err(error(
-                "protection.protected_branches is a mapping, not a sequence".to_owned(),
-            ));
-        };
-        let item = item.trim();
-        if item.is_empty() {
-            return Err(error(
-                "protection.protected_branches contains an empty sequence entry".to_owned(),
-            ));
-        }
-        if split_key(item).is_some() {
-            return Err(error(
-                "protection.protected_branches is a mapping, not a sequence".to_owned(),
-            ));
-        }
-        items.push(parse_scalar(item, path)?);
-    }
-    Ok(ProtectionScan {
-        explicit: Some(items),
-    })
 }
 
-fn explicit_from_inline(value: &str, path: &Path) -> Result<ProtectionScan, WorkspaceError> {
-    let value = value.trim();
-    if value.is_empty() {
-        return Ok(ProtectionScan::default());
+/// The Python type name `type(value).__name__` reports.
+fn python_type_name(value: &serde_yaml_ng::Value) -> &'static str {
+    match value {
+        serde_yaml_ng::Value::Null => "NoneType",
+        serde_yaml_ng::Value::Bool(_) => "bool",
+        serde_yaml_ng::Value::Number(number) if number.is_f64() => "float",
+        serde_yaml_ng::Value::Number(_) => "int",
+        serde_yaml_ng::Value::String(_) => "str",
+        serde_yaml_ng::Value::Sequence(_) => "list",
+        serde_yaml_ng::Value::Mapping(_) => "dict",
+        serde_yaml_ng::Value::Tagged(_) => "Tagged",
     }
-    let Some(list) = parse_flow_sequence(value) else {
-        return Err(WorkspaceError::ProtectionConfig {
-            path: path.to_path_buf(),
-            detail: format!("protection.protected_branches must be a sequence, observed {value:?}"),
-        });
-    };
-    let mut items = Vec::with_capacity(list.len());
-    for entry in list {
-        items.push(parse_scalar(&entry, path)?);
-    }
-    Ok(ProtectionScan {
-        explicit: Some(items),
-    })
 }
 
-fn parse_scalar(raw: &str, path: &Path) -> Result<String, WorkspaceError> {
-    let raw = raw.trim();
-    let bad = || WorkspaceError::ProtectionConfig {
-        path: path.to_path_buf(),
-        detail: format!("unsupported scalar in protection.protected_branches: {raw:?}"),
-    };
-    if let Some(inner) = raw
-        .strip_prefix('\'')
-        .and_then(|rest| rest.strip_suffix('\''))
-    {
-        return Ok(inner.replace("''", "'"));
+/// Python `str(value)`, the coercion the reference applies to every list item.
+fn python_str(value: &serde_yaml_ng::Value) -> String {
+    match value {
+        serde_yaml_ng::Value::Null => "None".to_owned(),
+        serde_yaml_ng::Value::Bool(true) => "True".to_owned(),
+        serde_yaml_ng::Value::Bool(false) => "False".to_owned(),
+        serde_yaml_ng::Value::Number(number) => python_number(number),
+        serde_yaml_ng::Value::String(text) => text.clone(),
+        serde_yaml_ng::Value::Sequence(items) => {
+            let rendered: Vec<String> = items.iter().map(python_repr).collect();
+            format!("[{}]", rendered.join(", "))
+        }
+        serde_yaml_ng::Value::Mapping(mapping) => {
+            let rendered: Vec<String> = mapping
+                .iter()
+                .map(|(key, item)| format!("{}: {}", python_repr(key), python_repr(item)))
+                .collect();
+            format!("{{{}}}", rendered.join(", "))
+        }
+        serde_yaml_ng::Value::Tagged(tagged) => python_str(&tagged.value),
     }
-    if let Some(inner) = raw
-        .strip_prefix('"')
-        .and_then(|rest| rest.strip_suffix('"'))
-    {
-        let mut out = String::with_capacity(inner.len());
-        let mut chars = inner.chars();
-        while let Some(character) = chars.next() {
-            if character != '\\' {
+}
+
+/// Python `repr(value)` for the containers `str()` renders with `repr()`.
+fn python_repr(value: &serde_yaml_ng::Value) -> String {
+    match value {
+        serde_yaml_ng::Value::String(text) => python_string_repr(text),
+        other => python_str(other),
+    }
+}
+
+fn python_string_repr(text: &str) -> String {
+    let quote = if text.contains('\'') && !text.contains('"') {
+        '"'
+    } else {
+        '\''
+    };
+    let mut out = String::with_capacity(text.len() + 2);
+    out.push(quote);
+    for character in text.chars() {
+        match character {
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            character if character == quote => {
+                out.push('\\');
                 out.push(character);
-                continue;
             }
-            match chars.next() {
-                Some('n') => out.push('\n'),
-                Some('t') => out.push('\t'),
-                Some('r') => out.push('\r'),
-                Some('0') => out.push('\0'),
-                Some('"') => out.push('"'),
-                Some('\\') => out.push('\\'),
-                Some('/') => out.push('/'),
-                _ => return Err(bad()),
-            }
-        }
-        return Ok(out);
-    }
-    if raw.starts_with('[') || raw.starts_with('{') || raw.contains(':') {
-        return Err(bad());
-    }
-    Ok(strip_comment(raw).trim().to_owned())
-}
-
-/// Split `key: value` outside quotes; returns the unquoted key and raw value.
-fn split_key(content: &str) -> Option<(&str, &str)> {
-    let bytes = content.as_bytes();
-    let mut quote: Option<u8> = None;
-    let mut index = 0;
-    while index < bytes.len() {
-        let byte = bytes[index];
-        match quote {
-            Some(mark) if byte == mark => quote = None,
-            Some(_) => {}
-            None if byte == b'\'' || byte == b'"' => quote = Some(byte),
-            None if byte == b'#' && (index == 0 || bytes[index - 1].is_ascii_whitespace()) => {
-                return None;
-            }
-            // A mapping colon is followed by whitespace or end of line.
-            None if byte == b':'
-                && (index + 1 == bytes.len() || bytes[index + 1].is_ascii_whitespace()) =>
-            {
-                let key = content[..index].trim();
-                let key = unquote_key(key)?;
-                return Some((key, content[index + 1..].trim()));
-            }
-            None => {}
-        }
-        index += 1;
-    }
-    None
-}
-
-fn unquote_key(key: &str) -> Option<&str> {
-    if let Some(inner) = key
-        .strip_prefix('\'')
-        .and_then(|rest| rest.strip_suffix('\''))
-    {
-        return Some(inner);
-    }
-    let inner = key
-        .strip_prefix('"')
-        .and_then(|rest| rest.strip_suffix('"'))
-        .unwrap_or(key);
-    if inner.is_empty() { None } else { Some(inner) }
-}
-
-/// Remove an unquoted trailing comment.
-fn strip_comment(content: &str) -> &str {
-    let bytes = content.as_bytes();
-    let mut quote: Option<u8> = None;
-    for (index, byte) in bytes.iter().enumerate() {
-        match quote {
-            Some(mark) if *byte == mark => quote = None,
-            Some(_) => {}
-            None if *byte == b'\'' || *byte == b'"' => quote = Some(*byte),
-            None if *byte == b'#' && (index == 0 || bytes[index - 1].is_ascii_whitespace()) => {
-                return &content[..index];
-            }
-            None => {}
+            other => out.push(other),
         }
     }
-    content
+    out.push(quote);
+    out
 }
 
-/// Parse a single-line flow mapping `{a: b, c: [d, e]}` into raw entries.
-fn parse_flow_mapping(value: &str) -> Option<Vec<(String, String)>> {
-    let inner = value.strip_prefix('{')?.strip_suffix('}')?;
-    let mut entries = Vec::new();
-    for entry in split_top_level(inner, ',') {
-        let entry = entry.trim();
-        if entry.is_empty() {
-            continue;
+/// Python `str()` of a YAML scalar number.
+fn python_number(number: &serde_yaml_ng::Number) -> String {
+    if let Some(int) = number.as_i64() {
+        return int.to_string();
+    }
+    if let Some(int) = number.as_u64() {
+        return int.to_string();
+    }
+    let value = number.as_f64().unwrap_or(f64::NAN);
+    // Python renders an integral float with a trailing `.0` and writes the
+    // exponent sign; keep both shapes so `- 1.0` is the branch name "1.0".
+    let rendered = value.to_string();
+    if !rendered.contains(['e', 'E']) && !rendered.contains('.') {
+        return format!("{rendered}.0");
+    }
+    match rendered.split_once(['e', 'E']) {
+        Some((mantissa, exponent)) if !exponent.starts_with(['+', '-']) => {
+            format!("{mantissa}e+{exponent}")
         }
-        let (key, item) = split_key(entry)?;
-        entries.push((key.to_owned(), item.trim().to_owned()));
+        _ => rendered,
     }
-    Some(entries)
-}
-
-/// Parse a single-line flow sequence `[a, b]` into raw entries.
-fn parse_flow_sequence(value: &str) -> Option<Vec<String>> {
-    let inner = value.strip_prefix('[')?.strip_suffix(']')?;
-    let mut items: Vec<String> = Vec::new();
-    for entry in split_top_level(inner, ',') {
-        let entry = entry.trim();
-        if entry.is_empty() {
-            continue;
-        }
-        items.push(entry.to_owned());
-    }
-    Some(items)
-}
-
-/// Split on `separator` at nesting depth zero, outside quotes.
-fn split_top_level(content: &str, separator: char) -> Vec<String> {
-    let mut parts = Vec::new();
-    let mut current = String::new();
-    let mut depth = 0usize;
-    let mut quote: Option<char> = None;
-    for character in content.chars() {
-        match quote {
-            Some(mark) => {
-                current.push(character);
-                if character == mark {
-                    quote = None;
-                }
-            }
-            None => match character {
-                '\'' | '"' => {
-                    quote = Some(character);
-                    current.push(character);
-                }
-                '[' | '{' => {
-                    depth += 1;
-                    current.push(character);
-                }
-                ']' | '}' => {
-                    depth = depth.saturating_sub(1);
-                    current.push(character);
-                }
-                character if character == separator && depth == 0 => {
-                    parts.push(std::mem::take(&mut current));
-                }
-                other => current.push(other),
-            },
-        }
-    }
-    if !current.trim().is_empty() {
-        parts.push(current);
-    }
-    parts
 }
 
 #[cfg(test)]
@@ -619,42 +487,51 @@ mod tests {
     use super::*;
 
     fn scan(text: &str) -> ProtectionScan {
-        scan_protection_block(text, Path::new(CONFIG_REL_PATH)).expect("parse")
+        parse_protection_config(text, Path::new(CONFIG_REL_PATH)).expect("parse")
+    }
+
+    fn refusal(text: &str) -> WorkspaceError {
+        parse_protection_config(text, Path::new(CONFIG_REL_PATH)).expect_err("refusal")
+    }
+
+    fn explicit(text: &str) -> Vec<String> {
+        scan(text).explicit.expect("explicit list")
     }
 
     #[test]
     fn explicit_block_sequence_replaces_the_defaults() {
-        let scan = scan("protection:\n  protected_branches:\n    - release\n    - trunk\n");
         assert_eq!(
-            scan.explicit,
-            Some(vec!["release".to_owned(), "trunk".to_owned()])
+            explicit("protection:\n  protected_branches:\n    - release\n    - trunk\n"),
+            vec!["release".to_owned(), "trunk".to_owned()]
         );
     }
 
     #[test]
     fn empty_flow_sequence_unprotects_everything() {
-        let scan = scan("protection:\n  protected_branches: []\n");
-        assert_eq!(scan.explicit, Some(Vec::new()));
+        assert_eq!(
+            explicit("protection:\n  protected_branches: []\n"),
+            Vec::<String>::new()
+        );
     }
 
     #[test]
     fn flow_sequence_and_quotes_are_read() {
-        let scan =
-            scan("protection:\n  protected_branches: ['release', \"trunk/x\", main]  # note\n");
         assert_eq!(
-            scan.explicit,
-            Some(vec![
+            explicit("protection:\n  protected_branches: ['release', \"trunk/x\", main]  # note\n"),
+            vec![
                 "release".to_owned(),
                 "trunk/x".to_owned(),
                 "main".to_owned()
-            ])
+            ]
         );
     }
 
     #[test]
     fn flow_mapping_is_read() {
-        let scan = scan("protection: {protected_branches: [release]}\n");
-        assert_eq!(scan.explicit, Some(vec!["release".to_owned()]));
+        assert_eq!(
+            explicit("protection: {protected_branches: [release]}\n"),
+            vec!["release".to_owned()]
+        );
     }
 
     #[test]
@@ -662,40 +539,105 @@ mod tests {
         assert_eq!(scan("merge:\n  strategy: squash\n").explicit, None);
         assert_eq!(scan("protection:\n  other: 1\n").explicit, None);
         assert_eq!(scan("protection:\n").explicit, None);
+        assert_eq!(scan("").explicit, None);
+        assert_eq!(scan("# only a comment\n---\n").explicit, None);
+        assert_eq!(
+            scan("protection:\n  protected_branches: null\n").explicit,
+            None
+        );
     }
 
     #[test]
     fn a_non_mapping_protection_block_uses_the_default_arm() {
+        // YAML 1.2 keeps `yes` a string, exactly like the reference's ruamel
+        // loader; a non-mapping `protection` value is the absent-key arm.
         assert_eq!(scan("protection: yes\n").explicit, None);
         assert_eq!(scan("protection:\n- main\n").explicit, None);
     }
 
     #[test]
-    fn malformed_shapes_fail_closed() {
-        assert!(scan_protection_block("-\n", Path::new(CONFIG_REL_PATH)).is_err());
-        assert!(scan_protection_block("just-a-scalar\n", Path::new(CONFIG_REL_PATH)).is_err());
-        assert!(
-            scan_protection_block(
-                "protection:\n  protected_branches: release\n",
-                Path::new(CONFIG_REL_PATH)
-            )
-            .is_err()
-        );
-        assert!(
-            scan_protection_block(
-                "protection:\n  protected_branches:\n    release: yes\n",
-                Path::new(CONFIG_REL_PATH)
-            )
-            .is_err()
+    fn an_anchored_mapping_keeps_its_explicit_list() {
+        // The narrow scanner used to treat the anchor as "not a mapping" and
+        // silently protect only {main, master}: a fail-open on the one thing
+        // this module computes.
+        assert_eq!(
+            explicit("protection: &p\n  protected_branches: [release]\n"),
+            vec!["release".to_owned()]
         );
     }
 
     #[test]
-    fn comments_and_document_markers_are_ignored() {
-        let scan = scan(
-            "# config\n---\nprotection:\n  # keep this comment\n  protected_branches:\n    - release\n",
+    fn an_alias_to_a_mapping_keeps_its_explicit_list() {
+        assert_eq!(
+            explicit("base: &b\n  protected_branches: [release]\nprotection: *b\n"),
+            vec!["release".to_owned()]
         );
-        assert_eq!(scan.explicit, Some(vec!["release".to_owned()]));
+    }
+
+    #[test]
+    fn a_merge_key_keeps_its_explicit_list() {
+        assert_eq!(
+            explicit("shared: &s\n  protected_branches: [release]\nprotection:\n  <<: *s\n"),
+            vec!["release".to_owned()]
+        );
+    }
+
+    #[test]
+    fn python_str_coercion_is_applied_to_each_item() {
+        assert_eq!(
+            explicit("protection:\n  protected_branches: [master, yes, 1, null, 1.0]\n"),
+            vec![
+                "master".to_owned(),
+                "yes".to_owned(),
+                "1".to_owned(),
+                "None".to_owned(),
+                "1.0".to_owned()
+            ]
+        );
+    }
+
+    #[test]
+    fn a_multi_document_stream_is_refused() {
+        // The reference's ruamel `load` refuses a multi-document stream; the
+        // narrow scanner merged the documents instead.
+        let error = refusal("protection:\n  protected_branches: [release]\n---\nother: 1\n");
+        assert!(
+            matches!(error, WorkspaceError::ProtectionConfig { .. }),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn a_duplicate_key_is_refused() {
+        let error = refusal(
+            "protection:\n  protected_branches: [release]\n  protected_branches: [trunk]\n",
+        );
+        assert!(
+            matches!(error, WorkspaceError::ProtectionConfig { .. }),
+            "{error}"
+        );
+        let error =
+            refusal("protection:\n  protected_branches: [release]\nprotection:\n  other: 1\n");
+        assert!(
+            matches!(error, WorkspaceError::ProtectionConfig { .. }),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn a_non_mapping_top_level_and_a_non_list_value_are_typed_refusals() {
+        for text in [
+            "just-a-scalar\n",
+            "- release\n",
+            "protection:\n  protected_branches: release\n",
+            "protection:\n  protected_branches:\n    release: yes\n",
+        ] {
+            let error = refusal(text);
+            assert!(
+                matches!(error, WorkspaceError::ProtectionConfig { .. }),
+                "{text:?}: {error}"
+            );
+        }
     }
 
     #[test]

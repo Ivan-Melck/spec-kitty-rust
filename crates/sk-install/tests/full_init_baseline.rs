@@ -87,11 +87,12 @@ fn full_init_reproduces_the_oracle_surfaces_for_claude_codex_vibe() {
             .iter()
             .map(|entry| {
                 format!(
-                    "{}\u{1f}{}\u{1f}{}\u{1f}{}\u{1f}{}",
+                    "{}\u{1f}{}\u{1f}{}\u{1f}{}\u{1f}{}\u{1f}{}",
                     entry["skill_name"].as_str().unwrap(),
                     entry["source_file"].as_str().unwrap(),
                     entry["installed_path"].as_str().unwrap(),
                     entry["installation_class"].as_str().unwrap(),
+                    entry["agent_key"].as_str().unwrap(),
                     entry["content_hash"].as_str().unwrap(),
                 )
             })
@@ -104,11 +105,14 @@ fn full_init_reproduces_the_oracle_surfaces_for_claude_codex_vibe() {
         .map(|entry| {
             let fields = entry.as_array().expect("tuple");
             format!(
-                "{}\u{1f}{}\u{1f}{}\u{1f}{}\u{1f}{}",
+                "{}\u{1f}{}\u{1f}{}\u{1f}{}\u{1f}{}\u{1f}{}",
                 fields[0].as_str().unwrap(),
                 fields[1].as_str().unwrap(),
                 fields[2].as_str().unwrap(),
                 fields[3].as_str().unwrap(),
+                // Ownership is part of the oracle tuple; omitting it compared a
+                // weaker projection than the fixture records.
+                fields[4].as_str().unwrap(),
                 fields[5].as_str().unwrap(),
             )
         })
@@ -169,15 +173,21 @@ fn full_init_reproduces_the_oracle_surfaces_for_claude_codex_vibe() {
         oracle["vibe"].as_str().unwrap()
     );
 
-    // `.gitignore`: the runtime + agent pattern set our scope implements. The
-    // oracle additionally ignores projected agent-profile files, which this
-    // crate does not install (documented gap), so the fixture carries those
-    // separately.
+    // `.gitignore`: the runtime + agent pattern set plus every projected
+    // agent-profile path (the fixture carries those in a separate field because
+    // the original tranche did not project profiles yet).
     let oracle_lines: BTreeSet<String> = oracle["gitignore"]
         .as_str()
         .unwrap()
         .lines()
         .map(|line| line.to_string())
+        .chain(
+            oracle["gitignore_profile_lines"]
+                .as_array()
+                .expect("profile lines")
+                .iter()
+                .map(|line| line.as_str().expect("line").to_string()),
+        )
         .collect();
     let ours_lines: BTreeSet<String> = std::fs::read_to_string(project.path().join(".gitignore"))
         .unwrap()

@@ -175,20 +175,15 @@
     ],
     "tree": "d040f51e6115e0475db6ed600c7e1400f410ef83"
   },
-  "description": "A caller-supplied GIT_INDEX_FILE: baseline honours it; native refuses explicitly (open parity gap).",
-  "detail_tokens": [
-    "GIT_INDEX_FILE"
-  ],
-  "divergence": {
-    "detail": "Baseline mutates the caller's designated index and leaves .git/index alone. Native's writer authority boundary refuses every inherited repository selector before mutation. This is a known unsupported input, recorded as an open mismatch, never normalised into equality.",
-    "kind": "git_index_file"
-  },
-  "expectation": "open_mismatch",
+  "description": "A caller-supplied GIT_INDEX_FILE is captured at open: the commit reconciles that index and leaves .git/index untouched.",
+  "detail_tokens": [],
+  "divergence": null,
+  "expectation": "match",
   "hooks": [],
-  "name": "git_index_file_selector_refused",
+  "name": "git_index_file_selector_honoured",
   "native": {
     "landed_kind": null,
-    "variant": "RepositoryEnvironmentRefused"
+    "variant": null
   },
   "oracle": {
     "commit": "c2224480a7f12cbc8cdb7b7e2ae84bbda7ab589f",

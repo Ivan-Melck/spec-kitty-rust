@@ -50,7 +50,7 @@
 //! while holding a Mission lock is refused by the kernel itself.
 
 use std::any::Any;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -87,7 +87,11 @@ pub const COORD_SEED_TRAILER: &str = "Spec-Kitty-Coordination-Seed";
 pub const MAX_COORD_JOURNAL_BYTES: u64 = 4 * 1024 * 1024;
 
 /// Largest single artifact this crate will seed.
-pub const MAX_SEED_FILE_BYTES: u64 = 16 * 1024 * 1024;
+/// Raised from the old 16 MiB local cap to the Git seam's canonical blob bound
+/// (64 MiB, the status-log limit) when that seam gained an explicit bounded read:
+/// a legitimate `status.events.jsonl` above 16 MiB used to be refused here while
+/// the reference reads it whole.
+pub const MAX_SEED_FILE_BYTES: u64 = sk_git::MAX_BLOB_BYTES;
 
 /// Largest existing artifact this crate will snapshot for rollback.
 pub const MAX_SNAPSHOT_BYTES: u64 = 16 * 1024 * 1024;
@@ -110,9 +114,10 @@ pub struct CoordSurfaceRead {
     pub coordination_mission_dir: Option<PathBuf>,
     /// The mission directory a reader must use for this state.
     ///
-    /// `Materialized` resolves the coordination directory; `Empty`,
-    /// `Unmaterialized`, `Deleted` and `None` resolve the declared primary
-    /// directory. This is the *read* answer and creates nothing.
+    /// `Materialized` resolves the coordination directory, `Empty` and `None`
+    /// resolve the declared primary directory, and `Unmaterialized`/`Deleted`
+    /// refuse (see [`read_coordination_surface`]). This is the *read* answer and
+    /// creates nothing.
     pub read_dir: PathBuf,
     /// Is [`CoordSurfaceRead::read_dir`] the primary fallback rather than a
     /// materialized coordination surface?
@@ -121,26 +126,63 @@ pub struct CoordSurfaceRead {
 
 /// Resolve the coordination surface for reading, without any mutation.
 ///
-/// Nothing here creates a worktree, writes a file, or takes a lock: an `Empty`
-/// or `Unmaterialized` surface is reported as such and the caller is given the
-/// declared primary directory instead.
+/// Nothing here creates a worktree, writes a file, or takes a lock.
+///
+/// # One read authority
+///
+/// This is the *same* policy [`crate::surface::resolve_artifact_surface`]
+/// applies, expressed once here and asserted against that function:
+///
+/// * `None` (a coordination-less topology) and `Empty` (a registered worktree
+///   whose Mission directory is absent) resolve the declared **primary**
+///   directory, because the create→first-write window is genuinely primary;
+/// * `Materialized` resolves the coordination directory;
+/// * `Unmaterialized` **refuses** with
+///   [`WorkspaceError::CoordinationWorktreeUnmaterialized`] — the branch is not
+///   lost, but its surface does not exist yet, and substituting the primary
+///   checkout would let a reader act on emptiness as if it were the document
+///   (#4959);
+/// * `Deleted` **refuses** with [`WorkspaceError::CoordinationBranchDeleted`] —
+///   the loud data-loss failure (#1889 R3).
+///
+/// The former permissive answer (degrade all three non-materialized states to
+/// the primary checkout) let a reader of a *deleted* coordination surface
+/// silently read the primary copy. Both readers now answer the same question.
 pub fn read_coordination_surface(
     workspace: &MissionWorkspace,
 ) -> Result<CoordSurfaceRead, WorkspaceError> {
     let probe = workspace.probe_coordination()?;
+    // A derived branch (the `meta.json` record was lost) that is absent is NOT
+    // data loss: nobody ever recorded it, and the canonical grammar names a
+    // branch that was never minted. That is the reference's
+    // `CoordBranchUndeclaredAndAbsent`, not `Deleted`.
+    if probe.derived && probe.state == CoordState::Deleted {
+        return Err(WorkspaceError::CoordRefused {
+            code: "COORD_BRANCH_UNDECLARED_AND_ABSENT",
+            message: format!(
+                "mission {} stores coordination topology {} but records no coordination_branch, and the canonical branch {:?} does not exist; refusing to guess a coordination surface",
+                workspace.slug(),
+                workspace.topology().as_str(),
+                probe.branch.as_deref().unwrap_or("<underived>")
+            ),
+        });
+    }
     let primary_dir = workspace.mission_dir().to_path_buf();
     let coordination_mission_dir = crate::topology::coordination_mission_dir(workspace);
-    let materialized_dir = coordination_mission_dir
-        .as_ref()
-        .filter(|_| probe.state == CoordState::Materialized)
-        .cloned();
-    let degraded_to_primary = materialized_dir.is_none();
+    let resolved = crate::surface::coord_read_surface(
+        probe.state,
+        workspace.slug(),
+        probe.branch.as_deref(),
+        &primary_dir,
+        coordination_mission_dir.as_deref(),
+    )?;
+    let degraded_to_primary = resolved.surface_kind != TopologySurface::Coord;
     Ok(CoordSurfaceRead {
         state: probe.state,
         coordination_branch: probe.branch,
         coordination_worktree: probe.worktree,
         coordination_mission_dir,
-        read_dir: materialized_dir.unwrap_or(primary_dir),
+        read_dir: resolved.path,
         degraded_to_primary,
     })
 }
@@ -161,6 +203,14 @@ pub enum CoordRecordKind {
     Commit,
     /// Fast-forward a destination to an already-integrated source tip.
     Integration,
+    /// Mint the mission's coordination branch at the target tip.
+    ///
+    /// The reference mints before any bookkeeping write and rolls a
+    /// create-minted branch back when the create fails, so the mint needs its
+    /// own durable record: [`crate::coord::bootstrap_coordination`] takes the
+    /// claim + Mission locks *before* minting and journals both the mint and its
+    /// provenance rollback.
+    Mint,
 }
 
 impl CoordRecordKind {
@@ -171,6 +221,7 @@ impl CoordRecordKind {
             Self::Seed => "seed",
             Self::Commit => "commit",
             Self::Integration => "integration",
+            Self::Mint => "mint",
         }
     }
 }
@@ -313,17 +364,17 @@ impl CoordJournal {
     }
 
     /// Record an intent before mutating anything.
+    ///
+    /// An unresolved older intent of the same shape is **left pending**. It used
+    /// to be rewritten to `Abandoned` ("superseded by a newer attempt"), which
+    /// claimed a proven outcome this run never proved: a crash between "commit
+    /// landed" and "journal resolved" produced a journal that *said* the landed
+    /// attempt never happened, and recovery could never see it again. Recovery is
+    /// the only place an outcome is proven, and it now decides every pending
+    /// record from observed Git state (see [`recover_interrupted`]).
     pub fn begin(&self, record: CoordRecord) -> Result<(), WorkspaceError> {
         let _lock = sk_kernel::FileLock::acquire(&self.lock_path, COORD_JOURNAL_LOCK_TIMEOUT)?;
         let mut records = self.records()?;
-        // A newer intent for the same shape supersedes an unresolved older one:
-        // the newest observation is what recovery reconciles.
-        for existing in &mut records {
-            if existing.matches_intent(&record) {
-                existing.phase = CoordPhase::Abandoned;
-                existing.detail = Some("superseded by a newer attempt".to_owned());
-            }
-        }
         records.push(record);
         self.write_locked(&records)
     }
@@ -367,7 +418,21 @@ impl CoordJournal {
 
     /// Every seed commit this store recorded for `branch`.
     pub fn recorded_seed_commits(&self, branch: &str) -> Result<Vec<Oid>, WorkspaceError> {
-        let mut commits = Vec::new();
+        Ok(self
+            .recorded_seeds(branch)?
+            .into_iter()
+            .map(|(commit, _)| commit)
+            .collect())
+    }
+
+    /// Every recorded `(seed commit, observed tip)` pair for `branch`.
+    ///
+    /// A caller that wants to undo a mint it made needs the observation the
+    /// commit was pinned to: a seed commit whose recorded parent is still the
+    /// branch's creation base is provably this mission's own seed and nothing
+    /// else, which is exactly the provenance a rollback may rely on.
+    pub fn recorded_seeds(&self, branch: &str) -> Result<Vec<(Oid, Option<Oid>)>, WorkspaceError> {
+        let mut seeds = Vec::new();
         for record in self.records()? {
             if record.kind != CoordRecordKind::Seed || record.phase != CoordPhase::Applied {
                 continue;
@@ -375,11 +440,24 @@ impl CoordJournal {
             if record.branch.as_deref() != Some(branch) {
                 continue;
             }
-            if let Some(candidate) = record.candidate_commit {
-                commits.push(Oid::parse(&candidate)?);
-            }
+            let Some(candidate) = record.candidate_commit else {
+                continue;
+            };
+            let observed = match record.observed_tip.as_deref() {
+                Some(observed) => Some(Oid::parse(observed)?),
+                None => None,
+            };
+            seeds.push((Oid::parse(&candidate)?, observed));
         }
-        Ok(commits)
+        Ok(seeds)
+    }
+
+    /// Append a record that is already resolved (a rollback receipt).
+    pub fn record_resolved(&self, record: CoordRecord) -> Result<(), WorkspaceError> {
+        let _lock = sk_kernel::FileLock::acquire(&self.lock_path, COORD_JOURNAL_LOCK_TIMEOUT)?;
+        let mut records = self.records()?;
+        records.push(record);
+        self.write_locked(&records)
     }
 
     /// Replace the journal with `records` (the caller already holds the lock).
@@ -460,7 +538,10 @@ impl MissionHold {
     }
 
     /// The actual lock path held by the canonical Mission guard.
-    pub fn derived_path(&self) -> Option<&Path> {
+    ///
+    /// This is the guard's own path (copied off it before boxing), not a
+    /// re-derivation from the mission directory name.
+    pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
     }
 
@@ -516,19 +597,27 @@ impl std::fmt::Debug for MissionHold {
 }
 
 /// A held claim + Mission lock pair, in the kernel's required order.
+///
+/// This is the crate's **one** lock protocol for a bookkeeping write. It is
+/// crate-visible so the planning-commit and integration writers acquire exactly
+/// this pair instead of mutating refs without authority.
 #[derive(Debug)]
-struct CoordLocks {
+pub(crate) struct CoordLocks {
     mission: MissionHold,
     claim: StatusLock,
 }
 
 impl CoordLocks {
-    fn acquire(
+    /// Take the checkout claim, then the canonical Mission lock.
+    ///
+    /// `write_checkout` is the checkout the mutation lands in (the coordination
+    /// worktree, a lane worktree, or the primary checkout), so two writers on
+    /// the same checkout serialize even when they name different missions.
+    pub(crate) fn acquire(
         write_checkout: &Path,
         mission_dir: &Path,
         repo_root: &Path,
         common_dir: &Path,
-        _mission_key: &str,
         timeout: Duration,
     ) -> Result<Self, WorkspaceError> {
         // Claim first: the kernel refuses a claim taken under a Mission lock.
@@ -539,6 +628,16 @@ impl CoordLocks {
         )?;
         let mission = MissionHold::acquire(mission_dir, repo_root, LockWait::Bounded(timeout))?;
         Ok(Self { mission, claim })
+    }
+
+    /// The kernel checkout-claim lock file held for this write.
+    pub(crate) fn claim_path(&self) -> &Path {
+        self.claim.path()
+    }
+
+    /// The canonical Mission lock held for this write.
+    pub(crate) fn mission(&self) -> &MissionHold {
+        &self.mission
     }
 }
 
@@ -619,6 +718,12 @@ impl CoordCommitOutcome {
     }
 }
 
+/// A proven commit outcome plus any journal fault recorded after it.
+struct CommitReport {
+    outcome: CoordCommitOutcome,
+    journal_fault: Option<String>,
+}
+
 /// How the write surface was established.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CoordEstablishment {
@@ -641,12 +746,25 @@ pub struct CoordSeedReceipt {
     pub worktree: PathBuf,
     /// The coordination branch.
     pub branch: String,
-    /// Mission-relative paths carried over.
+    /// Mission-relative paths this seed carried from the primary checkout.
     pub seeded_paths: Vec<String>,
+    /// Mission-relative paths restored from the coordination branch tip.
+    pub restored_from_branch: Vec<String>,
+    /// Root-checkout copies removed, so the coordination copy is the only home.
+    pub restored_root: Vec<String>,
+    /// Root-checkout copies left in place, with the reason.
+    pub preserved_root: Vec<String>,
+    /// Non-fatal observations (a coordinated copy won over a differing root copy).
+    pub warnings: Vec<String>,
     /// The seed commit, when any content was carried.
     pub landed: Option<LandedCommit>,
     /// The state observed before the seed.
     pub state_before: CoordState,
+    /// A journal fault after a landed seed commit.
+    ///
+    /// A landed commit is immutable evidence: a failure to record it must never
+    /// be reported as a failed seed.
+    pub journal_fault: Option<String>,
 }
 
 /// What a coordination transaction produced.
@@ -664,6 +782,12 @@ pub struct CoordReceipt {
     pub seed: Option<CoordSeedReceipt>,
     /// The coordination journal document.
     pub journal_path: PathBuf,
+    /// A journal fault recorded **after** the outcome was proven.
+    ///
+    /// Reporting is not allowed to invert the outcome: when the commit landed
+    /// and the journal write then failed, this names the fault while the
+    /// caller still receives [`CoordCommitOutcome::Landed`].
+    pub journal_fault: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -705,8 +829,8 @@ impl<'a> CoordTransaction<'a> {
     /// Acquire the transaction for `operation`, establishing the write surface.
     ///
     /// Order: read-only surface resolution → protected-destination refusal →
-    /// checkout claim and Mission lock → journal intent → materialization/seeding
-    /// (with their own journal records) → ownership proof.
+    /// checkout claim and Mission lock → materialization/seeding (each with its
+    /// own journal record) → commit intent → ownership proof.
     pub fn acquire(
         workspace: &'a MissionWorkspace,
         operation: &str,
@@ -722,14 +846,11 @@ impl<'a> CoordTransaction<'a> {
         policy: &ProtectionPolicy,
         timeout: Duration,
     ) -> Result<Self, WorkspaceError> {
-        let probe = workspace.probe_coordination()?;
         let protected = policy.branch_set()?;
         let primary_root = workspace.workspace().primary_root().to_path_buf();
         let common_dir = workspace.workspace().common_dir().to_path_buf();
-        let mission_key = workspace.canonical_mission_dir_name();
 
-        let routes = routes_through_coordination(workspace.topology());
-        if !routes {
+        if !routes_through_coordination(workspace.topology()) {
             let destination = workspace.write_branch(&protected)?;
             ensure_unprotected(&destination, &protected, operation)?;
             let locks = CoordLocks::acquire(
@@ -737,7 +858,6 @@ impl<'a> CoordTransaction<'a> {
                 workspace.mission_dir(),
                 &primary_root,
                 &common_dir,
-                &mission_key,
                 timeout,
             )?;
             let repository = sk_git::GitRepository::open(&primary_root)?;
@@ -786,157 +906,34 @@ impl<'a> CoordTransaction<'a> {
             });
         }
 
-        // Coordination-routed mission.
-        let Some(branch_text) = workspace.coordination_branch() else {
-            return Err(WorkspaceError::CoordRefused {
-                code: "COORDINATION_BRANCH_UNDECLARED",
-                message: format!(
-                    "mission {} stores a coordination-routing topology but records no coordination_branch",
-                    workspace.slug()
-                ),
-            });
-        };
-        let destination = BranchName::parse(&branch_text)?;
-        if let CoordState::Deleted = probe.state {
-            return Err(WorkspaceError::CoordinationBranchDeleted {
-                mission: workspace.slug().to_owned(),
-                branch: branch_text,
-            });
-        }
-        ensure_unprotected(&destination, &protected, operation)?;
-        let coord_root =
-            workspace
-                .coord_worktree_path()
-                .ok_or_else(|| WorkspaceError::CoordRefused {
-                    code: "COORDINATION_WORKTREE_UNRESOLVED",
-                    message: format!(
-                        "mission {} routes through coordination but has no canonical worktree path",
-                        workspace.slug()
-                    ),
-                })?;
+        // Coordination-routed mission: resolve the destination (declared, or
+        // derived from the canonical grammar when the record was lost) and gate
+        // it before any lock, journal, or filesystem mutation.
+        let probe = workspace.probe_coordination()?;
+        let destination = coordination_destination(workspace, &probe)?;
+        ensure_unprotected(&destination.branch, &protected, operation)?;
         let locks = CoordLocks::acquire(
-            &coord_root,
+            &destination.worktree,
             workspace.mission_dir(),
             &primary_root,
             &common_dir,
-            &mission_key,
             timeout,
         )?;
         let journal = CoordJournal::new(&common_dir, workspace.slug());
-        let mut establishment = match probe.state {
-            CoordState::Materialized => CoordEstablishment::Reused,
-            _ => CoordEstablishment::Materialized,
-        };
-        let mut state_before = probe.state;
-
-        let materialized_root = match probe.state {
-            CoordState::Materialized => coord_root.clone(),
-            CoordState::Empty => {
-                // The canonical root exists and is registered on the declared
-                // branch, but its Mission directory is absent. The seed step
-                // below records its own intent.
-                if probe.worktree.is_none() {
-                    return Err(WorkspaceError::CoordRefused {
-                        code: "COORDINATION_WORKTREE_UNREGISTERED",
-                        message: format!(
-                            "{} exists but Git does not register it on {}; refusing to seed a stray directory",
-                            coord_root.display(),
-                            branch_text
-                        ),
-                    });
-                }
-                coord_root.clone()
-            }
-            CoordState::Unmaterialized => {
-                if !probe.local_head {
-                    return Err(WorkspaceError::CoordRefused {
-                        code: "COORDINATION_BRANCH_NOT_LOCAL",
-                        message: format!(
-                            "coordination branch {branch_text} resolves only on a remote; a remote-tracking branch cannot be attached as a local worktree"
-                        ),
-                    });
-                }
-                let repository = workspace.workspace().repository().clone();
-                materialize_worktree(&repository, &branch_text, &coord_root, &journal, workspace)?;
-                state_before = CoordState::Unmaterialized;
-                establishment = CoordEstablishment::Materialized;
-                coord_root.clone()
-            }
-            CoordState::None | CoordState::Deleted => {
-                return Err(WorkspaceError::CoordinationBranchDeleted {
-                    mission: workspace.slug().to_owned(),
-                    branch: branch_text,
-                });
-            }
-        };
-
-        // Re-probe after materialization: the worktree is now registered, so the
-        // state is either Materialized (mission dir present) or Empty.
-        let feature_dir = materialized_root
-            .join(crate::workspace::SPECS_DIR_NAME)
-            .join(workspace.canonical_mission_dir_name());
-        let mut seed = None;
-        if !feature_dir.exists() {
-            seed = Some(seed_coordination_surface(
-                workspace,
-                &materialized_root,
-                &feature_dir,
-                &branch_text,
-                &protected,
-                &journal,
-                state_before,
-            )?);
-            establishment = CoordEstablishment::Seeded;
-        } else if establishment == CoordEstablishment::Materialized
-            && state_before == CoordState::Unmaterialized
-        {
-            // Materialization produced a full surface: nothing to seed.
-            establishment = CoordEstablishment::Noop;
-        }
-
-        let repository = sk_git::GitRepository::open(&materialized_root)?;
-        ensure_head_is_destination(&repository, &destination, &materialized_root)?;
-        let observed_tip = repository.read_branch_tip(&destination)?;
-        let proof = ownership_proof(
+        // Re-probe under the locks. The first probe chose the refusal shape; a
+        // concurrent process may have materialized the surface between that
+        // probe and the claim, and acting on the stale answer turned its
+        // `Materialize` into a spurious Git error (it never adopted it).
+        let probe = workspace.probe_coordination()?;
+        establish(
             workspace,
-            TopologySurface::Coord,
-            &destination,
-            &materialized_root,
-            &locks,
-            observed_tip.clone(),
-            &repository,
-        );
-        let intent = CoordRecord::intent(
-            CoordRecordKind::Commit,
-            workspace.slug(),
             operation,
-            Some(destination.as_str()),
-            Some(&materialized_root),
-            observed_tip.as_ref(),
-        );
-        journal.begin(intent.clone())?;
-        Ok(Self {
-            workspace,
-            repository,
-            surface: TopologySurface::Coord,
-            state_before,
-            establishment,
-            worktree_root: materialized_root,
-            feature_dir,
-            destination,
-            operation: operation.to_owned(),
             protected,
+            destination,
+            probe,
             journal,
-            journal_intent: intent,
-            observed_tip,
-            staged: Vec::new(),
-            expected_bytes: BTreeMap::new(),
-            snapshots: BTreeMap::new(),
-            committed: false,
-            seed,
-            _locks: locks,
-            proof,
-        })
+            locks,
+        )
     }
 
     /// The ownership evidence for this write.
@@ -1021,7 +1018,14 @@ impl<'a> CoordTransaction<'a> {
         Ok(target)
     }
 
-    /// Stage a path the caller wrote out of band (no rollback snapshot).
+    /// Stage a path the caller wrote out of band.
+    ///
+    /// **Contract:** this stages bytes the transaction never observed,
+    /// snapshotted, or wrote, so an abort/`NotLanded` restores nothing for it and
+    /// the commit carries only the pinned parent (not pinned bytes for this
+    /// path). The caller owns the file. [`Self::write_artifact`] is the owned
+    /// path: it confirms, snapshots and pins the bytes. Upstream's `stage_path`
+    /// has the same contract, so this is parity rather than an ownership claim.
     pub fn stage_path(&mut self, path: &Path) -> Result<(), WorkspaceError> {
         let git_path = sk_git::normalize_safe_commit_path(&self.worktree_root, path)?;
         if !path.exists() {
@@ -1049,15 +1053,16 @@ impl<'a> CoordTransaction<'a> {
     /// Consumes the transaction: the journals, locks, and any rollback are then
     /// resolved exactly once.
     pub fn commit(mut self, message: &str) -> Result<CoordReceipt, WorkspaceError> {
-        let outcome = self.commit_staged(message)?;
+        let report = self.commit_staged(message)?;
         self.committed = true;
         Ok(CoordReceipt {
-            outcome,
+            outcome: report.outcome,
             proof: self.proof.clone(),
             state_before: self.state_before,
             establishment: self.establishment,
             seed: self.seed.clone(),
             journal_path: self.journal.path().to_path_buf(),
+            journal_fault: report.journal_fault,
         })
     }
 
@@ -1084,7 +1089,29 @@ impl<'a> CoordTransaction<'a> {
         Ok(())
     }
 
-    fn commit_staged(&mut self, message: &str) -> Result<CoordCommitOutcome, WorkspaceError> {
+    /// Resolve this transaction's commit intent, recording a journal fault.
+    ///
+    /// A journal write is *reporting*, not the mutation. When the mutation's
+    /// outcome is already proven, a journal failure must not overwrite it: the
+    /// record stays pending (so recovery can still reconcile it) and the fault
+    /// is handed back to the caller as evidence.
+    fn resolve_intent(
+        &self,
+        phase: CoordPhase,
+        detail: Option<&str>,
+        candidate: Option<&Oid>,
+        fault: &mut Option<String>,
+    ) {
+        if let Err(error) = self
+            .journal
+            .resolve(&self.journal_intent, phase, detail, candidate)
+            && fault.is_none()
+        {
+            *fault = Some(error.to_string());
+        }
+    }
+
+    fn commit_staged(&mut self, message: &str) -> Result<CommitReport, WorkspaceError> {
         if self.staged.is_empty() {
             return Err(WorkspaceError::CoordRefused {
                 code: "COORD_EMPTY_CHANGESET",
@@ -1114,7 +1141,7 @@ impl<'a> CoordTransaction<'a> {
             }
         }
 
-        let intent = self.journal_intent.clone();
+        let mut fault: Option<String> = None;
         match self.repository.safe_commit(&request) {
             Ok(outcome) => {
                 let landed = LandedCommit {
@@ -1129,9 +1156,11 @@ impl<'a> CoordTransaction<'a> {
                     observed_tip: self.observed_tip.clone(),
                     index_repair: None,
                 };
-                self.journal
-                    .resolve(&intent, CoordPhase::Applied, None, Some(&landed.commit))?;
-                Ok(CoordCommitOutcome::Landed(landed))
+                self.resolve_intent(CoordPhase::Applied, None, Some(&landed.commit), &mut fault);
+                Ok(CommitReport {
+                    outcome: CoordCommitOutcome::Landed(landed),
+                    journal_fault: fault,
+                })
             }
             Err(GitError::SafeCommitNothingToCommit { detail, .. }) => {
                 let head = match self.repository.read_branch_tip(&self.destination)? {
@@ -1146,11 +1175,13 @@ impl<'a> CoordTransaction<'a> {
                         });
                     }
                 };
-                self.journal
-                    .resolve(&intent, CoordPhase::Applied, Some(&detail), None)?;
-                Ok(CoordCommitOutcome::NoOp {
-                    head,
-                    destination: self.destination.as_str().to_owned(),
+                self.resolve_intent(CoordPhase::Applied, Some(&detail), None, &mut fault);
+                Ok(CommitReport {
+                    outcome: CoordCommitOutcome::NoOp {
+                        head,
+                        destination: self.destination.as_str().to_owned(),
+                    },
+                    journal_fault: fault,
                 })
             }
             Err(GitError::SafeCommitLanded {
@@ -1172,13 +1203,16 @@ impl<'a> CoordTransaction<'a> {
                     observed_tip: self.observed_tip.clone(),
                     index_repair: Some(detail.clone()),
                 };
-                self.journal.resolve(
-                    &intent,
+                self.resolve_intent(
                     CoordPhase::Applied,
                     Some(&format!("landed with index repair required: {detail}")),
                     Some(&landed.commit),
-                )?;
-                Ok(CoordCommitOutcome::Landed(landed))
+                    &mut fault,
+                );
+                Ok(CommitReport {
+                    outcome: CoordCommitOutcome::Landed(landed),
+                    journal_fault: fault,
+                })
             }
             Err(GitError::SafeCommitAdvanceUnconfirmed {
                 candidate,
@@ -1200,33 +1234,38 @@ impl<'a> CoordTransaction<'a> {
                         observed_tip: self.observed_tip.clone(),
                         index_repair: Some(detail.clone()),
                     };
-                    self.journal.resolve(
-                        &intent,
+                    self.resolve_intent(
                         CoordPhase::Applied,
                         Some(&format!("advance confirmed by readback: {detail}")),
                         Some(&landed.commit),
-                    )?;
-                    return Ok(CoordCommitOutcome::Landed(landed));
+                        &mut fault,
+                    );
+                    return Ok(CommitReport {
+                        outcome: CoordCommitOutcome::Landed(landed),
+                        journal_fault: fault,
+                    });
                 }
                 if current == self.observed_tip {
                     // Nothing landed: the branch is exactly where it was. The
                     // artifacts this transaction wrote are restored from their
                     // snapshots, because the write they belong to did not happen.
-                    self.journal.resolve(
-                        &intent,
+                    self.resolve_intent(
                         CoordPhase::Abandoned,
                         Some(&detail),
                         Some(&candidate),
-                    )?;
+                        &mut fault,
+                    );
                     self.restore_snapshots();
-                    return Ok(CoordCommitOutcome::NotLanded {
-                        candidate,
-                        observed_tip: current,
-                        detail,
+                    return Ok(CommitReport {
+                        outcome: CoordCommitOutcome::NotLanded {
+                            candidate,
+                            observed_tip: current,
+                            detail,
+                        },
+                        journal_fault: fault,
                     });
                 }
-                self.journal.resolve(
-                    &intent,
+                self.resolve_intent(
                     CoordPhase::Indeterminate,
                     Some(&format!(
                         "advance unconfirmed; branch tip is {:?}, substrate reported {:?}: {detail}",
@@ -1234,22 +1273,35 @@ impl<'a> CoordTransaction<'a> {
                         observed_tip.as_ref().map(ToString::to_string)
                     )),
                     Some(&candidate),
-                )?;
-                Ok(CoordCommitOutcome::Indeterminate {
-                    candidate,
-                    observed_tip: current,
-                    detail,
+                    &mut fault,
+                );
+                Ok(CommitReport {
+                    outcome: CoordCommitOutcome::Indeterminate {
+                        candidate,
+                        observed_tip: current,
+                        detail,
+                    },
+                    journal_fault: fault,
                 })
             }
             Err(error) => {
-                self.journal.resolve(
-                    &intent,
+                self.resolve_intent(
                     CoordPhase::Abandoned,
                     Some(&error.to_string()),
                     None,
-                )?;
+                    &mut fault,
+                );
                 self.restore_snapshots();
-                Err(WorkspaceError::Git(error))
+                let error = WorkspaceError::Git(error);
+                match fault {
+                    Some(fault) => Err(WorkspaceError::CoordRefused {
+                        code: "COORD_COMMIT_FAILED_WITH_JOURNAL_FAULT",
+                        message: format!(
+                            "{error}; the coordination journal could not record the failed attempt either: {fault}"
+                        ),
+                    }),
+                    None => Err(error),
+                }
             }
         }
     }
@@ -1300,6 +1352,232 @@ impl Drop for CoordTransaction<'_> {
 // ---------------------------------------------------------------------------
 // Materialization and seeding
 // ---------------------------------------------------------------------------
+
+/// The branch and write checkout a coordination-routed mission mutates.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct CoordDestination {
+    /// The branch name to write (declared, or derived from the grammar).
+    pub branch_text: String,
+    /// The validated branch.
+    pub branch: BranchName,
+    /// The checkout the write lands in.
+    pub worktree: PathBuf,
+    /// `true` when `meta.json` lost the record and the canonical grammar
+    /// recovered the very branch that exists in Git.
+    pub derived: bool,
+}
+
+/// Resolve the coordination destination, recovering a lost `meta.json` record.
+///
+/// The reference never degrades a coordination-routed topology to the primary
+/// checkout merely because `coordination_branch` is missing: it derives the
+/// canonical name from the same naming grammar the mint used and, **only if
+/// that branch exists**, proceeds exactly as if it had been declared
+/// (`_derive_branch_for_undeclared`). When it does not exist the answer is a
+/// typed `COORD_BRANCH_UNDECLARED_AND_ABSENT` refusal, never a silent primary
+/// write and never a "deleted" data-loss label for a branch nobody ever made.
+pub(crate) fn coordination_destination(
+    workspace: &MissionWorkspace,
+    probe: &crate::workspace::CoordinationProbe,
+) -> Result<CoordDestination, WorkspaceError> {
+    let worktree = workspace
+        .coord_worktree_path()
+        .ok_or_else(|| WorkspaceError::CoordRefused {
+            code: "COORDINATION_WORKTREE_UNRESOLVED",
+            message: format!(
+                "mission {} routes through coordination but has no canonical worktree path",
+                workspace.slug()
+            ),
+        })?;
+    // `probe.branch` already carries the canonically DERIVED name when the
+    // record was lost, so a live derived branch is usable exactly like a
+    // declared one.
+    let Some(branch_text) = workspace
+        .coordination_branch()
+        .or_else(|| probe.branch.clone())
+    else {
+        return Err(WorkspaceError::CoordRefused {
+            code: "COORD_BRANCH_UNDECLARED_AND_ABSENT",
+            message: format!(
+                "mission {} stores coordination topology {} but records no coordination_branch, and the canonical branch does not exist; refusing to guess a coordination surface",
+                workspace.slug(),
+                workspace.topology().as_str()
+            ),
+        });
+    };
+    let branch = BranchName::parse(&branch_text)?;
+    if probe.state == CoordState::Deleted {
+        if probe.derived {
+            return Err(WorkspaceError::CoordRefused {
+                code: "COORD_BRANCH_UNDECLARED_AND_ABSENT",
+                message: format!(
+                    "mission {} records no coordination_branch, and the canonical branch {branch_text} does not exist in this repository or on any remote; refusing to guess a coordination surface",
+                    workspace.slug()
+                ),
+            });
+        }
+        return Err(WorkspaceError::CoordinationBranchDeleted {
+            mission: workspace.slug().to_owned(),
+            branch: branch_text,
+        });
+    }
+    Ok(CoordDestination {
+        branch_text,
+        branch,
+        worktree,
+        derived: probe.derived,
+    })
+}
+
+/// Materialize/seed the resolved coordination surface and mint the commit intent.
+///
+/// Called with the claim + Mission locks already held, by both
+/// [`CoordTransaction::acquire`] and [`bootstrap_coordination`], so the two
+/// paths cannot drift on ordering: a bootstrap mint therefore happens under the
+/// same authority as the writes that follow it.
+fn establish<'a>(
+    workspace: &'a MissionWorkspace,
+    operation: &str,
+    protected: ProtectedBranches,
+    destination: CoordDestination,
+    probe: crate::workspace::CoordinationProbe,
+    journal: CoordJournal,
+    locks: CoordLocks,
+) -> Result<CoordTransaction<'a>, WorkspaceError> {
+    let CoordDestination {
+        branch_text,
+        branch: destination_branch,
+        worktree: coord_root,
+        ..
+    } = destination;
+    let mut establishment = match probe.state {
+        CoordState::Materialized => CoordEstablishment::Reused,
+        _ => CoordEstablishment::Materialized,
+    };
+    let mut state_before = probe.state;
+
+    let materialized_root = match probe.state {
+        CoordState::Materialized => coord_root.clone(),
+        CoordState::Empty => {
+            // The canonical root exists and is registered on the declared
+            // branch, but its Mission directory is absent. The seed step
+            // below records its own intent.
+            if probe.worktree.is_none() {
+                return Err(WorkspaceError::CoordRefused {
+                    code: "COORDINATION_WORKTREE_UNREGISTERED",
+                    message: format!(
+                        "{} exists but Git does not register it on {}; refusing to seed a stray directory",
+                        coord_root.display(),
+                        branch_text
+                    ),
+                });
+            }
+            coord_root.clone()
+        }
+        CoordState::Unmaterialized => {
+            if let Some(stray) = probe.stray_directory.as_ref() {
+                // A directory at the canonical path that Git does not register
+                // is a husk of something else. Adopting it (the reference's
+                // path-only probe would seed into it) or deleting it are both
+                // wrong, and `git worktree add` would fail untyped.
+                return Err(WorkspaceError::CoordRefused {
+                    code: "COORDINATION_WORKTREE_STRAY_DIRECTORY",
+                    message: format!(
+                        "{} exists but Git does not register it on {branch_text}; refusing to adopt, seed or delete a directory this store did not create",
+                        stray.display()
+                    ),
+                });
+            }
+            if !probe.local_head {
+                return Err(WorkspaceError::CoordRefused {
+                    code: "COORDINATION_BRANCH_NOT_LOCAL",
+                    message: format!(
+                        "coordination branch {branch_text} resolves only on a remote; a remote-tracking branch cannot be attached as a local worktree"
+                    ),
+                });
+            }
+            let repository = workspace.workspace().repository().clone();
+            materialize_worktree(&repository, &branch_text, &coord_root, &journal, workspace)?;
+            state_before = CoordState::Unmaterialized;
+            establishment = CoordEstablishment::Materialized;
+            coord_root.clone()
+        }
+        CoordState::None | CoordState::Deleted => {
+            return Err(WorkspaceError::CoordinationBranchDeleted {
+                mission: workspace.slug().to_owned(),
+                branch: branch_text,
+            });
+        }
+    };
+
+    // The worktree is now registered, so the state is either Materialized
+    // (mission dir present) or Empty (a seed ticket).
+    let feature_dir = materialized_root
+        .join(crate::workspace::SPECS_DIR_NAME)
+        .join(workspace.coord_mission_dir_name());
+    let mut seed = None;
+    if !feature_dir.exists() {
+        seed = Some(seed_coordination_surface(
+            workspace,
+            &materialized_root,
+            &feature_dir,
+            &branch_text,
+            &protected,
+            &journal,
+            state_before,
+        )?);
+        establishment = CoordEstablishment::Seeded;
+    } else if establishment == CoordEstablishment::Materialized
+        && state_before == CoordState::Unmaterialized
+    {
+        // Materialization produced a full surface: nothing to seed.
+        establishment = CoordEstablishment::Noop;
+    }
+
+    let repository = sk_git::GitRepository::open(&materialized_root)?;
+    ensure_head_is_destination(&repository, &destination_branch, &materialized_root)?;
+    let observed_tip = repository.read_branch_tip(&destination_branch)?;
+    let proof = ownership_proof(
+        workspace,
+        TopologySurface::Coord,
+        &destination_branch,
+        &materialized_root,
+        &locks,
+        observed_tip.clone(),
+        &repository,
+    );
+    let intent = CoordRecord::intent(
+        CoordRecordKind::Commit,
+        workspace.slug(),
+        operation,
+        Some(destination_branch.as_str()),
+        Some(&materialized_root),
+        observed_tip.as_ref(),
+    );
+    journal.begin(intent.clone())?;
+    Ok(CoordTransaction {
+        workspace,
+        repository,
+        surface: TopologySurface::Coord,
+        state_before,
+        establishment,
+        worktree_root: materialized_root,
+        feature_dir,
+        destination: destination_branch,
+        operation: operation.to_owned(),
+        protected,
+        journal,
+        journal_intent: intent,
+        observed_tip,
+        staged: Vec::new(),
+        expected_bytes: BTreeMap::new(),
+        snapshots: BTreeMap::new(),
+        committed: false,
+        seed,
+        _locks: locks,
+        proof,
+    })
+}
 
 fn materialize_worktree(
     repository: &sk_git::GitRepository,
@@ -1352,7 +1630,44 @@ fn materialize_worktree(
     }
 }
 
+/// The append-only event logs the seed prefix-merges rather than overwrites.
+///
+/// These are the two files the reference treats as streams
+/// (`coord_seed._LOG_FILENAMES`): every other COORD-kind file is carried whole
+/// or kept from the coordination copy.
+const SEED_LOG_FILENAMES: [&str; 2] = ["status.events.jsonl", "decisions.events.jsonl"];
+
 /// Seed an empty coordination surface from the primary mission directory.
+///
+/// This is the reference's seed, not a byte copy:
+///
+/// 1. **Restore from the branch tip first.** Every COORD-kind file the
+///    coordination branch already carries is materialized into the worktree, so
+///    a post-fix `EMPTY` surface (the Mission directory was removed from an
+///    otherwise seeded worktree) is restored from committed content instead of
+///    being re-forked.
+/// 2. **Validate and prefix-merge the event logs.** Both logs are decoded
+///    strictly as UTF-8 (a non-UTF-8 byte is a pathful refusal, never a lossy
+///    re-encode), parsed as JSONL, each row must be an object carrying
+///    `event_id`, no `event_id` may repeat within one stream, and the root
+///    stream must be a *prefix extension* of the coordination stream. A fork is
+///    refused (`COORD_SEED_FORK_REFUSED`) naming the first divergent pair; a
+///    malformed or duplicate row is refused rather than silently dropped.
+/// 3. **Carry root-only non-log files**, keeping the coordination copy when both
+///    exist and differ (with a warning), never overwriting committed content.
+/// 4. **Commit every COORD-kind file now on disk** with the interop trailer
+///    (`Spec-Kitty-Coordination-Seed: <mission_id>`), then **restore the root
+///    checkout's single home**: an *untracked* root copy is removed only when
+///    the committed coordination content reproduces its bytes (proven
+///    duplicate). An untracked copy that differs is authored divergence — it is
+///    kept and named in the receipt's `preserved_root`. A staged-new or
+///    tracked-modified root copy is preserved and reported too, because
+///    discarding an operator's uncommitted bytes is not a recovery step this
+///    crate performs.
+/// 5. **Leave no authoritative husk.** Any failure — including a refused seed
+///    commit — removes the Mission directory this seed created, so
+///    [`MissionWorkspace::probe_coordination`] keeps answering `Empty` (a seed
+///    ticket) instead of `Materialized` over missing content.
 fn seed_coordination_surface(
     workspace: &MissionWorkspace,
     worktree_root: &Path,
@@ -1364,39 +1679,50 @@ fn seed_coordination_surface(
 ) -> Result<CoordSeedReceipt, WorkspaceError> {
     let repository = sk_git::GitRepository::open(worktree_root)?;
     let branch_name = BranchName::parse(branch)?;
+    let branch_ref =
+        sk_git::StartPoint::Ref(sk_git::RefName::parse(branch_name.as_ref_name().as_str())?);
     let observed_tip = repository.read_branch_tip(&branch_name)?;
+    let mission_dir_name = workspace.coord_mission_dir_name();
 
-    // Seed-safety: the branch may not already carry coordination-only commits
-    // this store cannot account for. Reading them at the tip needs a tree read
-    // `sk-git` does not expose, so the fail-closed answer is a refusal.
-    let exclusive = repository.unique_commits(&branch_name, &[], None)?;
-    if !exclusive.is_empty() {
-        let recorded = journal.recorded_seed_commits(branch)?;
-        let known_seed = match &observed_tip {
-            Some(tip) => recorded.iter().any(|commit| {
-                commit == tip || repository.is_ancestor(commit, tip).unwrap_or(false)
-            }),
-            None => false,
-        };
-        let code = if known_seed {
-            "COORD_SURFACE_RESTORE_REQUIRED"
-        } else {
-            "COORD_SEED_FORK_REFUSED"
-        };
-        return Err(WorkspaceError::CoordRefused {
-            code,
-            message: format!(
-                "coordination branch {branch} already carries {} coordination-only commit(s) but its worktree has no Mission directory; refusing to re-seed over committed coordination state (a branch-tip restore needs a tree read that sk-git does not expose)",
-                exclusive.len()
-            ),
-        });
+    // 1. Everything COORD-kind the branch tip already carries.
+    let mut restored_from_branch: Vec<String> = Vec::new();
+    let mut from_tip: BTreeMap<String, Vec<u8>> = BTreeMap::new();
+    if observed_tip.is_some() {
+        let prefix = git_path(&format!(
+            "{}/{mission_dir_name}",
+            crate::workspace::SPECS_DIR_NAME
+        ))?;
+        for path in repository.tree_paths_at(&branch_ref, Some(&prefix))? {
+            let Some(relative) = mission_relative(&path.display_lossy(), &mission_dir_name) else {
+                continue;
+            };
+            let lookup = format!(
+                "{}/{mission_dir_name}/{relative}",
+                crate::workspace::SPECS_DIR_NAME
+            );
+            let Some(kind) = kind_for_mission_file(&lookup, Some(&mission_dir_name)) else {
+                continue;
+            };
+            if !is_seedable_kind(kind) {
+                continue;
+            }
+            let bytes = repository
+                .read_blob_at_bounded(&branch_ref, &path, MAX_SEED_FILE_BYTES)?
+                .ok_or_else(|| WorkspaceError::CoordRefused {
+                    code: "COORD_SEED_TIP_UNREADABLE",
+                    message: format!(
+                        "{} is listed at {branch} but its blob could not be read; refusing to seed over content this store cannot reproduce",
+                        path.display_lossy()
+                    ),
+                })?;
+            from_tip.insert(relative.clone(), bytes);
+            restored_from_branch.push(relative);
+        }
     }
 
-    // Only COORD-partition artifacts are carried; PRIMARY planning artifacts
-    // stay in the primary checkout.
+    // 2/3. Root-checkout content, per partition and per stream.
     let source_dir = workspace.mission_dir().to_path_buf();
-    let mission_dir_name = workspace.canonical_mission_dir_name();
-    let mut carried: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut root_bytes: BTreeMap<String, Vec<u8>> = BTreeMap::new();
     for entry in walk_files(&source_dir)? {
         let relative =
             entry
@@ -1407,10 +1733,8 @@ fn seed_coordination_surface(
                 })?;
         let relative_text = to_posix(relative);
         let lookup = format!(
-            "{}/{}/{}",
-            crate::workspace::SPECS_DIR_NAME,
-            mission_dir_name,
-            relative_text
+            "{}/{mission_dir_name}/{relative_text}",
+            crate::workspace::SPECS_DIR_NAME
         );
         let Some(kind) = kind_for_mission_file(&lookup, Some(&mission_dir_name)) else {
             continue;
@@ -1418,9 +1742,72 @@ fn seed_coordination_surface(
         if !is_seedable_kind(kind) {
             continue;
         }
-        let bytes = sk_kernel::read_bounded(&entry, MAX_SEED_FILE_BYTES)?;
-        carried.push((relative_text, bytes));
+        root_bytes.insert(
+            relative_text,
+            sk_kernel::read_bounded(&entry, MAX_SEED_FILE_BYTES)?,
+        );
     }
+
+    let mut merged: BTreeMap<String, Vec<u8>> = from_tip.clone();
+    let mut seeded_paths: Vec<String> = Vec::new();
+    let mut warnings: Vec<String> = Vec::new();
+    for name in SEED_LOG_FILENAMES {
+        let root_text = match root_bytes.get(name) {
+            Some(bytes) => {
+                decode_seed_text(bytes, &source_dir.join(name), "root-checkout event log")?
+            }
+            None => String::new(),
+        };
+        let coord_text = match merged.get(name) {
+            Some(bytes) => {
+                decode_seed_text(bytes, &feature_dir.join(name), "coordination event log")?
+            }
+            None => String::new(),
+        };
+        let root_lines = non_blank_lines(&root_text);
+        let coord_lines = non_blank_lines(&coord_text);
+        let root_ids = event_ids_of(&root_lines, name, "root checkout")?;
+        let coord_ids = event_ids_of(&coord_lines, name, branch)?;
+        match classify_prefix(&root_ids, &coord_ids) {
+            PrefixVerdict::Nothing if coord_lines.is_empty() && root_lines.is_empty() => continue,
+            PrefixVerdict::Nothing => continue,
+            PrefixVerdict::CarryTail { tail_start } => {
+                let mut bytes = Vec::new();
+                for line in coord_lines.iter().chain(root_lines[tail_start..].iter()) {
+                    push_terminated_line(&mut bytes, line);
+                }
+                merged.insert(name.to_owned(), bytes);
+                seeded_paths.push(name.to_owned());
+            }
+            PrefixVerdict::Fork {
+                root: root_row,
+                coord: coord_row,
+            } => {
+                return Err(WorkspaceError::CoordRefused {
+                    code: "COORD_SEED_FORK_REFUSED",
+                    message: format!(
+                        "the root {name} and the {branch} copy have diverged (first divergence: root {root_row:?} vs coordination {coord_row:?}); refusing to fork the event log. Reconcile by hand (or keep the coordination log and re-open the root-only decisions), then retry"
+                    ),
+                });
+            }
+        }
+    }
+    for (relative, bytes) in &root_bytes {
+        if SEED_LOG_FILENAMES.contains(&relative.as_str()) {
+            continue;
+        }
+        if let Some(existing) = merged.get(relative) {
+            if existing != bytes {
+                warnings.push(format!(
+                    "{relative}: root and coordination copies differ; keeping the coordination copy"
+                ));
+            }
+            continue;
+        }
+        merged.insert(relative.clone(), bytes.clone());
+        seeded_paths.push(relative.clone());
+    }
+    seeded_paths.sort();
 
     let intent = CoordRecord::intent(
         CoordRecordKind::Seed,
@@ -1431,9 +1818,14 @@ fn seed_coordination_surface(
         observed_tip.as_ref(),
     );
     journal.begin(intent.clone())?;
+
     // The canonical Mission directory is the confinement root for every seeded
-    // file. `resolve_within` requires it to exist, so it is created here — after
-    // the intent is durable and while the locks are held.
+    // file, created only after the intent is durable and the locks are held.
+    let created_dir = !feature_dir.exists();
+    let mut guard = SeedDirGuard {
+        path: feature_dir.to_path_buf(),
+        remove_on_drop: created_dir,
+    };
     std::fs::create_dir_all(feature_dir).map_err(|source| {
         WorkspaceError::Kernel(sk_kernel::KernelError::Io {
             action: "create coordination Mission directory",
@@ -1441,19 +1833,14 @@ fn seed_coordination_surface(
             source,
         })
     })?;
-
-    let mut seeded_paths = Vec::new();
-    for (relative, bytes) in &carried {
+    let mut written: Vec<(String, Vec<u8>)> = Vec::new();
+    for (relative, bytes) in &merged {
         let target = sk_kernel::resolve_within(feature_dir, Path::new(relative))?;
         if target.exists() {
             // Never overwrite content that appeared between the probe and the
             // write: this is the one shape that would silently fork state.
-            journal.resolve(
-                &intent,
-                CoordPhase::Abandoned,
-                Some(&format!("{} appeared during seeding", target.display())),
-                None,
-            )?;
+            let detail = format!("{} appeared during seeding", target.display());
+            journal.resolve(&intent, CoordPhase::Abandoned, Some(&detail), None)?;
             return Err(WorkspaceError::CoordRefused {
                 code: "COORD_SEED_TARGET_EXISTS",
                 message: format!(
@@ -1470,25 +1857,26 @@ fn seed_coordination_surface(
                 create_parents: true,
             },
         )?;
-        seeded_paths.push(relative.clone());
+        written.push((relative.clone(), bytes.clone()));
     }
 
-    let landed = if carried.is_empty() {
+    // 4. Commit every COORD-kind file now on disk (they are all this seed's own
+    // writes: the directory did not exist before this call).
+    let mut fault: Option<String> = None;
+    let landed = if written.is_empty() {
         None
     } else {
-        let paths = carried
-            .iter()
-            .map(|(relative, _)| {
-                sk_git::normalize_safe_commit_path(worktree_root, feature_dir.join(relative))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let expected = paths
-            .iter()
-            .zip(carried.iter())
-            .map(|(path, (_, bytes))| ExpectedBlob::new(path.clone(), bytes.clone()))
-            .collect::<Vec<_>>();
+        let mut paths = Vec::with_capacity(written.len());
+        let mut expected = Vec::with_capacity(written.len());
+        for (relative, bytes) in &written {
+            let path =
+                sk_git::normalize_safe_commit_path(worktree_root, feature_dir.join(relative))?;
+            expected.push(ExpectedBlob::new(path.clone(), bytes.clone()));
+            paths.push(path);
+        }
         let message = format!(
-            "chore(spec-kitty): seed coordination surface\n\n{COORD_SEED_TRAILER}: {}",
+            "chore({}): seed coordination surface\n\n{COORD_SEED_TRAILER}: {}",
+            workspace.slug(),
             workspace.mission_id()
         );
         let mut request = SafeCommitRequest::new(branch_name.clone(), message, paths.clone())
@@ -1511,36 +1899,389 @@ fn seed_coordination_surface(
                     observed_tip: observed_tip.clone(),
                     index_repair: None,
                 };
-                journal.resolve(&intent, CoordPhase::Applied, None, Some(&landed.commit))?;
+                if let Err(error) =
+                    journal.resolve(&intent, CoordPhase::Applied, None, Some(&landed.commit))
+                {
+                    fault = Some(error.to_string());
+                }
                 Some(landed)
             }
-            Err(error) => {
-                journal.resolve(
-                    &intent,
-                    CoordPhase::Abandoned,
-                    Some(&error.to_string()),
-                    None,
-                )?;
-                // The files we wrote were new; remove only those we created.
-                for (relative, _) in &carried {
-                    if let Ok(target) = sk_kernel::resolve_within(feature_dir, Path::new(relative))
-                    {
-                        let _ = std::fs::remove_file(target);
-                    }
+            Err(GitError::SafeCommitNothingToCommit { detail, .. }) => {
+                // The content is already durable at the tip: nothing to write,
+                // and the directory is authoritative.
+                warnings.push(format!("seed commit skipped: {detail}"));
+                if let Err(error) =
+                    journal.resolve(&intent, CoordPhase::Applied, Some(&detail), None)
+                {
+                    fault = Some(error.to_string());
                 }
-                return Err(WorkspaceError::Git(error));
+                None
+            }
+            Err(error) => {
+                let detail = error.to_string();
+                if let Err(journal_error) =
+                    journal.resolve(&intent, CoordPhase::Abandoned, Some(&detail), None)
+                {
+                    return Err(WorkspaceError::CoordRefused {
+                        code: "COORD_SEED_FAILED_WITH_JOURNAL_FAULT",
+                        message: format!(
+                            "the coordination seed commit failed ({detail}) and the coordination journal could not record the attempt either: {journal_error}"
+                        ),
+                    });
+                }
+                return Err(WorkspaceError::CoordRefused {
+                    code: "COORD_SEED_COMMIT_REFUSED",
+                    message: format!(
+                        "the coordination seed commit was refused on {branch}: {detail}. The Mission directory this seed wrote has been removed, so the surface still reads as EMPTY and a retry will seed again"
+                    ),
+                });
             }
         }
     };
-    if landed.is_none() {
-        journal.resolve(&intent, CoordPhase::Applied, Some("nothing to seed"), None)?;
+    if landed.is_none()
+        && written.is_empty()
+        && let Err(error) =
+            journal.resolve(&intent, CoordPhase::Applied, Some("nothing to seed"), None)
+    {
+        fault = Some(error.to_string());
     }
+    // The surface (or an intentionally empty Mission directory) is now the
+    // authoritative coordination home: keep it.
+    guard.remove_on_drop = false;
+
+    // 5. Restore the root checkout to a single home.
+    //
+    // Only a root copy whose bytes are *provably reproduced* by the durable
+    // coordination content is removed. A differing root copy is authored
+    // divergence: it is kept, named in `preserved_root`, and the coordination
+    // copy stays the committed one. The previous version passed every path the
+    // branch tip carried into this step, so an untracked root copy whose bytes
+    // differed from the tip (and were committed nowhere) was unlinked while the
+    // receipt simultaneously listed it as preserved.
+    let restore = restore_root_copies(
+        workspace,
+        &merged,
+        &seeded_paths,
+        &restored_from_branch,
+        &mut warnings,
+    );
+
     Ok(CoordSeedReceipt {
         worktree: worktree_root.to_path_buf(),
         branch: branch.to_owned(),
         seeded_paths,
+        restored_from_branch,
+        restored_root: restore.restored,
+        preserved_root: restore.preserved,
+        warnings,
         landed,
         state_before,
+        journal_fault: fault,
+    })
+}
+
+/// Remove a Mission directory this seed created when the seed did not complete.
+struct SeedDirGuard {
+    path: PathBuf,
+    remove_on_drop: bool,
+}
+
+impl Drop for SeedDirGuard {
+    fn drop(&mut self) {
+        if self.remove_on_drop {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+}
+
+/// The mission-relative remainder of a `kitty-specs/<dir>/<rel>` path.
+fn mission_relative(path: &str, mission_dir_name: &str) -> Option<String> {
+    let prefix = format!("{}/{mission_dir_name}/", crate::workspace::SPECS_DIR_NAME);
+    path.strip_prefix(&prefix).map(str::to_owned)
+}
+
+fn git_path(path: &str) -> Result<sk_git::GitPath, WorkspaceError> {
+    Ok(sk_git::GitPath::from_git_bytes(path.as_bytes())?)
+}
+
+/// Non-blank lines, byte-faithful (terminators retained, nothing stripped).
+fn non_blank_lines(text: &str) -> Vec<&str> {
+    text.split_inclusive('\n')
+        .filter(|line| !line.trim().is_empty())
+        .collect()
+}
+
+/// Append one line, guaranteeing exactly one row terminator.
+fn push_terminated_line(out: &mut Vec<u8>, line: &str) {
+    let trimmed = line.strip_suffix('\n').unwrap_or(line);
+    out.extend_from_slice(trimmed.as_bytes());
+    out.push(b'\n');
+}
+
+/// The `event_id` of every row, refusing a malformed or duplicate row.
+fn event_ids_of(lines: &[&str], filename: &str, side: &str) -> Result<Vec<String>, WorkspaceError> {
+    let mut ids: Vec<String> = Vec::with_capacity(lines.len());
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    for (index, line) in lines.iter().enumerate() {
+        let parsed: serde_json::Value =
+            serde_json::from_str(line).map_err(|error| WorkspaceError::CoordRefused {
+                code: "COORD_SEED_EVENT_LOG_MALFORMED",
+                message: format!(
+                    "coordination seed cannot classify the {side} {filename:?}: malformed event-log line {}: {line:?} ({error}). Repair the row by hand; it is never silently skipped",
+                    index + 1
+                ),
+            })?;
+        let Some(row) = parsed.as_object() else {
+            return Err(WorkspaceError::CoordRefused {
+                code: "COORD_SEED_EVENT_LOG_MALFORMED",
+                message: format!(
+                    "coordination seed cannot classify the {side} {filename:?}: line {} is not a JSON object: {line:?}",
+                    index + 1
+                ),
+            });
+        };
+        let Some(event_id) = row.get("event_id") else {
+            return Err(WorkspaceError::CoordRefused {
+                code: "COORD_SEED_EVENT_LOG_MALFORMED",
+                message: format!(
+                    "coordination seed cannot classify the {side} {filename:?}: line {} has no event_id: {line:?}",
+                    index + 1
+                ),
+            });
+        };
+        let event_id = match event_id {
+            serde_json::Value::String(value) => value.clone(),
+            other => json_scalar_text(other),
+        };
+        if !seen.insert(event_id.clone()) {
+            return Err(WorkspaceError::CoordRefused {
+                code: "COORD_SEED_DUPLICATE_EVENT_ID",
+                message: format!(
+                    "coordination seed cannot classify the {side} {filename:?}: duplicate event_id within one log stream: {event_id:?}"
+                ),
+            });
+        }
+        ids.push(event_id);
+    }
+    Ok(ids)
+}
+
+/// The Python `str()` of a JSON scalar (`event_prefix` does `str(payload["event_id"])`).
+fn json_scalar_text(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Null => "None".to_owned(),
+        serde_json::Value::Bool(true) => "True".to_owned(),
+        serde_json::Value::Bool(false) => "False".to_owned(),
+        serde_json::Value::Number(number) => number.to_string(),
+        serde_json::Value::String(text) => text.clone(),
+        other => other.to_string(),
+    }
+}
+
+/// The prefix/fork classification of two event-id streams.
+enum PrefixVerdict {
+    /// The coordination stream is a proper prefix: carry the root tail.
+    CarryTail { tail_start: usize },
+    /// The root stream is a prefix of the coordination stream: carry nothing.
+    Nothing,
+    /// Neither is a prefix of the other.
+    Fork {
+        root: Option<String>,
+        coord: Option<String>,
+    },
+}
+
+fn classify_prefix(root: &[String], coord: &[String]) -> PrefixVerdict {
+    if coord.len() <= root.len() && root[..coord.len()] == *coord {
+        if coord.len() >= root.len() {
+            return PrefixVerdict::Nothing;
+        }
+        return PrefixVerdict::CarryTail {
+            tail_start: coord.len(),
+        };
+    }
+    if root.len() <= coord.len() && coord[..root.len()] == *root {
+        return PrefixVerdict::Nothing;
+    }
+    let shortest = root.len().min(coord.len());
+    let first = (0..shortest)
+        .find(|index| root[*index] != coord[*index])
+        .unwrap_or(shortest);
+    PrefixVerdict::Fork {
+        root: root.get(first).cloned(),
+        coord: coord.get(first).cloned(),
+    }
+}
+
+/// Remove the root-checkout copies of every path now committed once.
+///
+/// The decision is per path and source-backed:
+///
+/// * an **untracked** root copy is removed only when the durable coordination
+///   content *reproduces* its bytes — the bytes are then a proven duplicate, so
+///   deleting the second home loses nothing. For a non-log file that means byte
+///   equality with the committed coordination copy; for an event log it means
+///   every root row is present, in order, in the committed log (`carried` tail
+///   or an already-committed prefix);
+/// * an untracked root copy that *differs* from the committed coordination copy
+///   is **authored divergence** — it is kept and named in `preserved_root`,
+///   never deleted. This is the reference's `merge.carried` rule in its safe
+///   direction: upstream deletes only what the seed itself carried, and it keeps
+///   a refused/unchanged seed's root copy;
+/// * a staged-new or tracked-modified copy is preserved and reported: the
+///   reference discards those with `git restore --staged` / `git checkout --`,
+///   which this crate will not do to an operator's uncommitted bytes;
+/// * a tracked *clean* copy is left alone, exactly like the reference (pre-fix
+///   history stays untouched).
+struct RootRestoreOutcome {
+    /// Repository-relative paths whose second home was removed.
+    restored: Vec<String>,
+    /// Mission-relative paths whose root copy was kept, with its reason in
+    /// `warnings`.
+    preserved: Vec<String>,
+}
+
+fn restore_root_copies(
+    workspace: &MissionWorkspace,
+    durable: &BTreeMap<String, Vec<u8>>,
+    seeded: &[String],
+    restored_from_branch: &[String],
+    warnings: &mut Vec<String>,
+) -> RootRestoreOutcome {
+    let mut outcome = RootRestoreOutcome {
+        restored: Vec::new(),
+        preserved: Vec::new(),
+    };
+    let primary_root = workspace.workspace().primary_root().to_path_buf();
+    let Ok(repository) = sk_git::GitRepository::open(&primary_root) else {
+        warnings.push("root restore skipped: the primary checkout could not be opened".to_owned());
+        return outcome;
+    };
+    let statuses = repository
+        .status_with(&sk_git::StatusOptions {
+            untracked: sk_git::UntrackedMode::All,
+            ignored: false,
+        })
+        .unwrap_or_default();
+    // Match the directory that actually holds the mission. `canonical_mission_dir_name()`
+    // is the *composed* `<slug>-<mid8>` name, which need not be the name on
+    // disk (a pre-083 mission keeps `<slug>`), and `git status` reports the
+    // on-disk path. Using the composed name here silently mis-classified every
+    // root copy as `clean`, so an untracked copy was never removed.
+    let mission_dir_relative = workspace
+        .mission_dir()
+        .strip_prefix(&primary_root)
+        .map(to_posix)
+        .ok()
+        .or_else(|| {
+            workspace.mission_dir().file_name().map(|name| {
+                format!(
+                    "{}/{}",
+                    crate::workspace::SPECS_DIR_NAME,
+                    name.to_string_lossy()
+                )
+            })
+        })
+        .unwrap_or_else(|| workspace.canonical_mission_dir_name());
+    let mut paths: Vec<&String> = seeded.iter().chain(restored_from_branch.iter()).collect();
+    paths.sort();
+    paths.dedup();
+    for relative in paths {
+        let root_path = workspace.mission_dir().join(relative);
+        let Ok(root_bytes) = std::fs::read(&root_path) else {
+            continue;
+        };
+        let repo_relative = format!("{mission_dir_relative}/{relative}");
+        let mut state = "clean";
+        for entry in &statuses {
+            if entry.path().display_lossy() == repo_relative {
+                state = if entry.is_untracked() {
+                    "untracked"
+                } else if entry.index() == 'A' {
+                    "staged_new"
+                } else {
+                    "dirty"
+                };
+                break;
+            }
+        }
+        match state {
+            "untracked" => {
+                if root_copy_is_reproduced(relative, &root_bytes, durable) {
+                    if std::fs::remove_file(&root_path).is_ok() {
+                        outcome.restored.push(repo_relative);
+                    }
+                } else {
+                    warnings.push(format!(
+                        "{relative}: the root copy differs from the committed coordination copy; keeping the root copy (authored divergence), the coordination copy stays the committed one"
+                    ));
+                    outcome.preserved.push(relative.clone());
+                }
+            }
+            "staged_new" | "dirty" => {
+                warnings.push(format!(
+                    "{relative}: the root copy is {state}; keeping it rather than discarding uncommitted bytes (the coordination copy is committed)"
+                ));
+                outcome.preserved.push(relative.clone());
+            }
+            _ => {}
+        }
+    }
+    outcome
+}
+
+/// Does the durable coordination content reproduce this root copy's bytes?
+///
+/// A non-log file must match byte-for-byte. An event log is reproduced when
+/// every root row also appears, in the same order, in the committed log: the
+/// seed either carried that tail itself or the root stream is an
+/// already-committed prefix of it, so the root rows are recoverable from the
+/// coordination copy.
+fn root_copy_is_reproduced(
+    relative: &str,
+    root_bytes: &[u8],
+    durable: &BTreeMap<String, Vec<u8>>,
+) -> bool {
+    let Some(coord_bytes) = durable.get(relative) else {
+        return false;
+    };
+    if root_bytes == coord_bytes.as_slice() {
+        return true;
+    }
+    if !SEED_LOG_FILENAMES.contains(&relative) {
+        return false;
+    }
+    let (Ok(root_text), Ok(coord_text)) = (
+        std::str::from_utf8(root_bytes),
+        std::str::from_utf8(coord_bytes),
+    ) else {
+        return false;
+    };
+    let root_rows = non_blank_lines(root_text);
+    let coord_rows = non_blank_lines(coord_text);
+    root_rows.len() <= coord_rows.len()
+        && root_rows
+            .iter()
+            .zip(coord_rows.iter())
+            .all(|(root, coord)| root.trim_end() == coord.trim_end())
+}
+
+/// Decode one seed input as UTF-8, naming the exact path on failure.
+///
+/// The reference opens both event logs with `encoding="utf-8"`, so a non-UTF-8
+/// byte raises; decoding lossily and re-encoding would silently rewrite the
+/// operator's bytes as U+FFFD in the coordination commit. Nothing is written
+/// when this refuses.
+fn decode_seed_text(bytes: &[u8], path: &Path, what: &str) -> Result<String, WorkspaceError> {
+    String::from_utf8(bytes.to_vec()).map_err(|error| {
+        let offset = error.utf8_error().valid_up_to();
+        WorkspaceError::CoordRefused {
+            code: "COORD_SEED_EVENT_LOG_NOT_UTF8",
+            message: format!(
+                "the {what} {} is not valid UTF-8 at byte {offset}: {error}; the reference opens it with encoding='utf-8' and would raise, and a lossy decode would rewrite authored bytes. Repair the file by hand; nothing was written",
+                path.display()
+            ),
+        }
     })
 }
 
@@ -1662,7 +2403,7 @@ fn ownership_proof(
         observed_tip,
         checkout_claim_lock: locks.claim.path().to_path_buf(),
         mission_lock_key: locks.mission.key().to_owned(),
-        mission_lock_path: locks.mission.derived_path().map(Path::to_path_buf),
+        mission_lock_path: locks.mission.path().map(Path::to_path_buf),
         mission_lock_holder: locks.mission.holder().cloned(),
     }
 }
@@ -1695,126 +2436,621 @@ fn is_nested_worktrees_path(worktree_root: &Path, target: &Path) -> bool {
 /// The result of bootstrapping a coordination surface for a created mission.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CoordBootstrapReceipt {
-    /// The declared coordination branch.
+    /// The declared (or canonically derived) coordination branch.
     pub branch: String,
     /// Was the branch minted by this call?
     pub branch_created: bool,
     /// The commit the branch was minted at (the target tip), when created.
     pub creation_base: Option<Oid>,
     /// The ownership evidence for the established surface.
-    pub proof: OwnershipProof,
+    ///
+    /// `None` when the create was **deferred**: the target branch does not
+    /// resolve, so there is no ref to mint from and the reference records a
+    /// `skipped_reason` instead of minting against nothing.
+    pub proof: Option<OwnershipProof>,
     /// The seed operation, when the surface was empty and got seeded.
     pub seed: Option<CoordSeedReceipt>,
-    /// The coordination state observed before bootstrapping.
-    pub state_before: CoordState,
+    /// The coordination state observed before the surface was established.
+    pub state_before: Option<CoordState>,
+    /// Why the branch was not materialized, when the create was deferred.
+    pub skipped_reason: Option<String>,
+    /// Evidence of a mint this call made and then rolled back (reported through
+    /// [`CoordBootstrapFailure`] when the call fails).
+    pub mint_rolled_back: Option<String>,
+    /// A journal fault recorded after the mint or the establishment was proven.
+    pub journal_fault: Option<String>,
+}
+
+impl CoordBootstrapReceipt {
+    /// Was this create deferred because the target branch does not resolve?
+    pub fn is_deferred(&self) -> bool {
+        self.skipped_reason.is_some()
+    }
 }
 
 /// Mint-or-validate the coordination branch and establish its write surface.
 ///
 /// This is the workspace-owned half of `mission create` for a coordination
 /// topology: the mission manifest and scaffold already exist, and this call makes
-/// the coordination branch and worktree real before any bookkeeping write. It is
-/// journaled, takes the canonical claim + Mission locks, and refuses rather than
-/// guessing when the branch history is not provably this mission's own.
+/// the coordination branch and worktree real before any bookkeeping write.
 ///
-/// * an absent branch is created at the target tip (`branch_created = true`);
-/// * a branch at or behind the target is reused as-is;
-/// * a branch ahead of the target is reused only when a seed or integration
-///   commit this store recorded is reachable from its tip;
-/// * a diverged branch, or one carrying unaccounted coordination-only commits,
-///   is refused.
+/// # Order (this used to be wrong)
+///
+/// 1. resolve the destination (declared, or derived from the canonical grammar);
+/// 2. refuse a **protected** destination;
+/// 3. take the kernel **checkout-claim** lock, then the canonical **Mission**
+///    lock;
+/// 4. journal a `Mint` intent and only then mint (or validate) the branch;
+/// 5. materialize/seed through the same [`establish`] the write path uses;
+/// 6. seal the establishment.
+///
+/// Before this order, the branch was minted **before** the locks and before the
+/// protection gate: a refused protected destination left a real branch behind,
+/// and the mint ran outside the lock authority the report claimed for it.
+///
+/// # Provenance rollback
+///
+/// A branch **this call minted** is rolled back when steps 5–6 fail, and only
+/// when provenance proves the rollback is safe: the branch must still sit at its
+/// creation base, or at a seed commit this store recorded whose own pinned parent
+/// was that base. The rollback is journaled as its own `Mint` record and the tip
+/// is preserved under `refs/spec-kitty/` before the branch is deleted, so no
+/// commit becomes unreachable. A branch that gained any other history is left in
+/// place and the failure names it.
+///
+/// # Deferred create
+///
+/// A target branch that does not resolve is **not** a hard refusal: the reference
+/// returns the canonical branch name with a `skipped_reason` and lets the first
+/// real use surface the missing target. This returns
+/// [`CoordBootstrapReceipt::is_deferred`] instead of minting against nothing.
 pub fn bootstrap_coordination(
     workspace: &MissionWorkspace,
     policy: &ProtectionPolicy,
 ) -> Result<CoordBootstrapReceipt, WorkspaceError> {
+    bootstrap_coordination_attempt(workspace, policy).map_err(WorkspaceError::from)
+}
+
+/// The failure of one bootstrap attempt, with the mint-rollback evidence.
+#[derive(Debug)]
+pub struct CoordBootstrapFailure {
+    /// The failure the caller must see.
+    ///
+    /// Boxed so the `Err` arm of [`bootstrap_coordination_attempt`] stays small.
+    pub error: Box<WorkspaceError>,
+    /// What happened to a branch this attempt minted, when it minted one.
+    pub mint_rolled_back: Option<String>,
+}
+
+impl std::fmt::Display for CoordBootstrapFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.mint_rolled_back {
+            Some(detail) => write!(formatter, "{} (mint rollback: {detail})", self.error),
+            None => write!(formatter, "{}", self.error),
+        }
+    }
+}
+
+impl From<CoordBootstrapFailure> for WorkspaceError {
+    fn from(failure: CoordBootstrapFailure) -> Self {
+        match failure.mint_rolled_back {
+            Some(rollback) => WorkspaceError::CoordBootstrapRolledBack {
+                error: failure.error,
+                rollback,
+            },
+            None => *failure.error,
+        }
+    }
+}
+
+/// [`bootstrap_coordination`], keeping the mint-rollback evidence on failure.
+pub fn bootstrap_coordination_attempt(
+    workspace: &MissionWorkspace,
+    policy: &ProtectionPolicy,
+) -> Result<CoordBootstrapReceipt, CoordBootstrapFailure> {
+    match bootstrap_inner(workspace, policy) {
+        Ok(receipt) => Ok(receipt),
+        Err(failure) => Err(*failure),
+    }
+}
+
+/// The failure of one bootstrap attempt, boxed so the `Err` arm stays small.
+type BootstrapResult<T> = Result<T, Box<CoordBootstrapFailure>>;
+
+/// Lift a Git failure into a bootstrap failure.
+fn lift<T>(result: Result<T, sk_git::GitError>) -> BootstrapResult<T> {
+    result.map_err(|error| {
+        Box::new(CoordBootstrapFailure {
+            error: Box::new(WorkspaceError::Git(error)),
+            mint_rolled_back: None,
+        })
+    })
+}
+
+fn bootstrap_inner(
+    workspace: &MissionWorkspace,
+    policy: &ProtectionPolicy,
+) -> BootstrapResult<CoordBootstrapReceipt> {
+    let fail = |error: WorkspaceError| {
+        Box::new(CoordBootstrapFailure {
+            error: Box::new(error),
+            mint_rolled_back: None,
+        })
+    };
     if !routes_through_coordination(workspace.topology()) {
-        return Err(WorkspaceError::CoordRefused {
+        return Err(fail(WorkspaceError::CoordRefused {
             code: "COORD_BOOTSTRAP_NOT_ROUTED",
             message: format!(
                 "mission {} stores topology {} which mints no coordination branch",
                 workspace.slug(),
                 workspace.topology().as_str()
             ),
-        });
+        }));
     }
-    let Some(branch_text) = workspace.coordination_branch() else {
-        return Err(WorkspaceError::CoordRefused {
-            code: "COORDINATION_BRANCH_UNDECLARED",
-            message: format!(
-                "mission {} stores a coordination-routing topology but records no coordination_branch",
-                workspace.slug()
-            ),
+
+    // The destination is resolved, and its protection checked, BEFORE any lock
+    // is taken and before anything is minted or written.
+    let probe = workspace.probe_coordination().map_err(fail)?;
+    // Unlike the write path, a create is expected to find the declared branch
+    // ABSENT: minting it is this call's job. Only a lost `meta.json` record is
+    // accepted as derived, and only while the canonical branch it names already
+    // exists (a crash between the mint and the record write).
+    let destination = match workspace.coordination_branch() {
+        Some(branch_text) => {
+            let branch = lift(BranchName::parse(&branch_text))?;
+            let worktree = workspace.coord_worktree_path().ok_or_else(|| {
+                fail(WorkspaceError::CoordRefused {
+                    code: "COORDINATION_WORKTREE_UNRESOLVED",
+                    message: format!(
+                        "mission {} routes through coordination but has no canonical worktree path",
+                        workspace.slug()
+                    ),
+                })
+            })?;
+            CoordDestination {
+                branch_text,
+                branch,
+                worktree,
+                derived: false,
+            }
+        }
+        None => {
+            let derived_branch = crate::naming::coord_reconstruct_branch(
+                workspace.slug(),
+                workspace.identity().mid8(),
+            );
+            if probe.state == CoordState::Deleted {
+                // create has not minted yet: name the branch this call would
+                // mint, exactly like the reference's self-describing result.
+                return Ok(CoordBootstrapReceipt {
+                    branch: derived_branch,
+                    branch_created: false,
+                    creation_base: None,
+                    proof: None,
+                    seed: None,
+                    state_before: Some(probe.state),
+                    skipped_reason: Some(
+                        "coordination_branch is undeclared and the canonical branch does not exist"
+                            .to_owned(),
+                    ),
+                    mint_rolled_back: None,
+                    journal_fault: None,
+                });
+            }
+            let branch = lift(BranchName::parse(&derived_branch))?;
+            let worktree = workspace.coord_worktree_path().ok_or_else(|| {
+                fail(WorkspaceError::CoordRefused {
+                    code: "COORDINATION_WORKTREE_UNRESOLVED",
+                    message: format!(
+                        "mission {} routes through coordination but has no canonical worktree path",
+                        workspace.slug()
+                    ),
+                })
+            })?;
+            CoordDestination {
+                branch_text: derived_branch,
+                branch,
+                worktree,
+                derived: true,
+            }
+        }
+    };
+    let protected = policy.branch_set().map_err(fail)?;
+    ensure_unprotected(&destination.branch, &protected, "mission_create_bootstrap")
+        .map_err(fail)?;
+
+    let primary_root = workspace.workspace().primary_root().to_path_buf();
+    let common_dir = workspace.workspace().common_dir().to_path_buf();
+    let locks = CoordLocks::acquire(
+        &destination.worktree,
+        workspace.mission_dir(),
+        &primary_root,
+        &common_dir,
+        COORD_TRANSACTION_LOCK_TIMEOUT,
+    )
+    .map_err(fail)?;
+    let journal = CoordJournal::new(&common_dir, workspace.slug());
+    let repository = workspace.workspace().repository();
+
+    let target = lift(BranchName::parse(&workspace.target_branch().map_err(fail)?))?;
+    let Some(target_tip) = lift(repository.read_branch_tip(&target))? else {
+        // Deferred create: there is no ref to mint from. The reference records a
+        // `skipped_reason` and lets the first real use surface the missing
+        // target; nothing was mutated, so there is nothing to roll back.
+        return Ok(CoordBootstrapReceipt {
+            branch: destination.branch_text,
+            branch_created: false,
+            creation_base: None,
+            proof: None,
+            seed: None,
+            state_before: Some(probe.state),
+            skipped_reason: Some(format!(
+                "target_branch '{target}' does not resolve to a ref"
+            )),
+            mint_rolled_back: None,
+            journal_fault: None,
         });
     };
-    let branch = BranchName::parse(&branch_text)?;
-    let repository = workspace.workspace().repository();
-    let target = BranchName::parse(&workspace.target_branch()?)?;
-    let target_tip =
-        repository
-            .read_branch_tip(&target)?
-            .ok_or_else(|| WorkspaceError::CoordRefused {
-                code: "COORD_BOOTSTRAP_TARGET_MISSING",
-                message: format!(
-                    "target branch {target} does not resolve; refusing to mint a coordination branch from nothing"
-                ),
-            })?;
-    let journal = CoordJournal::new(workspace.workspace().common_dir(), workspace.slug());
+
+    // Journal the mint before the ref exists, like every other mutation.
+    let intent = CoordRecord::intent(
+        CoordRecordKind::Mint,
+        workspace.slug(),
+        "mint_coordination_branch",
+        Some(&destination.branch_text),
+        Some(&destination.worktree),
+        Some(&target_tip),
+    );
+    journal.begin(intent.clone()).map_err(fail)?;
 
     let mut branch_created = false;
     let mut creation_base = None;
-    match repository.read_branch_tip(&branch)? {
+    match lift(repository.read_branch_tip(&destination.branch))? {
         None => {
-            let plan = repository.plan_branch_creation(
-                &branch,
-                sk_git::StartPoint::Oid(target_tip.clone()),
-                "spec-kitty: mint mission coordination branch",
-            )?;
-            repository.apply_branch_creation(&plan)?;
+            let plan = repository
+                .plan_branch_creation(
+                    &destination.branch,
+                    sk_git::StartPoint::Oid(target_tip.clone()),
+                    "spec-kitty: mint mission coordination branch",
+                )
+                .map_err(|error| {
+                    let _ = journal.resolve(
+                        &intent,
+                        CoordPhase::Abandoned,
+                        Some(&error.to_string()),
+                        None,
+                    );
+                    fail(WorkspaceError::Git(error))
+                })?;
+            if let Err(error) = repository.apply_branch_creation(&plan) {
+                let _ = journal.resolve(
+                    &intent,
+                    CoordPhase::Abandoned,
+                    Some(&error.to_string()),
+                    None,
+                );
+                return Err(fail(WorkspaceError::Git(error)));
+            }
             branch_created = true;
             creation_base = Some(target_tip.clone());
         }
         Some(tip) => {
-            if tip == target_tip || repository.is_ancestor(&tip, &target_tip)? {
+            if tip == target_tip || lift(repository.is_ancestor(&tip, &target_tip))? {
                 // At or behind the target: reusable as-is.
-            } else if repository.is_ancestor(&target_tip, &tip)? {
+            } else if lift(repository.is_ancestor(&target_tip, &tip))? {
                 // Ahead of the target: only this store's own seed/integration
                 // commits make that provable. Anything else is unknown history.
-                let recorded = journal.recorded_seed_commits(&branch_text)?;
+                let recorded = journal
+                    .recorded_seed_commits(&destination.branch_text)
+                    .map_err(fail)?;
                 let accounted = recorded
                     .iter()
                     .any(|commit| repository.is_ancestor(commit, &tip).unwrap_or(false));
                 if !accounted {
-                    return Err(WorkspaceError::CoordRefused {
+                    let _ = journal.resolve(
+                        &intent,
+                        CoordPhase::Abandoned,
+                        Some("reused branch carries unaccounted history"),
+                        None,
+                    );
+                    return Err(fail(WorkspaceError::CoordRefused {
                         code: "COORDINATION_BRANCH_DIVERGED",
                         message: format!(
-                            "coordination branch {branch} is ahead of {target} at {tip} and this store records no seed or integration commit reachable from it; refusing to reuse unaccounted coordination history"
+                            "coordination branch {} is ahead of {target} at {tip} and this store records no seed or integration commit reachable from it; refusing to reuse unaccounted coordination history",
+                            destination.branch
                         ),
-                    });
+                    }));
                 }
             } else {
-                return Err(WorkspaceError::CoordRefused {
+                let _ = journal.resolve(
+                    &intent,
+                    CoordPhase::Abandoned,
+                    Some("reused branch diverged from the target"),
+                    None,
+                );
+                return Err(fail(WorkspaceError::CoordRefused {
                     code: "COORDINATION_BRANCH_DIVERGED",
                     message: format!(
-                        "coordination branch {branch} ({tip}) has diverged from target {target} ({target_tip}); refusing to re-fork or reuse it automatically"
+                        "coordination branch {} ({tip}) has diverged from target {target} ({target_tip}); refusing to re-fork or reuse it automatically",
+                        destination.branch
                     ),
-                });
+                }));
+            }
+        }
+    }
+    // The mint (when one ran) already happened; a journal fault here is
+    // reporting, so it is carried on the receipt and never inverts the mint.
+    let mut journal_fault = journal
+        .resolve(
+            &intent,
+            CoordPhase::Applied,
+            Some(if branch_created {
+                "minted at the target tip"
+            } else {
+                "reused an existing coordination branch"
+            }),
+            creation_base.as_ref(),
+        )
+        .err()
+        .map(|error| error.to_string());
+
+    // The state before establishment: a fresh mint had no worktree yet.
+    let state_before = if branch_created {
+        CoordState::Unmaterialized
+    } else {
+        probe.state
+    };
+    let receipt = match finish_bootstrap(
+        workspace,
+        protected,
+        destination,
+        journal,
+        locks,
+        state_before,
+    ) {
+        Ok(receipt) => receipt,
+        Err(error) => {
+            let rollback = rollback_mint(workspace, creation_base.clone(), branch_created);
+            return Err(Box::new(CoordBootstrapFailure {
+                error: Box::new(error),
+                mint_rolled_back: rollback,
+            }));
+        }
+    };
+    Ok(CoordBootstrapReceipt {
+        branch_created,
+        creation_base,
+        journal_fault: journal_fault.take(),
+        ..receipt
+    })
+}
+
+/// Re-probe, materialize/seed the surface, and seal the establishment intent.
+fn finish_bootstrap(
+    workspace: &MissionWorkspace,
+    protected: ProtectedBranches,
+    destination: CoordDestination,
+    journal: CoordJournal,
+    locks: CoordLocks,
+    state_before: CoordState,
+) -> Result<CoordBootstrapReceipt, WorkspaceError> {
+    let branch_text = destination.branch_text.clone();
+    // Re-probe under the locks: the mint just changed what Git reports.
+    let probe = workspace.probe_coordination()?;
+    let txn = establish(
+        workspace,
+        "mission_create_bootstrap",
+        protected,
+        destination,
+        probe,
+        journal,
+        locks,
+    )?;
+    let proof = txn.proof().clone();
+    let seed = txn.seed().cloned();
+    let mut journal_fault = txn
+        .seal("coordination surface established; no artifact commit was requested")
+        .err()
+        .map(|error| error.to_string());
+    if journal_fault.is_none()
+        && let Some(seed) = seed.as_ref()
+        && let Some(fault) = seed.journal_fault.clone()
+    {
+        journal_fault = Some(fault);
+    }
+    Ok(CoordBootstrapReceipt {
+        branch: branch_text,
+        branch_created: false,
+        creation_base: None,
+        proof: Some(proof),
+        seed,
+        state_before: Some(state_before),
+        skipped_reason: None,
+        mint_rolled_back: None,
+        journal_fault: journal_fault.take(),
+    })
+}
+
+/// Roll a branch this attempt minted back, using recorded provenance only.
+///
+/// The branch is deleted only when provenance proves that everything on it beyond
+/// the creation base is this store's own seed commit; the tip is preserved under
+/// a `refs/spec-kitty/` bookkeeping ref first, so no commit becomes unreachable,
+/// and the rollback is journaled as its own `Mint` record.
+fn rollback_mint(
+    workspace: &MissionWorkspace,
+    creation_base: Option<Oid>,
+    branch_created: bool,
+) -> Option<String> {
+    if !branch_created {
+        return None;
+    }
+    let branch_text = workspace.coordination_branch().unwrap_or_else(|| {
+        crate::naming::coord_reconstruct_branch(workspace.slug(), workspace.identity().mid8())
+    });
+    let branch = BranchName::parse(&branch_text).ok()?;
+    let repository = workspace.workspace().repository();
+    let tip = repository.read_branch_tip(&branch).ok().flatten();
+    let journal = CoordJournal::new(workspace.workspace().common_dir(), workspace.slug());
+    let seeds = journal
+        .recorded_seeds(&branch_text)
+        .ok()
+        .unwrap_or_default();
+    let rollback_intent = CoordRecord::intent(
+        CoordRecordKind::Mint,
+        workspace.slug(),
+        "rollback_coordination_branch_mint",
+        Some(&branch_text),
+        None,
+        tip.as_ref(),
+    );
+    let _ = journal.begin(rollback_intent.clone());
+    let finish = |detail: String, tip: Option<&Oid>| {
+        let _ = journal.resolve(&rollback_intent, CoordPhase::Abandoned, Some(&detail), tip);
+        detail
+    };
+
+    let Some(tip) = tip else {
+        return Some(finish(
+            "the minted branch no longer exists; nothing to roll back".to_owned(),
+            None,
+        ));
+    };
+    let own_seed = seeds.iter().any(|(commit, observed)| {
+        *commit == tip
+            && creation_base
+                .as_ref()
+                .is_some_and(|base| observed.as_ref() == Some(base))
+    });
+    if creation_base.as_ref() != Some(&tip) && !own_seed {
+        return Some(finish(
+            format!(
+                "left {} in place: it carries history this create cannot prove is its own (tip {tip})",
+                branch.as_str()
+            ),
+            Some(&tip),
+        ));
+    }
+
+    // A failed establishment may have materialized the coordination worktree on
+    // this very branch. A branch checked out in any worktree cannot be deleted,
+    // so remove a worktree this attempt created *first*, and only while it is
+    // provably clean and still on the minted tip. Re-taking the same claim +
+    // Mission locks the failed attempt used keeps a concurrent writer from
+    // adopting the checkout in between. Anything else leaves the branch (and the
+    // worktree) in place and says so.
+    let primary_root = workspace.workspace().primary_root().to_path_buf();
+    let common_dir = workspace.workspace().common_dir().to_path_buf();
+    let write_checkout = workspace
+        .coord_worktree_path()
+        .unwrap_or_else(|| primary_root.clone());
+    let _held = match CoordLocks::acquire(
+        &write_checkout,
+        workspace.mission_dir(),
+        &primary_root,
+        &common_dir,
+        COORD_TRANSACTION_LOCK_TIMEOUT,
+    ) {
+        Ok(locks) => locks,
+        Err(error) => {
+            return Some(finish(
+                format!(
+                    "left {} in place: could not re-take the claim and Mission locks for the rollback ({error})",
+                    branch.as_str()
+                ),
+                Some(&tip),
+            ));
+        }
+    };
+    if let Some(worktree) = workspace.coord_worktree_path() {
+        match repository.plan_worktree_removal(
+            &worktree,
+            Some(&tip),
+            Some(&branch),
+            sk_git::WorktreeDiscardPolicy::RefuseDirty,
+        ) {
+            Ok(plan) => {
+                if let Err(error) = repository.apply_worktree_removal(&plan) {
+                    return Some(finish(
+                        format!(
+                            "left {} in place: the coordination worktree at {} could not be removed ({error})",
+                            branch.as_str(),
+                            worktree.display()
+                        ),
+                        Some(&tip),
+                    ));
+                }
+            }
+            // Nothing was materialized before the failure: there is no checkout
+            // to release, and the branch can still be deleted below.
+            Err(GitError::WorktreeNotRegistered { .. }) => {}
+            Err(error) => {
+                return Some(finish(
+                    format!(
+                        "left {} in place: the coordination worktree at {} could not be proven removable ({error})",
+                        branch.as_str(),
+                        worktree.display()
+                    ),
+                    Some(&tip),
+                ));
             }
         }
     }
 
-    let txn = CoordTransaction::acquire(workspace, "mission_create_bootstrap", policy)?;
-    let state_before = txn.state_before();
-    let proof = txn.proof().clone();
-    let seed = txn.seed().cloned();
-    txn.seal("coordination surface established; no artifact commit was requested")?;
-    Ok(CoordBootstrapReceipt {
-        branch: branch_text,
-        branch_created,
-        creation_base,
-        proof,
-        seed,
-        state_before,
-    })
+    let Ok(preserve) = sk_git::RefName::parse(&format!(
+        "refs/spec-kitty/coord-rollback/{}-{}",
+        workspace.slug(),
+        workspace.identity().mid8()
+    )) else {
+        return Some(finish(
+            format!(
+                "left {} in place: no bookkeeping ref could be composed for its tip",
+                branch.as_str()
+            ),
+            Some(&tip),
+        ));
+    };
+    let options = sk_git::BranchDeletionOptions::default()
+        .preserve_tip_at(preserve)
+        .allow_unique_commits("rolling back a coordination branch this create minted");
+    // The destination was proven unprotected before the mint, so no protection
+    // override is needed (and none is granted here).
+    let protected = ProtectedBranches::default();
+    let plan = match repository.plan_branch_deletion(
+        &branch,
+        &protected,
+        creation_base.as_ref(),
+        options,
+        "spec-kitty: roll back a coordination branch a failed create minted",
+    ) {
+        Ok(plan) => plan,
+        Err(error) => {
+            return Some(finish(
+                format!(
+                    "left {} in place: the guarded deletion refused ({error})",
+                    branch.as_str()
+                ),
+                Some(&tip),
+            ));
+        }
+    };
+    match repository.apply_branch_deletion(&plan) {
+        Ok(outcome) => Some(finish(
+            format!(
+                "deleted {} ({}) after preserving its tip under a bookkeeping ref",
+                branch.as_str(),
+                outcome.tip()
+            ),
+            Some(&tip),
+        )),
+        Err(error) => Some(finish(
+            format!(
+                "left {} in place: the guarded deletion failed ({error})",
+                branch.as_str()
+            ),
+            Some(&tip),
+        )),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1861,17 +3097,54 @@ impl CoordRecoveryReport {
 
 /// Reconcile pending coordination records against observed Git state.
 ///
-/// * a recorded candidate that equals the branch tip → `Applied` (the commit
-///   exists; it is never undone);
-/// * an unchanged branch tip → `Abandoned` (nothing landed);
+/// # Reachability decides, not equality
+///
+/// * a recorded candidate that **is reachable from** the branch tip → `Applied`.
+///   Equality is only the special case: a seed or commit that landed and was then
+///   built on by another writer (the ordinary crash-then-continue shape) used to
+///   be a permanent conflict with no operator action that cleared it, because
+///   only `Integration` records were allowed to use ancestry. Every kind now
+///   decides by reachability;
+/// * a candidate that is *not* reachable and a branch tip unchanged from the
+///   recorded observation → `Abandoned` (nothing landed);
 /// * anything else → a conflict naming both tips, with nothing modified.
 ///
-/// Materialization intents are reconciled from the worktree registry and the
-/// Mission directory; a stray directory is reported, never deleted.
+/// The whole pass runs under the crate's claim + Mission locks on the mission's
+/// write checkout, and every tip, worktree registration and pending record is
+/// read after they are held. A verdict therefore cannot be invalidated by a
+/// writer that lands between the proof and the resolve (#R5).
+///
+/// Materialization and mint intents are reconciled from the worktree registry and
+/// the ref itself; a stray directory is reported, never deleted, and a stored
+/// candidate is never discarded.
+///
+/// `Indeterminate` records are terminal by design: this function repairs
+/// `Intent` records only, and it never rewrites an unresolved intent into a
+/// proven outcome it did not prove (see [`CoordJournal::begin`]).
 pub fn recover_interrupted(
     workspace: &MissionWorkspace,
 ) -> Result<CoordRecoveryReport, WorkspaceError> {
-    let journal = CoordJournal::new(workspace.workspace().common_dir(), workspace.slug());
+    let primary_root = workspace.workspace().primary_root().to_path_buf();
+    let common_dir = workspace.workspace().common_dir().to_path_buf();
+    // Recovery is a writer decision, so it takes the crate's one lock protocol
+    // (checkout claim, then canonical Mission lock) on the SAME checkout every
+    // transaction for this mission takes — the coordination worktree when the
+    // topology routes through it, otherwise the primary root. Without this, a
+    // concurrently landing writer could invalidate a verdict between the proof
+    // and the resolve, and the verdict would be stale rather than serialized.
+    let write_checkout = workspace
+        .coord_worktree_path()
+        .unwrap_or_else(|| primary_root.clone());
+    let _locks = CoordLocks::acquire(
+        &write_checkout,
+        workspace.mission_dir(),
+        &primary_root,
+        &common_dir,
+        COORD_TRANSACTION_LOCK_TIMEOUT,
+    )?;
+    // Every observation below is read *under* the hold: the pending set, the
+    // branch tips and the worktree registry.
+    let journal = CoordJournal::new(&common_dir, workspace.slug());
     let repository = workspace.workspace().repository().clone();
     let mut report = CoordRecoveryReport::default();
     for record in journal.pending()? {
@@ -1928,6 +3201,55 @@ pub fn recover_interrupted(
                     });
                 }
             }
+            CoordRecordKind::Mint => {
+                // The mutation is "the branch resolves at or behind the recorded
+                // mint base" (the candidate names it when the mint was recorded
+                // as applied, otherwise the observation). A reused branch that
+                // sits *behind* the target is a success, not a conflict: the
+                // postcondition is "the branch exists and carries no history
+                // the target does not", and an older tip satisfies it.
+                let observed = match record.observed_tip.as_deref() {
+                    Some(observed) => Some(Oid::parse(observed)?),
+                    None => None,
+                };
+                let present_at_or_behind_base = match (&tip, &observed) {
+                    (Some(tip), Some(observed)) => {
+                        tip == observed || repository.is_ancestor(tip, observed)?
+                    }
+                    _ => false,
+                };
+                if present_at_or_behind_base {
+                    report.repairs.push(CoordRecoveryRepair {
+                        kind: record.kind,
+                        operation: record.operation.clone(),
+                        phase: CoordPhase::Applied,
+                        detail: format!("{branch_text} exists at or behind the recorded mint base"),
+                    });
+                    journal.resolve(&record, CoordPhase::Applied, None, observed.as_ref())?;
+                } else if tip.is_none() {
+                    report.repairs.push(CoordRecoveryRepair {
+                        kind: record.kind,
+                        operation: record.operation.clone(),
+                        phase: CoordPhase::Abandoned,
+                        detail: format!("{branch_text} does not exist; the mint never landed"),
+                    });
+                    journal.resolve(
+                        &record,
+                        CoordPhase::Abandoned,
+                        Some("minted branch absent"),
+                        None,
+                    )?;
+                } else {
+                    report.conflicts.push(CoordRecoveryConflict {
+                        detail: format!(
+                            "cannot decide the mint of {branch_text}: the branch tip is {}, the recorded base was {}",
+                            tip.as_ref().map(ToString::to_string).unwrap_or_else(|| "<none>".to_owned()),
+                            record.observed_tip.as_deref().unwrap_or("<none>")
+                        ),
+                        record,
+                    });
+                }
+            }
             CoordRecordKind::Seed | CoordRecordKind::Commit | CoordRecordKind::Integration => {
                 let candidate = match record.candidate_commit.as_deref() {
                     Some(candidate) => Some(Oid::parse(candidate)?),
@@ -1937,72 +3259,61 @@ pub fn recover_interrupted(
                     Some(observed) => Some(Oid::parse(observed)?),
                     None => None,
                 };
-                match (&candidate, &tip) {
-                    (Some(candidate), Some(tip)) if candidate == tip => {
-                        report.repairs.push(CoordRecoveryRepair {
-                            kind: record.kind,
-                            operation: record.operation.clone(),
-                            phase: CoordPhase::Applied,
-                            detail: format!("candidate {candidate} is the branch tip"),
-                        });
-                        journal.resolve(&record, CoordPhase::Applied, None, Some(candidate))?;
-                    }
-                    (Some(candidate), Some(tip))
-                        if record.kind == CoordRecordKind::Integration
-                            && repository.is_ancestor(candidate, tip)? =>
-                    {
-                        report.repairs.push(CoordRecoveryRepair {
-                            kind: record.kind,
-                            operation: record.operation.clone(),
-                            phase: CoordPhase::Applied,
-                            detail: format!("source {candidate} is reachable from {tip}"),
-                        });
-                        journal.resolve(&record, CoordPhase::Applied, None, Some(candidate))?;
-                    }
-                    (None, _) if tip == observed && candidate.is_none() => {
-                        report.repairs.push(CoordRecoveryRepair {
-                            kind: record.kind,
-                            operation: record.operation.clone(),
-                            phase: CoordPhase::Abandoned,
-                            detail: "no candidate was recorded and the branch did not move"
-                                .to_owned(),
-                        });
-                        journal.resolve(
-                            &record,
-                            CoordPhase::Abandoned,
-                            Some("no candidate and unchanged tip"),
-                            None,
-                        )?;
-                    }
-                    (_, tip) if *tip == observed => {
-                        report.repairs.push(CoordRecoveryRepair {
-                            kind: record.kind,
-                            operation: record.operation.clone(),
-                            phase: CoordPhase::Abandoned,
-                            detail: format!(
-                                "branch tip {} is unchanged from the recorded observation; the candidate never landed",
-                                tip.as_ref().map(ToString::to_string).unwrap_or_else(|| "<none>".to_owned())
-                            ),
-                        });
-                        journal.resolve(
-                            &record,
-                            CoordPhase::Abandoned,
-                            Some("branch tip unchanged"),
-                            candidate.as_ref(),
-                        )?;
-                    }
-                    _ => {
-                        report.conflicts.push(CoordRecoveryConflict {
-                            detail: format!(
-                                "cannot decide: branch {branch_text} tip is {}, the recorded observation was {}, the candidate was {}",
-                                tip.as_ref().map(ToString::to_string).unwrap_or_else(|| "<none>".to_owned()),
-                                record.observed_tip.as_deref().unwrap_or("<none>"),
-                                record.candidate_commit.as_deref().unwrap_or("<none>")
-                            ),
-                            record,
-                        });
-                    }
+                let reachable = match (&candidate, &tip) {
+                    (Some(candidate), Some(tip)) => repository.is_ancestor(candidate, tip)?,
+                    _ => false,
+                };
+                if let (Some(candidate), true) = (&candidate, reachable) {
+                    let detail = if Some(candidate) == tip.as_ref() {
+                        format!("candidate {candidate} is the branch tip")
+                    } else {
+                        format!(
+                            "candidate {candidate} landed and was built on; it is reachable from {}",
+                            tip.as_ref().map(ToString::to_string).unwrap_or_default()
+                        )
+                    };
+                    report.repairs.push(CoordRecoveryRepair {
+                        kind: record.kind,
+                        operation: record.operation.clone(),
+                        phase: CoordPhase::Applied,
+                        detail,
+                    });
+                    journal.resolve(&record, CoordPhase::Applied, None, Some(candidate))?;
+                    continue;
                 }
+                if tip == observed {
+                    let detail = match &candidate {
+                        Some(candidate) => format!(
+                            "branch tip {} is unchanged from the recorded observation; candidate {candidate} never landed",
+                            tip.as_ref()
+                                .map(ToString::to_string)
+                                .unwrap_or_else(|| "<none>".to_owned())
+                        ),
+                        None => "no candidate was recorded and the branch did not move".to_owned(),
+                    };
+                    report.repairs.push(CoordRecoveryRepair {
+                        kind: record.kind,
+                        operation: record.operation.clone(),
+                        phase: CoordPhase::Abandoned,
+                        detail,
+                    });
+                    journal.resolve(
+                        &record,
+                        CoordPhase::Abandoned,
+                        Some("branch tip unchanged"),
+                        candidate.as_ref(),
+                    )?;
+                    continue;
+                }
+                report.conflicts.push(CoordRecoveryConflict {
+                    detail: format!(
+                        "cannot decide: branch {branch_text} tip is {}, the recorded observation was {}, the candidate was {} and is not reachable from the tip",
+                        tip.as_ref().map(ToString::to_string).unwrap_or_else(|| "<none>".to_owned()),
+                        record.observed_tip.as_deref().unwrap_or("<none>"),
+                        record.candidate_commit.as_deref().unwrap_or("<none>")
+                    ),
+                    record,
+                });
             }
         }
     }

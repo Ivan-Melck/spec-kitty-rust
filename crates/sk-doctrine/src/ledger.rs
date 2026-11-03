@@ -162,6 +162,8 @@ pub struct ActivationLedger {
     pub deny: BTreeMap<ArtifactKind, Vec<String>>,
     /// Unknown `deactivated_<kind>` keys, kept verbatim on write.
     pub unknown_deny_keys: Vec<String>,
+    /// The unknown deny keys' values, so a round-trip never drops them.
+    pub unknown_deny_values: Vec<(String, Option<Vec<String>>)>,
     /// Legacy keys found beside the ledger (ignored; the ledger wins).
     pub stray_legacy_keys: Vec<(PathBuf, Vec<String>)>,
     /// Legacy `deactivated_<kind>` keys that were reported but not applied.
@@ -179,6 +181,7 @@ impl Default for ActivationLedger {
             allow: BTreeMap::new(),
             deny: BTreeMap::new(),
             unknown_deny_keys: Vec::new(),
+            unknown_deny_values: Vec::new(),
             stray_legacy_keys: Vec::new(),
             ignored_legacy_deny_keys: Vec::new(),
         }
@@ -220,6 +223,9 @@ impl ActivationLedger {
             {
                 raw.insert(key, Some(value.clone()));
             }
+        }
+        for (key, value) in &self.unknown_deny_values {
+            raw.insert(key.clone(), value.clone());
         }
         raw
     }
@@ -393,13 +399,16 @@ fn build_ledger(
 ) -> Result<ActivationLedger, DoctrineError> {
     let known = ledger_key_set();
     let mut unknown_deny_keys = Vec::new();
+    let mut unknown_deny_values: Vec<(String, Option<Vec<String>>)> = Vec::new();
     if strict {
         for key in document.keys() {
             if known.contains(&key) {
                 continue;
             }
             if key.starts_with(DENY_PREFIX) {
-                unknown_deny_keys.push(key);
+                let value = document.get_string_list(&key)?;
+                unknown_deny_keys.push(key.clone());
+                unknown_deny_values.push((key, value));
                 continue;
             }
             return Err(DoctrineError::UnknownLedgerKey {
@@ -440,6 +449,7 @@ fn build_ledger(
         allow,
         deny,
         unknown_deny_keys,
+        unknown_deny_values,
         stray_legacy_keys: Vec::new(),
         ignored_legacy_deny_keys,
     })
@@ -622,23 +632,7 @@ pub fn effective_deny(
     set
 }
 
-/// A pack that requires an artifact, so it cannot be deactivated.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RequiringPack {
-    /// Pack name.
-    pub pack: String,
-    /// The policy file or source that declared it.
-    pub source: String,
-    /// The `required_<plural>` key.
-    pub policy_key: String,
-}
-
-impl RequiringPack {
-    /// A stable description for diagnostics.
-    pub fn describe(&self) -> String {
-        format!("{} ({})", self.pack, self.source)
-    }
-}
+pub use crate::org_charter::RequiringPack;
 
 /// The one refusal seam for an org-required artifact.
 pub fn check_deactivation_permitted(
@@ -654,27 +648,23 @@ pub fn check_deactivation_permitted(
     }
     let kind_token = sk_charter::ArtifactKind::from_operator_token(kind)?;
     let policy_key = format!("required_{}", kind_token.plural());
-    let noun = if requiring.len() == 1 {
-        "org pack"
-    } else {
-        "org packs"
-    };
     let packs = requiring
         .iter()
         .map(RequiringPack::describe)
         .collect::<Vec<_>>()
         .join(", ");
-    let _ = noun;
-    Ok(()).and_then(|()| {
-        Err(DoctrineError::RequiredArtifact {
-            kind: kind.to_owned(),
-            artifact_id: artifact_id.to_owned(),
-            policy_key: policy_key.clone(),
-            requiring: packs,
-        })
+    let noun = if requiring.len() == 1 {
+        "org pack"
+    } else {
+        "org packs"
+    };
+    Err(DoctrineError::RequiredArtifact {
+        kind: kind.to_owned(),
+        artifact_id: artifact_id.to_owned(),
+        policy_key,
+        requiring: format!("{noun} {packs}"),
     })
 }
-
 /// The explicit choices that may change a deny-list.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DenyListChoice {
@@ -834,7 +824,7 @@ pub fn prepare_ledger_write(
     } else {
         after.to_text().into_bytes()
     };
-    PreparedWrite::prepare(&target, desired)
+    PreparedWrite::prepare(&target, desired).map(|write| write.with_synthesis_lock(repo_root))
 }
 
 fn is_stem_rename(added: &[String], removed: &[String]) -> bool {
@@ -934,6 +924,35 @@ mod tests {
         );
         let ledger = load_activation_ledger(root).unwrap();
         assert_eq!(ledger.unknown_deny_keys, vec!["deactivated_mystery"]);
+    }
+
+    #[test]
+    fn unknown_deny_keys_round_trip_through_raw() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        write(
+            &root.join(ACTIVATION_LEDGER_REL),
+            "deactivated_mystery: [x, y]\nactivated_directives: [001-arch]\n",
+        );
+        let ledger = load_activation_ledger(root).unwrap();
+        let raw = ledger.raw();
+        assert_eq!(
+            raw.get("deactivated_mystery"),
+            Some(&Some(vec!["x".to_owned(), "y".to_owned()]))
+        );
+        // A write through the seam keeps the unknown key's value intact.
+        let values = BTreeMap::from([("activated_tactics".to_owned(), Some(vec!["t".to_owned()]))]);
+        prepare_ledger_write(root, &values, &[], None)
+            .unwrap()
+            .apply(crate::yaml::DEFAULT_LOCK_TIMEOUT)
+            .unwrap();
+        let text = fs::read_to_string(root.join(ACTIVATION_LEDGER_REL)).unwrap();
+        assert!(text.contains("deactivated_mystery"));
+        let document = YamlDocument::parse(&text, &root.join(ACTIVATION_LEDGER_REL)).unwrap();
+        assert_eq!(
+            document.get_string_list("deactivated_mystery").unwrap(),
+            Some(vec!["x".to_owned(), "y".to_owned()])
+        );
     }
 
     #[test]
@@ -1067,8 +1086,7 @@ mod tests {
             "001-arch".to_owned(),
             vec![RequiringPack {
                 pack: "acme".to_owned(),
-                source: "org-charter.yaml".to_owned(),
-                policy_key: "required_directives".to_owned(),
+                via: None,
             }],
         )]);
         let error = check_deactivation_permitted("directive", "001-arch", &requiring).unwrap_err();

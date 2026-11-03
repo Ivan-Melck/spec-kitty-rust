@@ -131,22 +131,10 @@ impl SkillCatalog {
                     collect_skill_files(&directory, &path, &mut files)?;
                 }
             }
-            files.sort_by(|left, right| {
-                let rank = |path: &str| {
-                    if path == "SKILL.md" {
-                        0
-                    } else if path.starts_with("references/") {
-                        1
-                    } else if path.starts_with("scripts/") {
-                        2
-                    } else {
-                        3
-                    }
-                };
-                rank(&left.relative)
-                    .cmp(&rank(&right.relative))
-                    .then_with(|| left.relative.cmp(&right.relative))
-            });
+            // Upstream's install order is the alphabetical source path
+            // (`SKILL.md`, then `assets/`, `references/`, `scripts/`), which is
+            // also the order its manifest records.
+            files.sort_by(|left, right| left.relative.cmp(&right.relative));
             skills.push(CanonicalSkill { name, files });
         }
         Ok(Self {
@@ -541,13 +529,9 @@ impl ManagedSkillManifest {
             if comparable(&desired) == comparable(previous) {
                 return Ok(false);
             }
-        } else {
-            desired.entries.sort_by(|left, right| {
-                left.installed_path
-                    .cmp(&right.installed_path)
-                    .then_with(|| left.agent_key.cmp(&right.agent_key))
-            });
         }
+        // A first save keeps install order: upstream appends entries as it
+        // installs them (native agents, then shared agents per catalog file).
         let bytes = desired.to_bytes()?;
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
@@ -758,6 +742,22 @@ pub struct SkillInstallOptions {
     pub now: Option<String>,
     /// Replace a manifest-owned file whose bytes drifted (default false: report only).
     pub repair_drift: bool,
+    /// The running CLI version stamped into `spec_kitty_version`.
+    ///
+    /// Matches upstream: the field is only written by the native-root install
+    /// path. A shared-root-only selection leaves the manifest's field at its
+    /// default (empty), exactly like the pinned tool-surface repair does.
+    pub spec_kitty_version: Option<String>,
+}
+
+impl SkillInstallOptions {
+    /// Options stamped with the running CLI version.
+    pub fn with_version(version: impl Into<String>) -> Self {
+        Self {
+            spec_kitty_version: Some(version.into()),
+            ..Self::default()
+        }
+    }
 }
 
 /// What one agent install/repair did.
@@ -771,6 +771,8 @@ pub struct SkillInstallReport {
     pub drifted: Vec<String>,
     /// Paths preserved because they are unowned/unsafe.
     pub preserved: Vec<String>,
+    /// Non-fatal warnings for the CLI to render (skipped optional surfaces).
+    pub warnings: Vec<String>,
     /// Entries produced for the manifest.
     pub entries: Vec<ManagedFileEntry>,
 }
@@ -786,6 +788,13 @@ pub fn install_skills_for_agent(
 }
 
 /// Install the catalog for several agents, refreshing the shared manifest.
+///
+/// Native-root agents install every catalog file in catalog order; shared-root
+/// agents project the same catalog one file at a time across the selected
+/// agents, which is the entry order a fresh upstream init records. An already
+/// identical file is adopted, an owned drifted file is reported (and only
+/// replaced with [`SkillInstallOptions::repair_drift`]), and an unowned
+/// different file is a collision — never overwritten.
 pub fn install_skills_for_agents(
     project_root: &Path,
     agent_keys: &[String],
@@ -793,11 +802,39 @@ pub fn install_skills_for_agents(
     options: &SkillInstallOptions,
 ) -> Result<SkillInstallReport, InstallError> {
     let now = options.now.clone().unwrap_or_else(now_utc_iso);
-    let mut manifest = ManagedSkillManifest::load_strict(project_root)?
-        .unwrap_or_else(|| ManagedSkillManifest::new("unknown", &now));
+    let existing = ManagedSkillManifest::load_strict(project_root)?;
+    let manifest_existed = existing.is_some();
+    let mut manifest = existing.unwrap_or_else(|| ManagedSkillManifest::new("", &now));
+    // Upstream stamps `spec_kitty_version` only in the per-agent loop that
+    // installs native-class roots; a shared-root-only selection gets its
+    // manifest from tool-surface repair, whose entries leave the field empty.
+    // Preserve that provenance instead of stamping every selection.
+    let stamps_version = agent_keys.iter().any(|key| {
+        agent_surface(key).is_ok_and(|surface| {
+            surface.skill.class == SkillClass::NativeRootRequired
+                && surface.skill.primary_root().is_some()
+        })
+    });
+    if stamps_version && let Some(version) = &options.spec_kitty_version {
+        manifest.spec_kitty_version = version.clone();
+    }
+    let mut native_agents: Vec<&String> = Vec::new();
+    let mut shared_agents: Vec<&String> = Vec::new();
+    for key in agent_keys {
+        let surface = agent_surface(key)?;
+        match surface.skill.class {
+            SkillClass::NativeRootRequired if surface.skill.primary_root().is_some() => {
+                native_agents.push(key)
+            }
+            SkillClass::SharedRootCapable if surface.skill.primary_root().is_some() => {
+                shared_agents.push(key)
+            }
+            _ => {}
+        }
+    }
     let mut report = SkillInstallReport::default();
     let result = (|| -> Result<(), InstallError> {
-        for key in agent_keys {
+        for key in &native_agents {
             let surface = agent_surface(key)?;
             let Some(root) = surface.skill.primary_root() else {
                 continue;
@@ -806,55 +843,42 @@ pub fn install_skills_for_agents(
             for skill in catalog.skills() {
                 for file in &skill.files {
                     let installed_path = format!("{}{}/{}", root, skill.name, file.relative);
-                    let destination = project_root.join(&installed_path);
-                    let (desired_bytes, expected_hash) = projected_bytes(file, &class)?;
-                    let owned = manifest
-                        .find(&installed_path)
-                        .filter(|entry| entry.agent_key == *key)
-                        .map(|entry| entry.content_hash.clone());
-                    match std::fs::symlink_metadata(&destination) {
-                        Ok(metadata) if metadata.file_type().is_file() => {
-                            let bytes = std::fs::read(&destination)
-                                .map_err(|error| InstallError::io("read", &destination, error))?;
-                            let hash = format!("sha256:{:x}", Sha256::digest(&bytes));
-                            if hash == expected_hash {
-                                report.adopted.push(installed_path.clone());
-                            } else if owned.as_deref() == Some(hash.as_str()) {
-                                if options.repair_drift {
-                                    write_bytes(&destination, &desired_bytes)?;
-                                    report.drifted.push(installed_path.clone());
-                                    report.written.push(installed_path.clone());
-                                } else {
-                                    report.drifted.push(installed_path.clone());
-                                    continue;
-                                }
-                            } else {
-                                return Err(InstallError::SkillCollision { path: destination });
-                            }
-                        }
-                        Ok(metadata) if metadata.file_type().is_symlink() => {
-                            return Err(InstallError::SkillCollision { path: destination });
-                        }
-                        Ok(_) => return Err(InstallError::SkillCollision { path: destination }),
-                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                            write_bytes(&destination, &desired_bytes)?;
-                            report.written.push(installed_path.clone());
-                        }
-                        Err(source) => {
-                            return Err(InstallError::io("inspect", &destination, source));
-                        }
-                    }
-                    let entry = ManagedFileEntry::copied(
+                    install_managed_file(
+                        project_root,
+                        &mut manifest,
+                        &mut report,
+                        key,
                         &skill.name,
-                        &file.relative,
                         &installed_path,
                         &class,
-                        key,
-                        &expected_hash,
+                        file,
                         &now,
-                    );
-                    manifest.add_entry(entry.clone());
-                    report.entries.push(entry);
+                        options.repair_drift,
+                    )?;
+                }
+            }
+        }
+        for skill in catalog.skills() {
+            for file in &skill.files {
+                for key in &shared_agents {
+                    let surface = agent_surface(key)?;
+                    let Some(root) = surface.skill.primary_root() else {
+                        continue;
+                    };
+                    let class = installation_class(surface);
+                    let installed_path = format!("{}{}/{}", root, skill.name, file.relative);
+                    install_managed_file(
+                        project_root,
+                        &mut manifest,
+                        &mut report,
+                        key,
+                        &skill.name,
+                        &installed_path,
+                        &class,
+                        file,
+                        &now,
+                        options.repair_drift,
+                    )?;
                 }
             }
         }
@@ -863,11 +887,102 @@ pub fn install_skills_for_agents(
     manifest.updated_at = now;
     // Persist ownership for every file written before a later collision or I/O
     // failure, so a retry adopts what landed instead of treating it as unowned
-    // operator content.
-    let saved = manifest.save(project_root);
+    // operator content. A brand-new manifest with no entries is not written: the
+    // pinned oracle creates no `skills-manifest.json` when every optional
+    // destination was skipped (for example a symlinked agent skill root).
+    let saved = if manifest_existed || !report.entries.is_empty() {
+        manifest.save(project_root).map(|_| ())
+    } else {
+        Ok(())
+    };
     result?;
     saved?;
     Ok(report)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn install_managed_file(
+    project_root: &Path,
+    manifest: &mut ManagedSkillManifest,
+    report: &mut SkillInstallReport,
+    key: &str,
+    skill_name: &str,
+    installed_path: &str,
+    class: &str,
+    file: &SkillFile,
+    now: &str,
+    repair_drift: bool,
+) -> Result<(), InstallError> {
+    // The installed path is catalog-derived, but the destination is still an
+    // untrusted path under the project root: resolve it with the same
+    // traversal/symlink-escape boundary the manifest-owned restores use, so a
+    // symlinked agent root cannot write outside the project.
+    //
+    // A refused optional destination is preserved and reported, not fatal: the
+    // pinned `init` skips a harness whose skill root is a symlink (it warns and
+    // installs the remaining agents), so aborting here would be a new refusal of
+    // a supported user layout. The strict refusal still applies to
+    // manifest-owned restores (`run_surface_repair`), where the manifest names
+    // the path and escaping it is a contract violation.
+    let destination = match managed_skill_destination(project_root, installed_path) {
+        Ok(destination) => destination,
+        Err(error) => {
+            report.warnings.push(format!(
+                "Skipped charter skill {installed_path} for {key}: {error}"
+            ));
+            report.preserved.push(installed_path.to_string());
+            return Ok(());
+        }
+    };
+    let (desired_bytes, expected_hash) = projected_bytes(file, class)?;
+    let owned = manifest
+        .find(installed_path)
+        .filter(|entry| entry.agent_key == key)
+        .map(|entry| entry.content_hash.clone());
+    match std::fs::symlink_metadata(&destination) {
+        Ok(metadata) if metadata.file_type().is_file() => {
+            let bytes = std::fs::read(&destination)
+                .map_err(|error| InstallError::io("read", &destination, error))?;
+            let hash = format!("sha256:{:x}", Sha256::digest(&bytes));
+            if hash == expected_hash {
+                report.adopted.push(installed_path.to_string());
+            } else if owned.as_deref() == Some(hash.as_str()) {
+                if repair_drift {
+                    write_bytes(&destination, &desired_bytes)?;
+                    report.drifted.push(installed_path.to_string());
+                    report.written.push(installed_path.to_string());
+                } else {
+                    report.drifted.push(installed_path.to_string());
+                    return Ok(());
+                }
+            } else {
+                return Err(InstallError::SkillCollision { path: destination });
+            }
+        }
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(InstallError::SkillCollision { path: destination });
+        }
+        Ok(_) => return Err(InstallError::SkillCollision { path: destination }),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            write_bytes(&destination, &desired_bytes)?;
+            report.written.push(installed_path.to_string());
+        }
+        Err(source) => {
+            return Err(InstallError::io("inspect", &destination, source));
+        }
+    }
+    let entry = ManagedFileEntry::copied(
+        skill_name,
+        &file.relative,
+        installed_path,
+        class,
+        key,
+        &expected_hash,
+        now,
+    );
+    manifest.add_entry(entry.clone());
+    report.entries.push(entry);
+    Ok(())
 }
 
 /// Restore absent native/shared skill files for `agent_keys` (additive only).
@@ -891,6 +1006,8 @@ pub struct SurfaceRepairSummary {
     pub preserved: Vec<String>,
     /// Manifest entries whose node is not a regular file.
     pub unusable: Vec<String>,
+    /// Non-fatal warnings for the CLI to render (skipped optional surfaces).
+    pub warnings: Vec<String>,
 }
 
 impl SurfaceRepairSummary {
@@ -922,7 +1039,21 @@ pub fn run_surface_repair(
         ) {
             continue;
         }
-        let destination = managed_skill_destination(project_root, &entry.installed_path)?;
+        let destination = match managed_skill_destination(project_root, &entry.installed_path) {
+            Ok(destination) => destination,
+            // The manifest owns this path, but the surrounding directory became
+            // an escaping symlink. Refuse the write and report it instead of
+            // failing the whole optional surface (upstream preserves it and
+            // warns); the manifest entry is left untouched for a later repair.
+            Err(error) => {
+                summary.warnings.push(format!(
+                    "Could not verify managed skill {}: {error}",
+                    entry.installed_path
+                ));
+                summary.preserved.push(entry.installed_path.clone());
+                continue;
+            }
+        };
         match std::fs::symlink_metadata(&destination) {
             Ok(metadata) if metadata.file_type().is_file() => {
                 let bytes = std::fs::read(&destination)
@@ -1064,6 +1195,7 @@ mod tests {
         let options = SkillInstallOptions {
             now: Some("2026-11-02T19:52:03.738333+00:00".to_string()),
             repair_drift: false,
+            spec_kitty_version: None,
         };
         let report = install_skills_for_agent(project.path(), "claude", &catalog, &options)
             .expect("install");
@@ -1088,6 +1220,47 @@ mod tests {
             .expect("install");
         assert_eq!(report.written.len(), 0);
         assert_eq!(report.adopted.len(), 3);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_agent_root_cannot_escape_the_project() {
+        use std::os::unix::fs::symlink;
+
+        let project = tempfile::tempdir().expect("temp");
+        let outside = tempfile::tempdir().expect("temp");
+        let source = tempfile::tempdir().expect("temp");
+        let catalog = catalog(source.path());
+        symlink(outside.path(), project.path().join(".claude")).expect("symlink");
+        // The optional catalog install is skipped with a warning (upstream
+        // refuses only this surface and continues), never written through the
+        // link, and a brand-new empty manifest is not created.
+        let report = install_skills_for_agent(
+            project.path(),
+            "claude",
+            &catalog,
+            &SkillInstallOptions::default(),
+        )
+        .expect("optional surface is skipped, not fatal");
+        assert!(report.written.is_empty());
+        assert_eq!(report.preserved.len(), 3);
+        assert!(
+            report
+                .warnings
+                .iter()
+                .all(|warning| warning.contains("resolves outside root")),
+            "warnings: {:?}",
+            report.warnings
+        );
+        assert!(report.entries.is_empty());
+        assert!(!project.path().join(SKILLS_MANIFEST_REL).exists());
+        assert!(
+            std::fs::read_dir(outside.path())
+                .expect("read outside")
+                .next()
+                .is_none(),
+            "nothing may be written outside the project root"
+        );
     }
 
     #[test]

@@ -240,6 +240,84 @@ impl MergeDriverWiringPlan {
     pub fn needs_git_config(&self) -> bool {
         self.git_checkout && !self.config_entries.is_empty()
     }
+
+    /// Install the plan's clone-local `merge.<key>.*` git-config values.
+    ///
+    /// The tracked `.gitattributes` half is inert without this, so init applies
+    /// both halves (upstream `_wire_merge_driver_best_effort`). A key that holds
+    /// an operator's own value is kept and reported, never overwritten. Outside
+    /// a plain checkout root nothing is written and the plan's reason is
+    /// returned, exactly as the read-only plan records it.
+    pub fn apply_git_config(&self) -> Result<MergeDriverWiringState, InstallError> {
+        let mut state = MergeDriverWiringState::default();
+        if !self.git_checkout {
+            state.skip_reason = self.git_skip_reason.clone();
+            return Ok(state);
+        }
+        for entry in &self.config_entries {
+            let current = crate::migrations::git::config_get(&self.project_root, &entry.key)?;
+            if current.as_deref() == Some(entry.value.as_str()) {
+                state.present.push(entry.key.clone());
+                continue;
+            }
+            if let Some(current) = &current
+                && !entry
+                    .accepted_previous
+                    .iter()
+                    .any(|accepted| accepted == current)
+            {
+                state.customized.push(MergeDriverCustomization {
+                    key: entry.key.clone(),
+                    value: current.clone(),
+                });
+                continue;
+            }
+            crate::migrations::git::config_set(&self.project_root, &entry.key, &entry.value)?;
+            state.installed.push(entry.key.clone());
+        }
+        Ok(state)
+    }
+}
+
+/// One operator-customized merge-driver config value kept as-is.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MergeDriverCustomization {
+    /// The `merge.<key>.<field>` config key.
+    pub key: String,
+    /// The operator's value.
+    pub value: String,
+}
+
+/// What applying a [`MergeDriverWiringPlan`] did.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct MergeDriverWiringState {
+    /// Config keys installed this run.
+    pub installed: Vec<String>,
+    /// Config keys already holding the shipped value.
+    pub present: Vec<String>,
+    /// Config keys left untouched because the operator owns the value.
+    pub customized: Vec<MergeDriverCustomization>,
+    /// Why the clone-local half was skipped, when it was.
+    pub skip_reason: Option<String>,
+}
+
+impl MergeDriverWiringState {
+    /// Whether anything changed.
+    pub fn changed(&self) -> bool {
+        !self.installed.is_empty()
+    }
+}
+
+/// Whether `command_program` resolves to a file on `PATH`.
+///
+/// The merge-driver config names `spec-kitty merge-driver-*`; a caller reports
+/// the wiring as *delivered* only, never as *functional*, unless that command
+/// can actually be resolved and implements the subcommand.
+pub fn command_on_path(command_program: &str) -> bool {
+    let Some(paths) = std::env::var_os("PATH") else {
+        return false;
+    };
+    std::env::split_paths(&paths).any(|directory| directory.join(command_program).is_file())
 }
 
 /// Ensure every seed attribute line is present, preserving all other content.

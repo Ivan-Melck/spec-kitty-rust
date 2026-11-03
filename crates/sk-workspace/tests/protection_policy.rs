@@ -238,3 +238,103 @@ fn a_hatch_value_is_matched_case_insensitively_but_not_trimmed() {
             .operator_hatch_active()
     );
 }
+
+// ---------------------------------------------------------------------------
+// YAML shapes the previous hand-written block scanner mis-read.
+//
+// Oracle: `ProtectionPolicy.resolve(root)` on the same documents under the
+// pinned reference (baseline `9aed3a8`) answers exactly the values asserted
+// here. The scanner silently fell through to the absent-key default for an
+// anchored/aliased/merged explicit list (a fail-open on the only thing this
+// module computes) and silently *accepted* multi-document and duplicate-key
+// documents the reference refuses.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn an_anchored_or_aliased_list_is_read_not_defaulted() {
+    let fixture = init_repo();
+    for body in [
+        "protection: &p\n  protected_branches: [release]\n",
+        "d: &d\n  protected_branches: [release]\nprotection: *d\n",
+        "base: &b\n  protected_branches: [release]\nprotection:\n  <<: *b\n",
+    ] {
+        write_config(fixture.root(), body);
+        let policy = ProtectionPolicy::resolve_with_hatch(fixture.root(), None).unwrap();
+        assert!(policy.is_protected("release"), "{body}");
+        assert!(!policy.is_protected("main"), "{body}");
+        assert!(!policy.is_protected("master"), "{body}");
+    }
+}
+
+#[test]
+fn a_multi_document_stream_is_refused_like_the_reference() {
+    let fixture = init_repo();
+    write_config(
+        fixture.root(),
+        "protection:\n  protected_branches: [release]\n---\nother: 1\n",
+    );
+    let error = ProtectionPolicy::resolve_with_hatch(fixture.root(), None).unwrap_err();
+    assert!(
+        matches!(error, WorkspaceError::ProtectionConfig { .. }),
+        "{error}"
+    );
+}
+
+#[test]
+fn duplicate_protection_keys_are_refused_like_the_reference() {
+    let fixture = init_repo();
+    for body in [
+        "protection:\n  protected_branches: [release]\nprotection:\n  protected_branches: [other]\n",
+        "protection:\n  protected_branches: [release]\n  protected_branches: [other]\n",
+    ] {
+        write_config(fixture.root(), body);
+        let error = ProtectionPolicy::resolve_with_hatch(fixture.root(), None).unwrap_err();
+        assert!(
+            matches!(error, WorkspaceError::ProtectionConfig { .. }),
+            "{body}: {error}"
+        );
+    }
+}
+
+#[test]
+fn scalar_items_keep_python_str_coercion() {
+    let fixture = init_repo();
+    // `str(b)` on the reference side: `yes` is a YAML 1.2 string.
+    write_config(
+        fixture.root(),
+        "protection:\n  protected_branches: [master, yes]\n",
+    );
+    let policy = ProtectionPolicy::resolve_with_hatch(fixture.root(), None).unwrap();
+    assert!(policy.is_protected("master"));
+    assert!(policy.is_protected("yes"));
+    assert!(!policy.is_protected("main"));
+}
+
+#[test]
+fn indentless_sequences_and_flow_comments_are_read() {
+    let fixture = init_repo();
+    for body in [
+        "protection:\n  protected_branches:\n  - release\n",
+        "protection:\n  protected_branches: [release] # comment\n",
+    ] {
+        write_config(fixture.root(), body);
+        let policy = ProtectionPolicy::resolve_with_hatch(fixture.root(), None).unwrap();
+        assert!(policy.is_protected("release"), "{body}");
+        assert!(!policy.is_protected("main"), "{body}");
+    }
+}
+
+#[test]
+fn a_non_mapping_or_nested_protection_block_is_the_absent_key_arm() {
+    let fixture = init_repo();
+    for body in [
+        "protection: yes\n",
+        "other:\n  protection:\n    protected_branches: [release]\n",
+    ] {
+        write_config(fixture.root(), body);
+        let policy = ProtectionPolicy::resolve_with_hatch(fixture.root(), None).unwrap();
+        assert!(policy.is_protected("main"), "{body}");
+        assert!(policy.is_protected("master"), "{body}");
+        assert!(!policy.is_protected("release"), "{body}");
+    }
+}

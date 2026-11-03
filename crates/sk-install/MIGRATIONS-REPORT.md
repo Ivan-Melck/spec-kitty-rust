@@ -1,5 +1,12 @@
 # Native upgrade migrations — tranche report
 
+> **Superseded by [`MIGRATIONS-CONTINUATION-REPORT.md`](MIGRATIONS-CONTINUATION-REPORT.md),
+> which records 46 of 136 native ids on top of `ff4452b02` and the runner
+> contracts (recorded `failed` rows, supersession stamping, record de-duplication)
+> this report predates.** Kept as the historical checkpoint record for the
+> `ab3e0fcc8` tranche; its unsupported-id list and dependency notes below are
+> accurate for that checkpoint only.
+
 **Status: 16 of 136 declared migrations execute natively; 120 remain unsupported and the full rewrite stays blocked.**
 
 Checkpoint `ab3e0fcc8`, pinned Python behavior `9aed3a8012cb5eb22c0128b14d525039f95fea7a`. This report covers only the migration tranche in `sk-install`; it is not a full-compatibility claim.

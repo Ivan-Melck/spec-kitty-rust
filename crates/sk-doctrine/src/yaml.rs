@@ -21,7 +21,7 @@ use serde_yaml_ng::Value as SerdeValue;
 use yaml_edit::{Document, YamlValue};
 
 use crate::error::DoctrineError;
-use crate::lock::{FileLock, lock_path_for};
+use crate::lock::{FileLock, acquire_synthesis_lock, lock_path_for};
 
 /// The default bounded wait for a mutation lock.
 pub const DEFAULT_LOCK_TIMEOUT: Duration = Duration::from_secs(10);
@@ -308,6 +308,22 @@ pub fn ensure_mapping(value: &SerdeValue, path: &Path) -> Result<(), DoctrineErr
     }
 }
 
+/// Which lock family guards a prepared write.
+///
+/// The activation authority (and every `charter.yaml` write the activation
+/// transaction performs) must use [`LockScope::Synthesis`], the canonical
+/// cross-language lock Python's `charter activate` holds. A private sidecar
+/// there would let a Python process and a native process interleave their
+/// read-modify-write of the same file.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum LockScope {
+    /// A conventional `<target>.lock` sidecar (no cross-language writer).
+    #[default]
+    Sidecar,
+    /// The run-wide charter synthesis lock, keyed on a repository root.
+    Synthesis,
+}
+
 /// A prepared, rollback-safe YAML write.
 #[derive(Clone, Debug)]
 pub struct PreparedWrite {
@@ -315,6 +331,34 @@ pub struct PreparedWrite {
     before: Option<Vec<u8>>,
     desired: Vec<u8>,
     mode: u32,
+    lock_scope: LockScope,
+    repo_root: Option<PathBuf>,
+}
+
+/// Observe a YAML target's exact bytes without following a final symlink.
+///
+/// `None` means the file does not exist. This is the plan-time observation an
+/// activation transaction carries to commit, so a write that lost a race is
+/// refused instead of overwriting the winner.
+pub fn observe(target: &Path) -> Result<Option<Vec<u8>>, DoctrineError> {
+    match fs::symlink_metadata(target) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() || !metadata.is_file() {
+                return Err(DoctrineError::UnsafeYamlTarget {
+                    path: target.to_path_buf(),
+                });
+            }
+            fs::read(target)
+                .map(Some)
+                .map_err(|source| DoctrineError::io("read YAML observation", target, source))
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(source) => Err(DoctrineError::io(
+            "inspect YAML observation",
+            target,
+            source,
+        )),
+    }
 }
 
 /// The outcome of applying a prepared write.
@@ -359,12 +403,36 @@ impl PreparedWrite {
             before,
             desired,
             mode,
+            lock_scope: LockScope::Sidecar,
+            repo_root: None,
         })
+    }
+
+    /// Guard this write with the run-wide charter synthesis lock of `repo_root`.
+    pub fn with_synthesis_lock(mut self, repo_root: &Path) -> Self {
+        self.lock_scope = LockScope::Synthesis;
+        self.repo_root = Some(repo_root.to_path_buf());
+        self
+    }
+
+    /// The lock family this write will take.
+    pub fn lock_scope(&self) -> LockScope {
+        self.lock_scope
     }
 
     /// The target path.
     pub fn target(&self) -> &Path {
         &self.target
+    }
+
+    /// The bytes observed when this write was prepared (`None` = absent).
+    pub fn before(&self) -> Option<&[u8]> {
+        self.before.as_deref()
+    }
+
+    /// The exact desired bytes.
+    pub fn desired(&self) -> &[u8] {
+        &self.desired
     }
 
     /// Whether applying this write would change the file.
@@ -375,14 +443,52 @@ impl PreparedWrite {
         }
     }
 
-    /// Apply under an exclusive lock, rechecking the observed inputs.
+    /// Apply under an exclusive lock, rechecking the inputs observed at
+    /// preparation time.
     ///
     /// On a verification failure the previous content (or absence) is restored;
     /// a failed write never leaves a half-updated document.
     pub fn apply(self, timeout: Duration) -> Result<WriteOutcome, DoctrineError> {
-        let lock_path = lock_path_for(&self.target);
-        let _lock = FileLock::acquire(&lock_path, timeout)?;
+        let observed = self.before.clone();
+        self.apply_observed(observed.as_deref(), timeout)
+    }
+
+    /// Apply under this write's lock, refusing when `observed` (a *plan-time*
+    /// observation) is no longer the target's content.
+    ///
+    /// The check runs inside the lock, so the window between reading the
+    /// plan-time observation and writing is one critical section: a concurrent
+    /// writer either lands first (this refuses with `precondition_changed`) or
+    /// waits for this write.
+    pub fn apply_observed(
+        self,
+        observed: Option<&[u8]>,
+        timeout: Duration,
+    ) -> Result<WriteOutcome, DoctrineError> {
+        let _lock = self.lock(timeout)?;
+        let current = observe(&self.target)?;
+        if current.as_deref() != observed {
+            return Err(DoctrineError::PreconditionChanged {
+                path: self.target.clone(),
+            });
+        }
         self.apply_locked()
+    }
+
+    fn lock(&self, timeout: Duration) -> Result<FileLock, DoctrineError> {
+        match self.lock_scope {
+            LockScope::Sidecar => FileLock::acquire(&lock_path_for(&self.target), timeout),
+            LockScope::Synthesis => {
+                let repo_root = self
+                    .repo_root
+                    .as_deref()
+                    .ok_or_else(|| DoctrineError::Yaml {
+                        path: self.target.clone(),
+                        message: "a synthesis-locked write requires its repository root".to_owned(),
+                    })?;
+                acquire_synthesis_lock(repo_root, timeout)
+            }
+        }
     }
 
     fn apply_locked(self) -> Result<WriteOutcome, DoctrineError> {

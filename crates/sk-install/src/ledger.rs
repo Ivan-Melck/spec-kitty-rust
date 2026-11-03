@@ -334,12 +334,13 @@ impl MigrationLedger {
         self.records(spec.clone_local)
     }
 
-    /// Whether a spec is settled (a `success` record with the same identity).
+    /// Whether the normalized migration id has a `success` in its partition.
+    /// Identity/content drift is audit-only and never reselects a settled id.
     pub fn is_settled(&self, spec: &MigrationSpec) -> Result<bool, InstallError> {
         Ok(self
             .records_for(spec)?
             .iter()
-            .any(|record| record.identity == spec.identity && record.result == SETTLED_RESULT))
+            .any(|record| record.id == spec.id && record.result == SETTLED_RESULT))
     }
 
     /// Append one record via a locked whole-file rewrite.
@@ -483,8 +484,30 @@ pub fn clone_local_effect_in_place(project_root: &Path, spec: &MigrationSpec) ->
         "3.2.6_decisions_event_log_merge_driver" => {
             merge_drivers_in_place(project_root, "spec-kitty-event-log")
         }
+        // The historical gate-driver migration froze the *filled-side* driver
+        // name for the issue matrix; the later repoint migration owns the
+        // row-aware name, so a checkout holding only the repointed value does
+        // not satisfy this migration (the pinned `detect()` says pending).
         "3.2.6_gate_artifact_merge_drivers" => {
-            merge_drivers_in_place(project_root, "spec-kitty-acceptance-matrix")
+            merge_driver_config_matches(
+                project_root,
+                "spec-kitty-acceptance-matrix",
+                "Spec Kitty acceptance matrix filled-side merge",
+                "spec-kitty merge-driver-acceptance-matrix %O %A %B",
+            ) && merge_driver_config_matches(
+                project_root,
+                "spec-kitty-issue-matrix",
+                "Spec Kitty issue matrix filled-side merge",
+                "spec-kitty merge-driver-issue-matrix %O %A %B",
+            ) && merge_driver_attributes_present(
+                project_root,
+                "spec-kitty-acceptance-matrix",
+                &["kitty-specs/**/acceptance-matrix.json"],
+            ) && merge_driver_attributes_present(
+                project_root,
+                "spec-kitty-issue-matrix",
+                &["kitty-specs/**/issue-matrix.md"],
+            )
         }
         "3.2.6_issue_matrix_driver_repoint" => {
             merge_drivers_in_place(project_root, "spec-kitty-issue-matrix")
@@ -500,6 +523,7 @@ pub fn clone_local_effect_in_place(project_root: &Path, spec: &MigrationSpec) ->
             merge_drivers_in_place(project_root, "spec-kitty-decision-index")
         }
         "4.0.0rc8_command_skill_hyphen_names" => !has_legacy_dotted_command_skills(project_root),
+        "4.0.0rc8_retire_antigravity_workflows" => !has_legacy_antigravity_workflows(project_root),
         _ => false,
     }
 }
@@ -509,6 +533,34 @@ fn git_exclude_contains(project_root: &Path, entry: &str) -> bool {
     std::fs::read_to_string(path)
         .map(|text| text.lines().any(|line| line.trim() == entry))
         .unwrap_or(false)
+}
+
+fn merge_driver_attributes_present(
+    project_root: &Path,
+    config_key: &str,
+    patterns: &[&str],
+) -> bool {
+    std::fs::read_to_string(project_root.join(".gitattributes"))
+        .map(|text| {
+            patterns
+                .iter()
+                .all(|pattern| text.contains(&format!("{pattern} merge={config_key}")))
+        })
+        .unwrap_or(false)
+}
+
+fn merge_driver_config_matches(
+    project_root: &Path,
+    config_key: &str,
+    name: &str,
+    command: &str,
+) -> bool {
+    let Ok(text) = std::fs::read_to_string(project_root.join(".git/config")) else {
+        return false;
+    };
+    text.contains(&format!("[merge \"{config_key}\"]"))
+        && text.contains(&format!("name = {name}"))
+        && text.contains(&format!("driver = {command}"))
 }
 
 fn merge_drivers_in_place(project_root: &Path, config_key: &str) -> bool {
@@ -537,6 +589,40 @@ fn merge_drivers_in_place(project_root: &Path, config_key: &str) -> bool {
     text.contains(&format!("[merge \"{config_key}\"]"))
         && text.contains(&format!("name = {}", driver.name))
         && text.contains(&format!("driver = {}", driver.command))
+}
+
+/// Whether Antigravity's retired `.agent/workflows` command files are still
+/// present for a project that has Antigravity configured.
+///
+/// Mirrors the pinned migration's `detect()`: an unconfigured project is
+/// never processed (the old state cannot exist), a configured one is pending
+/// while a `spec-kitty.*` workflow file, an unsafe workflows node, or an
+/// unreadable configuration remains.
+fn has_legacy_antigravity_workflows(project_root: &Path) -> bool {
+    let configured = match crate::init::read_configured_agents(project_root) {
+        Ok(agents) => agents.iter().any(|agent| agent == "antigravity"),
+        // An unreadable configuration is a detect() warning upstream: pending.
+        Err(_) => return true,
+    };
+    if !configured {
+        return false;
+    }
+    let workflows = project_root.join(".agent/workflows");
+    match std::fs::symlink_metadata(&workflows) {
+        Ok(metadata) if metadata.file_type().is_symlink() => true,
+        Ok(metadata) if !metadata.file_type().is_dir() => true,
+        Ok(_) => match std::fs::read_dir(&workflows) {
+            Ok(entries) => entries.flatten().any(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("spec-kitty.")
+            }),
+            Err(_) => true,
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(_) => true,
+    }
 }
 
 fn has_legacy_dotted_command_skills(project_root: &Path) -> bool {
@@ -681,6 +767,25 @@ mod tests {
         assert!(records[0].clone_local);
         let line = std::fs::read_to_string(ledger.clone_local_path()).unwrap();
         assert!(line.contains("\"clone_local\": true"));
+    }
+
+    #[test]
+    fn review_regression_legacy_success_settles_by_normalized_id_not_identity() {
+        let directory = tempfile::tempdir().expect("temp");
+        let ledger = MigrationLedger::new(directory.path());
+        std::fs::create_dir_all(directory.path().join(".kittify")).unwrap();
+        std::fs::write(
+            ledger.tracked_path(),
+            "{\"id\":\"0.13.0_update_constitution_templates\",\"identity\":\"0.13.0_update_constitution_templates\",\"result\":\"success\",\"applied_at\":\"x\"}\n",
+        ).unwrap();
+        let spec = MigrationCatalog::embedded()
+            .unwrap()
+            .get("0.13.0_update_charter_templates")
+            .unwrap();
+        let records = ledger.records_for(spec).unwrap();
+        assert_eq!(records[0].id, spec.id);
+        assert_eq!(records[0].identity, "0.13.0_update_constitution_templates");
+        assert!(ledger.is_settled(spec).unwrap());
     }
 
     #[test]

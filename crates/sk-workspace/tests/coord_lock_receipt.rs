@@ -24,9 +24,7 @@ fn mission_hold_receipt_reports_the_recorded_legacy_key_and_actual_path() {
     let hold =
         MissionHold::acquire(&mission, root, LockWait::Bounded(Duration::from_secs(1))).unwrap();
     assert_eq!(hold.key(), "042-legacy");
-    let path = hold
-        .derived_path()
-        .expect("the real guard always reports its path");
+    let path = hold.path().expect("the real guard always reports its path");
     assert_eq!(path.file_name().unwrap(), "042-legacy.status.lock");
     assert!(path.is_file());
     assert!(hold.holder().is_some());

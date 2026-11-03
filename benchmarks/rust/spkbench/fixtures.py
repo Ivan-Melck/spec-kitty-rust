@@ -57,50 +57,131 @@ def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def canonical_bytes(
+    data: bytes, root: Path | None = None, *, roots: tuple[Path, ...] = ()
+) -> bytes:
+    """Replace every known location root with one stable token.
+
+    Some fixture content legitimately embeds the path it was generated at (a
+    runtime snapshot records ``template_path``). Hashing those bytes directly
+    makes the manifest location-dependent: the same recipe + seed at a
+    different root produces a different digest, so an auditor cannot rebuild
+    the input the evidence claims to measure.
+
+    A measured mutation copies the fixture to a **clone** and runs there, so the
+    bytes can still legitimately embed the *original* fixture root. Callers that
+    compare a measured tree with a regenerated fixture must therefore normalise
+    every known root (fixture and clone) with this one function. Replacing only
+    the location-dependent parts keeps the digest content-addressed without
+    altering what the workloads read from disk.
+    """
+    candidates: list[Path] = []
+    if root is not None:
+        candidates.append(Path(root))
+    candidates.extend(Path(item) for item in roots)
+    substitutions: list[bytes] = []
+    for candidate in candidates:
+        for text in (str(candidate.resolve()), str(candidate)):
+            needle = text.encode("utf-8")
+            if needle and needle not in substitutions:
+                substitutions.append(needle)
+    # Longest first so a nested root is not partially replaced by its parent.
+    for needle in sorted(substitutions, key=len, reverse=True):
+        if needle in data:
+            data = data.replace(needle, b"<FIXTURE>")
+    return data
+
+
+def is_ignored(rel: str, prefixes: tuple[str, ...] = ()) -> bool:
+    """Whether ``rel`` is one of the declared implementation-private paths."""
+    return any(rel == prefix.rstrip("/") or rel.startswith(prefix) for prefix in prefixes)
+
+
+def content_manifest(
+    root: Path, *, roots: tuple[Path, ...] = (), ignored_prefixes: tuple[str, ...] = ()
+) -> dict[str, str]:
+    """Portable per-file digest: sha256 of the root-canonicalised bytes.
+
+    This is the single manifest definition used for the pristine fixture and
+    for a measured mutation clone. ``roots`` adds location roots that may be
+    embedded in the bytes (the fixture root of a clone); ``ignored_prefixes``
+    excludes only declared implementation-private artifacts, never a
+    user-observable directory.
+    """
+    manifest: dict[str, str] = {}
+    for path in sorted(Path(root).rglob("*")):
+        rel = path.relative_to(root).as_posix()
+        if is_ignored(rel, ignored_prefixes):
+            continue
+        if path.is_symlink():
+            target = canonical_bytes(
+                os.readlink(path).encode("utf-8"), root, roots=roots
+            ).decode("utf-8", "replace")
+            manifest[rel] = "symlink:" + target
+        elif path.is_file():
+            manifest[rel] = hashlib.sha256(
+                canonical_bytes(path.read_bytes(), root, roots=roots)
+            ).hexdigest()
+    return manifest
+
+
 @dataclass
 class Fixture:
     name: str
     path: Path
     recipe: dict
     manifest: dict[str, str] = field(default_factory=dict)
+    content: dict[str, str] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
 
-    def as_dict(self) -> dict:
-        return {
+    def expected_content(self) -> dict[str, str]:
+        """Portable manifest sealed at build time.
+
+        Falls back to recomputing when a caller constructed a ``Fixture`` by
+        hand (unit tests), never when evidence is verified: a sealed fixture
+        keeps the build-time expectation so later drift is detectable.
+        """
+        return dict(self.content) if self.content else content_manifest(self.path)
+
+    def as_dict(self, *, include_manifest: bool = True) -> dict:
+        portable = self.expected_content()
+        record = {
             "name": self.name,
             "path": str(self.path),
             "recipe": self.recipe,
-            "file_count": len(self.manifest),
-            "manifest_sha256": _manifest_digest(self.manifest),
-            "manifest": self.manifest,
+            "file_count": len(portable),
+            "content_digest": _manifest_digest(portable),
+            "portable": True,
+            "path_independent": True,
             "notes": self.notes,
         }
+        if include_manifest:
+            record["manifest"] = portable
+            record["manifest_sha256"] = record["content_digest"]
+        return record
 
 
 def verify_manifest(fixture: Fixture) -> dict:
-    """Recompute the fixture manifest and report any drift.
+    """Recompute the portable fixture manifest and report any drift.
 
     Read-only workloads must not modify their inputs. A drift here means a
     command wrote into a fixture (or another process did), so the measurement is
-    not a read-only equivalence run.
+    not a read-only equivalence run. The comparison uses the same
+    root-canonicalised digests as :func:`content_manifest`, so it is valid at an
+    arbitrary audit location.
     """
-    current: dict[str, str] = {}
-    for path in sorted(fixture.path.rglob("*")):
-        if path.is_file():
-            rel = path.relative_to(fixture.path).as_posix()
-            current[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
-    added = sorted(set(current) - set(fixture.manifest))
-    removed = sorted(set(fixture.manifest) - set(current))
-    changed = sorted(
-        rel for rel in set(current) & set(fixture.manifest) if current[rel] != fixture.manifest[rel]
-    )
+    current = content_manifest(fixture.path)
+    expected = fixture.expected_content()
+    added = sorted(set(current) - set(expected))
+    removed = sorted(set(expected) - set(current))
+    changed = sorted(rel for rel in set(current) & set(expected) if current[rel] != expected[rel])
     return {
         "unchanged": not (added or removed or changed),
         "added": added[:20],
         "removed": removed[:20],
         "changed": changed[:20],
         "current_manifest_sha256": _manifest_digest(current),
-        "expected_manifest_sha256": _manifest_digest(fixture.manifest),
+        "expected_manifest_sha256": _manifest_digest(expected),
     }
 
 
@@ -136,7 +217,12 @@ class FixtureBuilder:
                     recipe={"kind": recipe_name, "seed": self.seed},
                 )
             else:
-                self._cache[recipe_name] = builder(self, self.root / recipe_name)
+                fixture = builder(self, self.root / recipe_name)
+                # Seal the portable (root-canonicalised) manifest at build time.
+                # Evidence records this digest and verification compares against
+                # it, so a fixture that drifts later is detectable.
+                fixture.content = content_manifest(fixture.path)
+                self._cache[recipe_name] = fixture
         return self._cache[recipe_name]
 
 
@@ -623,7 +709,17 @@ def _runtime(builder: FixtureBuilder, path: Path) -> Fixture:
     return fixture
 
 
-def _compat_project(builder: FixtureBuilder, path: Path) -> Fixture:
+def _compat_project(
+    builder: FixtureBuilder,
+    path: Path,
+    *,
+    missions: int = 12,
+    wps: int = 6,
+    terms_per_scope: int = 40,
+    events: int = 240,
+    coherent_wps: int = 6,
+    blocked_cycles: int = 0,
+) -> Fixture:
     """Fixture for the native compatibility routes.
 
     Adds two properties the older projection fixtures do not have:
@@ -636,34 +732,50 @@ def _compat_project(builder: FixtureBuilder, path: Path) -> Fixture:
 
     Mission 001 keeps the mixed stream (annotations, future extensions and
     unordered transitions) so reducer parity is still exercised on odd input.
+
+    ``coherent_wps`` / ``blocked_cycles`` scale the coherent mission's replay
+    work without changing the recipe's shape: each WP walks the normal lane
+    chain and may cycle ``in_progress -> blocked -> in_progress`` a number of
+    times. This is what makes the canonical-replay workload work-dominated
+    instead of launch-dominated; the event count is recorded in the recipe so
+    expectations can assert it exactly.
     """
     fixture = _project(
         builder,
         path,
-        missions=12,
-        wps=6,
-        terms_per_scope=40,
-        events=240,
+        missions=missions,
+        wps=wps,
+        terms_per_scope=terms_per_scope,
+        events=events,
     )
     fixture.recipe.update(
         {
             "kind": "compat-project",
-            "missions": 12,
-            "work_packages_per_mission": 6,
-            "terms_per_scope": 40,
-            "events": 240,
+            "missions": missions,
+            "work_packages_per_mission": wps,
+            "terms_per_scope": terms_per_scope,
+            "events": events,
+            "coherent_work_packages": coherent_wps,
+            "blocked_cycles_per_work_package": blocked_cycles,
             "git": "unborn-main",
         }
     )
     specs = path / "kitty-specs"
     coherent_mission = "002-bench-mission-002"
     mission_id = ulid("bench-mission", 1)
-    lanes = ("planned", "claimed", "in_progress", "for_review", "in_review", "approved", "done")
+    chain = ["planned", "claimed", "in_progress", "for_review", "in_review", "approved", "done"]
     lines: list[str] = []
     index = 0
-    for wp in range(6):
-        wp_id = f"WP{wp + 1:02d}"
-        for step in range(len(lanes) - 1):
+    for wp in range(coherent_wps):
+        wp_id = f"WP{wp + 1:03d}"
+        pairs: list[tuple[str, str]] = []
+        for step in range(len(chain) - 1):
+            pairs.append((chain[step], chain[step + 1]))
+            if chain[step + 1] == "in_progress":
+                for _ in range(blocked_cycles):
+                    pairs.append(("in_progress", "blocked"))
+                    pairs.append(("blocked", "in_progress"))
+        for source, target in pairs:
             lines.append(
                 json.dumps(
                     {
@@ -671,8 +783,8 @@ def _compat_project(builder: FixtureBuilder, path: Path) -> Fixture:
                         "mission_slug": coherent_mission,
                         "mission_id": mission_id,
                         "wp_id": wp_id,
-                        "from_lane": lanes[step],
-                        "to_lane": lanes[step + 1],
+                        "from_lane": source,
+                        "to_lane": target,
                         "at": f"2026-11-02T00:{index // 60:02d}:{index % 60:02d}Z",
                         "actor": f"agent-{wp}",
                         "force": False,
@@ -685,12 +797,14 @@ def _compat_project(builder: FixtureBuilder, path: Path) -> Fixture:
                 )
             )
             index += 1
+    fixture.recipe["coherent_events"] = index
     _write(fixture, specs / coherent_mission / "status.events.jsonl", "\n".join(lines) + "\n")
 
     fixture.recipe["git_version"] = _git_init(fixture)
     fixture.notes.append(
         "compat-project adds an unborn main branch (git reads) and a coherent "
-        "mission-002 event log for canonical status materialization."
+        f"mission-002 event log ({index} events, {coherent_wps} WPs) for canonical "
+        "status materialization."
     )
     return fixture
 
@@ -699,5 +813,11 @@ RECIPES = {
     "project-small": lambda b, p: _project(b, p, missions=4, wps=4, terms_per_scope=40, events=200),
     "project-large": lambda b, p: _project(b, p, missions=800, wps=4, terms_per_scope=1500, events=20000),
     "compat-project": _compat_project,
+    # Canonical replay workload: same compatibility surface, but the coherent
+    # mission holds 200 WPs x (6 lane transitions + 4 blocked cycles) = 2,800
+    # events so reducer work dominates process launch on both sides.
+    "replay-project": lambda b, p: _compat_project(
+        b, p, missions=2, wps=6, terms_per_scope=40, events=240, coherent_wps=200, blocked_cycles=4
+    ),
     "runtime-large": _runtime,
 }

@@ -25,10 +25,11 @@
 //!   exists for source-compatibility and documents that the transport seam is a
 //!   separate owner, exactly as open-core registers no lifecycle handler.
 //!
-//! The payload object is caller-supplied: the canonical
-//! `spec_kitty_events.project_lifecycle` payload models are an external contract
-//! this crate does not re-implement. Only `ProjectInitialized` (whose payload is
-//! small and structurally stable) has a built-in builder.
+//! Payloads are validated against the pinned `spec-kitty-events` 11.3.0 models
+//! (and the core-local event shapes) by
+//! [`crate::mutation_payloads::canonicalize_lifecycle_payload`] before the
+//! envelope is built, and are re-encoded in the models' canonical wire shape.
+//! `ProjectInitialized` additionally has a built-in builder.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -39,6 +40,7 @@ use sk_kernel::locks::LockWait;
 use crate::mutation::MutationError;
 use crate::mutation_lock::{acquire_mission_lock, acquire_project_lock, canonical_repo_root};
 use crate::mutation_log::{AppendOptions, Durability, append_rows_atomic, read_log_text};
+use crate::mutation_payloads::canonicalize_lifecycle_payload;
 use crate::mutation_ulid::new_ulid;
 
 /// Project-level canonical event log filename.
@@ -65,9 +67,6 @@ pub const LIFECYCLE_EVENT_TYPES: [&str; 12] = [
     "MissionReopened",
     "FollowUpRecorded",
 ];
-
-/// Default bounded wait for a lifecycle append (baseline 10 s).
-const DEFAULT_LOCK_WAIT_SECONDS: u64 = 10;
 
 /// Return the project-level canonical event log path for `repo_root`.
 pub fn project_event_log_path(repo_root: &Path) -> PathBuf {
@@ -132,10 +131,9 @@ impl LifecycleRequest {
     }
 
     fn wait(&self) -> LockWait {
-        self.lock_wait
-            .unwrap_or(LockWait::Bounded(std::time::Duration::from_secs(
-                DEFAULT_LOCK_WAIT_SECONDS,
-            )))
+        // `_lifecycle_write_lock` takes `feature_status_lock` /
+        // `project_event_log_lock` with their `UNBOUNDED_LOCK_WAIT` defaults.
+        self.lock_wait.unwrap_or(LockWait::Unbounded)
     }
 }
 
@@ -256,12 +254,12 @@ pub fn persist_lifecycle_event_local(
             rows_appended: 0,
         });
     }
-    if !request.payload.is_object() {
-        return Err(MutationError::InvalidLifecyclePayload {
-            event_type: request.event_type.clone(),
-            reason: "the payload must be a JSON object".to_owned(),
-        });
-    }
+    // The baseline convenience emitters validate through the pinned pydantic
+    // payload models before the envelope is built; the payload-agnostic
+    // persistence seam itself does not. Validate here so no caller can persist
+    // arbitrary JSON as a canonical lifecycle fact, and re-encode the accepted
+    // payload in the model's canonical wire shape.
+    let payload = canonicalize_lifecycle_payload(&request.event_type, &request.payload)?;
 
     let repo_root = match &request.repo_root {
         Some(root) => Some(root.clone()),
@@ -303,7 +301,7 @@ pub fn persist_lifecycle_event_local(
         });
     }
 
-    let envelope = build_envelope(request);
+    let envelope = build_envelope(request, payload);
     let outcome = append_rows_atomic(
         &request.log_path,
         std::slice::from_ref(&envelope),
@@ -349,7 +347,7 @@ fn repo_root_for_log(log_path: &Path) -> Option<PathBuf> {
     canonical_repo_root(parent).ok()
 }
 
-fn build_envelope(request: &LifecycleRequest) -> Value {
+fn build_envelope(request: &LifecycleRequest, payload: Value) -> Value {
     let mut envelope = Map::new();
     envelope.insert(
         "event_id".to_owned(),
@@ -383,7 +381,7 @@ fn build_envelope(request: &LifecycleRequest) -> Value {
                 .unwrap_or_else(sk_kernel::clock::now_utc_iso),
         ),
     );
-    envelope.insert("payload".to_owned(), request.payload.clone());
+    envelope.insert("payload".to_owned(), payload);
     envelope.insert(
         "project_uuid".to_owned(),
         request
@@ -468,3 +466,23 @@ pub const LIFECYCLE_ENVELOPE_KEYS: [&str; 9] = [
     "schema_version",
     "timestamp",
 ];
+
+#[cfg(test)]
+mod wait_policy_tests {
+    use super::*;
+    use sk_kernel::locks::LockWait;
+
+    #[test]
+    fn the_lifecycle_door_defaults_to_the_baselines_unbounded_wait() {
+        // `_lifecycle_write_lock` uses `feature_status_lock` /
+        // `project_event_log_lock` with their `UNBOUNDED_LOCK_WAIT` defaults.
+        let request = LifecycleRequest::new(
+            "/tmp/log.jsonl",
+            "WPCreated",
+            Value::Null,
+            "WP01",
+            "WorkPackage",
+        );
+        assert_eq!(request.wait(), LockWait::Unbounded);
+    }
+}

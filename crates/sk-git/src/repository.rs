@@ -10,6 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::error::GitError;
+use crate::index_authority::{OperatorIndex, OperatorIndexSource};
 use crate::path::{os_string_from_git_bytes, strip_line_feed, utf8_field};
 use crate::process::{GitOptions, GitProcess};
 use crate::status::{StatusEntry, StatusOptions};
@@ -38,6 +39,7 @@ pub struct GitRepository {
     root: PathBuf,
     process: GitProcess,
     options: GitOptions,
+    index: OperatorIndex,
 }
 
 impl GitRepository {
@@ -82,6 +84,14 @@ impl GitRepository {
             // so a broken probe is never mistaken for a non-repository.
             let stderr = String::from_utf8_lossy(&inside.stderr).to_ascii_lowercase();
             if stderr.contains("not a git repository") || stderr.contains("not a work tree") {
+                // git refuses to recognise a repository whose `HEAD` is corrupt
+                // (garbage, empty, or naming an invalid ref), reporting it as
+                // "not a git repository". That is a present-but-unreadable
+                // `HEAD`, not an absent repository, so classify it here instead
+                // of losing the distinction a rollback-point capture needs.
+                if let Some(detail) = unreadable_head_below(&cwd) {
+                    return Err(GitError::UnreadableHead { detail });
+                }
                 return Err(GitError::NotARepository {
                     path: supplied.to_path_buf(),
                 });
@@ -124,15 +134,26 @@ impl GitRepository {
             });
         }
         let root_os = os_string_from_git_bytes(raw_root, "repository root")?;
-        let root = fs::canonicalize(PathBuf::from(root_os)).map_err(|source| GitError::Io {
+        let raw_root = PathBuf::from(root_os);
+        // Capture the operator index before the root is normalised. A relative
+        // `GIT_INDEX_FILE` is resolved against the work-tree root git itself
+        // runs in (git moves to that directory during setup), and the captured
+        // spelling is kept verbatim so a symlinked index path is not retargeted.
+        let index = OperatorIndex::capture(&raw_root);
+        let root = fs::canonicalize(&raw_root).map_err(|source| GitError::Io {
             context: "canonicalise the repository root",
             source,
         })?;
 
         Ok(Self {
-            process: GitProcess::new(&root, options),
+            process: GitProcess::new_with_index(
+                &root,
+                options,
+                index.raw_value().map(|value| value.to_os_string()),
+            ),
             root,
             options: options.clone(),
+            index,
         })
     }
 
@@ -161,9 +182,58 @@ impl GitRepository {
     /// A subprocess binding at another checkout of the same repository.
     ///
     /// Used by preflights that inspect a linked worktree (its status is its
-    /// own) while sharing this handle's program and timeout.
+    /// own) while sharing this handle's program, timeout, and captured operator
+    /// index. A relative captured spelling keeps git's own meaning: it resolves
+    /// against the working directory of that child.
     pub(crate) fn process_at(&self, root: impl Into<PathBuf>) -> GitProcess {
-        GitProcess::new(root, &self.options)
+        GitProcess::new_with_index(
+            root,
+            &self.options,
+            self.index.raw_value().map(|value| value.to_os_string()),
+        )
+    }
+
+    /// The operator index authority captured when this repository was opened.
+    ///
+    /// The capture is sticky: later changes to the process environment do not
+    /// retarget this handle, and every operator-index read, write, lock check
+    /// and reconciliation uses this value.
+    pub fn operator_index(&self) -> &OperatorIndex {
+        &self.index
+    }
+
+    /// Whether an inherited `GIT_INDEX_FILE` was captured.
+    pub fn has_captured_index(&self) -> bool {
+        self.index.source() == OperatorIndexSource::Environment
+    }
+
+    /// The absolute path of the index this handle reads and writes.
+    ///
+    /// For a captured selector the final component is preserved as spelled (a
+    /// symlinked index path is not resolved). Without a selector this is the
+    /// checkout's own `<git-dir>/index`, resolved lazily because it needs a git
+    /// probe.
+    pub fn operator_index_path(&self) -> Result<PathBuf, GitError> {
+        match self.index.explicit_path() {
+            Some(path) => Ok(path.to_path_buf()),
+            None => Ok(self.git_dirs()?.git_dir().join("index")),
+        }
+    }
+
+    /// The lock file git uses for this handle's operator index.
+    ///
+    /// This is the index authority's own `.lock`, not always
+    /// `<git-dir>/index.lock`, so a custom index is locked and checked where
+    /// git locks it.
+    pub fn operator_index_lock_path(&self) -> Result<PathBuf, GitError> {
+        match self.index.explicit_lock_path() {
+            Some(path) => Ok(path.to_path_buf()),
+            None => {
+                let mut lock = self.operator_index_path()?.into_os_string();
+                lock.push(".lock");
+                Ok(PathBuf::from(lock))
+            }
+        }
     }
 
     /// The short branch name currently checked out, or `None` for a detached
@@ -292,6 +362,20 @@ impl GitRepository {
     }
 }
 
+#[cfg(test)]
+impl GitRepository {
+    /// Swap the captured authority without touching the process environment.
+    /// Test-only: the public contract is that a handle's authority is sticky.
+    pub(crate) fn replace_index_authority_for_test(&mut self, path: &Path) {
+        self.index = OperatorIndex::explicit_for_test(path);
+        self.process = GitProcess::new_with_index(
+            &self.root,
+            &self.options,
+            self.index.raw_value().map(|value| value.to_os_string()),
+        );
+    }
+}
+
 /// Resolve the directory to probe: a file is probed through its parent.
 fn probe_directory(path: &Path) -> Result<PathBuf, GitError> {
     match fs::metadata(path) {
@@ -323,6 +407,107 @@ fn is_unknown_switch(error: &GitError) -> bool {
         }
         _ => false,
     }
+}
+
+/// The largest `HEAD` file this adapter will read to classify it (4 KiB).
+const MAX_HEAD_FILE_BYTES: u64 = 4096;
+
+/// Classify a `HEAD` that git refused to recognise as part of a repository.
+///
+/// git's repository discovery validates `HEAD`, so a corrupt `HEAD` makes every
+/// discovery command answer `fatal: not a git repository`. Before reporting
+/// [`GitError::NotARepository`], the enclosing git directory (if any) is
+/// inspected locally: a `HEAD` that is present but empty, not valid UTF-8,
+/// neither `ref: <name>` nor a full object id, or naming a structurally invalid
+/// ref is reported as [`GitError::UnreadableHead`] instead. A readable `HEAD`
+/// leaves the original answer untouched: this only sharpens the taxonomy, it
+/// never turns a non-repository into an unreadable one.
+fn unreadable_head_below(start: &Path) -> Option<String> {
+    for directory in start.ancestors() {
+        let Some(git_dir) = enclosing_git_dir(directory) else {
+            continue;
+        };
+        let head = git_dir.join("HEAD");
+        if std::fs::symlink_metadata(&head).is_err() {
+            return None;
+        }
+        let bytes = match sk_kernel::no_follow::read_no_follow(&head, MAX_HEAD_FILE_BYTES) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                return Some(format!(
+                    "{} is present but could not be read: {error}",
+                    head.display()
+                ));
+            }
+        };
+        return classify_head_bytes(&bytes)
+            .err()
+            .map(|detail| format!("{} is present but unreadable ({detail})", head.display()));
+    }
+    None
+}
+
+/// The git directory a work-tree directory carries, if any.
+///
+/// Handles a `.git` directory, the `gitdir: <path>` indirection used by linked
+/// worktrees and submodules, and a directory that is itself a git directory
+/// (a bare repository or a git directory opened directly).
+fn enclosing_git_dir(directory: &Path) -> Option<PathBuf> {
+    let dot_git = directory.join(".git");
+    match std::fs::symlink_metadata(&dot_git) {
+        Ok(metadata) if metadata.is_dir() => Some(dot_git),
+        Ok(metadata) if metadata.is_file() => {
+            let bytes = sk_kernel::no_follow::read_no_follow(&dot_git, MAX_HEAD_FILE_BYTES).ok()?;
+            let text = String::from_utf8(bytes).ok()?;
+            let target = text.trim().strip_prefix("gitdir:")?.trim();
+            if target.is_empty() {
+                return None;
+            }
+            let target = PathBuf::from(target);
+            Some(if target.is_absolute() {
+                target
+            } else {
+                directory.join(target)
+            })
+        }
+        _ => {
+            if dot_git.exists() {
+                None
+            } else if directory.join("HEAD").is_file()
+                && directory.join("objects").is_dir()
+                && directory.join("refs").is_dir()
+            {
+                Some(directory.to_path_buf())
+            } else {
+                None
+            }
+        }
+    }
+}
+
+/// Whether a `HEAD` file's content can name a ref or a commit.
+///
+/// This mirrors the two shapes git accepts for `HEAD` (`ref: <qualified ref>`
+/// and a full object id) without running git, which is exactly what is needed
+/// when git has already refused the repository.
+fn classify_head_bytes(bytes: &[u8]) -> Result<(), String> {
+    let text = std::str::from_utf8(bytes).map_err(|_| "HEAD is not valid UTF-8".to_string())?;
+    let line = text.trim();
+    if line.is_empty() {
+        return Err("HEAD is empty".to_string());
+    }
+    if let Some(target) = line.strip_prefix("ref: ") {
+        let target = target.trim();
+        if target.is_empty() {
+            return Err("HEAD names an empty symbolic target".to_string());
+        }
+        return crate::RefName::parse(target)
+            .map(|_| ())
+            .map_err(|error| format!("HEAD names an invalid ref {target:?}: {error}"));
+    }
+    crate::Oid::parse(line)
+        .map(|_| ())
+        .map_err(|error| format!("HEAD is neither `ref: <name>` nor a full object id: {error}"))
 }
 
 #[cfg(test)]

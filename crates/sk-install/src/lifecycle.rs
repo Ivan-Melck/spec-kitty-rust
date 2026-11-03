@@ -15,20 +15,18 @@
 //! matching `ProjectInitializedPayload.model_dump(mode="json",
 //! exclude_none=False)`.
 //!
-//! **Write protocol.** Canonical events are never written through the generic
-//! `O_APPEND` event-log helper. This module plans the exact whole-file
-//! replacement (`existing bytes + one newline-terminated line`), refuses a torn
-//! tail, and commits under the project commit lock with a re-read precondition.
-//! Idempotency is on `project_uuid`, so a repeated init appends nothing.
+//! **Write authority.** The write itself is delegated to the canonical
+//! `sk-status` project-lifecycle writer
+//! ([`sk_status::mutation_lifecycle::persist_lifecycle_event_local`]): the same
+//! durable whole-file replacement, the same Python-compatible serialization and
+//! the same `project.status.lock` (Git common dir anchored, skipped outside a
+//! repository) that every other canonical event writer uses. This module is a
+//! thin typed adapter over that authority, not a second writer.
 //!
-//! **Coordination note.** Upstream serializes this write with
-//! `status.locking.project_event_log_lock` (git-common-dir anchored). The native
-//! status/event owner crate does not expose a writer yet; until it does, init
-//! serializes with the install/project lock it already owns. A concurrent
-//! external writer is therefore not coordinated by this seam — the validated
-//! [`ProjectEventAppendPlan`] is exposed so the event owner can adopt the same
-//! bytes and precondition under its own lock instead of a second invented
-//! protocol.
+//! [`plan_project_initialized`] remains a read-only preview (validated bytes and
+//! a precondition hash) for callers that need to inspect the append before it
+//! happens. Idempotency is on `project_uuid`, so a repeated init appends
+//! nothing.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -89,6 +87,7 @@ impl ProjectInitializedPayload {
 /// A validated, not-yet-committed whole-file append.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectEventAppendPlan {
+    project_root: PathBuf,
     path: PathBuf,
     existing: Vec<u8>,
     line: Vec<u8>,
@@ -121,19 +120,17 @@ impl ProjectEventAppendPlan {
         hex(&Sha256::digest(&self.existing))
     }
 
-    /// Commit the append under the project lock, re-checking the precondition.
+    /// Commit the append under the canonical project lock, re-checking the
+    /// precondition.
+    ///
+    /// The lock is the same machine-state-directory authority init and upgrade
+    /// take ([`ProjectLock::for_project`]); a project-relative
+    /// `.kittify/.install.lock` here would be a second, uncoordinated writer.
     pub fn commit(&self, lock_wait: Duration) -> Result<Option<ProjectEventLine>, InstallError> {
         if self.duplicate {
             return Ok(None);
         }
-        let _lock = ProjectLock::acquire(
-            &self
-                .path
-                .parent()
-                .unwrap_or(Path::new("."))
-                .join(".install.lock"),
-            lock_wait,
-        )?;
+        let _lock = ProjectLock::for_project(&self.project_root, lock_wait)?;
         let current = match std::fs::read(&self.path) {
             Ok(bytes) => bytes,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
@@ -229,6 +226,7 @@ pub fn plan_project_initialized(
         bytes
     };
     Ok(ProjectEventAppendPlan {
+        project_root: project_root.to_path_buf(),
         path,
         existing,
         line,
@@ -237,12 +235,54 @@ pub fn plan_project_initialized(
 }
 
 /// Record a local `ProjectInitialized` event (idempotent on `project_uuid`).
+///
+/// Delegates to the canonical `sk-status` lifecycle writer so the event log has
+/// exactly one write authority and one lock family during the migration period.
 pub fn emit_project_initialized(
     project_root: &Path,
     payload: &ProjectInitializedPayload,
     lock_wait: Duration,
 ) -> Result<Option<ProjectEventLine>, InstallError> {
-    plan_project_initialized(project_root, payload)?.commit(lock_wait)
+    let payload_value =
+        serde_json::to_value(payload).map_err(|error| InstallError::LifecycleEventInvalid {
+            path: PathBuf::from("<payload>"),
+            detail: error.to_string(),
+        })?;
+    let mut request = sk_status::LifecycleRequest::new(
+        sk_status::mutation_lifecycle::project_event_log_path(project_root),
+        PROJECT_INITIALIZED,
+        payload_value,
+        payload.project_uuid.clone(),
+        "Project",
+    );
+    request.project_uuid = Some(payload.project_uuid.clone());
+    request.project_slug = payload.project_slug.clone();
+    request.dedup_keys = std::collections::BTreeMap::from([(
+        "project_uuid".to_string(),
+        serde_json::Value::String(payload.project_uuid.clone()),
+    )]);
+    // The baseline resolves the lock from the log path's canonical repo root and
+    // skips locking outside a Git repository. Supplying the root is equivalent
+    // for a real checkout and must not mint a lock directory in a non-Git tree.
+    if project_root.join(".git").exists() {
+        request.repo_root = Some(project_root.to_path_buf());
+    }
+    request.lock_wait = Some(sk_kernel::locks::LockWait::Bounded(lock_wait));
+    let outcome = sk_status::mutation_lifecycle::persist_lifecycle_event_local(&request).map_err(
+        |error| InstallError::LifecycleEventInvalid {
+            path: request.log_path.clone(),
+            detail: error.to_string(),
+        },
+    )?;
+    if outcome.envelope.is_none() {
+        return Ok(None);
+    }
+    let bytes = std::fs::read(&outcome.path)
+        .map_err(|source| InstallError::io("read", &outcome.path, source))?;
+    Ok(Some(ProjectEventLine {
+        path: outcome.path,
+        bytes,
+    }))
 }
 
 fn envelope(payload: &ProjectInitializedPayload) -> Result<serde_json::Value, InstallError> {
@@ -357,8 +397,13 @@ pub fn payload_for_init(
         project_slug,
         "spec-kitty init",
         runtime_version,
-        now_utc_iso(),
+        now_utc_z(),
     )
+}
+
+/// The canonical payload timestamp shape (`...Z`, matching the payload model).
+pub fn now_utc_z() -> String {
+    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Micros, true)
 }
 
 #[cfg(test)]
@@ -436,7 +481,7 @@ mod tests {
     }
 
     #[test]
-    fn preserves_existing_rows_and_refuses_a_torn_tail() {
+    fn preserves_existing_rows_and_terminates_a_torn_tail() {
         let directory = tempfile::tempdir().expect("temp");
         let path = directory.path().join(PROJECT_EVENTS_REL);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -455,33 +500,34 @@ mod tests {
             .join("torn/.kittify/canonical-events.jsonl");
         std::fs::create_dir_all(torn.parent().unwrap()).unwrap();
         std::fs::write(&torn, "{\"event_type\":\"ProjectInitialized\"}").unwrap();
-        let error = emit_project_initialized(
+        // The canonical writer inserts the missing terminator and keeps
+        // every existing byte (baseline `append_raw_rows_atomic`).
+        emit_project_initialized(
             &directory.path().join("torn"),
             &payload("48fe8ecb-fbf7-4893-90f5-714b9987ac60"),
             Duration::from_secs(1),
         )
-        .expect_err("torn tail");
-        assert_eq!(error.code(), "lifecycle_event_invalid");
-        assert_eq!(
-            std::fs::read_to_string(&torn).unwrap(),
-            "{\"event_type\":\"ProjectInitialized\"}"
-        );
+        .expect("torn tail is terminated, not refused");
+        let log = std::fs::read_to_string(&torn).unwrap();
+        assert!(log.starts_with("{\"event_type\":\"ProjectInitialized\"}\n{"));
     }
 
     #[test]
-    fn malformed_historical_rows_do_not_block_init() {
+    fn malformed_historical_rows_are_refused_by_the_canonical_writer() {
         let directory = tempfile::tempdir().expect("temp");
         let path = directory.path().join(PROJECT_EVENTS_REL);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(&path, "not-json\n{\"event_type\":\"Other\"}\n").unwrap();
-        assert!(
-            emit_project_initialized(
-                directory.path(),
-                &payload("48fe8ecb-fbf7-4893-90f5-714b9987ac60"),
-                Duration::from_secs(1)
-            )
-            .expect("emit")
-            .is_some()
+        let error = emit_project_initialized(
+            directory.path(),
+            &payload("48fe8ecb-fbf7-4893-90f5-714b9987ac60"),
+            Duration::from_secs(1),
+        )
+        .expect_err("corrupt stream is refused before replacement");
+        assert_eq!(error.code(), "lifecycle_event_invalid");
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "not-json\n{\"event_type\":\"Other\"}\n"
         );
     }
 }

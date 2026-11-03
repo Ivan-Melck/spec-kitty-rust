@@ -68,10 +68,26 @@ use std::path::PathBuf;
 use crate::snapshot::SnapshotError;
 use crate::transition::TransitionError;
 
+pub use crate::actor_identity::{
+    GENERIC_IMPLEMENTATION_ACTORS, PROFILE_SOURCE_FIELD, UNKNOWN_ACTOR, actor_full_identity,
+    actor_identities_independent, actor_key, actor_value_full_identity, latest_implementer_actor,
+    latest_implementer_key, parse_boundary,
+};
+pub use crate::mutation_commit::{
+    AffectedFile, CommitConfigError, DurabilityClassification, ProjectCommitConfig,
+    ReviewCycleArtifact, ReviewCycleError, VerdictDurabilityOutcome, next_review_cycle_number,
+    read_auto_commit_config, review_cycle_commit_message, review_cycle_dir, review_cycle_pointer,
+    status_commit_message,
+};
+pub use crate::mutation_delta::{
+    InnerStateDelta, ReviewOverride, SCALAR_FIELDS, SUBTASK_NOT_APPLICABLE, SUBTASK_SKIPPED,
+    SubtaskValue, python_bool, python_int, python_str,
+};
 pub use crate::mutation_emit::{
-    ActorValue, AnnotationOutcome, AnnotationRequest, EmitOutcome, PreparedTransition,
-    StatusEventDraft, TransitionRequest, derive_from_lane, emit_inner_state_changed,
-    emit_status_transition, emit_status_transition_batch, prepare_transition, read_event_stream,
+    ActorValue, AnnotationDraft, AnnotationOutcome, AnnotationRequest, EmitOutcome, LANE_HEAD_KEY,
+    PreparedTransition, StatusEventDraft, TransitionRequest, derive_from_lane,
+    emit_inner_state_changed, emit_status_transition, emit_status_transition_batch,
+    prepare_transition, read_event_stream,
 };
 pub use crate::mutation_json::{
     PII_FIELDS, python_compact_json, python_indented_json, sanitize_event_for_log,
@@ -100,6 +116,19 @@ pub use crate::mutation_migrate::{
     LEGACY_SCHEMA_VERSION, MIGRATION_BACKUP_SUFFIX, MigrationAction, MigrationManifest,
     MigrationRowResult, STRICT_SCHEMA_VERSION, SYNTHESIZED_KEYS, build_id_for,
     migrate_lifecycle_envelope, node_id_from_host_user,
+};
+pub use crate::mutation_mirror::{
+    MirrorOutcome, legacy_lane_mirror_enabled, mirror_phase1_frontmatter_lane, read_status_phase,
+};
+pub use crate::mutation_payloads::{canonicalize_lifecycle_payload, lifecycle_payload_keys};
+pub use crate::mutation_readiness::{
+    DependencyVerdict, OPERATOR_REASON_SOURCE, UNRESOLVABLE_MARKER, declared_dependencies,
+    has_operator_provenance, is_acceptable_ending, readiness_from_snapshot,
+    resolve_dependency_verdict, wp_lanes_from_snapshot,
+};
+pub use crate::mutation_rollback::{
+    HeadCommittedProbe, RollbackOutcome, RollbackPoint, RollbackRefusal, STATUS_ROLLBACK_REFUSED,
+    appended_event_ids, capture_rollback_point, rollback_events_log, rollback_status_artifacts,
 };
 pub use crate::mutation_ulid::{UlidFactory, is_ulid, new_ulid};
 
@@ -180,6 +209,11 @@ pub enum MutationError {
 
     #[error("refusing to roll back {path}: {reason}")]
     RollbackRefused { path: PathBuf, reason: String },
+
+    #[error(
+        "capturing a rollback point for {directory} requires the Mission write lock; hold it across the capture, the write and the rollback"
+    )]
+    RollbackRequiresHold { directory: String },
 
     #[error(
         "replacement of {path} is indeterminate ({detail}); read the file back before retrying and never delete it blindly"

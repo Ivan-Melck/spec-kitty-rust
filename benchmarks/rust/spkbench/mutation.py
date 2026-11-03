@@ -24,12 +24,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .execute import Executor, Observation
+from .fixtures import content_manifest, is_ignored
 from .workloads import (
     MutationSpec,
     Workload,
@@ -41,26 +41,31 @@ from .workloads import (
 
 
 def _is_ignored(rel: str, prefixes: tuple[str, ...]) -> bool:
-    return any(rel == prefix.rstrip("/") or rel.startswith(prefix) for prefix in prefixes)
+    return is_ignored(rel, prefixes)
 
 
-def tree_manifest(root: Path, *, ignored_prefixes: tuple[str, ...] = ()) -> dict[str, str]:
+def tree_manifest(
+    root: Path,
+    *,
+    ignored_prefixes: tuple[str, ...] = (),
+    roots: tuple[Path, ...] = (),
+) -> dict[str, str]:
     """Content manifest for every file under ``root``.
+
+    Digest values use the *same* root canonicalisation as the pristine fixture
+    manifest (:func:`spkbench.fixtures.content_manifest`). A mutation runs in a
+    clone, whose bytes may legitimately embed the original fixture root; pass
+    that root in ``roots`` so the recorded manifest is comparable with the
+    independently regenerated fixture instead of being silently
+    location-dependent.
 
     Symlinks are recorded by target so a link swap is not mistaken for an
     unchanged file. Ignored prefixes are only used for the equality manifest;
     ``ignored_artifacts`` captures the same paths for disclosure.
     """
-    manifest: dict[str, str] = {}
-    for path in sorted(root.rglob("*")):
-        rel = path.relative_to(root).as_posix()
-        if _is_ignored(rel, ignored_prefixes):
-            continue
-        if path.is_symlink():
-            manifest[rel] = "symlink:" + os.readlink(path)
-        elif path.is_file():
-            manifest[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
-    return manifest
+    return content_manifest(
+        root, roots=roots, ignored_prefixes=ignored_prefixes
+    )
 
 
 def ignored_artifacts(root: Path, prefixes: tuple[str, ...]) -> dict[str, str]:
@@ -166,6 +171,7 @@ def _run_side(
     work_root: Path,
     before: dict[str, str],
     ignored_prefixes: tuple[str, ...],
+    roots: tuple[Path, ...],
 ) -> MutationObservation:
     spec = workload.rust if side == "rust" else workload.oracle
     if spec is None:
@@ -182,7 +188,7 @@ def _run_side(
     payload = _payload_for(observation)
     if workload.normalize is not None:
         payload = workload.normalize(payload)
-    after = tree_manifest(clone, ignored_prefixes=ignored_prefixes)
+    after = tree_manifest(clone, ignored_prefixes=ignored_prefixes, roots=roots)
     return MutationObservation(
         side=side,
         invocation=invocation,
@@ -254,6 +260,7 @@ def run_mutation_pair(
                 work_root=work_root,
                 before=before,
                 ignored_prefixes=prefixes,
+                roots=(fixture,),
             )
             result.observations.append(observation)
             if observation.timed_out:

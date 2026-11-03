@@ -114,6 +114,71 @@ impl RemoteHeads {
     }
 }
 
+/// What one remote's `HEAD` resolves to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RemoteHeadTarget {
+    /// `HEAD` is the named branch (a remote default branch).
+    Branch {
+        /// The branch the remote advertised as `HEAD`.
+        branch: BranchName,
+        /// The tip it advertised for `HEAD`.
+        oid: Oid,
+    },
+    /// `HEAD` points directly at a commit (a detached remote);
+    Detached {
+        /// The advertised tip.
+        oid: Oid,
+    },
+    /// The remote answered, and its `HEAD` names no commit yet.
+    Unborn,
+}
+
+impl RemoteHeadTarget {
+    /// A stable machine-readable name.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Branch { .. } => "branch",
+            Self::Detached { .. } => "detached",
+            Self::Unborn => "unborn",
+        }
+    }
+
+    /// The default branch name, when `HEAD` is symbolic.
+    pub fn branch(&self) -> Option<&BranchName> {
+        match self {
+            Self::Branch { branch, .. } => Some(branch),
+            _ => None,
+        }
+    }
+
+    /// The advertised tip, when there is one.
+    pub fn oid(&self) -> Option<&Oid> {
+        match self {
+            Self::Branch { oid, .. } | Self::Detached { oid } => Some(oid),
+            Self::Unborn => None,
+        }
+    }
+}
+
+/// The bounded, prompt-free answer to "what does this remote's `HEAD` name?".
+#[derive(Debug, Clone)]
+pub struct RemoteHead {
+    remote: RemoteName,
+    target: RemoteHeadTarget,
+}
+
+impl RemoteHead {
+    /// The remote that answered.
+    pub fn remote(&self) -> &RemoteName {
+        &self.remote
+    }
+
+    /// Its `HEAD` target.
+    pub fn target(&self) -> &RemoteHeadTarget {
+        &self.target
+    }
+}
+
 /// The outcome of asking **every** configured remote whether one branch exists.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RemoteBranchLookup {
@@ -416,6 +481,110 @@ impl GitRepository {
             return Ok(RemoteBranchLookup::Error { detail: last_error });
         }
         Ok(RemoteBranchLookup::CleanMiss)
+    }
+
+    /// Resolve one remote's `HEAD` with a bounded, prompt-free read.
+    ///
+    /// This is the probe a caller uses when `refs/remotes/<remote>/HEAD` is
+    /// absent: it asks the remote itself. It contacts the remote **once** with
+    /// `git ls-remote --symref <remote> HEAD`, under the same no-prompt policy
+    /// as every other remote read (terminal prompts disabled, ssh `BatchMode`
+    /// applied when the effective transport is plain ssh, the handle's timeout).
+    ///
+    /// A failed or timed-out contact is [`GitError::RemoteUnreachable`], never a
+    /// fabricated "no default branch". A successful contact that advertises an
+    /// unborn `HEAD` is [`RemoteHeadTarget::Unborn`].
+    pub fn resolve_remote_head(&self, remote: &RemoteName) -> Result<RemoteHead, GitError> {
+        let ssh_command = self.non_interactive_ssh_command()?;
+        let args = [
+            "ls-remote".to_string(),
+            "--symref".to_string(),
+            "--".to_string(),
+            remote.as_str().to_string(),
+            "HEAD".to_string(),
+        ];
+        let output = match self.process().run_remote(&args, ssh_command) {
+            Ok(output) => output,
+            Err(GitError::Timeout {
+                timeout, ref args, ..
+            }) => {
+                return Err(GitError::RemoteUnreachable {
+                    remote: remote.as_str().to_string(),
+                    detail: format!("timed out after {timeout:?}: git {}", args.join(" ")),
+                    timed_out: true,
+                    timeout: Some(timeout),
+                });
+            }
+            Err(error) => return Err(error),
+        };
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(GitError::RemoteUnreachable {
+                remote: remote.as_str().to_string(),
+                detail: if stderr.is_empty() {
+                    "git ls-remote failed without a diagnostic".to_string()
+                } else {
+                    stderr
+                },
+                timed_out: false,
+                timeout: None,
+            });
+        }
+
+        let text = crate::path::utf8_field(&output.stdout, "remote head")?;
+        let mut symbolic: Option<String> = None;
+        let mut head: Option<Oid> = None;
+        for line in text.lines() {
+            if line.is_empty() {
+                continue;
+            }
+            let Some((left, reference)) = line.split_once('\t') else {
+                return Err(GitError::InvalidOutput {
+                    detail: format!("malformed ls-remote line: {line:?}"),
+                });
+            };
+            if reference != "HEAD" {
+                continue;
+            }
+            if let Some(target) = left.strip_prefix("ref: ") {
+                symbolic = Some(target.trim().to_string());
+            } else {
+                head = Some(Oid::parse(left.trim())?);
+            }
+        }
+        let target = match (symbolic, head) {
+            (Some(reference), oid) => {
+                let short = reference.strip_prefix("refs/heads/").ok_or_else(|| {
+                    GitError::InvalidOutput {
+                        detail: format!(
+                            "remote HEAD advertises a symbolic ref outside refs/heads: {reference:?}"
+                        ),
+                    }
+                })?;
+                let branch = BranchName::parse(short)?;
+                match oid {
+                    Some(oid) => RemoteHeadTarget::Branch { branch, oid },
+                    None => RemoteHeadTarget::Unborn,
+                }
+            }
+            (None, Some(oid)) => RemoteHeadTarget::Detached { oid },
+            (None, None) => RemoteHeadTarget::Unborn,
+        };
+        Ok(RemoteHead {
+            remote: remote.clone(),
+            target,
+        })
+    }
+
+    /// The remote's default branch name, when it advertises one.
+    ///
+    /// A convenience over [`GitRepository::resolve_remote_head`] for callers
+    /// that only need the protection-augmentation fact.
+    pub fn remote_default_branch(
+        &self,
+        remote: &RemoteName,
+    ) -> Result<Option<BranchName>, GitError> {
+        Ok(self.resolve_remote_head(remote)?.target().branch().cloned())
     }
 
     /// Read-only freshness for one branch against the remote that owns it.

@@ -257,6 +257,10 @@ fn help_version_and_capabilities_are_stable() {
         "init",
         "agent status validate",
         "agent status materialize",
+        "agent status emit",
+        "agent status lifecycle",
+        "agent tasks move-task",
+        "agent tasks mark-status",
         "agent tasks list-tasks",
         "agent mission create",
         "implement",
@@ -271,7 +275,7 @@ fn help_version_and_capabilities_are_stable() {
         .map(|command| command["name"].as_str().expect("name"))
         .collect();
     assert!(unsupported.contains(&"upgrade"));
-    assert!(unsupported.contains(&"agent status emit"));
+    assert!(!unsupported.contains(&"agent status emit"));
 }
 
 #[test]
@@ -808,8 +812,15 @@ fn no_run_queries_and_invalid_advances_do_not_bootstrap_runtime_files() {
     let (temp, home, slug) = mission_project();
     let root = temp.path();
     let before = tree_snapshot(root);
+    let query = run(root, &home, &["next", "--mission", &slug, "--json"]);
+    assert_eq!(query.status.code(), Some(0));
+    let value = single_json(&query);
+    assert_eq!(value["kind"], json!("query"));
+    assert_eq!(value["is_query"], json!(true));
+    assert_eq!(value["run_id"], Value::Null);
+    assert_eq!(tree_snapshot(root), before);
+
     for args in [
-        vec!["next", "--mission", &slug, "--json"],
         vec!["runtime", "query", "--mission", &slug, "--json"],
         vec!["next", "--result", "success", "--mission", &slug, "--json"],
         vec!["next", "--answer", "ignored", "--mission", &slug, "--json"],
@@ -947,7 +958,107 @@ fn unknown_and_unimplemented_routes_fail_with_the_usage_class() {
     let emit = run(temp.path(), &home, &["agent", "status", "emit", "--json"]);
     assert_eq!(emit.status.code(), Some(2));
     let value = single_json(&emit);
-    assert_eq!(value["error_code"], json!("NOT_IMPLEMENTED"));
+    assert!(value["error"].as_str().unwrap().contains("--to"));
+    assert!(value.get("error_code").is_none());
+}
+
+#[test]
+fn status_mutation_dispatch_executes_all_four_registered_facades() {
+    let (temp, home, slug) = mission_project();
+    let root = temp.path();
+    let dir = root.join("kitty-specs").join(&slug);
+    write(
+        &dir.join("tasks.md"),
+        "# Tasks\n\n- [ ] T001 Initial task\n",
+    );
+    write(
+        &dir.join("tasks/WP01-first.md"),
+        &wp_markdown("WP01", &[]).replace("lane: planned\n", "lane: planned\nsubtasks: [T001]\n"),
+    );
+    let emit = run(
+        root,
+        &home,
+        &[
+            "agent",
+            "status",
+            "emit",
+            "WP01",
+            "--to",
+            "in_progress",
+            "--actor",
+            "claude",
+            "--workspace-context",
+            "worktree:fixture",
+            "--mission",
+            &slug,
+            "--json",
+        ],
+    );
+    assert_eq!(emit.status.code(), Some(0), "{emit:?}");
+    assert_eq!(single_json(&emit)["to_lane"], "in_progress");
+
+    let moved = run(
+        root,
+        &home,
+        &[
+            "agent",
+            "tasks",
+            "move-task",
+            "WP01",
+            "--to",
+            "canceled",
+            "--agent",
+            "claude",
+            "--note",
+            "operator stopped the fixture",
+            "--no-auto-commit",
+            "--mission",
+            &slug,
+            "--json",
+        ],
+    );
+    assert_eq!(moved.status.code(), Some(0), "{moved:?}");
+    assert_eq!(single_json(&moved)["new_lane"], "canceled");
+
+    let marked = run(
+        root,
+        &home,
+        &[
+            "agent",
+            "tasks",
+            "mark-status",
+            "T001",
+            "--status",
+            "done",
+            "--agent",
+            "claude",
+            "--no-auto-commit",
+            "--mission",
+            &slug,
+            "--json",
+        ],
+    );
+    assert_eq!(marked.status.code(), Some(0), "{marked:?}");
+    assert!(single_json(&marked)["results"].is_array());
+    let log = fs::read_to_string(dir.join("status.events.jsonl")).unwrap();
+    let rows: Vec<Value> = log
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert!(rows.iter().any(|row| row["to_lane"] == "canceled"));
+    assert!(log.contains("T001"));
+
+    let before = tree_snapshot(root);
+    let lifecycle = run(
+        root,
+        &home,
+        &["agent", "status", "lifecycle", "--mission", &slug, "--json"],
+    );
+    assert_eq!(lifecycle.status.code(), Some(0), "{lifecycle:?}");
+    let value = single_json(&lifecycle);
+    assert_eq!(value["mission_slug"], slug);
+    assert_eq!(value["terminal_wp_count"], 1);
+    assert_eq!(tree_snapshot(root), before);
 }
 
 #[test]
@@ -1006,7 +1117,7 @@ fn human_and_json_modes_use_the_same_exit_classes() {
 }
 
 #[test]
-fn init_with_a_slash_command_agent_renders_canonical_prompts_from_the_pack() {
+fn init_with_claude_installs_skills_profiles_and_session_orientation() {
     let (temp, home) = project();
     let root = temp.path();
     let output = run(
@@ -1020,16 +1131,24 @@ fn init_with_a_slash_command_agent_renders_canonical_prompts_from_the_pack() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let command = root.join(".claude/commands/spec-kitty.specify.md");
-    let text = fs::read_to_string(&command).expect("generated specify command");
-    assert!(
-        text.contains("spec-kitty agent mission create"),
-        "generated prompt must invoke the native CLI:\n{text}"
-    );
-    assert!(
-        text.contains("spec-kitty next"),
-        "generated prompt:\n{text}"
-    );
+    // Pinned init deploys Claude's charter skills and profiles. Legacy slash
+    // commands are upgrade-migration output, not fresh-init output.
+    assert!(root.join(".claude/skills/spec-kitty/SKILL.md").is_file());
+    assert!(root.join(".claude/agents/analyst-annie.md").is_file());
+    assert!(root.join(".claude/CLAUDE.md").is_file());
+    assert!(!root.join(".claude/commands").exists());
+}
+
+#[test]
+fn init_with_codex_renders_the_canonical_command_skill_prompt() {
+    let (temp, home) = project();
+    let root = temp.path();
+    let output = run(root, &home, &["init", "--ai", "codex", "--non-interactive"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let command = root.join(".agents/skills/spec-kitty-specify/SKILL.md");
+    let text = fs::read_to_string(&command).expect("generated specify command skill");
+    assert!(text.contains("spec-kitty agent mission create"), "{text}");
+    assert!(text.contains("spec-kitty next"), "{text}");
 }
 
 #[test]

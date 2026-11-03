@@ -48,14 +48,18 @@ merge-driver plan, activation, identity, event, ledger seed, surface repair,
 scratch diagnostics, security notice). `InitOutcome` is unchanged
 (`Initialized`, `AlreadyInitialized`, `ResumedDelivery`).
 
-Fresh full init follows the current upstream surface:
+Fresh full init holds the canonical per-project state-directory lock before
+reading pending/config state and choosing fresh, refresh or resume. It preflights
+the activation preset only when the activation key is absent, before managed
+writes. Delivery then follows the pinned upstream surface:
 
 1. write the pending-delivery record (the command-skill roster in full mode);
 2. install the template tree, moving operator `memory/`, `templates/` and
    `missions/` to `.kittify/.backup-<UTC>/` before writing;
 3. write `config.yaml` and `.kittify/memory/`;
 4. plan/commit command surfaces and the ownership manifest;
-5. install the charter skill catalog (native/shared roots, `skills-manifest.json`);
+5. install the charter skill catalog (native/shared roots, `skills-manifest.json`),
+   session orientation and agent-profile projections in the source-defined order;
 6. protect runtime/agent paths in `.gitignore`;
 7. seed `.gitattributes` and expose the clone-local merge-driver git-config plan;
 8. provision mission-type activations from the built-in `default` preset;
@@ -129,10 +133,11 @@ bounded extraction, swap recovery and the transports are unchanged.
 * `ensure_identity` merges into `config.yaml`'s `project:` mapping, preserving
   comments/operator keys; an unparseable UUID is refused rather than re-minted.
   `resolve_identity` never writes.
-* `emit_project_initialized` plans and commits one whole-file replacement of
-  `.kittify/canonical-events.jsonl` (no `O_APPEND`), refuses a torn tail, and is
-  idempotent on `project_uuid`. The payload/envelope match the pinned contract
-  (`schema_version: 5.0.0`, sorted JSON keys, deterministic ULID event id).
+* `emit_project_initialized` delegates to the canonical `sk-status` lifecycle
+  writer for `.kittify/canonical-events.jsonl` (no `O_APPEND`), using its
+  project-event lock, validation, whole-file replacement and readback. It is
+  idempotent on `project_uuid`; the contract uses `schema_version: 5.0.0`, sorted
+  JSON keys and a time/random ULID, not a deterministic event id.
 
 ### Upgrade and the migration ledger
 
@@ -152,10 +157,9 @@ let report = run_upgrade(&UpgradeRequest::new(root, cli_version).with_target("4.
   tracked migrations and only clone-local ones whose effect is provable.
 * **Execution is fail-closed.** The embedded catalog has 136 declared
   migrations (`src/migration_catalog.json`, generated from the pinned Python
-  snapshot by `tools/generate_migration_catalog.py`). This build implements
-  three natively: `0.13.1_exclude_worktrees`,
-  `3.2.0rc28_github_diff_attributes`, `4.0.0rc7_exclude_spec_kitty`. A real run
-  whose selection contains any other id refuses with
+  snapshot by `tools/generate_migration_catalog.py`). The delivered continuation
+  implements **46 natively; 90 remain absent**. A real run whose selection
+  contains an unimplemented id refuses with
   `migration_not_implemented` **before the first write** and names every id; a
   dry run reports `would_apply`/`not_needed`/`would_skip_outside_git`/
   `unimplemented`. No migration is silently dropped.
@@ -210,14 +214,15 @@ subprocess seam. `sk-git` has no config/remote-write API yet.
 
 Deliberately visible, not stubbed:
 
-1. **Only 3 of 136 migrations are native.** `upgrade` refuses the rest before
+1. **Only 46 of 136 migrations are native.** `upgrade` refuses the rest before
    mutating; there is no autocommit, worktree upgrade, doctor/config-sync
    repair, downgrade-confirmation flow or legacy `metadata.migrations` mirror
    retirement (the ledger adoption backfill is not ported).
-2. **Agent profile projection and session presence are not installed**
-   (`.claude/agents/*.md`, `.cursor/rules/spec-kitty.mdc`, orientation blocks).
-   Their `agent_profiles_manifest.json` paths are honoured by `.gitignore` when
-   another writer created them.
+2. **Profile/session breadth is not blanket agent parity.** Supported native
+   projections and orientation blocks are installed; renderer-less agent sets
+   do not acquire empty manifests. Optional symlinked surfaces are preserved and
+   warned about rather than written through or made fatal. The expanded oracle
+   comparison covers `claude,codex,vibe`, `gemini` and `copilot`, not every layout.
 3. **Pack transports** remain `file://` and the `curl` HTTPS archive fetch.
    Artifactory AQL, ETag/If-None-Match, `ApiSource`, authenticated zip bundles
    and `GitSource` (`git fetch <sha>`) are not implemented; no native TLS client
@@ -240,17 +245,16 @@ Deliberately visible, not stubbed:
 8. **Skill ownership policy is conservative**: unrecorded legacy dotted skills
    are never deleted, a collision is preserved and reported (not resolved), and
    global skill roots are untouched.
-9. **The `ProjectInitialized` write uses the install/project lock**, not the
-   canonical status project-event lock (the native status owner exposes no writer
-   yet). No lifecycle fan-out, session presence or other lifecycle event types
-   are emitted; the validated append plan is exposed so the event owner can
-   adopt it.
+9. **Lifecycle breadth remains partial.** Init uses the canonical `sk-status`
+   project-event writer and installs session presence. Fan-out, external service
+   delivery and the remaining lifecycle command surface are not complete.
 10. **`--agent-check` does not fetch a latest version or persist a nag record**;
     `--agent-choice` values are parsed/validated but no user-state file is
     written. The CLI supplies those inputs.
 11. **Scratch/prover conservatism**: `.kittify/command-templates`, `.scratch`,
     `.resolved-*` and `.merged-*` are preserved unless the caller proves this
-    run created them; `.kittify/.install.lock` remains as untracked lock residue.
+    run created them. Init/upgrade use the same machine-state project lock and
+    do not leave `.kittify/.install.lock` in the checkout.
 12. **Cross-platform CI**: verified on Linux only. Windows mode/mtime and macOS
     are not claimed.
 
@@ -269,7 +273,12 @@ CARGO_BUILD_JOBS=2 cargo clippy -p sk-install --all-targets -- -D warnings
 cargo fmt -p sk-install -- --check
 ```
 
-170 tests (95 unit + 75 acceptance) cover: every renderer family and
+The latest coordinator init-focused set passes **227 tests, 0 failures, 2
+parent-exercised helpers**, plus **8 CLI delivery tests** and **1 oracle test
+comparing three complete post-states**. These are scoped checks, not a full
+installer/upgrade or workspace gate. See `INIT-REMEDIATION-REPORT.md` and
+`docs/rust/VERIFICATION.md` at the repository root for commands and boundaries.
+Covered behavior includes every renderer family and
 placeholder, SPDD block rendering, determinism, every configured agent surface,
 manifest corruption/duplication/round-tripping, command and charter skill
 installation/hashes, shared-frontmatter projection, native-root restore,
@@ -282,7 +291,9 @@ upgrade selection/refusal/resume/version/schema guards and `requires_core`.
 
 The full-init baseline fixture was generated by the isolated Python oracle at
 the pinned reference snapshot; regenerate the migration catalog with
-`tools/generate_migration_catalog.py` (development only). All tests use
-`tempfile` directories; no test initializes this repository, writes to
-`~/.kittify`, changes global git state, uses a credential or contacts a live
-host.
+`tools/generate_migration_catalog.py` (development only). Project fixtures use
+`tempfile`, but library tests inherit the ambient machine-state directory: run
+Cargo under temporary HOME/XDG/TMP roots while retaining Cargo/rustup caches,
+and serialize the entire invocation including doctests. This isolation is a
+harness property, not an intrinsic guarantee of every test. No live credentials,
+global Git configuration changes or hosted service are required.

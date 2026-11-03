@@ -12,10 +12,14 @@
 //! are left byte-identical. A missing, malformed or empty shipped preset is a
 //! hard failure (`DEFAULT_PRESET_MISSING`), never an empty or implicit set.
 //!
-//! Target resolution mirrors the activation-authority seam: a fresh project (no
-//! activation ledger and no legacy key) gets `.kittify/charter/activation.yaml`;
-//! an unmigrated project keeps the file that already holds the legacy key
-//! (`charter/charter.yaml` when it is the pointed-at charter, else
+//! Target resolution and the write are **not** re-implemented here: this module
+//! delegates to `sk-doctrine`'s one activation transaction
+//! ([`sk_doctrine::ActivationTransaction`]), which observes the authority at
+//! plan time, validates the ledger, takes the canonical cross-language charter
+//! synthesis lock, refuses a concurrent write and preserves user comments. A
+//! fresh project (no ledger, no legacy key) gets
+//! `.kittify/charter/activation.yaml`; an unmigrated project keeps the file that
+//! already holds the legacy key (the pointed-at `charter.yaml`, else
 //! `config.yaml`). This module never creates an activation ledger beside legacy
 //! keys.
 
@@ -23,13 +27,18 @@ use std::path::{Path, PathBuf};
 
 use serde_yaml_ng::Value;
 
+use sk_doctrine::{
+    ActivationPlan, ActivationTransaction, CONFIG_YAML_REL, DoctrineError, WriteOutcome,
+    activation_ledger_path, activation_write_target, resolve_activation_source,
+};
+
 use crate::error::InstallError;
-use crate::yaml_edit::{InsertPosition, YamlEditor, parse_mapping};
+use crate::yaml_edit::parse_mapping;
 
 /// The activation-authority path for a fresh project.
 pub const ACTIVATION_REL: &str = ".kittify/charter/activation.yaml";
 /// The project configuration path.
-pub const CONFIG_REL: &str = ".kittify/config.yaml";
+pub const CONFIG_REL: &str = CONFIG_YAML_REL;
 /// The compiled charter path.
 pub const CHARTER_REL: &str = ".kittify/charter/charter.yaml";
 /// The activation key.
@@ -73,85 +82,76 @@ pub fn default_preset_mission_types(preset_path: &Path) -> Result<Vec<String>, I
             path: preset_path.to_path_buf(),
             detail: format!("preset declares no non-empty {ACTIVATION_KEY} list"),
         })?;
-    if values.is_empty() {
-        return Err(InstallError::ActivationPresetMissing {
-            path: preset_path.to_path_buf(),
-            detail: format!("preset declares no non-empty {ACTIVATION_KEY} list"),
-        });
-    }
     Ok(values)
 }
 
 /// Resolve where `project_root`'s mission-type activations belong.
+///
+/// The answer comes from the activation ledger seam (`sk-doctrine`), the single
+/// resolver every activation writer shares.
 pub fn resolve_activation_target(project_root: &Path) -> Result<ActivationTarget, InstallError> {
-    let ledger = project_root.join(ACTIVATION_REL);
-    if ledger.exists() {
-        return Ok(ActivationTarget::Ledger(ledger));
+    let resolved = resolve_activation_source(project_root)
+        .map_err(|error| target_error(project_root, error))?;
+    if resolved.ledger_exists {
+        return Ok(ActivationTarget::Ledger(activation_ledger_path(
+            project_root,
+        )));
     }
-    let charter = project_root.join(CHARTER_REL);
-    if has_activation_key(&charter)? {
-        return Ok(ActivationTarget::Legacy(charter));
+    let target = activation_write_target(project_root, &resolved)
+        .map_err(|error| target_error(project_root, error))?;
+    if target == activation_ledger_path(project_root) {
+        Ok(ActivationTarget::Ledger(target))
+    } else {
+        Ok(ActivationTarget::Legacy(target))
     }
-    let config = project_root.join(CONFIG_REL);
-    if has_activation_key(&config)? {
-        return Ok(ActivationTarget::Legacy(config));
-    }
-    Ok(ActivationTarget::Ledger(ledger))
-}
-
-fn has_activation_key(path: &Path) -> Result<bool, InstallError> {
-    let text = match std::fs::read_to_string(path) {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(source) => return Err(InstallError::io("read", path, source)),
-    };
-    let mapping = parse_mapping(path, &text)?;
-    Ok(mapping.contains_key(Value::from(ACTIVATION_KEY)))
 }
 
 /// Provision the activation key from `preset_path`; returns `true` when written.
+///
+/// Additive and idempotent: a present key (including an authored `[]`) is never
+/// rewritten. The write is one `sk-doctrine` activation transaction, so it holds
+/// the same lock Python's `charter activate` holds and refuses a concurrent
+/// change instead of dropping it.
 pub fn provision_mission_type_activations(
     project_root: &Path,
     preset_path: &Path,
 ) -> Result<bool, InstallError> {
-    let target = resolve_activation_target(project_root)?;
-    let path = match &target {
-        ActivationTarget::Ledger(path) | ActivationTarget::Legacy(path) => path.clone(),
-    };
-    let existing = match std::fs::read(&path) {
-        Ok(raw) => String::from_utf8(raw).map_err(|error| InstallError::MetadataInvalid {
-            path: path.clone(),
-            detail: error.to_string(),
-        })?,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
-        Err(source) => return Err(InstallError::io("read", &path, source)),
-    };
-    if !existing.trim().is_empty() {
-        let mapping = parse_mapping(&path, &existing)?;
-        if mapping.contains_key(Value::from(ACTIVATION_KEY)) {
-            // Present (including an authored empty list): never rewritten.
-            return Ok(false);
-        }
-    }
-    let values = default_preset_mission_types(preset_path)?;
-    let editor = YamlEditor::new(path.clone(), existing);
-    let outcome = editor.insert_root_list(ACTIVATION_KEY, &values, InsertPosition::Bottom)?;
-    if !outcome.changed {
+    let transaction = ActivationTransaction::begin(project_root)
+        .map_err(|error| target_error(project_root, error))?;
+    let ledger = transaction
+        .ledger()
+        .map_err(|error| target_error(project_root, error))?;
+    if ledger.mission_type_activations.is_some() {
+        // Present (including an authored empty list): never rewritten.
         return Ok(false);
     }
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|source| InstallError::io("create directory", parent, source))?;
+    let values = default_preset_mission_types(preset_path)?;
+    let plan = ActivationPlan {
+        yaml_key: ACTIVATION_KEY.to_owned(),
+        new_list: Some(values),
+        ..ActivationPlan::default()
+    };
+    match transaction.commit(&plan) {
+        Ok(WriteOutcome::Changed) => Ok(true),
+        Ok(WriteOutcome::Unchanged) => Ok(false),
+        Err(error) => Err(target_error(project_root, error)),
     }
-    sk_kernel::atomic_write(&path, outcome.text.as_bytes()).map_err(|error| {
-        InstallError::io("write activation", &path, std::io::Error::other(error))
-    })?;
-    Ok(true)
+}
+
+fn target_error(project_root: &Path, error: DoctrineError) -> InstallError {
+    match error {
+        DoctrineError::PreconditionChanged { path } => InstallError::PreconditionChanged { path },
+        other => InstallError::MetadataInvalid {
+            path: project_root.join(ACTIVATION_REL),
+            detail: other.to_string(),
+        },
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sk_doctrine::{activation_ledger_path, synthesis_lock_path};
 
     fn write(path: &Path, text: &str) {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -186,6 +186,7 @@ mod tests {
         for content in [
             "mission_type_activations: []\n",
             "mission_type_activations:\n- custom\n",
+            "# kept\nmission_type_activations: [a]  # inline\n",
         ] {
             let project = tempfile::tempdir().expect("temp");
             let source = tempfile::tempdir().expect("temp");
@@ -217,6 +218,23 @@ mod tests {
     }
 
     #[test]
+    fn an_unmigrated_project_without_the_key_keeps_the_legacy_target() {
+        let project = tempfile::tempdir().expect("temp");
+        let source = tempfile::tempdir().expect("temp");
+        let preset = preset(source.path());
+        write(
+            &project.path().join(CONFIG_REL),
+            "agents:\n  available:\n  - claude\nactivated_directives: [001-arch]\n",
+        );
+        assert!(provision_mission_type_activations(project.path(), &preset).expect("provision"));
+        assert!(!project.path().join(ACTIVATION_REL).exists());
+        let text = std::fs::read_to_string(project.path().join(CONFIG_REL)).unwrap();
+        assert!(text.contains("activated_directives: [001-arch]"));
+        assert!(text.contains("mission_type_activations"));
+        assert!(text.contains("software-dev"));
+    }
+
+    #[test]
     fn missing_or_empty_presets_fail_closed() {
         let project = tempfile::tempdir().expect("temp");
         let source = tempfile::tempdir().expect("temp");
@@ -230,5 +248,41 @@ mod tests {
         let error =
             provision_mission_type_activations(project.path(), &missing).expect_err("empty");
         assert_eq!(error.code(), "DEFAULT_PRESET_MISSING");
+    }
+
+    #[test]
+    fn a_concurrent_activation_change_is_refused_not_overwritten() {
+        let project = tempfile::tempdir().expect("temp");
+        let source = tempfile::tempdir().expect("temp");
+        let preset = preset(source.path());
+        let ledger = project.path().join(ACTIVATION_REL);
+        write(&ledger, "# kept\n");
+        let transaction = ActivationTransaction::begin(project.path()).expect("observe");
+        // Another writer lands between observe and commit.
+        write(&ledger, "activated_tactics: [t]\n");
+        let plan = ActivationPlan {
+            yaml_key: ACTIVATION_KEY.to_owned(),
+            new_list: Some(vec!["software-dev".to_owned()]),
+            ..ActivationPlan::default()
+        };
+        let error = transaction.commit(&plan).expect_err("refused");
+        assert!(matches!(error, DoctrineError::PreconditionChanged { .. }));
+        assert_eq!(
+            std::fs::read_to_string(&ledger).unwrap(),
+            "activated_tactics: [t]\n"
+        );
+        // The installer path reports the same refusal rather than writing.
+        assert!(provision_mission_type_activations(project.path(), &preset).is_ok());
+    }
+
+    #[test]
+    fn the_write_uses_the_canonical_synthesis_lock_path() {
+        let project = tempfile::tempdir().expect("temp");
+        let path = synthesis_lock_path(project.path()).expect("lock path");
+        assert!(path.ends_with(".kittify/runtime/locks/charter-synthesis.lock"));
+        assert_eq!(
+            activation_ledger_path(project.path()),
+            project.path().join(ACTIVATION_REL)
+        );
     }
 }

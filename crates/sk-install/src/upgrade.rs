@@ -9,21 +9,28 @@
 //!
 //! **Fail-closed execution.** The catalog has 136 declared migrations; this
 //! crate implements the source-read families registered in
-//! [`NATIVE_MIGRATIONS`] (16 ids: the merge-driver family, run-index heal,
+//! [`NATIVE_MIGRATIONS`] (46 ids: the merge-driver family, run-index heal,
 //! lane-tip hooks, the 4.0.0rc7 pack/gitignore pair, the narrow agent-ignore
-//! rewrite and the stale mission-template fork repair). If the selection
+//! rewrite, the stale mission-template fork repair, the ten frozen
+//! `.gitignore` entry backfills/removals, the eighteen ids the pinned registry
+//! itself registers as recorded no-ops, and the two pre-1.0 layout migrations). If the selection
 //! contains any migration without a native implementation the real run refuses
 //! *before the first write*, naming every id. That is deliberate: silently
 //! dropping an old project's migration would claim a compatibility the binary
 //! does not have. `dry_run` reports the same split without refusing. A
 //! migration whose `detect` is true but whose `can_apply` refuses this project
 //! is a skip that is **not** recorded, so it is retried after the project
-//! changes.
+//! changes; a `detect`/`can_apply` that cannot evaluate the project at all is a
+//! recorded failure that stops the run and leaves the version untouched.
 //!
 //! Ordering is catalog order (the upstream `order_manifest.txt`), not version
 //! sort. Each applied migration writes one ledger record; a failure records
 //! `failed` and stops. The project version is only advanced after the whole run
 //! succeeds, matching upstream's "failed run leaves the version untouched".
+//! Records are de-duplicated against the held result, so a re-run that reaches
+//! the same verdict appends nothing; a superseded migration's record carries
+//! its successor note, which is how a successor tells that no-op apart from the
+//! shipped migration's own result.
 //!
 //! `--target` and `--agent-check`/`--agent-choice` are represented as typed
 //! requests. The agent check is a pure decision surface: the CLI supplies the
@@ -62,6 +69,15 @@ impl MigrationOutcome {
         Self {
             changed: false,
             changes: Vec::new(),
+            warnings: Vec::new(),
+        }
+    }
+
+    /// A migration that found nothing to do but still reports why.
+    pub fn unchanged(changes: Vec<String>) -> Self {
+        Self {
+            changed: false,
+            changes,
             warnings: Vec::new(),
         }
     }
@@ -141,8 +157,132 @@ merge_driver_native!(
     "4.0.0rc5_decision_index_merge_driver"
 );
 
+macro_rules! retired_native {
+    ($detect:ident, $can_apply:ident, $apply:ident, $id:literal) => {
+        fn $detect(project_root: &Path) -> Result<bool, InstallError> {
+            crate::migrations::retired::detect(project_root)
+        }
+        fn $can_apply(project_root: &Path) -> Result<Option<String>, InstallError> {
+            crate::migrations::retired::can_apply_for($id, project_root)
+        }
+        fn $apply(project_root: &Path) -> Result<MigrationOutcome, InstallError> {
+            crate::migrations::retired::apply_for($id, project_root)
+        }
+    };
+}
+
+retired_native!(
+    detect_retired_frontmatter_only_lanes,
+    can_apply_retired_frontmatter_only_lanes,
+    apply_retired_frontmatter_only_lanes,
+    "0.9.0_frontmatter_only_lanes"
+);
+retired_native!(
+    detect_retired_complete_migration,
+    can_apply_retired_complete_migration,
+    apply_retired_complete_migration,
+    "0.9.1_complete_migration"
+);
+retired_native!(
+    detect_retired_charter_cleanup,
+    can_apply_retired_charter_cleanup,
+    apply_retired_charter_cleanup,
+    "0.10.12_charter_cleanup"
+);
+retired_native!(
+    detect_retired_charter_directory,
+    can_apply_retired_charter_directory,
+    apply_retired_charter_directory,
+    "2.0.0_charter_directory"
+);
+retired_native!(
+    detect_retired_charter_context_bootstrap,
+    can_apply_retired_charter_context_bootstrap,
+    apply_retired_charter_context_bootstrap,
+    "2.0.2_charter_context_bootstrap"
+);
+retired_native!(
+    detect_retired_consistency_sweep,
+    can_apply_retired_consistency_sweep,
+    apply_retired_consistency_sweep,
+    "2.0.6_consistency_sweep"
+);
+retired_native!(
+    detect_retired_charter_doctrine_skill,
+    can_apply_retired_charter_doctrine_skill,
+    apply_retired_charter_doctrine_skill,
+    "2.1.2_fix_charter_doctrine_skill"
+);
+retired_native!(
+    detect_retired_glossary_context_skill,
+    can_apply_retired_glossary_context_skill,
+    apply_retired_glossary_context_skill,
+    "2.1.2_fix_glossary_context_skill"
+);
+retired_native!(
+    detect_retired_enforce_command_file_state,
+    can_apply_retired_enforce_command_file_state,
+    apply_retired_enforce_command_file_state,
+    "2.1.4_enforce_command_file_state"
+);
+retired_native!(
+    detect_retired_restore_prompt_commands,
+    can_apply_retired_restore_prompt_commands,
+    apply_retired_restore_prompt_commands,
+    "3.0.2_restore_prompt_commands"
+);
+retired_native!(
+    detect_retired_normalize_status_json,
+    can_apply_retired_normalize_status_json,
+    apply_retired_normalize_status_json,
+    "3.1.1_normalize_status_json"
+);
+retired_native!(
+    detect_retired_default_charter_pack,
+    can_apply_retired_default_charter_pack,
+    apply_retired_default_charter_pack,
+    "3.2.0rc35_default_charter_pack"
+);
+retired_native!(
+    detect_retired_agents_skills_backfill,
+    can_apply_retired_agents_skills_backfill,
+    apply_retired_agents_skills_backfill,
+    "3.2.5_agents_skills_gitignore_backfill"
+);
+retired_native!(
+    detect_retired_narrow_cursor_gitignore,
+    can_apply_retired_narrow_cursor_gitignore,
+    apply_retired_narrow_cursor_gitignore,
+    "3.2.6rc3_narrow_cursor_gitignore"
+);
+retired_native!(
+    detect_retired_normalize_activation_absence,
+    can_apply_retired_normalize_activation_absence,
+    apply_retired_normalize_activation_absence,
+    "normalize_activation_absence"
+);
+retired_native!(
+    detect_retired_unify_promote_answers,
+    can_apply_retired_unify_promote_answers,
+    apply_retired_unify_promote_answers,
+    "unify_charter_activation_promote_answers"
+);
+
+retired_native!(
+    detect_retired_historical_status,
+    can_apply_retired_historical_status,
+    apply_retired_historical_status,
+    "2.0.0_historical_status_migration"
+);
+retired_native!(
+    detect_retired_repair_templates,
+    can_apply_retired_repair_templates,
+    apply_retired_repair_templates,
+    "0.10.9_repair_templates"
+);
+
 /// Every migration implemented natively in this crate.
-pub const NATIVE_MIGRATIONS: [NativeMigration; 16] = [
+pub const NATIVE_MIGRATIONS: [NativeMigration; 46] = [
     NativeMigration {
         id: "0.13.1_exclude_worktrees",
         detect: detect_exclude_worktrees,
@@ -239,6 +379,186 @@ pub const NATIVE_MIGRATIONS: [NativeMigration; 16] = [
         can_apply: crate::migrations::mission_template_forks::can_apply,
         apply: crate::migrations::mission_template_forks::apply,
     },
+    NativeMigration {
+        id: "0.4.8_gitignore_agents",
+        detect: crate::migrations::gitignore_family::detect_legacy_agent_directories,
+        can_apply: crate::migrations::gitignore_family::can_apply_legacy_agent_directories,
+        apply: crate::migrations::gitignore_family::apply_legacy_agent_directories,
+    },
+    NativeMigration {
+        id: "0.12.1_remove_kitty_specs_from_gitignore",
+        detect: crate::migrations::gitignore_family::detect_kitty_specs_blocking_rule,
+        can_apply: crate::migrations::gitignore_family::can_apply_kitty_specs_blocking_rule,
+        apply: crate::migrations::gitignore_family::apply_kitty_specs_blocking_rule,
+    },
+    NativeMigration {
+        id: "2.0.0a5_remove_wp_status_gitignore_rule",
+        detect: crate::migrations::gitignore_family::detect_wp_status_rule,
+        can_apply: crate::migrations::gitignore_family::can_apply_wp_status_rule,
+        apply: crate::migrations::gitignore_family::apply_wp_status_rule,
+    },
+    NativeMigration {
+        id: "2.0.9_state_gitignore",
+        detect: crate::migrations::gitignore_family::detect_runtime_state_entries,
+        can_apply: crate::migrations::gitignore_family::can_apply_project_exists,
+        apply: crate::migrations::gitignore_family::apply_runtime_state_entries,
+    },
+    NativeMigration {
+        id: "3.2.0rc35_kittify_runtime_git_hygiene",
+        detect: crate::migrations::gitignore_family::detect_runtime_git_hygiene,
+        can_apply: crate::migrations::gitignore_family::can_apply_runtime_git_hygiene,
+        apply: crate::migrations::gitignore_family::apply_runtime_git_hygiene,
+    },
+    NativeMigration {
+        id: "3.2.3_encoding_provenance_gitignore_backfill",
+        detect: crate::migrations::gitignore_family::detect_encoding_provenance,
+        can_apply: crate::migrations::gitignore_family::can_apply_encoding_provenance,
+        apply: crate::migrations::gitignore_family::apply_encoding_provenance,
+    },
+    NativeMigration {
+        id: "3.2.4_derived_mission_views_gitignore_backfill",
+        detect: crate::migrations::gitignore_family::detect_derived_views_entry,
+        can_apply: crate::migrations::gitignore_family::can_apply_project_exists,
+        apply: crate::migrations::gitignore_family::apply_derived_views_entry,
+    },
+    NativeMigration {
+        id: "3.2.4_runtime_dirs_gitignore_backfill",
+        detect: crate::migrations::gitignore_family::detect_runtime_dirs_entries,
+        can_apply: crate::migrations::gitignore_family::can_apply_project_exists,
+        apply: crate::migrations::gitignore_family::apply_runtime_dirs_entries,
+    },
+    NativeMigration {
+        id: "3.2.6rc3_lint_report_gitignore_backfill",
+        detect: crate::migrations::gitignore_family::detect_lint_report_entry,
+        can_apply: crate::migrations::gitignore_family::can_apply_lint_report_entry,
+        apply: crate::migrations::gitignore_family::apply_lint_report_entry,
+    },
+    NativeMigration {
+        id: "3.2.6rc3_worktrees_gitignore_backfill",
+        detect: crate::migrations::gitignore_family::detect_worktrees_entry,
+        can_apply: crate::migrations::gitignore_family::can_apply_worktrees_entry,
+        apply: crate::migrations::gitignore_family::apply_worktrees_entry,
+    },
+    NativeMigration {
+        id: "0.9.0_frontmatter_only_lanes",
+        detect: detect_retired_frontmatter_only_lanes,
+        can_apply: can_apply_retired_frontmatter_only_lanes,
+        apply: apply_retired_frontmatter_only_lanes,
+    },
+    NativeMigration {
+        id: "0.9.1_complete_migration",
+        detect: detect_retired_complete_migration,
+        can_apply: can_apply_retired_complete_migration,
+        apply: apply_retired_complete_migration,
+    },
+    NativeMigration {
+        id: "0.10.12_charter_cleanup",
+        detect: detect_retired_charter_cleanup,
+        can_apply: can_apply_retired_charter_cleanup,
+        apply: apply_retired_charter_cleanup,
+    },
+    NativeMigration {
+        id: "2.0.0_charter_directory",
+        detect: detect_retired_charter_directory,
+        can_apply: can_apply_retired_charter_directory,
+        apply: apply_retired_charter_directory,
+    },
+    NativeMigration {
+        id: "2.0.2_charter_context_bootstrap",
+        detect: detect_retired_charter_context_bootstrap,
+        can_apply: can_apply_retired_charter_context_bootstrap,
+        apply: apply_retired_charter_context_bootstrap,
+    },
+    NativeMigration {
+        id: "2.0.6_consistency_sweep",
+        detect: detect_retired_consistency_sweep,
+        can_apply: can_apply_retired_consistency_sweep,
+        apply: apply_retired_consistency_sweep,
+    },
+    NativeMigration {
+        id: "2.1.2_fix_charter_doctrine_skill",
+        detect: detect_retired_charter_doctrine_skill,
+        can_apply: can_apply_retired_charter_doctrine_skill,
+        apply: apply_retired_charter_doctrine_skill,
+    },
+    NativeMigration {
+        id: "2.1.2_fix_glossary_context_skill",
+        detect: detect_retired_glossary_context_skill,
+        can_apply: can_apply_retired_glossary_context_skill,
+        apply: apply_retired_glossary_context_skill,
+    },
+    NativeMigration {
+        id: "2.1.4_enforce_command_file_state",
+        detect: detect_retired_enforce_command_file_state,
+        can_apply: can_apply_retired_enforce_command_file_state,
+        apply: apply_retired_enforce_command_file_state,
+    },
+    NativeMigration {
+        id: "3.0.2_restore_prompt_commands",
+        detect: detect_retired_restore_prompt_commands,
+        can_apply: can_apply_retired_restore_prompt_commands,
+        apply: apply_retired_restore_prompt_commands,
+    },
+    NativeMigration {
+        id: "3.1.1_normalize_status_json",
+        detect: detect_retired_normalize_status_json,
+        can_apply: can_apply_retired_normalize_status_json,
+        apply: apply_retired_normalize_status_json,
+    },
+    NativeMigration {
+        id: "3.2.0rc35_default_charter_pack",
+        detect: detect_retired_default_charter_pack,
+        can_apply: can_apply_retired_default_charter_pack,
+        apply: apply_retired_default_charter_pack,
+    },
+    NativeMigration {
+        id: "3.2.5_agents_skills_gitignore_backfill",
+        detect: detect_retired_agents_skills_backfill,
+        can_apply: can_apply_retired_agents_skills_backfill,
+        apply: apply_retired_agents_skills_backfill,
+    },
+    NativeMigration {
+        id: "3.2.6rc3_narrow_cursor_gitignore",
+        detect: detect_retired_narrow_cursor_gitignore,
+        can_apply: can_apply_retired_narrow_cursor_gitignore,
+        apply: apply_retired_narrow_cursor_gitignore,
+    },
+    NativeMigration {
+        id: "normalize_activation_absence",
+        detect: detect_retired_normalize_activation_absence,
+        can_apply: can_apply_retired_normalize_activation_absence,
+        apply: apply_retired_normalize_activation_absence,
+    },
+    NativeMigration {
+        id: "unify_charter_activation_promote_answers",
+        detect: detect_retired_unify_promote_answers,
+        can_apply: can_apply_retired_unify_promote_answers,
+        apply: apply_retired_unify_promote_answers,
+    },
+    NativeMigration {
+        id: "0.2.0_specify_to_kittify",
+        detect: crate::migrations::legacy_layout::detect_specify_layout,
+        can_apply: crate::migrations::legacy_layout::can_apply_specify_layout,
+        apply: crate::migrations::legacy_layout::apply_specify_layout,
+    },
+    NativeMigration {
+        id: "0.8.0_remove_active_mission",
+        detect: crate::migrations::legacy_layout::detect_active_mission,
+        can_apply: always_applicable,
+        apply: crate::migrations::legacy_layout::apply_active_mission,
+    },
+    NativeMigration {
+        id: "0.10.9_repair_templates",
+        detect: detect_retired_repair_templates,
+        can_apply: can_apply_retired_repair_templates,
+        apply: apply_retired_repair_templates,
+    },
+    NativeMigration {
+        id: "2.0.0_historical_status_migration",
+        detect: detect_retired_historical_status,
+        can_apply: can_apply_retired_historical_status,
+        apply: apply_retired_historical_status,
+    },
 ];
 
 fn native_for(id: &str) -> Option<&'static NativeMigration> {
@@ -258,6 +578,8 @@ pub enum PlannedOutcome {
     SkipOutsideGit,
     /// The migration's own `can_apply` refuses this project shape (not recorded).
     NotApplicable,
+    /// `detect`/`can_apply` could not evaluate the project (recorded `failed`).
+    Failed,
     /// No native implementation exists; the real run refuses.
     Unimplemented,
 }
@@ -270,6 +592,7 @@ impl PlannedOutcome {
             Self::NotNeeded => "not_needed",
             Self::SkipOutsideGit => "skipped_outside_git",
             Self::NotApplicable => "not_applicable",
+            Self::Failed => "failed",
             Self::Unimplemented => "unimplemented",
         }
     }
@@ -513,16 +836,22 @@ pub fn plan_upgrade(request: &UpgradeRequest) -> Result<UpgradePlan, InstallErro
                         PlannedOutcome::SkipOutsideGit,
                         Some("requires a git repository".to_string()),
                     )
-                } else if (native.detect)(root)? {
-                    match (native.can_apply)(root)? {
-                        Some(reason) => (PlannedOutcome::NotApplicable, Some(reason)),
-                        None => (PlannedOutcome::Apply, None),
-                    }
                 } else {
-                    (
-                        PlannedOutcome::NotNeeded,
-                        Some("project is already in the target state".to_string()),
-                    )
+                    match (native.detect)(root) {
+                        // Upstream records a `failed` result (and leaves the
+                        // version untouched) when a guard cannot evaluate the
+                        // project at all; it is never a silent skip.
+                        Err(error) => (PlannedOutcome::Failed, Some(error.to_string())),
+                        Ok(false) => (
+                            PlannedOutcome::NotNeeded,
+                            Some("project is already in the target state".to_string()),
+                        ),
+                        Ok(true) => match (native.can_apply)(root) {
+                            Err(error) => (PlannedOutcome::Failed, Some(error.to_string())),
+                            Ok(Some(reason)) => (PlannedOutcome::NotApplicable, Some(reason)),
+                            Ok(None) => (PlannedOutcome::Apply, None),
+                        },
+                    }
                 }
             }
         };
@@ -557,6 +886,7 @@ pub fn run_upgrade(request: &UpgradeRequest) -> Result<UpgradeReport, InstallErr
                         PlannedOutcome::NotNeeded => "not_needed".to_string(),
                         PlannedOutcome::SkipOutsideGit => "would_skip_outside_git".to_string(),
                         PlannedOutcome::NotApplicable => "not_applicable".to_string(),
+                        PlannedOutcome::Failed => "failed".to_string(),
                         PlannedOutcome::Unimplemented => "unimplemented".to_string(),
                     },
                     changes: row.detail.iter().cloned().collect(),
@@ -575,7 +905,11 @@ pub fn run_upgrade(request: &UpgradeRequest) -> Result<UpgradeReport, InstallErr
         });
     }
     let root = &request.project_root;
-    let _lock = ProjectLock::acquire(&root.join(crate::lock::LOCK_REL), request.lock_wait)?;
+    // Same canonical authority as init (machine state directory, keyed by the
+    // resolved project root). A project-relative `.kittify/.install.lock` here
+    // would split lock authority: upgrade and init would write the same managed
+    // surfaces without excluding each other.
+    let _lock = ProjectLock::for_project(root, request.lock_wait)?;
     // Re-plan under the lock: another process may have advanced the ledger.
     let plan = plan_upgrade(request)?;
     let unimplemented = plan.unimplemented_ids();
@@ -594,19 +928,11 @@ pub fn run_upgrade(request: &UpgradeRequest) -> Result<UpgradeReport, InstallErr
                 let outcome = match (native.apply)(root) {
                     Ok(outcome) => outcome,
                     Err(error) => {
-                        ledger.append(&LedgerRecord::for_spec(
-                            &row.spec,
-                            FAILED_RESULT,
-                            &request.cli_version,
-                        ))?;
+                        record_result(&ledger, &row.spec, FAILED_RESULT, request)?;
                         return Err(error);
                     }
                 };
-                ledger.append(&LedgerRecord::for_spec(
-                    &row.spec,
-                    SETTLED_RESULT,
-                    &request.cli_version,
-                ))?;
+                record_result(&ledger, &row.spec, SETTLED_RESULT, request)?;
                 rows.push(MigrationResultRow {
                     id: row.spec.id.clone(),
                     result: "applied".to_string(),
@@ -615,17 +941,31 @@ pub fn run_upgrade(request: &UpgradeRequest) -> Result<UpgradeReport, InstallErr
                 });
             }
             PlannedOutcome::NotNeeded => {
-                ledger.append(&LedgerRecord::for_spec(
-                    &row.spec,
-                    SKIPPED_RESULT,
-                    &request.cli_version,
-                ))?;
+                record_result(&ledger, &row.spec, SKIPPED_RESULT, request)?;
                 rows.push(MigrationResultRow {
                     id: row.spec.id.clone(),
                     result: "skipped".to_string(),
                     changes: row.detail.iter().cloned().collect(),
                     warnings: Vec::new(),
                 });
+            }
+            PlannedOutcome::Failed => {
+                // Re-run the failing hook under the held lock so the caller gets
+                // the typed error, then record `failed` exactly as upstream does.
+                let error = match (native.detect)(root) {
+                    Err(error) => error,
+                    Ok(_) => match (native.can_apply)(root) {
+                        Err(error) => error,
+                        Ok(_) => InstallError::UpgradeRefused {
+                            detail: format!(
+                                "{} no longer fails to evaluate the project",
+                                row.spec.id
+                            ),
+                        },
+                    },
+                };
+                record_result(&ledger, &row.spec, FAILED_RESULT, request)?;
+                return Err(error);
             }
             // Upstream records nothing for "not applicable here": the next run
             // after the project changes must select it again.
@@ -663,6 +1003,36 @@ pub fn run_upgrade(request: &UpgradeRequest) -> Result<UpgradeReport, InstallErr
 /// here; a migration that needs the common dir refuses instead of guessing.
 pub fn is_git_repository(project_root: &Path) -> bool {
     project_root.join(".git").exists()
+}
+
+/// Append a ledger record unless the held result already says the same thing.
+///
+/// Upstream's `_record_ledger_result` skips the append when the authoritative
+/// partition already holds this result, and never downgrades a held `success`
+/// to `skipped`. Without that guard a re-run of a `skipped` (non-settling)
+/// migration — every superseded no-op, for example — would grow the ledger on
+/// every invocation. A superseded migration's record carries its successor
+/// note so a successor can tell that no-op from the shipped migration's own
+/// `skipped`.
+fn record_result(
+    ledger: &MigrationLedger,
+    spec: &MigrationSpec,
+    result: &str,
+    request: &UpgradeRequest,
+) -> Result<(), InstallError> {
+    let held = ledger
+        .records_for(spec)?
+        .into_iter()
+        .find(|record| record.id == spec.id)
+        .map(|record| record.result);
+    if held.as_deref() == Some(result)
+        || (result == SKIPPED_RESULT && held.as_deref() == Some(SETTLED_RESULT))
+    {
+        return Ok(());
+    }
+    let mut record = LedgerRecord::for_spec(spec, result, &request.cli_version);
+    record.superseded_by = spec.superseded_by.clone();
+    ledger.append(&record)
 }
 
 fn ensure_initialized(project_root: &Path) -> Result<(), InstallError> {
@@ -992,7 +1362,7 @@ mod tests {
     #[test]
     fn every_native_migration_id_is_declared_exactly_once() {
         let catalog = MigrationCatalog::embedded().expect("catalog");
-        assert_eq!(NATIVE_MIGRATIONS.len(), 16);
+        assert_eq!(NATIVE_MIGRATIONS.len(), 46);
         let mut ids = std::collections::BTreeSet::new();
         for migration in NATIVE_MIGRATIONS {
             assert!(
@@ -1006,6 +1376,37 @@ mod tests {
                 migration.id
             );
         }
+    }
+
+    #[test]
+    fn upgrade_takes_the_same_canonical_lock_as_init() {
+        let directory = tempfile::tempdir().expect("temp");
+        initialized(directory.path(), "4.0.0rc8");
+        let catalog = MigrationCatalog::embedded().expect("catalog");
+        // Settle both partitions so the run reaches the lock (nothing to apply).
+        MigrationLedger::new(directory.path())
+            .seed_for_init(catalog, "4.0.0rc8", |_spec| true)
+            .expect("seed");
+        let lock_path =
+            crate::lock::project_lock_path(directory.path()).expect("canonical lock path");
+        let (ready_sender, ready_receiver) = std::sync::mpsc::channel();
+        let (release_sender, release_receiver) = std::sync::mpsc::channel();
+        let holder = std::thread::spawn(move || {
+            let _lock =
+                ProjectLock::acquire(&lock_path, Duration::from_secs(2)).expect("holder lock");
+            ready_sender.send(()).expect("ready");
+            release_receiver.recv().expect("release");
+        });
+        ready_receiver.recv().expect("ready");
+        let mut request = UpgradeRequest::new(directory.path(), "4.0.0rc8");
+        request.lock_wait = Duration::from_millis(100);
+        // Release the holder even when the contention expectation fails, so a
+        // red run reports the assertion rather than a deadlocked helper thread.
+        let result = run_upgrade(&request);
+        release_sender.send(()).expect("release");
+        holder.join().expect("join");
+        let error = result.expect_err("canonical lock is contended");
+        assert_eq!(error.code(), "lock_unavailable");
     }
 
     #[test]

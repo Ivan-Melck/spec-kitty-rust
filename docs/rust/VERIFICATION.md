@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-11-02
+updated: 2026-11-03
 audience: software-engineer
 ---
 # Rust verification evidence
@@ -8,9 +8,56 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Latest integrated Linux checkpoint
+## Frozen Linux checkpoint — 2026-11-03, after `d64468a76`
 
-Rust 1.99.1, `CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0`. The latest aggregate
+All implementation owners had finished before these coordinator gates; no
+source changed during the runs. Rust 1.99.1, existing target directory,
+`CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0`, temporary HOME/XDG/TMP and one lease
+covering each entire Cargo invocation, including doctests:
+
+- `cargo test --workspace --locked --no-fail-fast`: **1,947 passed, 0 failed,
+  8 ignored subprocess helpers**, 169 suite results including doctests. Parents
+  exercise all eight helpers; no required acceptance case is waived.
+- `cargo clippy --workspace --all-targets --locked -- -D warnings`: pass.
+- `cargo fmt --all -- --check`: pass.
+- `cargo build --release -p sk-cli --locked`: pass, both CLI binaries.
+- Independent harness review reproduces **86 benchmark pytest / 61 checker-
+  oracle tests / 49 self-tests**. These are correctness controls, not timings.
+- Fresh production completion checker: **exit 1, 599 findings, 27 PERF errors**.
+  No workflow or performance gate is promoted; 90 migrations remain absent,
+  and the registry still declares 16 performance workloads absent.
+
+Logs: `/tmp/sk-native-frozen-required-oracle-{aggregate,clippy,fmt,release}.log`,
+`/tmp/sk-frozen-completion{.log,-report.json}`. The additional development-tool Ruff check **fails with 90 findings**
+(`/tmp/sk-frozen-python-lint.log`), including complexity, domain-inapplicable
+charter-hash rules needing justified treatment, imports and unused names. No
+Python lint waiver or passing-lint claim. No clean-source build receipt or
+measurement campaign exists; a release build is not performance acceptance.
+The source/oracle baseline remains `9aed3a8012cb5eb22c0128b14d525039f95fea7a`.
+Fork main was separately fast-forwarded and remotely rechecked at
+`7c50fd38bec0fca4483bf8c11da8471e91652acd`; the rewrite is not yet reconciled.
+
+**Oracle gate correction:** the first 1,946-pass attempt silently returned from
+the init differential test when its optional override was unset. That attempt
+is not init-oracle evidence. A new subprocess regression reproduces that false
+pass, then the test adopts the shared required, lock-exact selector (including
+verification of explicit overrides). With no init-specific override, the final
+aggregate actually performs all three init post-state comparisons. Missing
+oracle is now a failing precondition. Red/green:
+`/tmp/sk-init-required-oracle-{red,green}.log`. The single test-only needless
+borrow and two Mission-file formatting failures are also corrected, not waived.
+
+**Review boundary:** init preservation/concurrency, the kernel release fix and
+bounded workspace mechanisms have scoped independent acceptance. New status
+commit/rollback, doctrine-default/validation and invocation-bound Git evidence
+still need final scoped reviews. `next` still rejects valid non-WP custom steps
+and can falsely advance a composition-backed action on protected main because
+StepContract execution is absent. Those are open implementation defects, not
+harmless deferred labels. No full parity, platform, workflow or speed claim.
+
+## Previous full Linux aggregate — historical, `ff4452b02`
+
+Later deliveries are not covered by this aggregate. Rust 1.99.1, `CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0`. The latest aggregate
 used temporary HOME/XDG/TMP roots, retaining only Cargo/rustup build caches:
 
 - `cargo test --workspace --locked`: **1,449 passed, 0 failed, 5 ignored** across
@@ -21,19 +68,134 @@ used temporary HOME/XDG/TMP roots, retaining only Cargo/rustup build caches:
 - `cargo fmt --all -- --check`: passed.
 - `cargo build --release -p sk-cli --locked`: passed (both CLI executables).
 - Inventory/checker/oracle-verifier regression tests: **39 passed**.
-- Benchmark harness self-tests: **19 passed**; untimed adapter/fixture tests:
-  **16 passed** (verified oracle and freshly built compatibility binary).
+- Then-current benchmark self-tests: **19 passed**; untimed adapter tests:
+  **16 passed**. Later evidence-verifier checks are listed separately below.
 - `check_completion.py`: **exit 1, expected**. Required implementation,
   conformance, independent review, full workflows and performance remain open.
 
 These are checkpoint results, not independent approval of every new module.
-The release build includes the current lock, run-recovery and scoped-commit
-changes. No timing campaign has been run on it. Repeat gates after further edits
+The release build covers that checkpoint's lock, run-recovery and scoped-commit
+changes, not the current dirty sources. No timing campaign has been run on it. Repeat gates after further edits
 and bind any new performance evidence to the exact binary/source.
 Logs: `/tmp/sk-native-reviewed-integration-{tests,clippy}.log` and
 `/tmp/sk-native-reviewed-release.log`. The 455- and 1,276-test checkpoints are
 historical. No full upstream Python-suite pass or macOS/Windows success is claimed.
 Required kernel comparisons verify the lock-exact oracle and fail on absence/drift.
+
+## Subsequent scoped checks — not a new aggregate
+
+- Coordinator: actual binary dispatch for status emit/lifecycle and task move/mark
+  passes an end-to-end post-state test. The fixture now includes the upstream-
+  required `tasks.md` roster; its fresh focused rerun passes in
+  `/tmp/sk-status-dispatch-roster-green.log`. Coordinator also reproduces **220
+  status library passes / 1 parent-exercised helper** and **39 status CLI passes**
+  (`/tmp/sk-status{,-cli}-remediation-coordinator.log`). Reviewer independence,
+  explicit self-review, evidence/commit/feedback gates and legacy identities have
+  scoped regressions, not independent approval. Rollback/commit orchestration,
+  mirror YAML fidelity and coordination remain incomplete.
+- Coordinator: checker/oracle **55/55 tests** after fixing evidence references to
+  honor the audited `--root` and binding projected fixture identities to their
+  bundle; this includes three root-isolation regressions.
+  A prior temporary-CWD attempt omitted the repository from `PYTHONPATH` and
+  failed importing the oracle tests; the corrected environment is documented.
+- Independent semantic-evidence review reproduces **78 benchmark pytest tests,
+  59 checker/oracle tests and 49 self-tests**, substantiating real fixture
+  regeneration, stored mutation-byte/schema checks, command-template binding and
+  structural sample chronology. It still finds an unbound observable: recorded
+  before/unchanged hashes were not compared with regenerated per-file bytes.
+  The owner has now delivered that binding, a shared pristine/clone normalizer,
+  real synthetic input manifests and final-checker forgery controls, reporting
+  **86 benchmark pytest / 61 checker-oracle / 49 self-tests**; independent
+  re-review is pending. Coordinator's written-status identity/schema correction
+  has **5 focused passes**. The registry self-digest is rebound and loads cleanly;
+  independent re-review now reproduces all **86 / 61 / 49** results and closes
+  the scoped input/identity binding findings. These changes do not promote
+  workloads or lower floors. The source is dirty, binaries stale,
+  and no build receipt or passing campaign exists. See the
+  [semantic disposition](reviews/evidence-semantic-disposition.md).
+- Delivered owner reports: doctrine **123** tests; runtime/store **224** tests;
+  status **211 passed, 1 subprocess helper ignored**; migrations **46/136**
+  implemented with 61 effects cases and 136×3 ledger vectors. These counts are
+  scoped owner evidence, not coordinator aggregate certification.
+- Earlier coordinator Git verification stopped at **228 native passes / 3
+  helpers** followed by a doctest `E0463`; that was not a clean 232-test run.
+  Independent review now reproduces **232 passes / 0 failures / 3 helpers**,
+  including all 4 doctests, with scoped Clippy/fmt clean. It rejects two merge-
+  conclusion defects. Coordinator fixed captured-index binding red-first (**233
+  passes**), followed by an owner correction for immutable created-commit
+  evidence, typed unconfirmed outcomes, corrupt-HEAD taxonomy and explicit
+  64 MiB blob reads (8 MiB default retained). Coordinator now reproduces **246
+  Git passes / 0 failures / 3 helpers**, including doctests, together with **235
+  runtime/store passes** in `/tmp/sk-runtime-git-remediation-coordinator.log`.
+  Independent review reproduces the 246 tests and required matrix but finds
+  one remaining identity gap: historical same-parent reflog/HEAD candidates are
+  not proof of creation during this call. That correction is pending. Workspace
+  consumers must not blindly abort possibly landed conclusions. Every Cargo
+  invocation shares a lease.
+- Independent next/status/governance continuation reviews found blocking facade,
+  prompt, context and profile defects. Store interoperability and the new lock
+  transactions held up; those scoped approvals do not approve the facades.
+- Coordinator red-first fixes restore all **26** pinned built-in profiles and
+  settle legacy migration successes by normalized id (identity remains intact).
+  **136 installer library tests passed** at that checkpoint. The two context
+  expectations exposed by selected-root delivery are now settled by new exact
+  Python comparisons, not weakened deny rules. Coordinator freshly reproduced
+  **138 doctrine passes** at the first remediation checkpoint, then **141
+  passes** (106 unit, 18 baseline, 15 live-oracle, 2 doctests) after matching
+  non-Git provenance/reference degradation without dropping typed delivery
+  (`/tmp/sk-doctrine-nongit-coordinator.log`). The recovered remediation also
+  covers nested model defaults, org-floor field independence, links and aliases;
+  independent review confirms those fixes but finds absent-key org defaults,
+  retired/malformed governance behavior, model-title and diagnostic discrepancies.
+  Those remain open. CLI required-floor/language/skip composition is now wired
+  with real CLI regressions and is awaiting its own independent re-review.
+- Recovered init remediation is freshly reproduced: **227 scoped installer
+  passes / 0 failures / 2 helpers**, **8 CLI delivery passes**, and **1 oracle
+  test comparing three complete post-states** (`claude,codex,vibe`, `gemini`,
+  `copilot`). Two-process init exclusion, shared init/upgrade lock authority,
+  conditional preset preflight and tolerated optional symlinks have regressions.
+  Logs: `/tmp/sk-init-remediation-coordinator.log` and
+  `/tmp/sk-cli-init-next-remediation-coordinator.log`. The latter also has **25
+  runtime-next passes** and **26 compatibility passes**. The stale Claude slash-
+  command expectation is replaced with actual skill/profile/orientation checks;
+  a separate Codex test retains the canonical prompt-content assertions.
+- Coordinator deterministically reproduces an owning-guard release failure with
+  a duplicated file descriptor, then explicitly unlocks only in the owning PID.
+  **190 kernel passes / 0 failures / 1 helper**, including mixed-language and
+  reentrancy tests, pass in `/tmp/sk-lock-duplicate-release-green.log`.
+  Independent review reproduces the 190 tests, scoped Clippy/fmt and public
+  reentrancy/descriptor probes, and accepts this correction within scope. It
+  could explain init's intermittent post-drop reacquire failures but does not
+  prove their causal history; this is descriptor simulation, not a real fork
+  test. See [the release correction](reviews/lock-release-duplicate-description.md).
+  The native READY/stdin lock helper remains in place; no process-group signals.
+- CLI library Clippy with `--no-deps -- -D warnings` passes after boxing the two
+  large argument variants and collapsing one init condition. The subsequent
+  compatibility suite passes **26/26** (`/tmp/sk-cli-compat-recovered-green.log`).
+  This is not workspace/all-target Clippy or independent approval.
+- Independent coordination review reproduced **129** workspace tests, but
+  rejected bootstrap/planning/integration for CLI wiring. The recovered owner
+  reports corrections for locks/protection, seed/root restore, pins, demotion,
+  journal outcomes, integration rollback and numeric-slug lane names. Coordinator
+  freshly reproduced **162 passes / 0 failures** including the doctest target
+  (`/tmp/sk-workspace-remediation-coordinator.log`). Two earlier failures were
+  real defects; two were stale fixture expectations corrected to the actual
+  seeded JSONL bytes. This remediation still needs independent re-review before
+  CLI wiring. Independent review then reproduced **163 passes** but found
+  coordination directory naming, planning-lane dependencies, untracked root-copy
+  loss, split lanes locks, unlocked recovery and dropped journal faults. The
+  second owner correction addresses those findings and handles possibly landed
+  merge conclusions without abort/rewind. Coordinator additionally corrects the
+  Unix undecodable-path fallback lock digest red-first: **183 passes / 0 failures**
+  and scoped Clippy pass (`/tmp/sk-ws-second-remediation-coordinator{,-clippy}.log`).
+  Independent review reproduces **183 passes** and accepts those corrected
+  library mechanisms. Merge-conclusion attribution stays conditional on Git's
+  creation-evidence correction. Merge-driver parity, remote-default fallback and
+  platform/concurrency gaps remain. CLI wiring is still unapproved.
+- Fork `main` is current at upstream `8ffeb01805c7f11ccdcccc6fd607b29091bc36be`.
+  The rewrite/reference source still uses the older baseline below. The
+  556-commit reconciliation changes path authority, status and governance;
+  unchanged dependency and pack pins do not make old source fixtures current.
 
 ## Oracle and committed conformance evidence
 
@@ -67,7 +229,8 @@ native binary invokes it as a production fallback.
   cross-language lock contention and mixed generic-journal writer exercises.
 - Installer: a pinned init oracle fixture and native differential checks for
   generated skills/assets, activation, metadata, ledger and preservation.
-  **16 of 136** upgrade migrations have native execution; 120 remain absent.
+  **46 of 136** upgrade migrations have native execution in the delivered
+  continuation; 90 remain absent and independent review is pending.
   Ledger locks now use the shared kernel state-directory/path resolver, with
   actual Python/native contention tests for unset, empty and relative XDG state.
   Init-seeded records no longer invent supersession outcomes.

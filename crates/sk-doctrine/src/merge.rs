@@ -18,6 +18,11 @@ const BUILT_IN: &str = "built-in";
 const PROJECT: &str = "project";
 
 /// A typed conflict report for layered overrides.
+///
+/// The field set mirrors the reference `OrgDRGConflict`: `kind` says why,
+/// `target_id` says which URN or token, and the three `*_value` fields say
+/// what each layer declared (a compact declaration summary; `None` when that
+/// layer did not contribute).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MergeConflict {
     /// The conflict kind (`node_override`, `edge_override`, `unresolved_edge_endpoint`, ...).
@@ -26,7 +31,13 @@ pub struct MergeConflict {
     pub conflicting_layers: Vec<String>,
     /// The URN or authored token the conflict is about.
     pub target_id: String,
-    /// What the merge did: `org_override`, `project_override` or `hard_fail`.
+    /// The built-in declaration the override replaced, when there was one.
+    pub built_in_value: Option<String>,
+    /// The org declaration that won.
+    pub org_value: Option<String>,
+    /// The project declaration that won, when the project layer is involved.
+    pub project_value: Option<String>,
+    /// What the merge did: `built_in_wins`, `project_wins`, `org_override` or `hard_fail`.
     pub resolution_applied: String,
 }
 
@@ -42,13 +53,23 @@ pub struct MergeReport {
 }
 
 /// Merge options.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MergeOptions {
-    /// When true, a fully-qualified org endpoint may name a node supplied by a
-    /// later layer and is reported as a warning if it remains absent. When
-    /// false (the default) an endpoint that names no node in any layer is an
-    /// error: the native merge never emits a dangling edge silently.
+    /// When true (the default, matching the reference), a qualified endpoint
+    /// that names no node in any merged layer is **kept and reported as a
+    /// warning**: the merge cannot tell a typo from a reference into a sibling
+    /// pack the caller did not load, and `charter lint` merges against an empty
+    /// built-in on purpose. When false, the same finding is a hard refusal —
+    /// for a caller that owns graph completeness.
     pub allow_forward_references: bool,
+}
+
+impl Default for MergeOptions {
+    fn default() -> Self {
+        Self {
+            allow_forward_references: true,
+        }
+    }
 }
 
 /// Overlay the built-in, org and project layers.
@@ -157,6 +178,9 @@ pub fn merge_three_layers_with_options(
                         kind: "node_override".to_owned(),
                         conflicting_layers: vec![previous.clone(), marker.clone()],
                         target_id: urn.clone(),
+                        built_in_value: merged_nodes[position].label().map(str::to_owned),
+                        org_value: node.title.clone(),
+                        project_value: None,
                         resolution_applied: "org_override".to_owned(),
                     });
                     warnings.push(format!(
@@ -174,6 +198,9 @@ pub fn merge_three_layers_with_options(
                             kind: "node_override".to_owned(),
                             conflicting_layers: vec![previous, marker.clone()],
                             target_id: urn.clone(),
+                            built_in_value: None,
+                            org_value: node.title.clone(),
+                            project_value: None,
                             resolution_applied: "org_override".to_owned(),
                         });
                         warnings.push(format!(
@@ -204,6 +231,16 @@ pub fn merge_three_layers_with_options(
                         .unwrap_or("unknown")
                         .to_owned();
                     if previous != marker {
+                        conflicts.push(MergeConflict {
+                            kind: "edge_override".to_owned(),
+                            conflicting_layers: vec![previous.clone(), marker.clone()],
+                            target_id: format!("{} --{}--> {}", triple.0, triple.2, triple.1),
+                            built_in_value: (previous == BUILT_IN)
+                                .then(|| format!("{} --{}--> {}", triple.0, triple.2, triple.1)),
+                            org_value: Some(format!("{} --{}--> {}", triple.0, triple.2, triple.1)),
+                            project_value: None,
+                            resolution_applied: "org_override".to_owned(),
+                        });
                         merged_edges[position] = minted;
                         warnings.push(format!(
                             "{marker} restates edge ({} --{}--> {}); the later pack's record wins",
@@ -230,7 +267,14 @@ pub fn merge_three_layers_with_options(
                     kind: "node_override".to_owned(),
                     conflicting_layers: vec![previous.clone(), PROJECT.to_owned()],
                     target_id: node.urn().to_owned(),
-                    resolution_applied: "project_override".to_owned(),
+                    built_in_value: (previous == BUILT_IN)
+                        .then(|| merged_nodes[position].label().map(str::to_owned))
+                        .flatten(),
+                    org_value: (previous != BUILT_IN)
+                        .then(|| merged_nodes[position].label().map(str::to_owned))
+                        .flatten(),
+                    project_value: node.label().map(str::to_owned),
+                    resolution_applied: "project_wins".to_owned(),
                 });
                 warnings.push(format!(
                     "project doctrine overrides {previous} node {:?}",
@@ -676,7 +720,7 @@ mod tests {
     }
 
     #[test]
-    fn unresolved_qualified_endpoint_is_refused_unless_forward_refs_allowed() {
+    fn unresolved_qualified_endpoint_warns_by_default_and_refuses_when_opted_in() {
         let fragments = [fragment(
             vec![org_node("x", "directives")],
             vec![OrgEdge {
@@ -688,22 +732,78 @@ mod tests {
                 generated: false,
             }],
         )];
-        assert!(merge_three_layers(&built_in(), &fragments, None).is_err());
-        let report = merge_three_layers_with_options(
-            &built_in(),
-            &fragments,
-            None,
-            MergeOptions {
-                allow_forward_references: true,
-            },
-        )
-        .unwrap();
+        // The reference merge permits the shape and warns: a lint that merges
+        // against an empty built-in must not fail on a forward reference.
+        let report = merge_three_layers(&built_in(), &fragments, None).unwrap();
         assert!(
             report
                 .warnings
                 .iter()
                 .any(|warning| warning.contains("unresolved DRG edge endpoint"))
         );
+        assert!(
+            report
+                .graph
+                .edges()
+                .iter()
+                .any(|edge| edge.target() == "tactic:later")
+        );
+        // A caller that owns graph completeness escalates the same finding.
+        assert!(matches!(
+            merge_three_layers_with_options(
+                &built_in(),
+                &fragments,
+                None,
+                MergeOptions {
+                    allow_forward_references: false,
+                },
+            ),
+            Err(DoctrineError::UnresolvedEndpoint { .. })
+        ));
+    }
+
+    #[test]
+    fn edge_and_node_overrides_carry_their_layer_declarations() {
+        let built = built_in();
+        let built_edge_count = built.edges().len();
+        let built_node_label = built
+            .node("directive:A")
+            .and_then(|node| node.label().map(str::to_owned));
+        let fragments = [fragment(
+            vec![OrgNode {
+                id: "001".to_owned(),
+                kind: "directives".to_owned(),
+                title: Some("Org A".to_owned()),
+                body_path: None,
+                discovered: false,
+            }],
+            vec![OrgEdge {
+                source: "directive:001".to_owned(),
+                target: "tactic:hard".to_owned(),
+                relation: "requires".to_owned(),
+                reason: Some("org reason".to_owned()),
+                generated_reason: None,
+                generated: false,
+            }],
+        )];
+        let report = merge_three_layers(&built, &fragments, None).unwrap();
+        assert_eq!(report.graph.edges().len(), built_edge_count);
+        let edge_conflict = report
+            .conflicts
+            .iter()
+            .find(|conflict| conflict.kind == "edge_override")
+            .expect("a restated built-in edge is recorded");
+        assert_eq!(edge_conflict.resolution_applied, "org_override");
+        assert!(edge_conflict.built_in_value.is_some());
+        assert!(edge_conflict.org_value.is_some());
+        let node_conflict = report
+            .conflicts
+            .iter()
+            .find(|conflict| conflict.kind == "node_override")
+            .expect("a same-kind built-in override is recorded");
+        assert_eq!(node_conflict.built_in_value, built_node_label);
+        assert_eq!(node_conflict.org_value.as_deref(), Some("Org A"));
+        assert_eq!(node_conflict.project_value, None);
     }
 
     #[test]

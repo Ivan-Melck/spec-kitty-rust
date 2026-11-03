@@ -133,6 +133,26 @@ pub fn mid8_from_slug(slug: &str) -> Option<&str> {
     is_mid8_shape(tail).then_some(tail)
 }
 
+/// The reference's `_idempotent_legacy_body` (#1949).
+///
+/// A slug that embeds an 8-character Crockford `mid8` tail also carries an
+/// identity, so a stale `NNN-` prefix is stripped from it: that composes the
+/// same resolvable `<human-slug>-<mid8>` body the `mission_id` path produces.
+/// A *pure* legacy `NNN-` slug has no mid8, so its prefix is the identity and
+/// is preserved byte-for-byte.
+///
+/// This is the rule for every name that must be idempotent with the
+/// `mission_id` path — the mission branch and each code-lane branch. It must
+/// **not** be applied to a reconstruction of an existing on-disk name (see
+/// [`coord_mission_dir_name`]).
+pub fn legacy_branch_body(slug: &str) -> &str {
+    if mid8_from_slug(slug).is_some() {
+        strip_numeric_prefix(slug)
+    } else {
+        slug
+    }
+}
+
 /// The canonical `<human-slug>-<mid8>` mission directory name.
 ///
 /// Idempotent on an already-suffixed slug and strips a stale `NNN-` prefix when
@@ -172,12 +192,7 @@ pub fn mission_branch_name(slug: &str, mission_id: Option<&MissionId>) -> String
             format!("{MISSION_BRANCH_PREFIX}{body}{suffix}")
         }
         None => {
-            let body = if mid8_from_slug(slug).is_some() {
-                strip_numeric_prefix(slug)
-            } else {
-                slug
-            };
-            format!("{MISSION_BRANCH_PREFIX}{body}")
+            format!("{MISSION_BRANCH_PREFIX}{}", legacy_branch_body(slug))
         }
     }
 }
@@ -236,6 +251,14 @@ fn validate_lane_id(lane_id: &str) -> Result<(), WorkspaceError> {
 ///
 /// Refuses the canonical planning lane: a planning lane has no
 /// `kitty/mission-…` branch.
+///
+/// `<body>` is [`legacy_branch_body`], the reference's
+/// `_idempotent_legacy_body` rule: a stale `NNN-` prefix is stripped **only**
+/// when the slug embeds its own mid8 tail. A pure legacy `057-slug` keeps its
+/// prefix, which is the whole point: the previous unconditional strip composed
+/// `kitty/mission-<slug>-<lane>` for a branch Git had created as
+/// `kitty/mission-057-<slug>-<lane>`, so every lane-head stamp, allocation and
+/// planning path silently addressed a branch that did not exist.
 pub fn code_lane_branch_name(slug: &str, lane_id: &str) -> Result<String, WorkspaceError> {
     validate_lane_id(lane_id)?;
     if lane_id == PLANNING_LANE_ID {
@@ -246,7 +269,7 @@ pub fn code_lane_branch_name(slug: &str, lane_id: &str) -> Result<String, Worksp
     }
     Ok(format!(
         "{MISSION_BRANCH_PREFIX}{}-{lane_id}",
-        strip_numeric_prefix(slug)
+        legacy_branch_body(slug)
     ))
 }
 
@@ -332,6 +355,32 @@ mod tests {
         );
         assert!(mission_branch_name_required("my-feature", None).is_err());
         assert!(mission_branch_name_required("057-my-feature", None).is_ok());
+    }
+
+    #[test]
+    fn code_lane_body_matches_the_branch_grammar() {
+        // A pure legacy `NNN-` slug keeps its prefix on the lane branch: the
+        // branch Git created is `kitty/mission-057-lanehead-lane-a`, so stripping
+        // the prefix addressed a branch that never existed.
+        assert_eq!(
+            code_lane_branch_name("057-lanehead", "lane-a").unwrap(),
+            "kitty/mission-057-lanehead-lane-a"
+        );
+        // A slug that embeds its mid8 tail dedups a stale prefix, exactly like
+        // the mission_id path.
+        assert_eq!(
+            code_lane_branch_name("057-lanehead-01KV6510", "lane-a").unwrap(),
+            "kitty/mission-lanehead-01KV6510-lane-a"
+        );
+        assert_eq!(
+            code_lane_branch_name("lanehead", "lane-a").unwrap(),
+            "kitty/mission-lanehead-lane-a"
+        );
+        assert_eq!(
+            legacy_branch_body("057-lanehead"),
+            "057-lanehead",
+            "a pure legacy prefix is the identity"
+        );
     }
 
     #[test]

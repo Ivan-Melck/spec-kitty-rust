@@ -8,7 +8,9 @@
 //!
 //! There is deliberately no `#[ignore]`/skip path here: a missing, drifted or
 //! empty corpus fails. The single ignored test is the subprocess helper the
-//! parent spawns.
+//! parent spawns. The custom-`GIT_INDEX_FILE` case is an exact match now that the
+//! operator index is captured at repository open; the corpus no longer records
+//! an open index mismatch.
 
 #[path = "common/safe_commit_oracle.rs"]
 mod oracle;
@@ -88,6 +90,7 @@ fn corpus_manifest_is_complete_and_undrifted() {
     );
     let mut seen = BTreeMap::new();
     let mut expectations = BTreeMap::new();
+    let mut divergences: Vec<String> = Vec::new();
     for entry in cases {
         let name = entry.at("name").as_str().to_owned();
         assert!(
@@ -113,6 +116,9 @@ fn corpus_manifest_is_complete_and_undrifted() {
             ),
             "case {name} has unknown expectation {expectation}"
         );
+        if expectation == "documented_divergence" {
+            divergences.push(name.clone());
+        }
         *expectations.entry(expectation).or_insert(0usize) += 1;
         assert_eq!(case.expectation, entry.at("expectation").as_str());
     }
@@ -120,7 +126,7 @@ fn corpus_manifest_is_complete_and_undrifted() {
         assert!(seen.contains_key(name), "required case {name} is absent");
     }
     assert!(
-        expectations.get("match").copied().unwrap_or(0) >= 20,
+        expectations.get("match").copied().unwrap_or(0) >= 31,
         "the corpus needs a substantive set of exact oracle matches: {expectations:?}"
     );
     assert_eq!(
@@ -133,8 +139,19 @@ fn corpus_manifest_is_complete_and_undrifted() {
     );
     assert_eq!(
         expectations.get("open_mismatch").copied().unwrap_or(0),
-        1,
-        "the GIT_INDEX_FILE parity gap must stay recorded as exactly one open mismatch"
+        0,
+        "the captured operator index closed the last open mismatch; a new one must be recorded explicitly: {expectations:?}"
+    );
+    assert_eq!(
+        divergences,
+        vec!["pathspec_magic_literal_name".to_string()],
+        "the one documented divergence must stay the literal-path case; a re-labelled \
+         divergence would otherwise satisfy the counts"
+    );
+    assert_eq!(
+        cases.len(),
+        32,
+        "the scoped-safe-commit corpus is a 32-case closure: {expectations:?}"
     );
 
     // Explicit coverage pins, so deleting a hard case cannot quietly reduce scope.
@@ -156,7 +173,7 @@ fn corpus_manifest_is_complete_and_undrifted() {
         "literal_unusual_filenames",
         "nested_hook_advance_conflict",
         "post_cas_competitor_reconciled_to_landed_commit",
-        "git_index_file_selector_refused",
+        "git_index_file_selector_honoured",
         "pinned_signing_failure_typed",
         "hook_stages_extra_paths_landed",
     ];
@@ -281,10 +298,6 @@ fn run_and_check(case: &Case) {
             oracle::assert_hook_evidence(&case.hooks, &run.hooks, &case.name);
             assert_documented_divergence(case, &run, root);
         }
-        "open_mismatch" => {
-            oracle::assert_hook_evidence(&case.hooks, &run.hooks, &case.name);
-            assert_open_mismatch(case, &run);
-        }
         other => panic!("{}: unknown expectation {other}", case.name),
     }
 
@@ -387,34 +400,6 @@ fn assert_documented_divergence(case: &Case, run: &NativeRun, root: &Path) {
                 "the unrelated modifications stay unstaged and the literal path is committed"
             );
         }
-        "git_index_file_selector_refused" => {
-            assert_eq!(case.oracle.outcome, "ok");
-            assert!(case.oracle.commit.is_some());
-            assert_ne!(case.after.head, case.before.head);
-            assert_eq!(
-                run.native.outcome, "error",
-                "native must refuse the selector, not ignore it"
-            );
-            assert_eq!(
-                run.native.refusal_class.as_deref(),
-                Some("environment_unsupported")
-            );
-            assert_eq!(run.native.facts, vec!["detail:GIT_INDEX_FILE".to_string()]);
-            assert_eq!(run.after, run.before, "a refusal must not mutate anything");
-            assert_ne!(
-                case.after
-                    .custom_index
-                    .as_ref()
-                    .expect("oracle custom index")
-                    .entries,
-                case.before
-                    .custom_index
-                    .as_ref()
-                    .expect("oracle custom index before")
-                    .entries,
-                "the oracle-side evidence is the mutation native refuses to perform"
-            );
-        }
         "worktree_signing_enforced_divergence" => {
             assert_eq!(case.oracle.outcome, "ok");
             assert_eq!(run.native.outcome, "error");
@@ -475,30 +460,6 @@ fn assert_documented_divergence(case: &Case, run: &NativeRun, root: &Path) {
         }
         other => panic!("{other}: unhandled documented divergence"),
     }
-}
-
-fn assert_open_mismatch(case: &Case, run: &NativeRun) {
-    assert_eq!(case.name, "git_index_file_selector_refused");
-    assert_eq!(case.oracle.outcome, "ok");
-    assert_eq!(
-        run.native.refusal_class.as_deref(),
-        Some("environment_unsupported")
-    );
-    assert_eq!(
-        run.native.variant.as_deref(),
-        Some("RepositoryEnvironmentRefused")
-    );
-    assert_eq!(run.after, run.before);
-    // The open mismatch is real: the oracle landed a commit the native side
-    // refuses to make. Never normalise this into equality.
-    assert_ne!(case.after.head, case.before.head);
-    assert_ne!(
-        case.after.custom_index.as_ref().map(|index| &index.entries),
-        case.before
-            .custom_index
-            .as_ref()
-            .map(|index| &index.entries)
-    );
 }
 
 /// Subprocess helper: execute one committed case and write its observation.

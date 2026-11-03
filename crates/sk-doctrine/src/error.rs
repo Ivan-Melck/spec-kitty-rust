@@ -282,6 +282,10 @@ pub enum DoctrineError {
     },
 
     /// An activation identity token is ambiguous within one layer.
+    ///
+    /// Lookups resolve a shared stem by layer precedence (project, then org
+    /// packs last-to-first, then built-in) exactly as the reference index does,
+    /// so this is only raised when a caller explicitly asks about one layer.
     #[error(
         "activation token {token:?} for {kind:?} is ambiguous: {candidates:?} \
          declare or answer to it in {layer}"
@@ -293,9 +297,64 @@ pub enum DoctrineError {
         candidates: Vec<String>,
     },
 
+    /// A declared id is known, but no activation stem can represent it.
+    #[error(
+        "Cannot store {kind} {artifact_id:?}: its file name {file_name:?} is used by files in more than one layer \
+         that declare different IDs ({declarations:?}), so the file name cannot stand for {artifact_id:?}. \
+         Rename one of them so each ID has its own file name."
+    )]
+    ActivationIdCollision {
+        kind: String,
+        artifact_id: String,
+        file_name: String,
+        declarations: Vec<String>,
+    },
+
+    /// An org-charter policy file is malformed or unreadable.
+    #[error("invalid org charter {path}: {message}")]
+    InvalidOrgCharter { path: PathBuf, message: String },
+
+    /// An org-charter `extends:` chain is invalid.
+    #[error("org charter {path}: invalid extends chain: {message}")]
+    OrgCharterExtends { path: PathBuf, message: String },
+
+    /// The charter synthesis lock could not be acquired within the bounded wait.
+    #[error(
+        "another `spec-kitty` run in this worktree holds the charter synthesis lock {path} \
+         (waited {millis}ms). Nothing was written. Retry after the other run finishes."
+    )]
+    SynthesisLockHeld { path: PathBuf, millis: u64 },
+
+    /// The charter synthesis lock could not be placed.
+    #[error(
+        "{root}: cannot place the charter synthesis lock because git could not be invoked ({reason}). \
+         Make git runnable in this checkout, then retry."
+    )]
+    SynthesisLockUnavailable { root: PathBuf, reason: String },
+
     /// A context action token is not a valid action URN or action name.
     #[error("invalid action {action:?}: expected an action name or action:<mission>/<step> URN")]
     InvalidAction { action: String },
+
+    /// The authored charter still carries the retired `governance.doctrine`
+    /// selection key.
+    ///
+    /// The pinned reference refuses this shape with
+    /// `ActiveCharterConfigError` / `ACTIVE_CHARTER_CONFIG_INVALID` instead of
+    /// silently ignoring the key (`sync.require_canonical_governance`): the
+    /// retired block's selections would otherwise be dropped in silence. This
+    /// is the native equivalent, raised from the same charter-config read.
+    #[error(
+        "{path}: `governance.doctrine` is the retired selection key and is no longer read. \
+         Run `spec-kitty upgrade` to rewrite it as `governance.charter`. \
+         See {runbook}."
+    )]
+    RetiredGovernanceSelection {
+        /// The authored charter file.
+        path: PathBuf,
+        /// The migration runbook named by the reference refusal.
+        runbook: &'static str,
+    },
 
     /// A charter pack root could not be resolved.
     #[error("no pack root could be resolved for {tier}")]
@@ -306,12 +365,29 @@ pub enum DoctrineError {
     MissingPinnedContent { path: PathBuf },
 }
 
+/// The migration runbook the reference names in its retired-key refusal.
+pub const RETIRED_GOVERNANCE_RUNBOOK: &str = "docs/migrations/charter-pack-cutover.md";
+
 impl DoctrineError {
     pub(crate) fn io(action: &'static str, path: impl Into<PathBuf>, source: io::Error) -> Self {
         Self::Io {
             action,
             path: path.into(),
             source,
+        }
+    }
+
+    /// The pinned reference's stable machine code for this failure, when the
+    /// reference defines one.
+    ///
+    /// Most doctrine failures are native refusals with no reference code. The
+    /// retired `governance.doctrine` selection key is a ported reference
+    /// refusal, whose code (`ACTIVE_CHARTER_CONFIG_INVALID`) consumers may
+    /// switch on instead of matching the message text.
+    pub fn reference_code(&self) -> Option<&'static str> {
+        match self {
+            Self::RetiredGovernanceSelection { .. } => Some("ACTIVE_CHARTER_CONFIG_INVALID"),
+            _ => None,
         }
     }
 }

@@ -22,11 +22,13 @@
 //! # Persistence
 //!
 //! Reads are fail-closed: a corrupt manifest is an error, never "no lanes".
-//! Writes take a cross-process lock and replace the file atomically, so a
-//! reader observes a complete old or complete new document.
+//! Writes take the **reference's** cross-process lock
+//! ([`lanes_json_lock_path`]) and replace the file atomically, so a reader
+//! observes a complete old or complete new document, and a native writer and an
+//! upstream writer on the same manifest contend on the same lock file.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -39,10 +41,19 @@ use crate::naming::{PLANNING_LANE_ID, mission_branch_name};
 /// The lane manifest filename.
 pub const LANES_FILE_NAME: &str = "lanes.json";
 
+/// Directory (under the Git common dir) holding the canonical `lanes.json`
+/// locks, exactly as `specify_cli.lanes.persistence.lanes_json_lock` places
+/// them.
+pub const LANES_LOCK_DIRECTORY: &str = "spec-kitty-lanes-locks";
+
 /// Largest manifest this crate will read.
 pub const MAX_LANES_BYTES: u64 = 8 * 1024 * 1024;
 
 /// How long a manifest writer waits for the cross-process lock.
+///
+/// Kept for callers that build their own [`FileLock`]; the store itself waits
+/// **without** a deadline, exactly like the reference's
+/// `machine_file_lock(blocking=True, timeout_s=None, reentrant=True)`.
 pub const LANES_LOCK_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// The union-find merge rule labels recorded in a collapse report.
@@ -144,12 +155,16 @@ pub struct ExecutionLane {
     /// Work packages, ordered by execution sequence within the lane.
     pub wp_ids: Vec<WpId>,
     /// Union of the owning work packages' `owned_files` globs.
+    #[serde(default)]
     pub write_scope: Vec<String>,
     /// Surface tags predicted for this lane.
+    #[serde(default)]
     pub predicted_surfaces: Vec<String>,
     /// Lanes that must complete before this one starts.
+    #[serde(default)]
     pub depends_on_lanes: Vec<String>,
     /// Lanes with the same group can run in parallel.
+    #[serde(default)]
     pub parallel_group: u32,
 }
 
@@ -1284,28 +1299,44 @@ pub fn lane_dependency_readiness(
 #[derive(Clone, Debug)]
 pub struct LanesStore {
     feature_dir: PathBuf,
-    lock_path: PathBuf,
+    lock: LockAuthority,
+}
+
+/// Where [`LanesStore`] takes its cross-process lock.
+#[derive(Clone, Debug)]
+enum LockAuthority {
+    /// The reference's canonical ``<common>/spec-kitty-lanes-locks/<rel>.lock``
+    /// path, resolved from the feature directory when the lock is taken.
+    Canonical,
+    /// An explicit path supplied by the caller.
+    Explicit(PathBuf),
 }
 
 impl LanesStore {
-    /// A store whose lock lives beside the manifest.
+    /// A store anchored on `feature_dir` that uses the **canonical** lock.
     ///
-    /// Cross-worktree writers should use [`Self::with_lock_path`] with a path
-    /// under the Git common directory, so every worktree contends on one lock.
+    /// The lock is resolved at lock time by [`lanes_json_lock_path`], never
+    /// placed beside the manifest: an in-tree `<mission_dir>/.lanes.json.lock`
+    /// shares no lock with the reference writer (so a mixed lost update is
+    /// possible) and leaves an untracked file inside the mission directory, which
+    /// then makes a later `fast_forward`/rollback refuse the checkout as dirty
+    /// (`INTEGRATION_CHECKOUT_DIRTY`).
     pub fn new(feature_dir: impl Into<PathBuf>) -> Self {
-        let feature_dir = feature_dir.into();
-        let lock_path = feature_dir.join(".lanes.json.lock");
         Self {
-            feature_dir,
-            lock_path,
+            feature_dir: feature_dir.into(),
+            lock: LockAuthority::Canonical,
         }
     }
 
     /// A store with an explicit lock path.
+    ///
+    /// This bypasses the canonical authority and is intended for tests and
+    /// embedded callers that already own a serialization point; production
+    /// writers must use [`Self::new`] so they contend with every other writer.
     pub fn with_lock_path(feature_dir: impl Into<PathBuf>, lock_path: impl Into<PathBuf>) -> Self {
         Self {
             feature_dir: feature_dir.into(),
-            lock_path: lock_path.into(),
+            lock: LockAuthority::Explicit(lock_path.into()),
         }
     }
 
@@ -1314,14 +1345,27 @@ impl LanesStore {
         self.feature_dir.join(LANES_FILE_NAME)
     }
 
-    /// The cross-process lock path used by [`Self::write`].
-    pub fn lock_path(&self) -> &Path {
-        &self.lock_path
+    /// The cross-process lock path [`Self::write`] and [`Self::update`] take.
+    ///
+    /// For a canonical store this is resolved on demand, so it reflects the
+    /// repository the feature directory currently belongs to.
+    pub fn lock_path(&self) -> Result<PathBuf, WorkspaceError> {
+        match &self.lock {
+            LockAuthority::Canonical => lanes_json_lock_path(&self.feature_dir),
+            LockAuthority::Explicit(path) => Ok(path.clone()),
+        }
     }
 
     /// The mission directory this store is anchored on.
     pub fn feature_dir(&self) -> &Path {
         &self.feature_dir
+    }
+
+    /// Take the canonical cross-process lock (unbounded and reentrant, matching
+    /// `machine_file_lock(blocking=True, timeout_s=None, reentrant=True)`).
+    fn lock(&self) -> Result<FileLock, WorkspaceError> {
+        let path = self.lock_path()?;
+        Ok(FileLock::acquire_unbounded(&path)?)
     }
 
     /// Read the manifest, or `Ok(None)` when it is genuinely absent.
@@ -1347,9 +1391,52 @@ impl LanesStore {
             })
     }
 
+    /// Read, mutate and write the manifest under **one** cross-process lock.
+    ///
+    /// This is the only correct way to change one field of an existing manifest:
+    /// a read followed by a separate [`Self::write`] loses any update another
+    /// process makes in between, and a blind [`Self::write`] of a stale manifest
+    /// discards it. Because the same lock file serialises every listed writer
+    /// ([`Self::write`] takes it too), holding it across the read-modify-write is
+    /// the compare-and-swap: no other holder can interleave.
+    ///
+    /// `Ok(None)` means the manifest is genuinely absent; the closure is then not
+    /// called and nothing is written.
+    pub fn update<F>(&self, mutate: F) -> Result<Option<LanesManifest>, WorkspaceError>
+    where
+        F: FnOnce(&LanesManifest) -> Result<LanesManifest, WorkspaceError>,
+    {
+        let _lock = self.lock()?;
+        let path = self.path();
+        let current = match sk_kernel::read_bounded(&path, MAX_LANES_BYTES) {
+            Ok(bytes) => bytes,
+            Err(sk_kernel::KernelError::Io { source, .. })
+                if source.kind() == std::io::ErrorKind::NotFound =>
+            {
+                return Ok(None);
+            }
+            Err(error) => return Err(WorkspaceError::Kernel(error)),
+        };
+        let manifest: LanesManifest =
+            serde_json::from_slice(&current).map_err(|error| WorkspaceError::CorruptLanes {
+                path: path.clone(),
+                detail: error.to_string(),
+            })?;
+        let updated = mutate(&manifest)?;
+        let mut bytes = serde_json::to_vec_pretty(&updated).map_err(|error| {
+            WorkspaceError::InvalidArtifact {
+                artifact: "lanes.json",
+                detail: error.to_string(),
+            }
+        })?;
+        bytes.push(b'\n');
+        sk_kernel::atomic_write(&path, &bytes)?;
+        Ok(Some(updated))
+    }
+
     /// Write the manifest under the cross-process lock, atomically.
     pub fn write(&self, manifest: &LanesManifest) -> Result<PathBuf, WorkspaceError> {
-        let _lock = FileLock::acquire(&self.lock_path, LANES_LOCK_TIMEOUT)?;
+        let _lock = self.lock()?;
         let path = self.path();
         let mut bytes = serde_json::to_vec_pretty(manifest).map_err(|error| {
             WorkspaceError::InvalidArtifact {
@@ -1361,6 +1448,178 @@ impl LanesStore {
         sk_kernel::atomic_write(&path, &bytes)?;
         Ok(path)
     }
+}
+
+/// The reference's canonical `lanes.json` lock path.
+///
+/// Mirrors `specify_cli.lanes.persistence.lanes_json_lock` exactly:
+///
+/// * inside a Git work tree:
+///   `<git-common-dir>/spec-kitty-lanes-locks/<the lanes.json path relative to
+///   the worktree root>.lock` — one lock per manifest, shared by every worktree
+///   and (crucially) by every implementation;
+/// * outside any repository (`NotAGitRepositoryError` upstream): a stable name
+///   under `<tempdir>/spec-kitty-lanes-locks/` derived from the resolved
+///   manifest path, exactly like `_non_git_lanes_lock_path`;
+/// * any other topology failure, or a manifest that is not inside its own
+///   worktree: a typed refusal (`LANES_LOCK_TOPOLOGY_UNRESOLVED` /
+///   `LANES_LOCK_OUTSIDE_WORKTREE`). There is **no** fallback to an in-tree
+///   lock, because that is exactly the split-authority defect this resolver
+///   replaces: a native `<mission_dir>/.lanes.json.lock` neither contends with
+///   the reference writer nor stops dirtying the checkout it lives in.
+pub fn lanes_json_lock_path(feature_dir: &Path) -> Result<PathBuf, WorkspaceError> {
+    let lanes_path = resolved_lanes_path(feature_dir);
+    let common_dir = match sk_kernel::git_topology::git_common_dir(feature_dir) {
+        Ok(common_dir) => common_dir,
+        Err(sk_kernel::KernelError::NotAGitRepository { .. }) => {
+            return Ok(non_git_lanes_lock_path(&lanes_path));
+        }
+        Err(error) => return Err(lanes_lock_refusal(feature_dir, &error)),
+    };
+    // `git rev-parse --show-toplevel`: a bare repository or a git-directory
+    // interior has a common dir but no work tree, which upstream refuses.
+    let worktree_root = match sk_kernel::git_topology::git_toplevel(feature_dir) {
+        Ok(root) => root,
+        Err(error) => return Err(lanes_lock_refusal(feature_dir, &error)),
+    };
+    let relative = lanes_path.strip_prefix(&worktree_root).map_err(|_| {
+        WorkspaceError::CoordRefused {
+            code: "LANES_LOCK_OUTSIDE_WORKTREE",
+            message: format!(
+                "lanes.json is outside its Git worktree: {} is not under {}; refusing to pick a lock that no other writer shares",
+                lanes_path.display(),
+                worktree_root.display()
+            ),
+        }
+    })?;
+    let name = relative
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| LANES_FILE_NAME.to_owned());
+    Ok(common_dir
+        .join(LANES_LOCK_DIRECTORY)
+        .join(relative)
+        .with_file_name(format!("{name}.lock")))
+}
+
+fn lanes_lock_refusal(feature_dir: &Path, error: &sk_kernel::KernelError) -> WorkspaceError {
+    WorkspaceError::CoordRefused {
+        code: "LANES_LOCK_TOPOLOGY_UNRESOLVED",
+        message: format!(
+            "cannot safely lock lanes.json for {}: {error}; refusing to fall back to an in-tree lock that no other writer shares",
+            feature_dir.display()
+        ),
+    }
+}
+
+/// `_non_git_lanes_lock_path`: a stable temp-root name for a non-repository.
+fn non_git_lanes_lock_path(lanes_path: &Path) -> PathBuf {
+    // Python: `json.dumps(lanes_path.as_posix(), ensure_ascii=True,
+    // separators=(",", ":"))`, then the bare SHA-256 hex of those bytes.
+    let identity = python_json_path(lanes_path);
+    let digest = sk_kernel::content_digest::sha256_hex(identity.as_bytes());
+    std::env::temp_dir()
+        .join(LANES_LOCK_DIRECTORY)
+        .join(format!("{digest}.lock"))
+}
+
+/// `resolve_lanes_dir(feature_dir).resolve()`: the manifest path, resolved once.
+fn resolved_lanes_path(feature_dir: &Path) -> PathBuf {
+    let path = feature_dir.join(LANES_FILE_NAME);
+    if let Ok(resolved) = std::fs::canonicalize(&path) {
+        return resolved;
+    }
+    match std::fs::canonicalize(feature_dir) {
+        Ok(dir) => dir.join(LANES_FILE_NAME),
+        Err(_) => absolutize(&path),
+    }
+}
+
+fn absolutize(path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        return normalize_lexically(path);
+    }
+    match std::env::current_dir() {
+        Ok(cwd) => normalize_lexically(&cwd.join(path)),
+        Err(_) => path.to_path_buf(),
+    }
+}
+
+fn normalize_lexically(path: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                let has_normal = out
+                    .components()
+                    .any(|component| matches!(component, Component::Normal(_)));
+                if has_normal {
+                    out.pop();
+                } else if !out.has_root() {
+                    out.push("..");
+                }
+            }
+            other => out.push(other.as_os_str()),
+        }
+    }
+    out
+}
+
+#[cfg(unix)]
+fn python_json_path(path: &Path) -> String {
+    use std::os::unix::ffi::OsStrExt;
+    let mut out = String::from("\"");
+    for chunk in path.as_os_str().as_bytes().utf8_chunks() {
+        let valid = python_json_string(chunk.valid());
+        out.push_str(&valid[1..valid.len() - 1]);
+        // Python's filesystem decoder uses surrogateescape for these bytes;
+        // ensure_ascii then renders each surrogate as its literal JSON escape.
+        for byte in chunk.invalid() {
+            out.push_str(&format!("\\udc{byte:02x}"));
+        }
+    }
+    out.push('"');
+    out
+}
+
+#[cfg(not(unix))]
+fn python_json_path(path: &Path) -> String {
+    let text = path.to_string_lossy();
+    #[cfg(windows)]
+    let text = text.replace('\\', "/");
+    python_json_string(&text)
+}
+
+/// `json.dumps(value, ensure_ascii=True, separators=(",", ":"))` for one string.
+fn python_json_string(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 2);
+    out.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\u{8}' => out.push_str("\\b"),
+            '\u{c}' => out.push_str("\\f"),
+            character if !('\u{20}'..='\u{7e}').contains(&character) => {
+                let code = u32::from(character);
+                if code > 0xFFFF {
+                    let scalar = code - 0x10000;
+                    let high = 0xD800 + (scalar >> 10);
+                    let low = 0xDC00 + (scalar & 0x3FF);
+                    out.push_str(&format!("\\u{high:04x}\\u{low:04x}"));
+                } else {
+                    out.push_str(&format!("\\u{code:04x}"));
+                }
+            }
+            character => out.push(character),
+        }
+    }
+    out.push('"');
+    out
 }
 
 #[cfg(test)]

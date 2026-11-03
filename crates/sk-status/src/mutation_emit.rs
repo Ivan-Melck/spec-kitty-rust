@@ -36,17 +36,17 @@ use sk_kernel::locks::LockWait;
 use crate::guard::{self, DoneEvidence, GuardContext, ReviewApproval, ReviewResult};
 use crate::lane::Lane;
 use crate::mutation::MutationError;
+use crate::mutation_delta::InnerStateDelta;
 use crate::mutation_lock::{acquire_mission_lock, canonicalize_feature_dir};
 use crate::mutation_log::{
     AppendOptions, MaterializeOutcome, append_rows_atomic, events_path, materialize_snapshot_file,
     read_log_rows, verify_event_rows,
 };
+use crate::mutation_mirror::{MirrorOutcome, mirror_phase1_frontmatter_lane};
+use crate::mutation_readiness::{DependencyVerdict, resolve_dependency_verdict};
 use crate::mutation_ulid::{is_ulid, new_ulid};
 use crate::replay::{DiaryStream, parse_diary, reduce_diary};
 use crate::snapshot::META_FILENAME;
-
-/// Default bounded wait for an ordinary status write (baseline 10 s).
-pub const DEFAULT_LOCK_WAIT_SECONDS: u64 = 10;
 
 /// The `--force` review-lane note requirement (baseline text).
 const FORCE_NOTE_REQUIRED: &str =
@@ -167,8 +167,19 @@ pub struct TransitionRequest {
     pub policy_metadata: Option<Value>,
     pub review_result: Option<Value>,
     pub current_actor: Option<String>,
-    /// In-lock dependency verdict; `None` fails open, as the baseline guard does.
+    /// In-lock dependency verdict; `None` computes one from the reduced snapshot
+    /// and the WP's declared `dependencies` (the baseline shells always supply
+    /// one). `Some` wins over [`Self::dependency_verdict`] and the computed one.
     pub dependency_ready: Option<bool>,
+    /// A typed dependency verdict (its `satisfied()` becomes the guard input).
+    pub dependency_verdict: Option<DependencyVerdict>,
+    /// A best-effort lane-branch HEAD sha stamped into
+    /// `policy_metadata["lane_head"]` (the baseline injects a Git probe; a crate
+    /// that never runs Git takes the value from its caller).
+    pub lane_head: Option<String>,
+    /// The claim annotation persisted in the **same** replacement as the
+    /// transition (baseline FR-004: a resolved binding must never lag the claim).
+    pub annotation_delta: Option<InnerStateDelta>,
     /// Explicit producer timestamp (fixtures pin this).
     pub at: Option<String>,
     /// Explicit event id (fixtures pin this).
@@ -209,6 +220,9 @@ impl TransitionRequest {
             review_result: None,
             current_actor: None,
             dependency_ready: None,
+            dependency_verdict: None,
+            lane_head: None,
+            annotation_delta: None,
             at: None,
             event_id: None,
             default_workspace_context: true,
@@ -217,10 +231,11 @@ impl TransitionRequest {
     }
 
     fn wait(&self) -> LockWait {
-        self.lock_wait
-            .unwrap_or(LockWait::Bounded(std::time::Duration::from_secs(
-                DEFAULT_LOCK_WAIT_SECONDS,
-            )))
+        // The baseline flat emit door calls `feature_status_lock(...)` with its
+        // default `UNBOUNDED_LOCK_WAIT`: a legitimate >10 s holder is waited out.
+        // Only the coordination transaction passes the 10 s bound, and that
+        // caller supplies it explicitly (`mutation_lock::MISSION_WRITE_LOCK_TIMEOUT`).
+        self.lock_wait.unwrap_or(LockWait::Unbounded)
     }
 }
 
@@ -310,11 +325,41 @@ impl StatusEventDraft {
     }
 }
 
+/// A typed off-axis `InnerStateChanged` row (`kind: "annotation"`).
+///
+/// Shares the append-only log with lane transitions but carries no
+/// `from_lane`/`to_lane`: it traverses zero FSM edges and never increments
+/// `force_count`.
+#[derive(Clone, Debug)]
+pub struct AnnotationDraft {
+    pub event_id: String,
+    pub wp_id: String,
+    pub at: String,
+    pub actor: ActorValue,
+    pub delta: InnerStateDelta,
+}
+
+impl AnnotationDraft {
+    /// The exact `InnerStateChanged.to_dict()` wire shape.
+    pub fn to_json_value(&self) -> Value {
+        let mut map = Map::new();
+        map.insert("event_id".to_owned(), Value::String(self.event_id.clone()));
+        map.insert("kind".to_owned(), Value::String("annotation".to_owned()));
+        map.insert("wp_id".to_owned(), Value::String(self.wp_id.clone()));
+        map.insert("at".to_owned(), Value::String(self.at.clone()));
+        map.insert("actor".to_owned(), self.actor.to_json_value());
+        map.insert("delta".to_owned(), self.delta.to_json_value());
+        Value::Object(map)
+    }
+}
+
 /// The pipeline's value-level result.
 #[derive(Clone, Debug)]
 pub struct PreparedTransition {
     /// `None` is the alias-collapse no-op arm: nothing is appended.
     pub event: Option<StatusEventDraft>,
+    /// The claim annotation persisted with the transition (same replacement).
+    pub annotation: Option<AnnotationDraft>,
     pub resolved_lane: Lane,
     pub mirror_frontmatter_lane: bool,
 }
@@ -333,6 +378,11 @@ pub struct EmitOutcome {
     /// A materialization failure, recorded without failing the emit (baseline
     /// keeps the persisted event authoritative).
     pub materialize_error: Option<String>,
+    /// The claim annotation persisted in the same replacement, when requested.
+    pub annotation: Option<AnnotationDraft>,
+    /// The phase-1 legacy frontmatter `lane` mirror outcome (`None` only for the
+    /// alias-collapse no-op arm, which writes nothing).
+    pub mirror: Option<MirrorOutcome>,
     /// The lock file the write ran under.
     pub lock_path: PathBuf,
     /// The Mission lock key.
@@ -362,6 +412,42 @@ fn derive_from_lane_from_stream(stream: &DiaryStream, wp_id: &str) -> Lane {
         .get(wp_id)
         .and_then(|state| state.lane())
         .unwrap_or(Lane::Genesis)
+}
+
+/// The baseline `store._WP_ID_PATTERN`: `^WP\d+$`, no trimming or case folding.
+fn is_canonical_wp_id(value: &str) -> bool {
+    let Some(digits) = value.strip_prefix("WP") else {
+        return false;
+    };
+    !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+/// The `policy_metadata` key a stamped lane-head sha is recorded under.
+pub const LANE_HEAD_KEY: &str = "lane_head";
+
+/// Merge the injected lane-head sha into `policy_metadata` (`LANE_HEAD_KEY`).
+///
+/// Byte-identical to the input when there is no stamp. A non-object
+/// `policy_metadata` with a stamp present is a refusal (the baseline would fail
+/// on `{**policy_metadata, ...}` for a non-mapping too).
+fn stamp_lane_head(
+    policy_metadata: Option<&Value>,
+    lane_head: Option<&str>,
+) -> Result<Option<Value>, MutationError> {
+    let Some(sha) = lane_head else {
+        return Ok(policy_metadata.cloned());
+    };
+    let mut object = match policy_metadata {
+        None | Some(Value::Null) => Map::new(),
+        Some(Value::Object(object)) => object.clone(),
+        Some(other) => {
+            return Err(MutationError::InvalidRequest {
+                reason: format!("policy_metadata must be an object, got {other}"),
+            });
+        }
+    };
+    object.insert("lane_head".to_owned(), Value::String(sha.to_owned()));
+    Ok(Some(Value::Object(object)))
 }
 
 /// Build and validate a transition from an already-read stream (pure apart from
@@ -415,6 +501,7 @@ pub fn prepare_transition(
     if raw_to_lane != resolved_lane.as_str() && resolved_lane == from_lane {
         return Ok(PreparedTransition {
             event: None,
+            annotation: None,
             resolved_lane,
             mirror_frontmatter_lane: true,
         });
@@ -439,6 +526,26 @@ pub fn prepare_transition(
         reference: string_field(value, "reference").unwrap_or_default(),
         feedback_path: string_field(value, "feedback_path"),
     });
+    let dependency_ready = match (
+        request.dependency_ready,
+        request.dependency_verdict.as_ref(),
+    ) {
+        (Some(value), _) => Some(value),
+        (None, Some(verdict)) => Some(verdict.satisfied()),
+        (None, None) => {
+            // The shells' verdict reads the materialized snapshot, whose canceled
+            // WPs carry `reason_source` provenance; the diary fold alone does not
+            // project it, so project it here before resolving.
+            let mut snapshot = reduce_diary(&stream.transitions, &stream.annotations);
+            crate::snapshot::project_cancellation_provenance(&stream.transitions, &mut snapshot);
+            Some(resolve_dependency_verdict(&snapshot, feature_dir, &request.wp_id).satisfied())
+        }
+    };
+    let policy_metadata = stamp_lane_head(
+        request.policy_metadata.as_ref(),
+        request.lane_head.as_deref(),
+    )?;
+
     let context = GuardContext {
         actor: Some(actor_identity.clone()),
         workspace_context,
@@ -450,7 +557,7 @@ pub fn prepare_transition(
         force: request.force,
         review_result: guard_review_result,
         current_actor: request.current_actor.clone(),
-        dependency_ready: request.dependency_ready,
+        dependency_ready,
     };
     crate::transition::validate_transition(from_lane, resolved_lane, &context)?;
 
@@ -484,10 +591,38 @@ pub fn prepare_transition(
         review_ref: request.review_ref.clone(),
         evidence,
         review_result,
-        policy_metadata: request.policy_metadata.clone(),
+        policy_metadata,
+    };
+    let annotation = match &request.annotation_delta {
+        None => None,
+        Some(delta) => {
+            if delta.is_empty() {
+                return Err(MutationError::InvalidRow {
+                    reason: "annotate() refuses an empty delta (it folds to a no-op)".to_owned(),
+                });
+            }
+            if !is_canonical_wp_id(&request.wp_id) {
+                return Err(MutationError::InvalidRequest {
+                    reason: format!(
+                        "annotate() refuses wp_id not matching the WP-id pattern: {:?}",
+                        request.wp_id
+                    ),
+                });
+            }
+            Some(AnnotationDraft {
+                event_id: new_ulid(),
+                wp_id: request.wp_id.clone(),
+                // The annotation shares the transition's producer timestamp; the
+                // baseline mints a second `now()` only when the caller passed none.
+                at: event.at.clone(),
+                actor: request.actor.clone(),
+                delta: delta.clone(),
+            })
+        }
     };
     Ok(PreparedTransition {
         event: Some(event),
+        annotation,
         resolved_lane,
         mirror_frontmatter_lane: true,
     })
@@ -924,6 +1059,8 @@ pub fn emit_status_transition(request: &TransitionRequest) -> Result<EmitOutcome
         );
         return Ok(EmitOutcome {
             event,
+            annotation: None,
+            mirror: None,
             persisted: false,
             log_path,
             snapshot: None,
@@ -933,14 +1070,27 @@ pub fn emit_status_transition(request: &TransitionRequest) -> Result<EmitOutcome
         });
     };
 
-    let row = event.to_json_value();
-    append_rows_atomic(&log_path, std::slice::from_ref(&row), &defaults)?;
-    verify_event_rows(&log_path, std::slice::from_ref(&row))
-        .map_err(|error| error.after_commit(&log_path))?;
+    // The transition and its claim annotation are ONE durability unit
+    // (baseline FR-004): both rows land in the same verified replacement, so a
+    // resolved binding can never lag behind the claim it describes.
+    let mut rows = vec![event.to_json_value()];
+    if let Some(annotation) = &prepared.annotation {
+        rows.push(annotation.to_json_value());
+    }
+    append_rows_atomic(&log_path, &rows, &defaults)?;
+    verify_event_rows(&log_path, &rows).map_err(|error| error.after_commit(&log_path))?;
     let (snapshot, materialize_error) = materialize_after_write(&feature_dir);
+    // Best-effort phase-1 compatibility mirror: the baseline logs and continues,
+    // never failing the transition on it.
+    let mirror = prepared
+        .mirror_frontmatter_lane
+        .then(|| mirror_phase1_frontmatter_lane(&feature_dir, &event.wp_id, event.to_lane).ok())
+        .flatten();
 
     Ok(EmitOutcome {
         event,
+        annotation: prepared.annotation,
+        mirror,
         persisted: true,
         log_path,
         snapshot,
@@ -991,7 +1141,7 @@ pub fn emit_status_transition_batch(
     let stream = read_event_stream(&feature_dir)?;
     let mut from_lane = derive_from_lane_from_stream(&stream, &first.wp_id);
     let mut rows = Vec::new();
-    let mut outcomes = Vec::new();
+    let mut outcomes: Vec<(StatusEventDraft, Option<AnnotationDraft>)> = Vec::new();
     for request in requests {
         let mut request = request.clone();
         // The baseline batch door never manufactures a workspace context.
@@ -1009,7 +1159,10 @@ pub fn emit_status_transition_batch(
         };
         from_lane = prepared.resolved_lane;
         rows.push(event.to_json_value());
-        outcomes.push(event);
+        if let Some(annotation) = &prepared.annotation {
+            rows.push(annotation.to_json_value());
+        }
+        outcomes.push((event, prepared.annotation));
     }
     if rows.is_empty() {
         return Ok(Vec::new());
@@ -1017,11 +1170,20 @@ pub fn emit_status_transition_batch(
     append_rows_atomic(&log_path, &rows, &defaults)?;
     verify_event_rows(&log_path, &rows).map_err(|error| error.after_commit(&log_path))?;
     let (snapshot, materialize_error) = materialize_after_write(&feature_dir);
+    let mirrors: Vec<Option<MirrorOutcome>> = outcomes
+        .iter()
+        .map(|(event, _)| {
+            mirror_phase1_frontmatter_lane(&feature_dir, &event.wp_id, event.to_lane).ok()
+        })
+        .collect();
 
     Ok(outcomes
         .into_iter()
-        .map(|event| EmitOutcome {
+        .zip(mirrors)
+        .map(|((event, annotation), mirror)| EmitOutcome {
             event,
+            annotation,
+            mirror,
             persisted: true,
             log_path: log_path.clone(),
             snapshot: snapshot.clone(),
@@ -1038,8 +1200,8 @@ pub struct AnnotationRequest {
     pub feature_dir: PathBuf,
     pub wp_id: String,
     pub actor: ActorValue,
-    /// The delta object. Supply only populated slots (the typed
-    /// `WPInnerStateDelta` builder is not ported); an empty object is refused.
+    /// The delta object (validated/canonicalised through
+    /// [`InnerStateDelta::from_json`]; an empty delta is refused).
     pub delta: Value,
     pub at: Option<String>,
     pub event_id: Option<String>,
@@ -1064,23 +1226,27 @@ pub struct AnnotationOutcome {
 pub fn emit_inner_state_changed(
     request: &AnnotationRequest,
 ) -> Result<AnnotationOutcome, MutationError> {
-    let wp_id = request.wp_id.trim().to_ascii_uppercase();
-    let canonical: sk_kernel::WpId = wp_id.parse().map_err(|_| MutationError::InvalidRequest {
-        reason: format!(
-            "annotate() refuses wp_id not matching the WP-id pattern: {:?}",
-            request.wp_id
-        ),
-    })?;
-    let Value::Object(delta) = &request.delta else {
-        return Err(MutationError::InvalidRow {
-            reason: "an annotation delta must be a JSON object".to_owned(),
+    // The baseline `annotate()` matches `^WP\d+$` against the caller's string
+    // and never upper-cases it: `wp01` is refused, not silently rewritten.
+    if !is_canonical_wp_id(&request.wp_id) {
+        return Err(MutationError::InvalidRequest {
+            reason: format!(
+                "annotate() refuses wp_id not matching the WP-id pattern: {:?}",
+                request.wp_id
+            ),
         });
-    };
+    }
+    let wp_id = request.wp_id.clone();
+    // The typed delta is the write boundary: unknown keys, wrong value types,
+    // canonical-lane subtask values and the `""` -> absent normalisation are all
+    // resolved here, exactly like `WPInnerStateDelta.__post_init__`.
+    let delta = InnerStateDelta::from_json(&request.delta)?;
     if delta.is_empty() {
         return Err(MutationError::InvalidRow {
             reason: "annotate() refuses an empty delta (it folds to a no-op)".to_owned(),
         });
     }
+    let delta = delta.to_json_value();
     let event_id = match &request.event_id {
         Some(value) if is_ulid(value) => value.clone(),
         Some(value) => {
@@ -1092,20 +1258,14 @@ pub fn emit_inner_state_changed(
     };
     let feature_dir = canonicalize_feature_dir(&request.feature_dir);
     let log_path = events_path(&feature_dir);
-    let wait = request
-        .lock_wait
-        .unwrap_or(LockWait::Bounded(std::time::Duration::from_secs(
-            DEFAULT_LOCK_WAIT_SECONDS,
-        )));
+    // Flat annotation door: unbounded by default, like the flat emit door.
+    let wait = request.lock_wait.unwrap_or(LockWait::Unbounded);
     let _lock = acquire_mission_lock(&feature_dir, request.repo_root.as_deref(), wait)?;
 
     let mut row = Map::new();
     row.insert("event_id".to_owned(), Value::String(event_id.clone()));
     row.insert("kind".to_owned(), Value::String("annotation".to_owned()));
-    row.insert(
-        "wp_id".to_owned(),
-        Value::String(canonical.as_str().to_owned()),
-    );
+    row.insert("wp_id".to_owned(), Value::String(wp_id));
     row.insert(
         "at".to_owned(),
         Value::String(
@@ -1116,7 +1276,7 @@ pub fn emit_inner_state_changed(
         ),
     );
     row.insert("actor".to_owned(), request.actor.to_json_value());
-    row.insert("delta".to_owned(), Value::Object(delta.clone()));
+    row.insert("delta".to_owned(), delta);
     let row = Value::Object(row);
 
     append_rows_atomic(
@@ -1133,4 +1293,33 @@ pub fn emit_inner_state_changed(
         snapshot,
         materialize_error,
     })
+}
+
+#[cfg(test)]
+mod wait_policy_tests {
+    use super::*;
+    use sk_kernel::locks::LockWait;
+    use std::time::Duration;
+
+    #[test]
+    fn the_flat_doors_default_to_the_baselines_unbounded_wait() {
+        // Baseline `status/emit.py` and `emit_inner_state_changed` take
+        // `feature_status_lock(...)` with its `UNBOUNDED_LOCK_WAIT` default.
+        let request = TransitionRequest::new(
+            "/tmp/feature",
+            "001-demo",
+            "WP01",
+            "planned",
+            ActorValue::identity("claude"),
+        );
+        assert_eq!(request.wait(), LockWait::Unbounded);
+
+        let mut bounded = request;
+        bounded.lock_wait = Some(LockWait::Bounded(Duration::from_secs(10)));
+        assert_eq!(
+            bounded.wait(),
+            LockWait::Bounded(Duration::from_secs(10)),
+            "an explicit coordination-style bound is honoured"
+        );
+    }
 }

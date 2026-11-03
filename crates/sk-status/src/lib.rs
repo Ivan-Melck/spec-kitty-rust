@@ -28,22 +28,34 @@
 
 #![forbid(unsafe_code)]
 
+pub mod actor_identity;
 pub mod event_stream;
 pub mod guard;
 pub mod lane;
 pub mod mutation;
+pub mod mutation_commit;
+pub mod mutation_delta;
 pub mod mutation_emit;
 pub mod mutation_json;
 pub mod mutation_lifecycle;
 pub mod mutation_lock;
 pub mod mutation_log;
 pub mod mutation_migrate;
+pub mod mutation_mirror;
+pub mod mutation_payloads;
+pub mod mutation_readiness;
+pub mod mutation_rollback;
 pub mod mutation_ulid;
 pub mod replay;
 pub mod schema;
 pub mod snapshot;
 pub mod transition;
 
+pub use actor_identity::{
+    GENERIC_IMPLEMENTATION_ACTORS, PROFILE_SOURCE_FIELD, UNKNOWN_ACTOR, actor_full_identity,
+    actor_identities_independent, actor_key, actor_value_full_identity, latest_implementer_actor,
+    latest_implementer_key, parse_boundary,
+};
 pub use event_stream::{
     AnnotationRecord, EventActor, EventCounts, EventKind, EventStreamError, EventStreamInspection,
     EventStreamLimits, InspectedEvent, NonLaneCategory, NonLaneRecord, StructuredActor,
@@ -56,10 +68,33 @@ pub use guard::{
 };
 pub use lane::{Lane, LaneParseError, resolve_lane_alias};
 pub use mutation::MutationError;
+pub use mutation_commit::{
+    AffectedFile, CommitConfigError, DurabilityClassification, ProjectCommitConfig,
+    ReviewCycleArtifact, ReviewCycleError, VerdictDurabilityOutcome, next_review_cycle_number,
+    read_auto_commit_config, review_cycle_commit_message, review_cycle_dir, review_cycle_pointer,
+    status_commit_message,
+};
+pub use mutation_delta::{
+    InnerStateDelta, ReviewOverride, SCALAR_FIELDS, SUBTASK_NOT_APPLICABLE, SUBTASK_SKIPPED,
+    SubtaskValue, python_bool, python_int, python_str,
+};
 pub use mutation_emit::{EmitOutcome, TransitionRequest, emit_status_transition};
 pub use mutation_lifecycle::{LifecycleRequest, append_lifecycle_event};
 pub use mutation_log::{AppendOptions, append_rows_atomic, materialize_snapshot_file};
 pub use mutation_migrate::{MigrationManifest, migrate_lifecycle_envelope};
+pub use mutation_mirror::{
+    MirrorOutcome, legacy_lane_mirror_enabled, mirror_phase1_frontmatter_lane, read_status_phase,
+};
+pub use mutation_payloads::{canonicalize_lifecycle_payload, lifecycle_payload_keys};
+pub use mutation_readiness::{
+    DependencyVerdict, OPERATOR_REASON_SOURCE, UNRESOLVABLE_MARKER, declared_dependencies,
+    has_operator_provenance, is_acceptable_ending, readiness_from_snapshot,
+    resolve_dependency_verdict, wp_lanes_from_snapshot,
+};
+pub use mutation_rollback::{
+    HeadCommittedProbe, RollbackOutcome, RollbackPoint, RollbackRefusal, STATUS_ROLLBACK_REFUSED,
+    appended_event_ids, capture_rollback_point, rollback_events_log, rollback_status_artifacts,
+};
 pub use replay::{DiaryError, DiaryStream, InnerStateChanged, StatusEvent, parse_diary};
 pub use schema::{SchemaAudit, SchemaAuditor, SchemaFinding, audit_event_rows, audit_snapshot};
 pub use snapshot::{

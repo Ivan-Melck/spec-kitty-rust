@@ -1032,6 +1032,7 @@ name = "sk-status"
 version = "0.1.0"
 dependencies = [
  "serde_json",
+ "serde_yaml_ng",
  "sk-kernel",
  "tempfile",
  "thiserror",

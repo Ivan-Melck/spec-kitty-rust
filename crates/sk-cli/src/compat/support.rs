@@ -13,7 +13,9 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Value, json};
 use sk_kernel::discover_project_root;
-use sk_mission::{Mission, MissionTemplateKind, list_missions};
+use sk_mission::{
+    Mission, MissionRecord, MissionTemplateKind, list_mission_records, list_missions,
+};
 
 /// A typed compatibility-route failure.
 ///
@@ -26,6 +28,13 @@ pub struct CompatError {
     code: Option<&'static str>,
     exit: u8,
     extra: Map<String, Value>,
+    /// A full machine result envelope to render instead of `{"error": ...}`.
+    ///
+    /// Some upstream refusals (`mark-status` with nothing resolved) print their
+    /// normal result envelope and then exit non-zero. The dispatcher already
+    /// emits `to_json()` for `--json`; carrying the envelope here keeps that
+    /// contract without a second output path.
+    envelope: Option<Value>,
 }
 
 impl CompatError {
@@ -36,6 +45,7 @@ impl CompatError {
             code: None,
             exit: 1,
             extra: Map::new(),
+            envelope: None,
         }
     }
 
@@ -46,6 +56,7 @@ impl CompatError {
             code: Some(code),
             exit: 1,
             extra: Map::new(),
+            envelope: None,
         }
     }
 
@@ -56,6 +67,7 @@ impl CompatError {
             code: None,
             exit: 2,
             extra: Map::new(),
+            envelope: None,
         }
     }
 
@@ -66,6 +78,18 @@ impl CompatError {
             code: Some(code),
             exit: 2,
             extra: Map::new(),
+            envelope: None,
+        }
+    }
+
+    /// A non-zero exit that still prints a full result envelope.
+    pub fn result_envelope(value: Value, message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            code: None,
+            exit: 1,
+            extra: Map::new(),
+            envelope: Some(value),
         }
     }
 
@@ -83,6 +107,9 @@ impl CompatError {
     /// JSON error document, matching the upstream `{"error": ...}` shape and
     /// adding `error_code` only when the route defines one.
     pub fn to_json(&self) -> Value {
+        if let Some(envelope) = &self.envelope {
+            return envelope.clone();
+        }
         let mut map = Map::new();
         map.insert("error".to_owned(), Value::String(self.message.clone()));
         if let Some(code) = self.code {
@@ -202,6 +229,114 @@ pub fn mission_selection_error(root: &Path, handle: Option<&str>) -> CompatError
     }
 }
 
+/// The read-only Mission surface the compatibility routes consume.
+///
+/// Implemented by the identity-validated [`Mission`] and by the legacy-tolerant
+/// [`MissionRecord`]. Routes that must support a pre-identity Mission read the
+/// record; every other route keeps the validated type. No route ever invents an
+/// identity for a record that carries none.
+pub trait MissionView {
+    /// The Mission directory.
+    fn spec_dir(&self) -> &Path;
+    /// The canonical slug (directory name).
+    fn slug_str(&self) -> &str;
+    /// The recorded ULID, when one exists.
+    fn mission_id_str(&self) -> Option<&str>;
+    /// The 8-character disambiguator, when an id is recorded.
+    fn mid8_value(&self) -> Option<&str>;
+    /// The display-only mission number.
+    fn mission_number_value(&self) -> Option<u32>;
+    /// The stored mission type.
+    fn mission_type_value(&self) -> Option<&str>;
+    /// The recorded friendly name.
+    fn friendly_name_value(&self) -> Option<&str>;
+    /// One raw `meta.json` field.
+    fn meta_field(&self, key: &str) -> Option<&Value>;
+}
+
+impl MissionView for Mission {
+    fn spec_dir(&self) -> &Path {
+        Mission::spec_dir(self)
+    }
+
+    fn slug_str(&self) -> &str {
+        self.slug().as_str()
+    }
+
+    fn mission_id_str(&self) -> Option<&str> {
+        Some(self.id().as_str())
+    }
+
+    fn mid8_value(&self) -> Option<&str> {
+        Some(self.mid8())
+    }
+
+    fn mission_number_value(&self) -> Option<u32> {
+        self.mission_number()
+    }
+
+    fn mission_type_value(&self) -> Option<&str> {
+        self.mission_type()
+    }
+
+    fn friendly_name_value(&self) -> Option<&str> {
+        self.friendly_name()
+    }
+
+    fn meta_field(&self, key: &str) -> Option<&Value> {
+        Mission::meta_field(self, key)
+    }
+}
+
+impl MissionView for MissionRecord {
+    fn spec_dir(&self) -> &Path {
+        MissionRecord::spec_dir(self)
+    }
+
+    fn slug_str(&self) -> &str {
+        self.slug().as_str()
+    }
+
+    fn mission_id_str(&self) -> Option<&str> {
+        self.id().map(|id| id.as_str())
+    }
+
+    fn mid8_value(&self) -> Option<&str> {
+        self.mid8()
+    }
+
+    fn mission_number_value(&self) -> Option<u32> {
+        self.mission_number()
+    }
+
+    fn mission_type_value(&self) -> Option<&str> {
+        self.mission_type()
+    }
+
+    fn friendly_name_value(&self) -> Option<&str> {
+        self.friendly_name()
+    }
+
+    fn meta_field(&self, key: &str) -> Option<&Value> {
+        MissionRecord::meta_field(self, key)
+    }
+}
+
+/// The one Mission-handle matching rule used by every compat selector.
+///
+/// `handle` may name the full directory name/slug, a slug prefix (`057`), the
+/// 8-character mid8 (or its prefix), or a full/prefix ULID. A legacy record has
+/// no mid8/id, so only its slug forms can match.
+fn mission_matches(handle: &str, slug: &str, mid8: Option<&str>, id: Option<&str>) -> bool {
+    if slug == handle || slug.starts_with(&format!("{handle}-")) {
+        return true;
+    }
+    if mid8 == Some(handle) || id == Some(handle) {
+        return true;
+    }
+    mid8.is_some_and(|mid8| mid8.starts_with(handle)) || id.is_some_and(|id| id.starts_with(handle))
+}
+
 /// Resolve a mission selected by full directory name, slug, mid8 prefix, full
 /// ULID, or `NNN-` numeric prefix. Ambiguity is a refusal, never a guess.
 pub fn resolve_mission(root: &Path, handle: Option<&str>) -> Result<Mission, CompatError> {
@@ -219,14 +354,12 @@ pub fn resolve_mission(root: &Path, handle: Option<&str>) -> Result<Mission, Com
 
     let mut matches: Vec<&Mission> = Vec::new();
     for mission in &missions {
-        let slug = mission.slug().as_str();
-        if slug == handle
-            || slug.starts_with(&format!("{handle}-"))
-            || mission.mid8() == handle
-            || mission.id().as_str() == handle
-            || mission.mid8().starts_with(handle)
-            || mission.id().as_str().starts_with(handle)
-        {
+        if mission_matches(
+            handle,
+            mission.slug().as_str(),
+            Some(mission.mid8()),
+            Some(mission.id().as_str()),
+        ) {
             matches.push(mission);
         }
     }
@@ -257,18 +390,123 @@ pub fn resolve_mission(root: &Path, handle: Option<&str>) -> Result<Mission, Com
     }
 }
 
+/// Mission selection failure for the legacy-tolerant inventory.
+fn mission_record_selection_error(records: &[MissionRecord], handle: Option<&str>) -> CompatError {
+    match handle {
+        Some(handle) => CompatError::coded(
+            "MISSION_NOT_FOUND",
+            format!("Mission not found: '{handle}'"),
+        )
+        .with(
+            "next_step",
+            json!("Run 'spec-kitty native mission list' to see available missions."),
+        )
+        .with(
+            "remediation",
+            json!("Run 'spec-kitty native mission list' to see available missions."),
+        ),
+        None => {
+            let available: Vec<Value> = records
+                .iter()
+                .map(|record| {
+                    json!({
+                        "mission_slug": record.slug().as_str(),
+                        "mid8": record.mid8(),
+                        "friendly_name": record.friendly_name(),
+                    })
+                })
+                .collect();
+            if available.is_empty() {
+                CompatError::coded(
+                    "NO_MISSIONS_FOUND",
+                    "No missions exist in this repository; create one with `spec-kitty specify <name>`.",
+                )
+                .with("next_step", json!("Run 'spec-kitty specify <name>'."))
+            } else {
+                CompatError::coded(
+                    "MISSION_SELECTION_REQUIRED",
+                    "Multiple missions found; pass --mission <handle> to select one",
+                )
+                .with("available_missions", Value::Array(available))
+                .with("next_step", json!("Re-run with --mission <handle>."))
+            }
+        }
+    }
+}
+
+/// Resolve a Mission record, including the supported pre-identity legacy form.
+///
+/// Selection is the same rule [`resolve_mission`] applies; the only difference
+/// is that an absent `mission_id` is a legitimate record instead of a refused
+/// inventory. Callers that need a canonical ULID keep using `resolve_mission`.
+pub fn resolve_mission_record(
+    root: &Path,
+    handle: Option<&str>,
+) -> Result<MissionRecord, CompatError> {
+    let records = list_mission_records(root).map_err(|error| {
+        CompatError::domain(format!("could not read mission inventory: {error}"))
+    })?;
+
+    let Some(handle) = handle.map(str::trim).filter(|value| !value.is_empty()) else {
+        return match records.as_slice() {
+            [] => Err(mission_record_selection_error(&records, None)),
+            [only] => Ok(only.clone()),
+            _ => Err(mission_record_selection_error(&records, None)),
+        };
+    };
+
+    let mut matches: Vec<&MissionRecord> = Vec::new();
+    for record in &records {
+        if mission_matches(
+            handle,
+            record.slug().as_str(),
+            record.mid8(),
+            record.id().map(|id| id.as_str()),
+        ) {
+            matches.push(record);
+        }
+    }
+    matches.sort_by(|left, right| left.slug().as_str().cmp(right.slug().as_str()));
+    matches.dedup_by(|left, right| left.spec_dir() == right.spec_dir());
+
+    match matches.as_slice() {
+        [] => Err(mission_record_selection_error(&records, Some(handle))),
+        [only] => Ok((*only).clone()),
+        many => {
+            let candidates: Vec<Value> = many
+                .iter()
+                .map(|record| {
+                    json!({
+                        "mission_slug": record.slug().as_str(),
+                        "mid8": record.mid8(),
+                        "friendly_name": record.friendly_name(),
+                    })
+                })
+                .collect();
+            Err(CompatError::coded(
+                "MISSION_SELECTOR_AMBIGUOUS",
+                format!("Mission handle '{handle}' matches more than one mission"),
+            )
+            .with("handle", json!(handle))
+            .with("candidates", Value::Array(candidates)))
+        }
+    }
+}
+
 /// The mission's work-package task directory (`tasks/`).
-pub fn tasks_dir(mission: &Mission) -> PathBuf {
+pub fn tasks_dir(mission: &impl MissionView) -> PathBuf {
     mission.spec_dir().join("tasks")
 }
 
 /// The canonical status event-log path.
-pub fn events_path(mission: &Mission) -> PathBuf {
+pub fn events_path(mission: &impl MissionView) -> PathBuf {
     mission.spec_dir().join(sk_status::EVENTS_FILENAME)
 }
 
 /// Read the mission's frontmatter work-package files.
-pub fn work_packages(mission: &Mission) -> Result<Vec<sk_mission::WorkPackage>, CompatError> {
+pub fn work_packages(
+    mission: &impl MissionView,
+) -> Result<Vec<sk_mission::WorkPackage>, CompatError> {
     let directory = tasks_dir(mission);
     match fs::metadata(&directory) {
         Ok(metadata) if metadata.is_dir() => {}
@@ -325,7 +563,7 @@ pub fn work_packages(mission: &Mission) -> Result<Vec<sk_mission::WorkPackage>, 
 /// An absent log is "no canonical lanes yet" (upstream reports every WP as
 /// `planned`); a corrupt log is a refusal, never a silent fallback.
 pub fn canonical_lanes(
-    mission: &Mission,
+    mission: &impl MissionView,
 ) -> Result<std::collections::BTreeMap<String, String>, CompatError> {
     let path = events_path(mission);
     let rows = match sk_status::read_raw_events(&path) {
@@ -375,6 +613,98 @@ pub fn current_branch(root: &Path) -> Option<String> {
     sk_git::GitRepository::open(root)
         .ok()
         .and_then(|repository| repository.current_branch().ok().flatten())
+}
+
+/// A real `HEAD`-committed event-id probe for the verified-rollback protocol.
+///
+/// `sk-status::mutation_rollback` deliberately never runs Git, so the committed
+/// log has to be supplied at the I/O boundary. This adapter is that boundary: it
+/// reads the event log's exact committed bytes at `HEAD` through the delivered
+/// `sk_git::GitRepository::read_blob_at_head` API (no shell, no path quoting) and
+/// projects the committed `event_id` set the rollback protocol compares against.
+///
+/// Semantics match the pinned baseline's `_committed_event_ids`: a path Git does
+/// not track or an unborn `HEAD` yields an empty set; an unreadable/corrupt
+/// `HEAD`, a non-repository open, or a committed line that is not JSON is an
+/// error, which the rollback turns into `HEAD_UNREADABLE` (fail closed). A
+/// committed log up to the canonical 64 MiB bound is read whole (regression:
+/// `the_status_rollback_head_probe_reads_a_committed_log_beyond_the_old_16_mib_cap`).
+pub struct StatusHeadCommittedProbe {
+    repository: sk_git::GitRepository,
+    root: std::path::PathBuf,
+}
+
+impl StatusHeadCommittedProbe {
+    /// Open the probe for the checkout at `root`.
+    pub fn open(root: &Path) -> Result<Self, CompatError> {
+        let repository = sk_git::GitRepository::open(root).map_err(|error| {
+            CompatError::domain(format!(
+                "the verified rollback needs a readable Git checkout at {}: {error}",
+                root.display()
+            ))
+        })?;
+        Ok(Self {
+            root: repository.root().to_path_buf(),
+            repository,
+        })
+    }
+}
+
+impl sk_status::HeadCommittedProbe for StatusHeadCommittedProbe {
+    fn committed_event_ids(
+        &self,
+        events_path: &Path,
+    ) -> Result<std::collections::BTreeSet<String>, String> {
+        let relative = events_path.strip_prefix(&self.root).map_err(|_| {
+            format!(
+                "{} is outside the Git checkout {}",
+                events_path.display(),
+                self.root.display()
+            )
+        })?;
+        let relative = relative.to_str().ok_or_else(|| {
+            format!(
+                "{} is not a UTF-8 repository-relative path",
+                events_path.display()
+            )
+        })?;
+        let path = sk_git::GitPath::from_git_bytes(relative.as_bytes())
+            .map_err(|error| format!("invalid repository path {relative:?}: {error}"))?;
+        // Ask for the canonical 64 MiB status-log bound. The Git adapter's
+        // explicit bounded read accepts exactly that maximum (its 8 MiB default
+        // is too small), and the clamp keeps the request valid if the status
+        // bound ever moves below the adapter's cap. Above the cap a committed
+        // log fails closed as `HEAD_UNREADABLE`, never as a silent cut.
+        let bound = sk_status::mutation_log::MAX_EVENT_LOG_BYTES.min(sk_git::MAX_BLOB_BYTES);
+        match self
+            .repository
+            .read_blob_at_head_bounded(&path, bound)
+            .map_err(|error| format!("HEAD could not be read: {error}"))?
+        {
+            sk_git::BlobLookup::Present(bytes) => committed_ids(&bytes),
+            sk_git::BlobLookup::Absent | sk_git::BlobLookup::NoRevision => Ok(Default::default()),
+        }
+    }
+}
+
+/// The committed `event_id` set from the committed log bytes.
+///
+/// A blank line is skipped; a line that is not JSON is an error (the committed
+/// ids are unknown); a JSON value that is not an object with a string
+/// `event_id` contributes nothing, exactly like the baseline's reader.
+fn committed_ids(bytes: &[u8]) -> Result<std::collections::BTreeSet<String>, String> {
+    let mut ids = std::collections::BTreeSet::new();
+    for raw in bytes.split(|byte| *byte == b'\n') {
+        if raw.iter().all(u8::is_ascii_whitespace) {
+            continue;
+        }
+        let row: Value = serde_json::from_slice(raw)
+            .map_err(|error| format!("the committed event log is not JSON: {error}"))?;
+        if let Some(event_id) = row.get("event_id").and_then(Value::as_str) {
+            ids.insert(event_id.to_owned());
+        }
+    }
+    Ok(ids)
 }
 
 /// A canonical mission template resolved through the documented tiers.

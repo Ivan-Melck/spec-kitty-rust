@@ -23,11 +23,11 @@ pub fn matrix() -> Value {
         "commands": [
             {
                 "name": "init",
-                "state": "implemented",
+                "state": "partial",
                 "mutates": true,
                 "surface": "upstream",
-                "evidence": "sk-install initialize; project config, metadata, agent assets and ownership manifest",
-                "gaps": ["6-tier command-template sourcing uses the built-in pack plus project overrides; org-pack acquisition is not integrated"]
+                "evidence": "full template/skill/profile/session delivery, activation, identity, canonical ProjectInitialized and ledger; CLI delivery and full post-state oracle tests",
+                "gaps": ["full-delivery concurrency", "remaining upstream options and packaged/global-runtime delivery", "org-pack acquisition and independent continuation approval"]
             },
             {
                 "name": "agent status validate",
@@ -44,6 +44,38 @@ pub fn matrix() -> Value {
                 "surface": "upstream",
                 "evidence": "sk-status canonical replay; status.json written atomically under the canonical Mission lock",
                 "gaps": ["coordination-routed write surfaces are refused before mutation", "Mission alias/rekey lock integration is under review"]
+            },
+            {
+                "name": "agent status emit",
+                "state": "partial",
+                "mutates": true,
+                "surface": "upstream",
+                "evidence": "canonical Mission-locked writer, for-review commit gate, planning-lane evidence, legacy nullable identity and numbered-slug lane-head regressions",
+                "gaps": ["coordination-routed missions refuse", "full YAML mirror edge-case parity is under review", "execution projection refresh", "status/lifecycle fan-out"]
+            },
+            {
+                "name": "agent status lifecycle",
+                "state": "partial",
+                "mutates": false,
+                "surface": "upstream",
+                "evidence": "lifecycle derivation over canonical status and mission events, including oracle payload comparison",
+                "gaps": ["coordination authority integration", "datetime offset spelling parity"]
+            },
+            {
+                "name": "agent tasks move-task",
+                "state": "partial",
+                "mutates": true,
+                "surface": "upstream",
+                "evidence": "review/feedback/independence guards plus primary/non-owned auto-commit preflight, canonical review-cycle artifacts, committed-byte durability and verified not-landed rollback regressions",
+                "gaps": ["coordination writes", "commit/rollback and broader pre-review fidelity need independent review", "exotic review-cycle scalar formatting", "done merge-ancestry gate requires explicit override", "owned-checkout lifecycle"]
+            },
+            {
+                "name": "agent tasks mark-status",
+                "state": "partial",
+                "mutates": true,
+                "surface": "upstream",
+                "evidence": "case-insensitive ownership/idempotence and stored-topology commit/verified-rollback pipeline; flat annotations remain uncommitted like the reference",
+                "gaps": ["coordination writes", "history/dossier side writes", "commit/rollback fidelity needs independent review"]
             },
             {
                 "name": "agent tasks list-tasks",
@@ -138,8 +170,8 @@ pub fn matrix() -> Value {
                 "state": "partial",
                 "mutates": true,
                 "surface": "upstream",
-                "evidence": "sk-run-store durable start/query/advance/answer with governed authorization; upstream-shaped decision payload",
-                "gaps": ["mission-board progress and guard composition", "WP workspace resolution in the decision", "decision-log git commits", "analysis currency", "lifecycle records", "retrospective hooks"]
+                "evidence": "read-only no-run preview and durable next query/advance/answer; finalized WP-board override, guard re-issue, weighted progress, origin tier, WP workspace resolution, contained prompt artifacts, analysis-report currency, human-actor answers",
+                "gaps": ["StepContract composition dispatch and invocation records", "requirement-mapping and occurrence-map gates (the tasks step fails closed)", "decision-log git commits", "lifecycle records", "retrospective completion gate", "coordination-topology workspaces", "cross-implementation prompt-file paths"]
             },
             {
                 "name": "runtime start",
@@ -205,26 +237,6 @@ pub fn matrix() -> Value {
                 "blocker": "sk-install upgrade tranche"
             },
             {
-                "name": "agent status emit",
-                "reason": "sk-status owns replay and validation but no canonical event-log writer yet",
-                "blocker": "sk-status mutation tranche"
-            },
-            {
-                "name": "agent status lifecycle",
-                "reason": "the canonical mission-lifecycle reducer is not implemented in any Rust crate yet",
-                "blocker": "sk-status lifecycle tranche"
-            },
-            {
-                "name": "agent tasks move-task",
-                "reason": "requires the status event writer plus lane transition gates",
-                "blocker": "sk-status mutation tranche"
-            },
-            {
-                "name": "agent tasks mark-status",
-                "reason": "requires the status event writer plus lane transition gates",
-                "blocker": "sk-status mutation tranche"
-            },
-            {
                 "name": "agent decision open/resolve/defer/cancel",
                 "reason": "decision ledger service is not implemented in Rust yet",
                 "blocker": "decision-service tranche"
@@ -246,8 +258,8 @@ pub fn matrix() -> Value {
             },
             {
                 "name": "charter activation/synthesis",
-                "reason": "sk-charter is read-only today",
-                "blocker": "charter mutation tranche"
+                "reason": "native governance transactions exist in sk-doctrine, but the charter command family is not wired",
+                "blocker": "charter CLI and full synthesis/offering integration"
             },
             {
                 "name": "doctor groups",

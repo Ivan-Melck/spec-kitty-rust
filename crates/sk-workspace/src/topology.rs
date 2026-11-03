@@ -514,9 +514,13 @@ pub fn coordination_worktree_path(workspace: &MissionWorkspace) -> Option<PathBu
 }
 
 /// The canonical coordination Mission directory inside its worktree.
+///
+/// Composed with the VERBATIM coordination grammar
+/// ([`MissionWorkspace::coord_mission_dir_name`]), never the NNN-stripping
+/// primary composer: a legacy `NNN-` slug's coordination home keeps its prefix.
 pub fn coordination_mission_dir(workspace: &MissionWorkspace) -> Option<PathBuf> {
     workspace.coord_worktree_path().map(|root| {
         root.join(SPECS_DIR_NAME)
-            .join(workspace.canonical_mission_dir_name())
+            .join(workspace.coord_mission_dir_name())
     })
 }

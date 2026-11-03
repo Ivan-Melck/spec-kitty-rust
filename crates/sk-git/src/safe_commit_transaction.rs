@@ -119,6 +119,7 @@ pub(crate) fn execute(
     plan: &SafeCommitPlan,
 ) -> Result<SafeCommitOutcome, GitError> {
     repository.process().ensure_unredirected_write()?;
+    ensure_index_authority(repository, plan)?;
     recheck_plan(repository, plan)?;
     repository.require_no_commit_operation()?;
     let mut warnings = Vec::new();
@@ -136,6 +137,35 @@ pub(crate) fn execute(
     };
     let committed = finish_landed_commit(repository, plan, &sha, &mut warnings)?;
     Ok(outcome(plan, sha, committed, warnings))
+}
+
+/// Refuse a plan prepared under a different operator-index authority.
+///
+/// The plan's whole index reconciliation (and its lock authority) names the
+/// index captured when it was prepared. A handle whose `GIT_INDEX_FILE` is
+/// different would reconcile a different file, so the apply is refused rather
+/// than retargeted.
+fn ensure_index_authority(
+    repository: &GitRepository,
+    plan: &SafeCommitPlan,
+) -> Result<(), GitError> {
+    if repository.operator_index() == plan.index_authority() {
+        return Ok(());
+    }
+    let describe = |index: &crate::OperatorIndex| match index.explicit_path() {
+        Some(path) => path.display().to_string(),
+        None => "<default git-dir index>".to_string(),
+    };
+    Err(GitError::PlanStale {
+        what: "operator index".to_string(),
+        detail: format!(
+            "planned {} ({}), observed {} ({})",
+            describe(plan.index_authority()),
+            plan.index_authority().source().as_str(),
+            describe(repository.operator_index()),
+            repository.operator_index().source().as_str()
+        ),
+    })
 }
 
 /// Re-read the state the plan recorded, before any mutation.

@@ -51,6 +51,35 @@ impl RunStore {
         })
     }
 
+    /// Read-only next-decision from the durable cursor alone.
+    ///
+    /// The pinned engine's *read* path tolerates a torn final journal line (it
+    /// consumes complete lines); only a *mutation* must refuse until recovery.
+    /// [`Self::query`] deliberately refuses a torn journal because it validates
+    /// journal/cursor agreement, which is the right answer before a mutation.
+    /// A read-only caller that must match the reference's tolerant read can use
+    /// this method instead: it reads `state.json`, the run's frozen template and
+    /// the recorded live template hash, plans the next decision, and returns
+    /// both. It never writes, repairs or claims the journal is consistent.
+    ///
+    /// Callers must only use this after the strict query has established that
+    /// the sole reason it refused is a torn journal tail; it is not a general
+    /// substitute for [`Self::query`].
+    pub fn plan_from_cursor(
+        &self,
+        run: &RunRef,
+    ) -> Result<(crate::model::RunState, sk_runtime::NextDecision), RunStoreError> {
+        let run = self.resolve_ref(run)?;
+        let state = self.read_state(&run)?;
+        self.verify_frozen_hash(&run, &state)?;
+        let template = self.load_frozen_template(&run)?;
+        let live_hash = self.live_template_hash(&state)?;
+        let snapshot = state.to_snapshot()?;
+        let decision =
+            sk_runtime::plan_next(&template, &snapshot, live_hash.as_deref().unwrap_or(""))?;
+        Ok((state, decision))
+    }
+
     /// Look up the mission's indexed run and query it, without starting a run.
     pub fn query_mission(
         &self,

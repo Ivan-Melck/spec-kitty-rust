@@ -1,9 +1,9 @@
 {
   "baseline": "9aed3a8012cb5eb22c0128b14d525039f95fea7a",
   "case_count": 32,
-  "cases_digest": "fe6a1978e94d4b1b2b9997569af3f33a3668bb58a026008f1dceb51f2ffde77d",
+  "cases_digest": "022ac42fa67e7af2b65f4ae3815de959c911bf22626ee7fdff6b71fee31fe55d",
   "generator": "generate_oracle.py",
-  "generator_sha256": "934ea7ecbd7855c5b5e7c423838e48d9ab8ae8db95b84f5d04c4d6e85c49a058",
+  "generator_sha256": "56cddf8bbf0158797da075008c56764a8dc6cfb7e8e00602dda64ec237588cf4",
   "git_version": "git version 2.43.0",
   "python": "3.11.15",
   "verify_oracle": {

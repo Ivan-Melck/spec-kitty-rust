@@ -10,9 +10,9 @@ Usage::
 
 Each side runs in its own fresh clone of the pristine fixture. The tool compares
 the normalized result document, the post-state delta, and the pristine fixture
-afterwards. It never measures a ratio: the frozen runner still needs the
-additive hook described in ``benchmarks/rust/ADAPTER-REPORT.md`` before a
-mutation workload may be timed.
+afterwards. It never records a timing ratio: this is the untimed conformance
+proof for mutation workloads. The timed campaign is ``bench.py run`` (paired,
+clone-per-invocation, clone cost excluded from the timed window).
 
 Exit codes: 0 all selected workloads equivalent, 1 a workload failed, 2 setup
 error (missing binary/interpreter/fixture).
@@ -37,6 +37,7 @@ sys.path.insert(0, str(RUST_BENCH))
 from spkbench.execute import Executor  # noqa: E402
 from spkbench.fixtures import FixtureBuilder, verify_manifest  # noqa: E402
 from spkbench.mutation import mutation_summary, run_mutation_pair  # noqa: E402
+from spkbench.registry import PerformanceRegistry, RegistryError  # noqa: E402
 from spkbench.workloads import build_workloads  # noqa: E402
 
 
@@ -81,15 +82,24 @@ def main() -> int:
     args = parser.parse_args()
 
     binary = Path(args.rust_binary).resolve()
-    oracle = Path(args.oracle_python).resolve() if args.oracle_python else _default_oracle()
+    # Do not resolve the symlink: a venv's interpreter is selected by its path
+    # (pyvenv.cfg lives beside it). Resolving silently drops the venv.
+    oracle = Path(args.oracle_python).absolute() if args.oracle_python else _default_oracle()
     repo = Path(args.repo).resolve()
     packs_root = Path(args.packs_root).resolve() if args.packs_root else repo / "packs"
 
+    try:
+        registry = PerformanceRegistry.load()
+    except RegistryError as exc:
+        print(f"frozen performance registry error: {exc}", file=sys.stderr)
+        return 2
     definitions = build_workloads(
         builder=FixtureBuilder(Path("/tmp/unused-spkbench-fixtures"), seed=args.seed, dry_run=True),
         rust_binary=binary,
         oracle_python=oracle or Path("/usr/bin/python3"),
         adapters_dir=RUST_BENCH / "adapters",
+        registry=registry,
+        repo_root=repo,
         include_micro=False,
     )
     mutations = [item for item in definitions if item.mutation is not None]
@@ -178,8 +188,8 @@ def main() -> int:
         "invocations": args.invocations,
         "ok": ok,
         "note": (
-            "Equivalence/post-state proof only. No timing is recorded: mutation workloads stay "
-            "pending until the runner clone hook lands (see ADAPTER-REPORT.md)."
+            "Equivalence/post-state proof only; no timing ratio is recorded. The timed campaign "
+            "is bench.py run (paired samples, clone cost excluded)."
         ),
         "fixtures": fixture_records,
         "results": results,

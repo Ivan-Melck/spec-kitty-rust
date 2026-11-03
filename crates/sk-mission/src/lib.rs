@@ -59,6 +59,7 @@ mod meta;
 mod mission;
 mod paths;
 mod readiness;
+mod record;
 mod tasks;
 mod template;
 mod topology;
@@ -90,6 +91,7 @@ pub use readiness::{
     DependencyReadiness, UnsatisfiedDependency, UnsatisfiedReason, WpState, WpStateMap,
     dependency_readiness, readiness_for_dependencies, ready_work_packages,
 };
+pub use record::{MissionRecord, list_mission_records, load_mission_record, select_mission_record};
 pub use tasks::{
     DEFAULT_TASKS_MD_BYTE_LIMIT, DependencyApplyReceipt, DependencyFinalizePlan, DependencyUpdate,
     TasksAuthoringError, TasksOutline, TasksSection, parse_dependencies_from_tasks_md,

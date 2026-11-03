@@ -17,10 +17,33 @@ use sk_runtime::{
 
 use crate::error::RunStoreError;
 
-/// The canonical wall-clock shape upstream writes: aware UTC ISO-8601 with
-/// microseconds (`datetime.now(UTC).isoformat()`).
+/// The canonical wall-clock shape the upstream *journal* writes: aware UTC
+/// ISO-8601 with a numeric offset and microseconds
+/// (`datetime.now(UTC).isoformat()`).
 pub(crate) fn now_iso() -> String {
     Utc::now().to_rfc3339_opts(SecondsFormat::Micros, false)
+}
+
+/// The wall-clock shape the upstream *cursor* writes for a `datetime` field.
+///
+/// `state.json` is produced by Pydantic's JSON serializer, which emits
+/// `...Z` and omits the fractional part when the microsecond component is
+/// zero (`2026-01-01T00:00:00Z`) and six digits otherwise
+/// (`2026-01-01T00:00:00.123000Z`). Journal lines use [`now_iso`] instead; the
+/// two formats differ inside one upstream answer transaction, so this store
+/// keeps both doors.
+pub(crate) fn state_now_iso() -> String {
+    state_iso(&Utc::now())
+}
+
+/// Render one instant in the upstream Pydantic `state.json` datetime shape.
+pub(crate) fn state_iso(instant: &chrono::DateTime<Utc>) -> String {
+    use chrono::Timelike;
+    if instant.nanosecond() == 0 {
+        instant.to_rfc3339_opts(SecondsFormat::Secs, true)
+    } else {
+        instant.to_rfc3339_opts(SecondsFormat::Micros, true)
+    }
 }
 
 /// Serialize an actor exactly as the upstream `RuntimeActorIdentity` model

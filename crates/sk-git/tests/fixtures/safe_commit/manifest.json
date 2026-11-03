@@ -107,11 +107,11 @@
       "sha256": "1dfc76c2567800e626aa0555dd4068058415f6796497a31fe23822eea1ea4c58"
     },
     {
-      "expectation": "open_mismatch",
-      "file": "cases/git_index_file_selector_refused.json",
-      "name": "git_index_file_selector_refused",
+      "expectation": "match",
+      "file": "cases/git_index_file_selector_honoured.json",
+      "name": "git_index_file_selector_honoured",
       "route": "worktree",
-      "sha256": "b35de7b03bb9e8958eaa96ba279ddfefb1110f2dc6b8d9984dc64a92f7843ee8"
+      "sha256": "521563ebcdac9b58743c6483815229f772cdb4b54d69a011cdbd114afc5ff8fe"
     },
     {
       "expectation": "match",
@@ -228,7 +228,7 @@
   ],
   "corpus": "scoped-safe-commit-differential",
   "generator": "generate_oracle.py",
-  "generator_sha256": "934ea7ecbd7855c5b5e7c423838e48d9ab8ae8db95b84f5d04c4d6e85c49a058",
+  "generator_sha256": "56cddf8bbf0158797da075008c56764a8dc6cfb7e8e00602dda64ec237588cf4",
   "git_version": "git version 2.43.0",
   "normalizations": [
     "reflog entries are compared as (new commit id, reflog subject); timestamps and identities are not re-derived",
@@ -253,7 +253,7 @@
     "pinned_commit_msg_rewrite_reflog_source",
     "pinned_signing_failure_typed",
     "worktree_signing_enforced_divergence",
-    "git_index_file_selector_refused",
+    "git_index_file_selector_honoured",
     "index_only_deletion_keeps_file",
     "worktree_deletion_committed",
     "literal_unusual_filenames",

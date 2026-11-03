@@ -470,8 +470,8 @@ def build_cases() -> list[dict]:
     )
     cases.append(
         case(
-            "git_index_file_selector_refused",
-            "A caller-supplied GIT_INDEX_FILE: baseline honours it; native refuses explicitly (open parity gap).",
+            "git_index_file_selector_honoured",
+            "A caller-supplied GIT_INDEX_FILE is captured at open: the commit reconciles that index and leaves .git/index untouched.",
             "worktree",
             req("env index", ["a.txt"], custom_index=True),
             steps=[
@@ -482,18 +482,6 @@ def build_cases() -> list[dict]:
                 {"argv": ["git", "add", "unrelated.txt"], "custom_index": True},
                 {"write": {"path": "a.txt", "content": "two\n"}},
             ],
-            expectation="open_mismatch",
-            divergence={
-                "kind": "git_index_file",
-                "detail": (
-                    "Baseline mutates the caller's designated index and leaves .git/index "
-                    "alone. Native's writer authority boundary refuses every inherited "
-                    "repository selector before mutation. This is a known unsupported input, "
-                    "recorded as an open mismatch, never normalised into equality."
-                ),
-            },
-            native_variant="RepositoryEnvironmentRefused",
-            detail_tokens=["GIT_INDEX_FILE"],
         )
     )
     cases.append(

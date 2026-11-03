@@ -9,6 +9,9 @@
 //! * a non-interactive, read-only-shaped environment (`GIT_TERMINAL_PROMPT=0`,
 //!   `GIT_OPTIONAL_LOCKS=0`, no pager), with repository-redirecting variables
 //!   removed so the configured working directory really selects the repository;
+//!   the one exception is the operator index captured at repository open, which
+//!   is re-applied verbatim (see [`crate::OperatorIndex`]) unless the profile
+//!   names a private scoped index;
 //! * capture of raw stdout/stderr bytes through anonymous temporary files,
 //!   which cannot deadlock on a full pipe;
 //! * null stdin, so git can never read from the caller's terminal.
@@ -27,19 +30,35 @@ use crate::error::GitError;
 /// The default bound for one git invocation.
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Maximum captured bytes per output stream (16 MiB).
+/// Maximum captured bytes per output stream for an ordinary command (16 MiB).
+///
+/// A caller that must read one documented-large object (the canonical 64 MiB
+/// status log) asks for an explicit bound through
+/// [`GitProcess::checked_with_output_limit`]; the seam then captures up to
+/// [`MAX_CAPTURE_BYTES`] instead of silently truncating or failing on a stream
+/// the caller already bounded itself.
 const MAX_OUTPUT_BYTES: u64 = 16 * 1024 * 1024;
+
+/// Hard ceiling for an explicitly requested capture bound (64 MiB).
+///
+/// This is the largest blob bound [`crate::MAX_BLOB_BYTES`] exposes; a caller
+/// cannot make the seam allocate more than one such object per stream.
+const MAX_CAPTURE_BYTES: u64 = 64 * 1024 * 1024;
 
 /// Maximum bytes accepted on a child's stdin (4 MiB).
 const MAX_STDIN_BYTES: u64 = 4 * 1024 * 1024;
 
 /// Environment variables that would redirect git to a different repository
 /// than the one the adapter was opened on. They are removed from every child.
+///
+/// `GIT_INDEX_FILE` is deliberately absent: it is not a repository selector for
+/// this adapter any more. It is captured at open and re-applied per child by
+/// [`GitProcess`], so an inherited operator index is honoured instead of being
+/// silently replaced by `<git-dir>/index`.
 const REPOSITORY_REDIRECTING_ENV: &[&str] = &[
     "GIT_DIR",
     "GIT_WORK_TREE",
     "GIT_COMMON_DIR",
-    "GIT_INDEX_FILE",
     "GIT_OBJECT_DIRECTORY",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     "GIT_PREFIX",
@@ -174,17 +193,40 @@ impl Drop for ScopedIndex {
     }
 }
 
+/// How one bounded git invocation ended, including whether a child was ever
+/// started.
+///
+/// A caller that mutates state must distinguish "never executed" from
+/// "executed but did not finish": only the latter may have changed anything.
+pub(crate) enum RunAttempt {
+    /// The child was started and reaped; its raw outcome is available.
+    Completed(CommandOutput),
+    /// Nothing was executed (temporary-file setup or spawn failure), so no
+    /// repository state can have changed.
+    NotStarted(GitError),
+    /// The child was started and the invocation did not finish normally
+    /// (timeout, captured-output bound, wait or readback I/O). The process may
+    /// have mutated state before or while failing.
+    StartedFailure(GitError),
+}
+
 /// A bounded git process bound to one working directory and option set.
 #[derive(Debug, Clone)]
 pub(crate) struct GitProcess {
     program: PathBuf,
     cwd: PathBuf,
     timeout: Duration,
+    /// The captured `GIT_INDEX_FILE` value, applied verbatim to children that
+    /// do not name a private index of their own.
+    operator_index: Option<OsString>,
 }
 
 impl GitProcess {
-    /// Refuse an inherited selector instead of silently writing another index
-    /// or repository. A captured shared authority is required to support these.
+    /// Refuse an inherited repository selector instead of silently retargeting
+    /// a write. A captured shared authority is required to support these.
+    ///
+    /// `GIT_INDEX_FILE` is not refused: it is captured at repository open and
+    /// every operator-index operation is bound to that captured value.
     pub(crate) fn ensure_unredirected_write(&self) -> Result<(), GitError> {
         for &variable in REPOSITORY_REDIRECTING_ENV {
             if std::env::var_os(variable).is_some() {
@@ -195,10 +237,21 @@ impl GitProcess {
     }
 
     pub(crate) fn new(cwd: impl Into<PathBuf>, options: &GitOptions) -> Self {
+        Self::new_with_index(cwd, options, None)
+    }
+
+    /// A binding that re-applies one captured operator index to every child
+    /// that does not override it with a private scoped index.
+    pub(crate) fn new_with_index(
+        cwd: impl Into<PathBuf>,
+        options: &GitOptions,
+        operator_index: Option<OsString>,
+    ) -> Self {
         Self {
             program: options.program.clone(),
             cwd: cwd.into(),
             timeout: options.timeout,
+            operator_index,
         }
     }
 
@@ -211,7 +264,47 @@ impl GitProcess {
     /// (for example `symbolic-ref` exit 1 on a detached HEAD) can be
     /// distinguished from real failures.
     pub(crate) fn run<S: AsRef<OsStr>>(&self, args: &[S]) -> Result<CommandOutput, GitError> {
-        self.run_profiled(args, None, EnvProfile::Local)
+        self.run_profiled(args, None, EnvProfile::Local, MAX_OUTPUT_BYTES)
+    }
+
+    /// Like [`GitProcess::run`], but reports whether a child was ever started.
+    ///
+    /// A mutation whose child may have run and then failed (timeout, capture
+    /// bound, readback I/O) must not be reported as an ordinary retryable
+    /// failure: it may already have landed.
+    pub(crate) fn run_attempt<S: AsRef<OsStr>>(&self, args: &[S]) -> RunAttempt {
+        self.run_profiled_attempt(args, None, EnvProfile::Local, MAX_OUTPUT_BYTES)
+    }
+
+    /// Run git with an explicit per-stream capture bound.
+    ///
+    /// The bound is checked against [`MAX_CAPTURE_BYTES`] before anything runs,
+    /// so a caller can never ask this seam for an unbounded capture. It is used
+    /// by the explicit bounded blob read, whose output is exactly the object
+    /// the caller already size-checked; the capture is still enforced (the
+    /// child is killed and `OutputTooLarge` is raised if it writes more), never
+    /// truncated.
+    pub(crate) fn run_with_output_limit<S: AsRef<OsStr>>(
+        &self,
+        args: &[S],
+        limit: u64,
+    ) -> Result<CommandOutput, GitError> {
+        let limit = checked_capture_limit(limit)?;
+        self.run_profiled(args, None, EnvProfile::Local, limit)
+    }
+
+    /// [`GitProcess::run_with_output_limit`] requiring a successful status.
+    pub(crate) fn checked_with_output_limit<S: AsRef<OsStr>>(
+        &self,
+        args: &[S],
+        limit: u64,
+    ) -> Result<CommandOutput, GitError> {
+        let output = self.run_with_output_limit(args, limit)?;
+        if output.status.success() {
+            Ok(output)
+        } else {
+            Err(self.failed(args, &output))
+        }
     }
 
     /// Run one bounded remote read with the given effective ssh command.
@@ -220,7 +313,12 @@ impl GitProcess {
         args: &[S],
         ssh_command: Option<OsString>,
     ) -> Result<CommandOutput, GitError> {
-        self.run_profiled(args, None, EnvProfile::RemoteRead { ssh_command })
+        self.run_profiled(
+            args,
+            None,
+            EnvProfile::RemoteRead { ssh_command },
+            MAX_OUTPUT_BYTES,
+        )
     }
 
     /// Run git against one private index file (raw outcome, whatever the code).
@@ -235,6 +333,7 @@ impl GitProcess {
             EnvProfile::ScopedIndex {
                 index: index.path().to_path_buf(),
             },
+            MAX_OUTPUT_BYTES,
         )
     }
 
@@ -252,6 +351,7 @@ impl GitProcess {
                 index: index.map(|index| index.path().to_path_buf()),
                 no_editor,
             },
+            MAX_OUTPUT_BYTES,
         )
     }
 
@@ -287,6 +387,7 @@ impl GitProcess {
             EnvProfile::ScopedIndex {
                 index: index.path().to_path_buf(),
             },
+            MAX_OUTPUT_BYTES,
         )?;
         if output.status.success() {
             Ok(output)
@@ -309,7 +410,7 @@ impl GitProcess {
                 limit: MAX_STDIN_BYTES,
             });
         }
-        let output = self.run_profiled(args, Some(stdin), EnvProfile::Local)?;
+        let output = self.run_profiled(args, Some(stdin), EnvProfile::Local, MAX_OUTPUT_BYTES)?;
         if output.status.success() {
             Ok(output)
         } else {
@@ -322,24 +423,58 @@ impl GitProcess {
         args: &[S],
         stdin: Option<&[u8]>,
         profile: EnvProfile,
+        capture_limit: u64,
     ) -> Result<CommandOutput, GitError> {
-        let mut stdout_file = tempfile::tempfile().map_err(|source| GitError::Io {
-            context: "create a temporary stdout file",
-            source,
-        })?;
-        let mut stderr_file = tempfile::tempfile().map_err(|source| GitError::Io {
-            context: "create a temporary stderr file",
-            source,
-        })?;
+        match self.run_profiled_attempt(args, stdin, profile, capture_limit) {
+            RunAttempt::Completed(output) => Ok(output),
+            RunAttempt::NotStarted(error) | RunAttempt::StartedFailure(error) => Err(error),
+        }
+    }
 
-        let stdout_child = stdout_file.try_clone().map_err(|source| GitError::Io {
-            context: "duplicate the stdout file handle",
-            source,
-        })?;
-        let stderr_child = stderr_file.try_clone().map_err(|source| GitError::Io {
-            context: "duplicate the stderr file handle",
-            source,
-        })?;
+    fn run_profiled_attempt<S: AsRef<OsStr>>(
+        &self,
+        args: &[S],
+        stdin: Option<&[u8]>,
+        profile: EnvProfile,
+        capture_limit: u64,
+    ) -> RunAttempt {
+        let mut stdout_file = match tempfile::tempfile() {
+            Ok(file) => file,
+            Err(source) => {
+                return RunAttempt::NotStarted(GitError::Io {
+                    context: "create a temporary stdout file",
+                    source,
+                });
+            }
+        };
+        let mut stderr_file = match tempfile::tempfile() {
+            Ok(file) => file,
+            Err(source) => {
+                return RunAttempt::NotStarted(GitError::Io {
+                    context: "create a temporary stderr file",
+                    source,
+                });
+            }
+        };
+
+        let stdout_child = match stdout_file.try_clone() {
+            Ok(file) => file,
+            Err(source) => {
+                return RunAttempt::NotStarted(GitError::Io {
+                    context: "duplicate the stdout file handle",
+                    source,
+                });
+            }
+        };
+        let stderr_child = match stderr_file.try_clone() {
+            Ok(file) => file,
+            Err(source) => {
+                return RunAttempt::NotStarted(GitError::Io {
+                    context: "duplicate the stderr file handle",
+                    source,
+                });
+            }
+        };
 
         // A stdin payload is materialised in an anonymous file before the
         // child starts. A pipe would let a child that never reads block the
@@ -347,19 +482,27 @@ impl GitProcess {
         // the same way.
         let stdin_file = match stdin {
             Some(payload) => {
-                let mut file = tempfile::tempfile().map_err(|source| GitError::Io {
-                    context: "create a temporary stdin file",
-                    source,
-                })?;
-                file.write_all(payload).map_err(|source| GitError::Io {
-                    context: "write the child stdin payload",
-                    source,
-                })?;
-                file.seek(SeekFrom::Start(0))
-                    .map_err(|source| GitError::Io {
+                let mut file = match tempfile::tempfile() {
+                    Ok(file) => file,
+                    Err(source) => {
+                        return RunAttempt::NotStarted(GitError::Io {
+                            context: "create a temporary stdin file",
+                            source,
+                        });
+                    }
+                };
+                if let Err(source) = file.write_all(payload) {
+                    return RunAttempt::NotStarted(GitError::Io {
+                        context: "write the child stdin payload",
+                        source,
+                    });
+                }
+                if let Err(source) = file.seek(SeekFrom::Start(0)) {
+                    return RunAttempt::NotStarted(GitError::Io {
                         context: "rewind the child stdin payload",
                         source,
-                    })?;
+                    });
+                }
                 Some(file)
             }
             None => None,
@@ -392,23 +535,27 @@ impl GitProcess {
             }
             break result;
         };
-        let mut child = spawned.map_err(|source| {
-            // A missing working directory also reports `NotFound`. Distinguish
-            // it from a missing git executable so a deleted checkout is not
-            // described as an installation problem.
-            if source.kind() == std::io::ErrorKind::NotFound && self.cwd.exists() {
-                GitError::GitUnavailable {
-                    program: self.program.clone(),
-                    source,
-                }
-            } else {
-                GitError::Spawn {
-                    program: self.program.clone(),
-                    cwd: self.cwd.clone(),
-                    source,
-                }
+        let mut child = match spawned {
+            Ok(child) => child,
+            Err(source) => {
+                // A missing working directory also reports `NotFound`. Distinguish
+                // it from a missing git executable so a deleted checkout is not
+                // described as an installation problem.
+                let error = if source.kind() == std::io::ErrorKind::NotFound && self.cwd.exists() {
+                    GitError::GitUnavailable {
+                        program: self.program.clone(),
+                        source,
+                    }
+                } else {
+                    GitError::Spawn {
+                        program: self.program.clone(),
+                        cwd: self.cwd.clone(),
+                        source,
+                    }
+                };
+                return RunAttempt::NotStarted(error);
             }
-        })?;
+        };
 
         let argv = display_args(args);
         let mut poll_interval = Duration::from_millis(1);
@@ -416,13 +563,13 @@ impl GitProcess {
             for (stream, file) in [("stdout", &stdout_file), ("stderr", &stderr_file)] {
                 if file
                     .metadata()
-                    .is_ok_and(|metadata| metadata.len() > MAX_OUTPUT_BYTES)
+                    .is_ok_and(|metadata| metadata.len() > capture_limit)
                 {
                     let _ = child.kill();
                     let _ = child.wait();
-                    return Err(GitError::OutputTooLarge {
+                    return RunAttempt::StartedFailure(GitError::OutputTooLarge {
                         stream,
-                        limit: MAX_OUTPUT_BYTES,
+                        limit: capture_limit,
                     });
                 }
             }
@@ -436,7 +583,7 @@ impl GitProcess {
                         // way, so no zombie is left behind.
                         let _ = child.kill();
                         let _ = child.wait();
-                        return Err(GitError::Timeout {
+                        return RunAttempt::StartedFailure(GitError::Timeout {
                             args: argv,
                             cwd: self.cwd.clone(),
                             timeout: self.timeout,
@@ -449,7 +596,7 @@ impl GitProcess {
                 Err(source) => {
                     let _ = child.kill();
                     let _ = child.wait();
-                    return Err(GitError::Io {
+                    return RunAttempt::StartedFailure(GitError::Io {
                         context: "wait for git",
                         source,
                     });
@@ -457,9 +604,15 @@ impl GitProcess {
             }
         };
 
-        let stdout = read_output(&mut stdout_file, "stdout")?;
-        let stderr = read_output(&mut stderr_file, "stderr")?;
-        Ok(CommandOutput {
+        let stdout = match read_output(&mut stdout_file, "stdout", capture_limit) {
+            Ok(stdout) => stdout,
+            Err(error) => return RunAttempt::StartedFailure(error),
+        };
+        let stderr = match read_output(&mut stderr_file, "stderr", capture_limit) {
+            Ok(stderr) => stderr,
+            Err(error) => return RunAttempt::StartedFailure(error),
+        };
+        RunAttempt::Completed(CommandOutput {
             status,
             stdout,
             stderr,
@@ -540,6 +693,13 @@ impl GitProcess {
         } = profile
         {
             // Only a private index allocated by this crate, never caller argv.
+            // It overrides the captured operator index for this child alone.
+            command.env("GIT_INDEX_FILE", index);
+        } else if let Some(index) = &self.operator_index {
+            // The captured value is re-applied verbatim: relative spellings are
+            // resolved by git against this child's working directory (the
+            // work-tree root), and a symlinked final component keeps its
+            // spelling instead of being retargeted here.
             command.env("GIT_INDEX_FILE", index);
         }
         if matches!(
@@ -569,24 +729,36 @@ impl GitProcess {
     }
 }
 
-fn read_output(file: &mut std::fs::File, stream: &'static str) -> Result<Vec<u8>, GitError> {
+fn checked_capture_limit(limit: u64) -> Result<u64, GitError> {
+    if limit == 0 || limit > MAX_CAPTURE_BYTES {
+        return Err(GitError::InvalidPlan {
+            detail: format!(
+                "an output capture bound must be between 1 and {MAX_CAPTURE_BYTES} bytes, got {limit}"
+            ),
+        });
+    }
+    Ok(limit)
+}
+
+fn read_output(
+    file: &mut std::fs::File,
+    stream: &'static str,
+    limit: u64,
+) -> Result<Vec<u8>, GitError> {
     file.seek(SeekFrom::Start(0))
         .map_err(|source| GitError::Io {
             context: "rewind git output",
             source,
         })?;
     let mut bytes = Vec::new();
-    file.take(MAX_OUTPUT_BYTES + 1)
+    file.take(limit + 1)
         .read_to_end(&mut bytes)
         .map_err(|source| GitError::Io {
             context: "read git output",
             source,
         })?;
-    if bytes.len() as u64 > MAX_OUTPUT_BYTES {
-        return Err(GitError::OutputTooLarge {
-            stream,
-            limit: MAX_OUTPUT_BYTES,
-        });
+    if bytes.len() as u64 > limit {
+        return Err(GitError::OutputTooLarge { stream, limit });
     }
     Ok(bytes)
 }
@@ -616,9 +788,57 @@ mod tests {
         let mut file = tempfile::tempfile().unwrap();
         file.set_len(MAX_OUTPUT_BYTES + 1).unwrap();
         assert!(matches!(
-            read_output(&mut file, "stdout"),
+            read_output(&mut file, "stdout", MAX_OUTPUT_BYTES),
             Err(GitError::OutputTooLarge { .. })
         ));
+        let mut large = tempfile::tempfile().unwrap();
+        large.set_len(MAX_CAPTURE_BYTES + 1).unwrap();
+        assert!(
+            matches!(
+                read_output(&mut large, "stdout", MAX_CAPTURE_BYTES),
+                Err(GitError::OutputTooLarge { limit, .. }) if limit == MAX_CAPTURE_BYTES
+            ),
+            "an explicit 64 MiB capture is enforced, not truncated"
+        );
+        assert!(
+            matches!(
+                checked_capture_limit(MAX_CAPTURE_BYTES + 1),
+                Err(GitError::InvalidPlan { .. })
+            ),
+            "a capture bound above the ceiling is refused before it runs"
+        );
+    }
+
+    #[test]
+    fn a_spawn_failure_is_not_started_and_a_running_timeout_is_a_started_failure() {
+        let missing = GitProcess {
+            program: PathBuf::from("/nonexistent/sk-git-test-git"),
+            cwd: std::env::temp_dir(),
+            timeout: DEFAULT_TIMEOUT,
+            operator_index: None,
+        };
+        assert!(
+            matches!(
+                missing.run_attempt(&["--version"]),
+                RunAttempt::NotStarted(GitError::GitUnavailable { .. })
+            ),
+            "a child that never started cannot have mutated anything"
+        );
+
+        // `sh` is the direct child, so the timeout kill leaves no descendant.
+        let spinning = GitProcess {
+            program: PathBuf::from("sh"),
+            cwd: std::env::temp_dir(),
+            timeout: Duration::from_millis(50),
+            operator_index: None,
+        };
+        assert!(
+            matches!(
+                spinning.run_attempt(&["-c", "while :; do :; done"]),
+                RunAttempt::StartedFailure(GitError::Timeout { .. })
+            ),
+            "a started child that cannot finish may already have mutated"
+        );
     }
 
     #[test]
@@ -627,6 +847,7 @@ mod tests {
             program: PathBuf::from("git"),
             cwd: PathBuf::from("/tmp/example"),
             timeout: DEFAULT_TIMEOUT,
+            operator_index: None,
         };
 
         let command = process.command(&["status", "--porcelain=v1", "-z"]);
@@ -645,6 +866,7 @@ mod tests {
             program: PathBuf::from("git"),
             cwd: PathBuf::from("."),
             timeout: DEFAULT_TIMEOUT,
+            operator_index: None,
         };
 
         let environment = env_map(&process.command(&["status"]));
@@ -675,6 +897,50 @@ mod tests {
     }
 
     #[test]
+    fn a_captured_operator_index_is_reapplied_but_a_scoped_index_overrides_it() {
+        let process = GitProcess {
+            program: PathBuf::from("git"),
+            cwd: PathBuf::from("."),
+            timeout: DEFAULT_TIMEOUT,
+            operator_index: Some(OsString::from("../relative-index")),
+        };
+
+        let local = env_map(&process.command(&["status"]));
+        assert_eq!(
+            local.get(Path::new("GIT_INDEX_FILE")),
+            Some(&Some(PathBuf::from("../relative-index"))),
+            "the captured spelling is handed to git verbatim"
+        );
+
+        let hook = env_map(&process.command_with_profile(
+            &["hook", "run", "post-commit"],
+            &EnvProfile::CommitHook {
+                index: None,
+                no_editor: false,
+            },
+        ));
+        assert_eq!(
+            hook.get(Path::new("GIT_INDEX_FILE")),
+            Some(&Some(PathBuf::from("../relative-index"))),
+            "a post-commit hook runs against the captured operator index"
+        );
+
+        let git_dir = tempfile::tempdir().unwrap();
+        let index = ScopedIndex::in_git_dir(git_dir.path()).unwrap();
+        let scoped = env_map(&process.command_with_profile(
+            &["read-tree", "HEAD"],
+            &EnvProfile::ScopedIndex {
+                index: index.path().to_path_buf(),
+            },
+        ));
+        assert_eq!(
+            scoped.get(Path::new("GIT_INDEX_FILE")),
+            Some(&Some(index.path().to_path_buf())),
+            "a private scoped index overrides the captured operator index"
+        );
+    }
+
+    #[test]
     fn a_scoped_index_profile_sets_only_the_generated_index_file() {
         let git_dir = tempfile::tempdir().unwrap();
         let index = ScopedIndex::in_git_dir(git_dir.path()).unwrap();
@@ -696,6 +962,7 @@ mod tests {
             program: PathBuf::from("git"),
             cwd: PathBuf::from("."),
             timeout: DEFAULT_TIMEOUT,
+            operator_index: None,
         };
         let command = process.command_with_profile(
             &["status"],
@@ -710,9 +977,6 @@ mod tests {
             Some(&Some(index.path().to_path_buf()))
         );
         for key in REPOSITORY_REDIRECTING_ENV {
-            if *key == "GIT_INDEX_FILE" {
-                continue;
-            }
             assert_eq!(
                 environment.get(Path::new(key)),
                 Some(&None),

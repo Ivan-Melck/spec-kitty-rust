@@ -126,11 +126,43 @@ impl ActivationState {
     pub fn deny_for(&self, kind: ArtifactKind) -> Option<&DenySet> {
         self.deny.get(&kind)
     }
+
+    /// Every denied DRG URN after the required floor (the cascade reads this).
+    ///
+    /// The floor was already subtracted when this state was built, so a stale
+    /// deny of an org-required artifact never stops a cascade.
+    pub fn deactivated_urns(&self) -> BTreeSet<String> {
+        self.deny
+            .values()
+            .flat_map(|deny| deny.urns.iter().cloned())
+            .collect()
+    }
 }
 
 /// Return a copy of `graph` limited to activated artifacts, keeping an edge only
 /// when both endpoints survive.
+///
+/// The filtered graph is a subsequence of a valid graph, so rebuilding it cannot
+/// fail; if it ever did, this returns an empty graph rather than the unfiltered
+/// one. Falling back to the whole graph would admit every deactivated artifact.
 pub fn filter_graph_by_activation(graph: &DrgGraph, state: &ActivationState) -> DrgGraph {
+    try_filter_graph_by_activation(graph, state).unwrap_or_else(|_| {
+        DrgGraph::new(
+            graph.schema_version(),
+            graph.generated_at(),
+            graph.generated_by(),
+            Vec::new(),
+            Vec::new(),
+        )
+        .expect("an empty graph is well formed")
+    })
+}
+
+/// Fallible form of [`filter_graph_by_activation`].
+pub fn try_filter_graph_by_activation(
+    graph: &DrgGraph,
+    state: &ActivationState,
+) -> Result<DrgGraph, DoctrineError> {
     let nodes: Vec<_> = graph
         .nodes()
         .iter()
@@ -149,20 +181,39 @@ pub fn filter_graph_by_activation(graph: &DrgGraph, state: &ActivationState) -> 
         .filter(|edge| surviving.contains(edge.source()) && surviving.contains(edge.target()))
         .cloned()
         .collect();
-    graph
-        .with_parts(nodes, edges)
-        .unwrap_or_else(|_| graph.clone())
+    graph.with_parts(nodes, edges)
 }
 
-/// The DRG URNs of every denied artifact, across kinds.
+/// The DRG URNs of every denied artifact, across kinds, with an empty floor.
+///
+/// A caller that has an org-required floor must use
+/// [`deactivated_urns_with_floor`] (or [`ActivationState::deactivated_urns`],
+/// which is already floor-netted) so a cascade never stops at a required
+/// artifact a stale deny still names.
 pub fn deactivated_urns(ledger: &ActivationLedger, identity: &IdentityIndex) -> BTreeSet<String> {
+    deactivated_urns_with_floor(ledger, identity, &BTreeMap::new())
+        .expect("an empty required floor has no identity lookup to fail")
+}
+
+/// The DRG URNs of every effectively-denied artifact, after the required floor.
+pub fn deactivated_urns_with_floor(
+    ledger: &ActivationLedger,
+    identity: &IdentityIndex,
+    required_floor: &BTreeMap<ArtifactKind, Vec<String>>,
+) -> Result<BTreeSet<String>, DoctrineError> {
     let mut urns = BTreeSet::new();
     for kind in crate::ledger::activatable_kinds() {
-        let deny =
-            crate::ledger::resolve_deny(kind, ledger.deny_for(kind).iter().cloned(), identity);
+        let floor = required_floor.get(&kind).cloned().unwrap_or_default();
+        let deny = crate::ledger::effective_deny(
+            kind,
+            ledger.deny_for(kind).iter().cloned(),
+            floor,
+            identity,
+        );
         urns.extend(deny.urns);
     }
-    urns
+    let _ = identity;
+    Ok(urns)
 }
 
 /// Edges of a node that the cascade follows (`requires`/`suggests`/`refines`/...).

@@ -59,6 +59,7 @@ pub struct TemplateTreeSource {
     agents_md: Option<PathBuf>,
     claudeignore_template: Option<PathBuf>,
     global_home: Option<PathBuf>,
+    package_mode: bool,
 }
 
 impl TemplateTreeSource {
@@ -80,14 +81,19 @@ impl TemplateTreeSource {
             agents_md,
             claudeignore_template,
             global_home: None,
+            package_mode: false,
         }
     }
 
     /// Discover the canonical checkout layout (`src/charter/offering/templates`,
     /// `packs/built-in/missions`, `.kittify/memory`).
+    ///
+    /// A checkout whose mission tree is fetched to an external packs root
+    /// (`SPEC_KITTY_PACKS_ROOT`) resolves it from there instead; the templates
+    /// and memory roots always come from the checkout.
     pub fn discover(checkout: &Path) -> Result<Self, InstallError> {
         let templates = checkout.join("src/charter/offering/templates");
-        let missions = checkout.join("packs/built-in/missions");
+        let missions = discover_pack_missions(checkout);
         let memory = checkout.join(".kittify/memory");
         if !templates.is_dir() {
             return Err(InstallError::TemplateTreeMissing {
@@ -95,6 +101,10 @@ impl TemplateTreeSource {
                 detail: "offering templates root is absent".to_string(),
             });
         }
+        let missions = missions.ok_or_else(|| InstallError::TemplateTreeMissing {
+            path: checkout.join("packs/built-in/missions"),
+            detail: "the built-in mission tree is absent; run the pack sync first".to_string(),
+        })?;
         if !missions.is_dir() {
             return Err(InstallError::TemplateTreeMissing {
                 path: missions,
@@ -141,6 +151,17 @@ impl TemplateTreeSource {
         self
     }
 
+    /// Mark this source as a packaged install.
+    ///
+    /// Upstream copies the shipped `claudeignore-template` **only** when the
+    /// template root is package data; a local-checkout run leaves
+    /// `.claudeignore` alone. Init therefore sets this only for a packaged
+    /// source, so a checkout run does not create an extra project file.
+    pub fn with_package_mode(mut self, package_mode: bool) -> Self {
+        self.package_mode = package_mode;
+        self
+    }
+
     /// Verify the missions tree against its pack pin (no copy happens here).
     pub fn verify_missions_pin(&self, pin: &PackPin, pin_path: &Path) -> Result<(), InstallError> {
         let missions =
@@ -167,6 +188,48 @@ impl TemplateTreeSource {
             .map(|home| global_runtime_available(home))
             .unwrap_or(false)
     }
+}
+
+/// Resolve the built-in missions tree from the checkout or the packs root.
+pub fn discover_pack_missions(checkout: &Path) -> Option<PathBuf> {
+    discover_pack_subdir(checkout, "missions")
+}
+
+/// Resolve the built-in presets directory from the checkout or the packs root.
+pub fn discover_pack_presets(checkout: &Path) -> Option<PathBuf> {
+    discover_pack_subdir(checkout, "presets")
+}
+
+/// Resolve the built-in agent-profile catalog directory.
+pub fn discover_pack_agent_profiles(checkout: &Path) -> Option<PathBuf> {
+    discover_pack_subdir(checkout, "agent_profiles")
+}
+
+/// Resolve `packs/built-in/<name>` from the checkout, then from
+/// `SPEC_KITTY_PACKS_ROOT`.
+///
+/// The documented oracle/verification value for `SPEC_KITTY_PACKS_ROOT` is the
+/// checked-out `packs` directory, while an older native convention named
+/// `packs/built-in`. Both source-backed shapes are accepted here; nothing is
+/// invented or searched outside those two layouts.
+fn discover_pack_subdir(checkout: &Path, name: &str) -> Option<PathBuf> {
+    let local = checkout.join("packs/built-in").join(name);
+    if local.is_dir() {
+        return Some(local);
+    }
+    let configured = std::env::var_os("SPEC_KITTY_PACKS_ROOT").map(PathBuf::from)?;
+    resolve_configured_pack_subdir(&configured, name)
+}
+
+/// `configured/built-in/<name>` (a packs root) or `configured/<name>`
+/// (a `packs/built-in` root), whichever exists.
+fn resolve_configured_pack_subdir(configured: &Path, name: &str) -> Option<PathBuf> {
+    let built_in = configured.join("built-in").join(name);
+    if built_in.is_dir() {
+        return Some(built_in);
+    }
+    let direct = configured.join(name);
+    direct.is_dir().then_some(direct)
 }
 
 /// Whether `kittify_home/missions` exists and holds at least one directory.
@@ -211,6 +274,8 @@ pub struct TemplateTreeReport {
     pub mode: Option<TemplateMode>,
     /// Project-relative subtrees copied this run.
     pub copied: Vec<String>,
+    /// Non-fatal diagnostics (a source subtree absent from the asset set).
+    pub warnings: Vec<String>,
     /// Backup directories created (project-relative).
     pub backups: Vec<String>,
     /// Whether this run created `.kittify/templates` (provenance for cleanup).
@@ -252,6 +317,11 @@ pub fn install_template_tree(
         ("missions", source.missions_root.as_ref()),
     ] {
         let Some(root) = root else {
+            // Absence is reported, never replaced by a bundled or invented copy
+            // (upstream's F6 contract): the caller decides whether to continue.
+            report.warnings.push(format!(
+                "the verified asset set has no {name} source; .kittify/{name} was not installed"
+            ));
             continue;
         };
         if !root.is_dir() {
@@ -288,6 +358,7 @@ pub fn install_template_tree(
         }
     }
     if let Some(template) = &source.claudeignore_template
+        && source.package_mode
         && template.is_file()
     {
         let destination = project_root.join(".claudeignore");
@@ -471,7 +542,9 @@ mod tests {
         assert_eq!(report.mode, Some(TemplateMode::FullCopy));
         assert!(report.templates_created);
         assert!(report.agents_md_written);
-        assert!(report.claudeignore_written);
+        // A checkout-mode source does not create `.claudeignore` (upstream
+        // copies it only from packaged template data).
+        assert!(!report.claudeignore_written);
         assert!(directory.path().join(".kittify/memory/MEMORY.md").is_file());
         assert!(
             directory
@@ -486,7 +559,19 @@ mod tests {
                 .is_file()
         );
         assert!(directory.path().join(".kittify/AGENTS.md").is_file());
-        assert!(directory.path().join(".claudeignore").is_file());
+        assert!(!directory.path().join(".claudeignore").exists());
+
+        // A packaged source keeps upstream's package-mode `.claudeignore` copy.
+        let packaged = tempfile::tempdir().expect("temp");
+        let package_source = source.clone().with_package_mode(true);
+        let report = install_template_tree(
+            packaged.path(),
+            &package_source,
+            &TemplateTreeOptions::default(),
+        )
+        .expect("install");
+        assert!(report.claudeignore_written);
+        assert!(packaged.path().join(".claudeignore").is_file());
     }
 
     #[test]
@@ -518,6 +603,50 @@ mod tests {
                 .path()
                 .join(".kittify/missions/software-dev/mission.yaml")
                 .is_file()
+        );
+    }
+
+    #[test]
+    fn both_source_backed_packs_root_shapes_resolve_the_pack_subdir() {
+        let directory = tempfile::tempdir().expect("temp");
+        let packs = directory.path();
+        // Documented oracle shape: `<packs>/missions`.
+        write(
+            &packs.join("missions/software-dev/mission.yaml"),
+            "mission\n",
+        );
+        assert_eq!(
+            resolve_configured_pack_subdir(packs, "missions"),
+            Some(packs.join("missions"))
+        );
+        // Older native shape: `<packs>/built-in/missions` wins when both exist.
+        write(
+            &packs.join("built-in/missions/software-dev/mission.yaml"),
+            "mission\n",
+        );
+        assert_eq!(
+            resolve_configured_pack_subdir(packs, "missions"),
+            Some(packs.join("built-in/missions"))
+        );
+        assert_eq!(resolve_configured_pack_subdir(packs, "presets"), None);
+    }
+
+    #[test]
+    fn an_absent_source_subtree_is_reported_not_silently_skipped() {
+        let directory = tempfile::tempdir().expect("temp");
+        let source_root = tempfile::tempdir().expect("temp");
+        let mut source = source(source_root.path());
+        source.memory_root = None;
+        let report =
+            install_template_tree(directory.path(), &source, &TemplateTreeOptions::default())
+                .expect("install");
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("no memory source")),
+            "absence must be reported: {:?}",
+            report.warnings
         );
     }
 

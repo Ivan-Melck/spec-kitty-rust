@@ -364,6 +364,106 @@ pub enum GitError {
         feature: &'static str,
     },
 
+    /// `HEAD` exists but cannot be read as a commit.
+    ///
+    /// This is deliberately distinct from an unborn branch: an unborn `HEAD`
+    /// names a branch ref that does not exist yet (a clean "no revision"), while
+    /// a `HEAD` whose content is malformed, names a structurally invalid ref, or
+    /// points at a missing/non-commit object is unreadable. Callers such as a
+    /// rollback-point capture must not treat the second as an absence.
+    #[error("HEAD is present but unreadable: {detail}")]
+    UnreadableHead {
+        /// What was wrong with `HEAD`.
+        detail: String,
+    },
+
+    /// A requested blob is larger than the caller's bound.
+    ///
+    /// Nothing was read into memory: the size is asked of git first
+    /// (`git cat-file -s`) and the refusal names the object and the bound.
+    #[error("blob for {path} is larger than the {limit}-byte read limit")]
+    BlobTooLarge {
+        /// The repository-relative path that was requested.
+        path: String,
+        /// The caller's bound.
+        limit: u64,
+    },
+
+    /// A worktree registration was requested for pruning but is not proven
+    /// stale.
+    ///
+    /// A registration is only prunable when git itself reports it prunable and
+    /// its directory is gone; a live checkout is never removed.
+    #[error("refusing to prune worktree registration {path}: {detail}")]
+    WorktreeNotStale {
+        /// The registration path.
+        path: PathBuf,
+        /// Why it is not proven stale.
+        detail: String,
+    },
+
+    /// A merge start, conclusion, or abort observed state it did not pin.
+    ///
+    /// Unlike [`GitError::PlanStale`] this can be raised *after* a mutation, so
+    /// the caller must inspect the named state instead of assuming nothing
+    /// happened.
+    #[error("merge state in {worktree_root} changed outside the pinned plan: {detail}")]
+    MergeStateChanged {
+        /// The checkout whose merge state moved.
+        worktree_root: PathBuf,
+        /// What moved.
+        detail: String,
+    },
+
+    /// `git merge --abort` could not restore the pinned state.
+    #[error("git merge --abort failed in {worktree_root}: {detail}")]
+    MergeAbortFailed {
+        /// The checkout whose merge could not be aborted.
+        worktree_root: PathBuf,
+        /// Git's diagnostic.
+        detail: String,
+    },
+
+    /// A merge/revert/cherry-pick conclusion commit may have landed, but the
+    /// state after it is not the state the plan pinned.
+    ///
+    /// Unlike [`GitError::CommandFailed`] this is raised *after* the commit
+    /// command ran, so the caller must inspect the named state instead of
+    /// assuming nothing happened. Unlike [`GitError::MergeAbortFailed`] it is
+    /// not a rollback: nothing is reset, deleted, or reverted here. The boxed
+    /// payload keeps the common error path small.
+    #[error("{0}")]
+    MergeConclusionUnconfirmed(Box<MergeConclusionUnconfirmed>),
+
+    /// A sparse-checkout operation could not be completed by git.
+    ///
+    /// Git itself refuses to remove locally modified paths; this error carries
+    /// its diagnostic so the caller can name the obstruction. The checkout's
+    /// untracked and ignored files are never removed by this adapter.
+    #[error("sparse checkout failed in {worktree_root}: {detail}")]
+    SparseCheckoutFailed {
+        /// The checkout that was being changed.
+        worktree_root: PathBuf,
+        /// Git's diagnostic.
+        detail: String,
+    },
+
+    /// A sparse-checkout disable was requested on a checkout that is not sparse.
+    #[error("sparse checkout is not enabled in {worktree_root}")]
+    SparseCheckoutNotConfigured {
+        /// The checkout that was inspected.
+        worktree_root: PathBuf,
+    },
+
+    /// A sparse-checkout pattern file exceeded the bounded read limit.
+    #[error("sparse-checkout pattern file {path} exceeds the {limit}-byte limit")]
+    SparsePatternFileTooLarge {
+        /// The pattern file that was read.
+        path: PathBuf,
+        /// The read bound.
+        limit: u64,
+    },
+
     /// A bounded stdin payload exceeded the adapter's limit.
     #[error("git stdin payload exceeds the {limit}-byte limit")]
     InputTooLarge {
@@ -579,4 +679,56 @@ pub enum SafeCommitLandedKind {
     UnrequestedPaths,
     /// The commit's own changed-path set could not be read back.
     CommitPathReadbackFailed,
+}
+
+/// Evidence for a conclusion commit that may have landed without a confirmed
+/// post-state.
+///
+/// * `candidate` is a commit **this call created**, proven from evidence bound to
+///   the invocation: git's own summary printed by the child, or a reflog entry
+///   appended to the pinned ref after a publication watermark captured before
+///   the command ran. Its parent set is checked as a necessary condition, never
+///   as creation proof, and the observed `HEAD` is never accepted merely because
+///   its parents match. `candidate` is `None` when no evidence could prove a
+///   created commit; `None` means *unknown*, not `not landed`.
+/// * `observed_head` is what `HEAD` reads back as afterwards. A hook may have
+///   moved it, so it is reported separately and is never substituted for
+///   `candidate`.
+/// * `operation_consumed` reports whether the operation marker (`MERGE_HEAD`,
+///   `CHERRY_PICK_HEAD`, `REVERT_HEAD`) is gone; `marker` distinguishes a
+///   consumed marker from one that is unchanged, rewritten, or unreadable.
+#[derive(Debug)]
+pub struct MergeConclusionUnconfirmed {
+    /// `merge`, `cherry-pick`, or `revert`.
+    pub operation: String,
+    /// The checkout whose conclusion was attempted.
+    pub worktree_root: PathBuf,
+    /// The commit this call created, when invocation-bound evidence proved it.
+    pub candidate: Option<crate::Oid>,
+    /// The HEAD the plan pinned.
+    pub previous_head: crate::Oid,
+    /// `HEAD` as read back after the command and its hooks.
+    pub observed_head: Option<crate::Oid>,
+    /// Whether the operation marker is gone.
+    pub operation_consumed: bool,
+    /// What the operation marker reads back as (consumed, unchanged, changed,
+    /// or unreadable).
+    pub marker: crate::merge::OperationMarkerState,
+    /// Git's diagnostic plus the evidence probes that were tried.
+    pub detail: String,
+}
+
+impl std::fmt::Display for MergeConclusionUnconfirmed {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "a {} conclusion in {} is unconfirmed (created commit {:?}, observed HEAD {:?}, operation marker {:?}): {}; no state was rolled back",
+            self.operation,
+            self.worktree_root.display(),
+            self.candidate,
+            self.observed_head,
+            self.marker,
+            self.detail
+        )
+    }
 }

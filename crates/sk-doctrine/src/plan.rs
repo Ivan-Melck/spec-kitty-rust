@@ -538,10 +538,18 @@ pub fn apply_plan(document: &mut YamlDocument, plan: &ActivationPlan) {
     }
 }
 
-/// Commit a plan through the one locked, lossless, single write.
+/// Prepare a plan's one locked, lossless, single write.
 ///
 /// A deny change against an unmigrated legacy surface is refused **before**
 /// preparing bytes. A plan that changes nothing prepares an unchanged write.
+/// The prepared write takes the canonical charter synthesis lock, so a Python
+/// `charter activate` and a native transaction cannot interleave.
+///
+/// This is the transaction's internal preparation step, deliberately *not*
+/// re-exported: preparing a plan whose post-state was computed from an older
+/// read and then applying it later re-applies stale full values over another
+/// writer's changes. New callers use [`ActivationTransaction`] (observe → plan →
+/// commit), which refuses that case with `precondition_changed`.
 pub fn commit_plan(
     repo_root: &Path,
     plan: &ActivationPlan,
@@ -560,7 +568,8 @@ pub fn commit_plan(
         let mut document = document;
         apply_plan(&mut document, plan);
         let desired = document.to_text().into_bytes();
-        return PreparedWrite::prepare(&target, desired);
+        return PreparedWrite::prepare(&target, desired)
+            .map(|write| write.with_synthesis_lock(repo_root));
     }
 
     let mut values: BTreeMap<String, Option<Vec<String>>> = BTreeMap::new();
@@ -575,6 +584,142 @@ pub fn commit_plan(
         );
     }
     prepare_ledger_write(repo_root, &values, &[], plan.deny_change)
+}
+
+/// The activation authority's exact bytes as a plan read them.
+///
+/// An activation is a read-plan-write transaction: planning is pure over this
+/// observation, and committing refuses when the file changed in between. The
+/// reference implementation makes the same check (`pack_manager._save_ledger`
+/// compares the current bytes to the baseline taken when the ledger was
+/// loaded); without it a plan computed before a concurrent write silently
+/// overwrites that write.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ActivationObservation {
+    repo_root: PathBuf,
+    target: PathBuf,
+    before: Option<Vec<u8>>,
+}
+
+impl ActivationObservation {
+    /// Observe the activation authority of `repo_root`.
+    pub fn observe(repo_root: &Path) -> Result<Self, DoctrineError> {
+        let resolved = resolve_activation_source(repo_root)?;
+        let target = activation_write_target(repo_root, &resolved)?;
+        let before = crate::yaml::observe(&target)?;
+        Ok(Self {
+            repo_root: repo_root.to_path_buf(),
+            target,
+            before,
+        })
+    }
+
+    /// The repository root the observation belongs to.
+    pub fn repo_root(&self) -> &Path {
+        &self.repo_root
+    }
+
+    /// The file that will be written.
+    pub fn target(&self) -> &Path {
+        &self.target
+    }
+
+    /// The observed bytes (`None` = absent).
+    pub fn before(&self) -> Option<&[u8]> {
+        self.before.as_deref()
+    }
+}
+
+/// The file an activation write targets for `repo_root`.
+pub fn activation_write_target(
+    repo_root: &Path,
+    resolved: &crate::ledger::ResolvedActivationSource,
+) -> Result<PathBuf, DoctrineError> {
+    if resolved.source() == ActivationSource::Ledger || resolved.ledger_exists {
+        return Ok(crate::ledger::activation_ledger_path(repo_root));
+    }
+    let (target, _) = legacy_target(repo_root, resolved)?;
+    Ok(target)
+}
+
+/// One authoritative activation transaction: observe, plan, commit.
+///
+/// ```no_run
+/// use std::path::Path;
+/// use sk_doctrine::{ActivationTransaction, ActivationPlan};
+///
+/// let repo = Path::new("<project>");
+/// let transaction = ActivationTransaction::begin(repo).expect("observe");
+/// let plan = ActivationPlan {
+///     yaml_key: "mission_type_activations".to_owned(),
+///     new_list: Some(vec!["software-dev".to_owned()]),
+///     ..ActivationPlan::default()
+/// };
+/// transaction.commit(&plan).expect("commit");
+/// ```
+#[derive(Clone, Debug)]
+pub struct ActivationTransaction {
+    observation: ActivationObservation,
+}
+
+impl ActivationTransaction {
+    /// Begin a transaction by observing the activation authority.
+    pub fn begin(repo_root: &Path) -> Result<Self, DoctrineError> {
+        Ok(Self {
+            observation: ActivationObservation::observe(repo_root)?,
+        })
+    }
+
+    /// Begin from an observation the caller already holds.
+    pub fn from_observation(observation: ActivationObservation) -> Self {
+        Self { observation }
+    }
+
+    /// The plan-time observation.
+    pub fn observation(&self) -> &ActivationObservation {
+        &self.observation
+    }
+
+    /// The typed ledger as of this transaction's observation.
+    pub fn ledger(&self) -> Result<crate::ledger::ActivationLedger, DoctrineError> {
+        crate::ledger::load_activation_ledger(&self.observation.repo_root)
+    }
+
+    /// Commit `plan` in one locked critical section.
+    ///
+    /// The synthesis lock is taken first, then the plan-time observation is
+    /// rechecked, then the file is written atomically. A concurrent write makes
+    /// this refuse with `precondition_changed` and mutates nothing.
+    pub fn commit(
+        &self,
+        plan: &ActivationPlan,
+    ) -> Result<crate::yaml::WriteOutcome, DoctrineError> {
+        let repo_root = &self.observation.repo_root;
+        let prepared = commit_plan(repo_root, plan)?;
+        if prepared.target() != self.observation.target.as_path() {
+            return Err(DoctrineError::PreconditionChanged {
+                path: self.observation.target.clone(),
+            });
+        }
+        prepared.apply_observed(
+            self.observation.before.as_deref(),
+            crate::yaml::DEFAULT_LOCK_TIMEOUT,
+        )
+    }
+}
+
+/// Commit `plan` only when the authority still matches `observation`.
+pub fn commit_plan_observed(
+    repo_root: &Path,
+    plan: &ActivationPlan,
+    observation: &ActivationObservation,
+) -> Result<crate::yaml::WriteOutcome, DoctrineError> {
+    if observation.repo_root() != repo_root {
+        return Err(DoctrineError::PreconditionChanged {
+            path: observation.target.clone(),
+        });
+    }
+    ActivationTransaction::from_observation(observation.clone()).commit(plan)
 }
 
 fn legacy_target(
@@ -727,8 +872,7 @@ mod tests {
             "a".to_owned(),
             vec![RequiringPack {
                 pack: "acme".to_owned(),
-                source: "org-charter.yaml".to_owned(),
-                policy_key: "required_directives".to_owned(),
+                via: None,
             }],
         )]);
         let base = DeactivationInputs {
@@ -776,7 +920,8 @@ mod tests {
             deny_change: Some(DenyListChoice::Deactivate),
             ..ActivationPlan::default()
         };
-        assert!(commit_plan(root, &plan).is_err());
+        let transaction = ActivationTransaction::begin(root).unwrap();
+        assert!(transaction.commit(&plan).is_err());
         assert_eq!(
             fs::read_to_string(root.join(".kittify/config.yaml")).unwrap(),
             "activated_directives: [a]\n"
@@ -796,11 +941,116 @@ mod tests {
             new_list: Some(vec!["a".to_owned()]),
             ..ActivationPlan::default()
         };
-        let prepared = commit_plan(root, &plan).unwrap();
-        prepared.apply(crate::yaml::DEFAULT_LOCK_TIMEOUT).unwrap();
+        let transaction = ActivationTransaction::begin(root).unwrap();
+        transaction.commit(&plan).unwrap();
         let text = fs::read_to_string(&ledger).unwrap();
         assert!(text.contains("# ledger"));
         assert!(text.contains("activated_directives: [a]"));
         let _index = IdentityIndex::from_roots(root, &[], None);
+    }
+
+    #[test]
+    fn transaction_refuses_a_plan_time_observation_that_lost_a_race() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        let ledger = root.join(".kittify/charter/activation.yaml");
+        fs::create_dir_all(ledger.parent().unwrap()).unwrap();
+        fs::write(&ledger, "activated_directives: [a]\n").unwrap();
+
+        let transaction = ActivationTransaction::begin(root).unwrap();
+        // Another writer lands between plan and commit.
+        fs::write(&ledger, "activated_directives: [a, c]\n").unwrap();
+        let plan = ActivationPlan {
+            yaml_key: "activated_directives".to_owned(),
+            new_list: Some(vec!["a".to_owned(), "b".to_owned()]),
+            ..ActivationPlan::default()
+        };
+        let error = transaction.commit(&plan).unwrap_err();
+        assert!(matches!(error, DoctrineError::PreconditionChanged { .. }));
+        assert_eq!(
+            fs::read_to_string(&ledger).unwrap(),
+            "activated_directives: [a, c]\n"
+        );
+    }
+
+    #[test]
+    fn transaction_writes_when_nothing_intervened() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        let ledger = root.join(".kittify/charter/activation.yaml");
+        fs::create_dir_all(ledger.parent().unwrap()).unwrap();
+        fs::write(&ledger, "# kept\nactivated_directives: [a]\n").unwrap();
+        let transaction = ActivationTransaction::begin(root).unwrap();
+        let plan = ActivationPlan {
+            yaml_key: "activated_directives".to_owned(),
+            new_list: Some(vec!["a".to_owned(), "b".to_owned()]),
+            ..ActivationPlan::default()
+        };
+        assert_eq!(
+            transaction.commit(&plan).unwrap(),
+            crate::yaml::WriteOutcome::Changed
+        );
+        let text = fs::read_to_string(&ledger).unwrap();
+        assert!(text.contains("# kept"));
+        assert!(text.contains("b"));
+
+        // A second commit from the same (now stale) observation is refused.
+        let error = transaction.commit(&plan).unwrap_err();
+        assert!(matches!(error, DoctrineError::PreconditionChanged { .. }));
+    }
+
+    #[test]
+    fn concurrent_transactions_serialise_on_the_synthesis_lock() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path().canonicalize().unwrap();
+        let ledger = root.join(".kittify/charter/activation.yaml");
+        fs::create_dir_all(ledger.parent().unwrap()).unwrap();
+        fs::write(&ledger, "activated_directives: []\n").unwrap();
+
+        let (first_sender, first_receiver) = std::sync::mpsc::channel();
+        let (release_sender, release_receiver) = std::sync::mpsc::channel();
+        let holder_root = root.clone();
+        let holder = std::thread::spawn(move || {
+            let lock = crate::lock::acquire_synthesis_lock(
+                &holder_root,
+                std::time::Duration::from_secs(1),
+            )
+            .unwrap();
+            first_sender.send(()).unwrap();
+            release_receiver
+                .recv_timeout(std::time::Duration::from_secs(2))
+                .unwrap();
+            drop(lock);
+        });
+        first_receiver.recv().unwrap();
+
+        // Contending acquisition is bounded and typed, never a silent proceed.
+        let error =
+            crate::lock::acquire_synthesis_lock(&root, std::time::Duration::from_millis(50))
+                .unwrap_err();
+        assert!(matches!(error, DoctrineError::SynthesisLockHeld { .. }));
+        release_sender.send(()).unwrap();
+        holder.join().unwrap();
+
+        // Two threads with their own observations: the loser refuses instead of
+        // dropping the winner's write.
+        let transaction = ActivationTransaction::begin(&root).unwrap();
+        let plan = ActivationPlan {
+            yaml_key: "activated_directives".to_owned(),
+            new_list: Some(vec!["winner".to_owned()]),
+            ..ActivationPlan::default()
+        };
+        let stale = ActivationTransaction::begin(&root).unwrap();
+        transaction.commit(&plan).unwrap();
+        let error = stale.commit(&ActivationPlan {
+            yaml_key: "activated_directives".to_owned(),
+            new_list: Some(vec!["loser".to_owned()]),
+            ..ActivationPlan::default()
+        });
+        assert!(matches!(
+            error,
+            Err(DoctrineError::PreconditionChanged { .. })
+        ));
+        assert!(fs::read_to_string(&ledger).unwrap().contains("winner"));
     }
 }

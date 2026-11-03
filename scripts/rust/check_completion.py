@@ -219,15 +219,15 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _ref_path(ref: str) -> Path:
+def _ref_path(ref: str, root: Path = ROOT) -> Path:
     """Resolve a repo-relative ``path[:line]`` evidence reference."""
     text = ref.split(":", 1)[0] if re.search(r":\d+$", ref) else ref
     path = Path(text)
-    return path if path.is_absolute() else ROOT / path
+    return path if path.is_absolute() else root / path
 
 
-def _ref_exists(ref: str) -> bool:
-    path = _ref_path(ref)
+def _ref_exists(ref: str, root: Path = ROOT) -> bool:
+    path = _ref_path(ref, root)
     return path.exists()
 
 
@@ -402,10 +402,11 @@ def _check_structural_rebuild(
     report: Report,
     inventory: dict[str, Any],
     surface: dict[str, Any],
+    root: Path = ROOT,
 ) -> None:
     """Recompute structure from the curated model; statuses may change, scope may not."""
     gate = "structure"
-    fresh = build_inventory.build(surface, ROOT)
+    fresh = build_inventory.build(surface, root)
     fresh_by_id = {entry["id"]: entry for entry in fresh["entries"]}
     entries = {entry["id"]: entry for entry in inventory.get("entries", [])}
     missing = sorted(set(fresh_by_id) - set(entries))
@@ -528,7 +529,7 @@ def _check_modules(report: Report, inventory: dict[str, Any], surface: dict[str,
         report.fail("MODULE_COUNT_DRIFT", "modules_top_level is stale", gate=gate)
 
 
-def _check_contracts(report: Report, inventory: dict[str, Any]) -> None:
+def _check_contracts(report: Report, inventory: dict[str, Any], root: Path = ROOT) -> None:
     gate = "contracts"
     entries = {entry["id"]: entry for entry in inventory.get("entries", [])}
     missing = sorted(REQUIRED_CONTRACT_IDS - set(entries))
@@ -582,16 +583,16 @@ def _check_contracts(report: Report, inventory: dict[str, Any]) -> None:
             report.fail("TRIGGER_WITHOUT_MUTATION", "mutation trigger is set on a non-mutating entry", entry_id=entry_id, gate=gate)
 
         for ref in [*entry.get("source_refs", []), *entry.get("test_refs", [])]:
-            if not _ref_exists(ref):
+            if not _ref_exists(ref, root):
                 report.fail("MISSING_REFERENCE", f"reference does not exist: {ref}", entry_id=entry_id, gate=gate)
         for ref in entry.get("implementation", {}).get("native_refs", []):
-            if not _ref_exists(ref):
+            if not _ref_exists(ref, root):
                 report.fail("MISSING_NATIVE_REF", f"native reference does not exist: {ref}", entry_id=entry_id, gate=gate)
         for ref in entry.get("conformance", {}).get("refs", []):
-            if not _ref_exists(ref):
+            if not _ref_exists(ref, root):
                 report.fail("MISSING_CONFORMANCE_REF", f"conformance reference does not exist: {ref}", entry_id=entry_id, gate=gate)
         for ref in entry.get("review", {}).get("refs", []):
-            if not _ref_exists(ref):
+            if not _ref_exists(ref, root):
                 report.fail("MISSING_REVIEW_REF", f"review reference does not exist: {ref}", entry_id=entry_id, gate=gate)
 
     # Wire contract must be the pinned one.
@@ -646,7 +647,7 @@ def _check_migrations(report: Report, inventory: dict[str, Any], surface: dict[s
         report.fail("MIGRATION_REGISTRY_MISSING", "MIG-REGISTRY is not a required entry", gate=gate)
 
 
-def _check_status_gates(report: Report, inventory: dict[str, Any]) -> None:
+def _check_status_gates(report: Report, inventory: dict[str, Any], root: Path = ROOT) -> None:
     gate = "status"
     required = [entry for entry in inventory.get("entries", []) if entry.get("required")]
 
@@ -659,15 +660,15 @@ def _check_status_gates(report: Report, inventory: dict[str, Any]) -> None:
             if not refs:
                 report.fail("IMPLEMENTATION_WITHOUT_EVIDENCE", "implemented status has no native references", entry_id=entry["id"], gate=gate)
             for ref in refs:
-                path = _ref_path(ref)
-                if not path.as_posix().startswith((ROOT / "crates").as_posix()):
+                path = _ref_path(ref, root)
+                if not path.is_relative_to(root / "crates"):
                     report.fail("IMPLEMENTATION_NOT_NATIVE", f"implemented native ref is outside crates/: {ref}", entry_id=entry["id"], gate=gate)
                 if path.suffix != ".rs":
                     report.fail("IMPLEMENTATION_NOT_RUST", f"implemented native ref is not Rust: {ref}", entry_id=entry["id"], gate=gate)
         if conformance.get("status") == "pass":
             if not conformance.get("refs"):
                 report.fail("CONFORMANCE_WITHOUT_EVIDENCE", "passing conformance has no references", entry_id=entry["id"], gate=gate)
-            elif not any("tests" in _ref_path(ref).parts for ref in conformance.get("refs", [])):
+            elif not any("tests" in _ref_path(ref, root).parts for ref in conformance.get("refs", [])):
                 report.fail(
                     "CONFORMANCE_EVIDENCE_NOT_TEST",
                     "passing conformance has no test-suite reference",
@@ -711,7 +712,7 @@ def _check_status_gates(report: Report, inventory: dict[str, Any]) -> None:
         )
 
 
-def _check_workflows(report: Report, inventory: dict[str, Any]) -> None:
+def _check_workflows(report: Report, inventory: dict[str, Any], root: Path = ROOT) -> None:
     gate = "workflows"
     workflows = inventory.get("workflows", [])
     if len({workflow.get("id") for workflow in workflows}) != len(workflows):
@@ -749,7 +750,7 @@ def _check_workflows(report: Report, inventory: dict[str, Any]) -> None:
             if not evidence_refs:
                 problems.append(category)
                 continue
-            if not any("tests" in _ref_path(ref).parts for ref in evidence_refs):
+            if not any("tests" in _ref_path(ref, root).parts for ref in evidence_refs):
                 report.fail(
                     "WORKFLOW_EVIDENCE_NOT_TEST",
                     f"{category} has no test-suite reference",
@@ -757,7 +758,7 @@ def _check_workflows(report: Report, inventory: dict[str, Any]) -> None:
                     gate=gate,
                 )
             for ref in evidence_refs:
-                if not _ref_exists(ref):
+                if not _ref_exists(ref, root):
                     report.fail(
                         "WORKFLOW_EVIDENCE_MISSING_REF",
                         f"{category} reference does not exist: {ref}",
@@ -902,7 +903,7 @@ def _check_performance(report: Report, inventory: dict[str, Any], root: Path) ->
         if not workload.get("evidence_refs"):
             report.fail("PERF_NO_EVIDENCE", "workload has no raw evidence reference", entry_id=workload_id, gate=gate)
         for ref in workload.get("evidence_refs", []):
-            if not _ref_exists(ref):
+            if not _ref_exists(ref, root):
                 report.fail("PERF_EVIDENCE_MISSING", f"evidence reference does not exist: {ref}", entry_id=workload_id, gate=gate)
         for field_name in ("fixture_id", "command_argv", "environment"):
             if not workload.get(field_name):
@@ -959,7 +960,7 @@ def _check_performance(report: Report, inventory: dict[str, Any], root: Path) ->
     if not evidence:
         report.fail("PERF_EVIDENCE_BUNDLE_MISSING", "no evidence bundle path/hash is recorded", gate=gate)
     else:
-        path = _ref_path(evidence.get("path", ""))
+        path = _ref_path(evidence.get("path", ""), root)
         if not path.exists():
             report.fail("PERF_EVIDENCE_BUNDLE_MISSING", f"evidence file does not exist: {path}", gate=gate)
         elif evidence.get("sha256") != _sha256(path):
@@ -986,6 +987,12 @@ def _check_performance(report: Report, inventory: dict[str, Any], root: Path) ->
         report.fail("PERF_BASELINE_COMMIT", "baseline commit is not a 40-hex commit id", gate=gate)
     if performance.get("status") != "pass":
         report.fail("PERF_STATUS_NOT_PASS", f"performance status={performance.get('status')}", gate=gate)
+
+    # Cross-check recorded coverage numbers against the actual raw-sample,
+    # fixture, build and result-evidence bundle; arithmetic alone is insufficient.
+    import performance_evidence
+
+    performance_evidence.check_bundle(report, performance, root=root, gate=gate)
 
 
 def _check_dependencies(report: Report, inventory: dict[str, Any], root: Path) -> None:
@@ -1050,7 +1057,7 @@ def _check_no_python_runtime(report: Report, root: Path) -> None:
         report.fail("NATIVE_EXTENSION_CENSUS", f"expected 11 native foundation commands, found {len(extensions)}", gate=gate)
     for extension in extensions:
         for ref in extension.get("native_refs", []):
-            if not _ref_exists(ref):
+            if not _ref_exists(ref, root):
                 report.fail("NATIVE_EXTENSION_REF", f"native extension reference does not exist: {ref}", entry_id=extension["id"], gate=gate)
 
 
@@ -1103,12 +1110,12 @@ def check(
         report.fail("STALE_SURFACE", "surface source hash does not match the pinned source", gate="surface")
 
     _check_surface_structure(report, inventory, surface)
-    _check_structural_rebuild(report, inventory, surface)
+    _check_structural_rebuild(report, inventory, surface, root)
     _check_modules(report, inventory, surface)
-    _check_contracts(report, inventory)
+    _check_contracts(report, inventory, root)
     _check_migrations(report, inventory, surface)
-    _check_status_gates(report, inventory)
-    _check_workflows(report, inventory)
+    _check_status_gates(report, inventory, root)
+    _check_workflows(report, inventory, root)
     _check_performance(report, inventory, root)
     _check_dependencies(report, inventory, root)
     _check_no_python_runtime(report, root)

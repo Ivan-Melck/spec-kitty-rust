@@ -7,6 +7,16 @@
 > directory. Scoped verification is now **127 passed**, strict Clippy/fmt clean.
 > The remaining functional gaps and lack of independent approval below persist.
 
+> **Remediation checkpoint (2026-11-02).** The independent review of
+> `d64468a7` reproduced lock-before-protection, unlocked planning/integration,
+> `single_branch` destination, pin lost-update, demotion fail-open, seed,
+> recovery, read-authority and YAML defects in this tranche. The source in this
+> directory now carries the remediation, and
+> [`REMEDIATION-REPORT.md`](REMEDIATION-REPORT.md) is the **authoritative**
+> disposition, current evidence and remaining gaps. Where this file and that one
+> differ, the remediation report wins; the historical sentences below are kept
+> only as the pre-review statement.
+
 Checkpoint: `ff4452b02`. Python baseline: `9aed3a8012cb5eb22c0128b14d525039f95fea7a`.
 Scope: `crates/sk-workspace/**` only. **This is not an independent review, not an
 approval of the safe-commit substrate, and not a claim of production CLI
@@ -139,8 +149,10 @@ Nothing is undone; a landed commit is never rolled back.
 checkout not on the target branch (`PLANNING_COMMIT_HEAD_MISMATCH`), protected
 target, empty path set, traversal/escape paths, COORD-partition artifacts
 (`PLANNING_PARTITION_REFUSED`), an uncommitted `meta.json` that drops
-`coordination_branch` relative to the caller's observed baseline
-(`META_DEMOTION_REFUSED`), and an orphaned/foreign recorded pin
+`coordination_branch` relative to the **HEAD** baseline it reads itself (an
+empty string or `null` in the working copy is a demotion; an unparseable HEAD
+baseline refuses, `META_DEMOTION_REFUSED`/`META_DEMOTION_GUARD_CORRUPT`), and an
+orphaned/foreign recorded pin
 (`PLANNING_PIN_UNUSABLE`). `apply` commits with the observed target tip as the
 pinned parent and each file's exact bytes asserted. `record_planning_commit`
 writes the landed SHA into `lanes.json` through the locked store.
@@ -151,13 +163,16 @@ against the oracle, §5).
 ### 2.6 Integration
 
 `integrate_tip` fast-forwards the destination when the destination tip is an
-ancestor of the source tip (plan → apply with clean-checkout resync). It reports
-`AlreadyIntegrated` when the source is already reachable, and `MergeRequired`
-(naming both tips, mutating nothing) when the histories diverged.
-`integrate_dependency_lanes` walks `depends_on_lanes` in
-`(parallel_group, lane_id)` order, stops at the first `MergeRequired`, and
-returns the real advances it already performed. A missing dependency branch is a
-typed `DEPENDENCY_BRANCH_MISSING` refusal (no zero-OID placeholders).
+ancestor of the source tip (plan → apply with clean-checkout resync), reports
+`AlreadyIntegrated` when the source is already reachable, and performs a **real
+merge commit** when the histories diverged (`MergeRequired` only for unrelated
+histories). `integrate_dependency_lanes` walks `depends_on_lanes` in
+`(parallel_group, lane_id)` order (the planning lane included), **skips** a
+missing dependency branch with a `SkippedDependency` receipt, and is
+**all-or-nothing**: a later conflict rewinds the destination to its exact
+pre-loop tip and returns the receipts plus the rollback with the error. Every
+mutation holds the claim + Mission locks and is journaled as an
+`Integration` intent.
 
 ## 3. Invariants honoured
 

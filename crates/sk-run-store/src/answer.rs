@@ -14,7 +14,7 @@ use crate::error::RunStoreError;
 use crate::events::{
     DECISION_AUTHORITY_DENIED, DECISION_INPUT_ANSWERED, EventRecord, append_records,
 };
-use crate::model::{RunRef, RunState, now_iso};
+use crate::model::{RunRef, RunState, now_iso, state_now_iso};
 use crate::recovery::{Mode, RecoveryReport, reconcile};
 use crate::store::{RunStore, persist_state};
 
@@ -129,7 +129,11 @@ impl RunStore {
         }
 
         let snapshot = state.to_snapshot()?;
-        let answered_at = now_iso();
+        // The cursor record's `answered_at` is a Pydantic datetime (`...Z`); the
+        // journal line that records the same answer is stamped separately with
+        // the journal shape (`+00:00`), exactly as upstream does.
+        let answered_at = state_now_iso();
+        let journal_timestamp = now_iso();
         let applied = match apply_decision_answer(
             &snapshot,
             &request.actor,
@@ -150,7 +154,7 @@ impl RunStore {
                     &self.events_path(&run),
                     &[EventRecord {
                         event_type: DECISION_AUTHORITY_DENIED.to_string(),
-                        timestamp: answered_at,
+                        timestamp: journal_timestamp,
                         payload,
                     }],
                 )?;
@@ -176,7 +180,7 @@ impl RunStore {
 
         let event = EventRecord {
             event_type: DECISION_INPUT_ANSWERED.to_string(),
-            timestamp: answered_at,
+            timestamp: journal_timestamp,
             payload: serde_json::to_value(&applied.event).map_err(|error| {
                 RunStoreError::TemplateInvalid {
                     message: format!("answered event is not serializable: {error}"),

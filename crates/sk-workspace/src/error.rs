@@ -267,6 +267,19 @@ pub enum WorkspaceError {
         message: String,
     },
 
+    /// A bootstrap attempt failed after it had minted the coordination branch,
+    /// and the mint was rolled back (or deliberately left in place).
+    ///
+    /// The underlying failure stays inspectable through
+    /// [`std::error::Error::source`], so a caller can still match on its code.
+    #[error("{error}; coordination branch mint rollback: {rollback}")]
+    CoordBootstrapRolledBack {
+        /// The failure that ended the bootstrap.
+        error: Box<WorkspaceError>,
+        /// What happened to the branch this attempt minted.
+        rollback: String,
+    },
+
     /// The coordination journal cannot be decoded or reconciled.
     #[error("coordination journal {path} is unusable: {detail}")]
     CoordJournal {

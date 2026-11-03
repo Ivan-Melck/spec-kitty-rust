@@ -4,13 +4,16 @@ Native governance execution for the Spec Kitty Rust rewrite.
 
 `sk-doctrine` owns the executable half of the charter/doctrine domain. It
 consumes `sk-charter`'s read-only kind, config and pack APIs and `sk-kernel`'s
-containment and atomic-write primitives; it never edits those crates and never
-invokes Python at runtime.
+containment, topology and atomic-write primitives; it never edits those crates
+and never invokes Python at runtime.
 
 Contract mirrors (reference only):
 
 - `src/charter/offering/drg/{models,loader,merge,query,reachability,validator,org_pack_loader,project_scan}.py`
 - `src/charter/activation/{activation_engine,activation_ledger,pack_context,drg_activation,cascade,context,context_contract,profile_resolution}.py`
+- `src/charter/activation/{org_charter,org_charter_loader,org_pack_discovery,org_expected_artifacts,org_requirement_kinds}.py`
+- `src/charter/activation/{context_json,progressive_disclosure,resolver}.py`, `context_renderers/artifact_bodies.py`
+- `src/charter/activation/synthesizer/synthesis_lock.py`
 - `src/charter/offering/agent_profiles/repository.py`, `src/kernel/activation_ledger_store.py`
 
 ## Implemented
@@ -35,17 +38,42 @@ Contract mirrors (reference only):
   an invented level.
 - `merge_three_layers` / `merge_three_layers_with_options`: provenance
   (`built-in`, `org:<pack>`, `project`), later-org-pack-wins, built-in same-kind
-  override with a conflict record, kind-drift refusal, one endpoint policy (local
+  override with a conflict record (`node_override`/`edge_override` plus the
+  three layer-declaration fields), kind-drift refusal, one endpoint policy (local
   bare id → qualified URN → unique built-in id), unknown-relation refusal,
-  ambiguous/unresolved endpoint refusal (forward references are opt-in and
-  reported), duplicate `asset:`/`template:` URN refusal, deferred dangling-edge
-  detection over the fully assembled graph.
+  ambiguous endpoint refusal, duplicate `asset:`/`template:` URN refusal, and
+  deferred dangling-endpoint **warnings** over the fully assembled graph (the
+  reference behaviour `charter lint` depends on; a caller that owns graph
+  completeness opts into the hard refusal with `allow_forward_references: false`).
 - `merge_topology_artifact`: `overrides` replacement; `enhances` field merge that
   preserves the `steps`/`actions` backbone and refuses a dropped step or a
   stripped `inputs`/`outputs` contract.
 - `project_layer` / `scan_project_artifacts` / `walk_project_agent_profile_nodes`:
-  project profile/artifact discovery, fail-loud malformed profiles, profile
-  reference projection with unresolved-target diagnostics.
+  project artifact discovery that validates every file against its kind's schema
+  (`required` + `extra="forbid"` key surface), refuses a symlink that escapes the
+  project pack root, and projects profile references with the extractor's exact
+  relations (`directive-references`/`tactic-references` → `requires`,
+  `styleguide-references`/`toolguide-references` → `suggests`,
+  `collaboration.operating-procedures` → `requires`) and authored rationale.
+
+### Org charter policy import
+
+- `load_org_charter_policy` / `org_charter_documents`: strict `org-charter.yaml`
+  parsing (any integer `schema_version` is folded like the reference model rather
+  than version-gated, known-field allowlist, `required_*` list shapes,
+  governance policies, activations, `extends:` chains with cycle/dangling-base
+  refusals; a missing declared pack is a strict-mode refusal).
+- `read_org_required_tokens`, `read_org_required_provenance`,
+  `org_required_stems`, `required_floor`: the `required_<kind>` union over every
+  declared pack and its `extends:` chain, normalized to activation stems, with
+  the requiring pack recorded (`'base'` / `'base' (via 'overlay')`). The
+  best-effort readers parse the raw mapping per field, so one malformed
+  `required_<kind>` value drops only that field and never the pack's other kinds
+  or its `extends:` contribution.
+- `resolve_org_expected_artifacts`, `resolve_org_requirement_kinds`: the org-tier
+  mission overrides, whole-file, last matching org root wins, malformed mapping
+  refused.
+- `validate_org_required_directive_stems`, `read_org_skill_namespace`.
 
 ### Traversal and reachability
 
@@ -62,45 +90,179 @@ Contract mirrors (reference only):
 - `ActivationLedger`: vocabulary derived from `ArtifactKind`, strict L1/L2 load,
   ledger-vs-legacy source resolution, stray/legacy deny reporting, three-state
   allow (`None`/`[]`/ids), identity-spaced `DenySet`, effective deny minus the
-  required floor, `raw()` round-trip data.
+  required floor, and `raw()` round-trip data that keeps unknown
+  `deactivated_<kind>` keys **and their values**.
 - `plan_activation` / `plan_deactivation`: pure, validation before post-state,
   absent-key materialisation from what is actually in force, the "already in
   force ⇒ write nothing" rule, `--only` narrowing, deny exclusions, ordered
   required-floor and unknown-id refusals.
-- `commit_plan` / `prepare_ledger_write`: one locked write, deny-change guard
-  (`DenyListChoice`), unmigrated deny refusal, empty ledger rendering, and a
-  lossless `YamlDocument` that preserves comments, quoting and key order.
-  `PreparedWrite` rechecks observed bytes under the lock, writes atomically via
+- `prepare_ledger_write` / `commit_plan`: deny-change guard (`DenyListChoice`),
+  unmigrated deny refusal, empty ledger rendering, and a lossless
+  `YamlDocument` that preserves comments, quoting and key order.
+- **One authoritative activation transaction.** `ActivationTransaction::begin`
+  observes the activation authority at plan time; `commit` takes the canonical
+  charter synthesis lock, rechecks the observation, writes atomically via
   `sk-kernel`, verifies, and restores the previous content (or absence) on a
-  verification failure.
+  verification failure. A concurrent writer — Python or native — makes the
+  commit refuse with `precondition_changed` instead of being overwritten.
+  `PreparedWrite::apply_observed` is the same guard for callers holding a
+  prepared write.
+- **Canonical lock authority.** `synthesis_lock_path` /
+  `acquire_synthesis_lock` place the lock exactly where Python's
+  `charter.activation.synthesizer.synthesis_lock` does
+  (`<git-common-dir>/spec-kitty-locks/charter-synthesis/<sha256[0..32]>.lock`,
+  else `<root>/.kittify/runtime/locks/charter-synthesis.lock`) through the
+  kernel's `anchored_lock_path`. Activation writes take it, never a private
+  sidecar.
 - `filter_graph_by_activation`: mission-step ownership, kind gate, per-artifact
   canonical-URN gate, effective deny first, edges only when both endpoints
   survive. `ActivationState::unknown_allow_tokens` keeps dropped selections
-  visible.
-- `CascadeScope` parsing, `cascade_activation_targets` (in-scope/skipped/
-  kind-filtered/deactivated/unreached), `referenced_but_not_cascaded`, and
-  shared-reference-safe `deactivation_plan` (exclusive vs shared, naming the
-  still-referencing source; non-activatable nodes reported, never dropped).
+  visible; the fallible `try_filter_graph_by_activation` fails closed rather than
+  admitting the unfiltered graph.
+- `CascadeScope` parsing, `cascade_activation_targets` /
+  `cascade_activation_targets_for_state` (in-scope/skipped/kind-filtered/
+  deactivated/unreached), `referenced_but_not_cascaded(_for_state)`, and
+  shared-reference-safe `deactivation_plan`. The state-based entry points use the
+  **effective** deny, so a stale deny of an org-required artifact cannot stop a
+  cascade.
+
+### Identity
+
+- `IdentityIndex`: stem-first across all layers (project, org packs
+  last-to-first, built-in), then declared id, then the canonical directive-id
+  normaliser (`1`/`001`/`directive:1` → `DIRECTIVE_001`;
+  `use-c4-model-techniques` → `USE_C4_MODEL_TECHNIQUES`). A shared stem resolves
+  by layer precedence instead of failing; `declared_id_in_layer` asks one layer;
+  `stored_spelling` raises `ActivationIdCollision` only when no stem can
+  represent a declared id; `selection_id`, `lookup_key`, `activation_id`,
+  `source_layer` match the reference helpers.
 
 ### Context and profiles
 
-- `ProfileRepository`: layered loading, `specializes_from` lineage composed from
-  the DRG (root → leaf union of list fields, one-level mapping merge), missing
-  parent/cycle/ambiguous-parent refusals, profile-channel deliveries with
-  `suggests` `when` clauses.
+- `ProfileRepository`: layered loading where a same-id org/project profile is
+  **deep-merged into** its built-in base (nested mappings recursively, scalars/
+  lists replaced), schema validation with skip-and-record diagnostics (no
+  file-stem renaming), `applies_to_languages` filtering with family expansion
+  and recorded scope-filtered ids, `specializes_from` lineage composed from the
+  DRG (root → leaf union of list fields, one-level mapping merge), missing
+  parent/cycle/ambiguous-parent refusals, leaf `excluding` declarations (whole
+  fields or named values), and profile-channel deliveries with `suggests` `when`
+  clauses.
 - `build_action_context`: action normalization (bare or full URN, explicit or
-  unique mission type), activation filter, eager vs `suggests` delivery,
-  `include_all`, glossary references, deterministic ordering, project-charter
-  presence, diagnostics, and the versioned `CONTEXT_SCHEMA_VERSION = "1.4.0"`
-  top-level key set (`CONTEXT_CONTRACT_TOP_LEVEL_KEYS`).
+  unique mission type; a bootstrap action still delivers when it has no unique
+  node), activation filter, selected-doctrine closure (activated + org-required
+  directives/tactics/paradigms, ownership-gated so another action's scoped
+  doctrine does not leak), typed delivery with real artifact bodies, `inline` vs
+  `link` cadence, `include_all`, the complete top-level link set
+  (`{id, relation, when, reason}`), glossary references, deterministic ordering,
+  and the versioned `CONTEXT_SCHEMA_VERSION = "1.4.0"` top-level key set.
+- The nested entries match the reference shape exactly (`{id, source, title?,
+  summary?, references[], delivery, body?}`), `all_directives` is the plain
+  provenance DTO, `directives_source` uses the resolver's real labels
+  (`catalog_fallback` / `activation` plus `+charter` / `+project_local`),
+  `project_charter` always carries its four core keys plus byte count and
+  metadata fields, `org_charter` carries the imported policies, and
+  `governance_references` carries the per-path status (with `warning: null` when
+  clean).
+- **Non-Git project roots keep the reference's documented degrade.** The
+  reference's `load_directives_config`, `load_governance_config` and
+  `resolve_project_governance` anchor on
+  `charter.resolution.resolve_canonical_repo_root` (`git_common_dir`), so a root
+  outside a Git repository fails those reads and
+  `context_json._load_project_directives_with_diagnostics` catches it. Native
+  probes the same `sk-kernel` topology seam (no second Git resolver) and then
+  reports the contract instead of inventing one: `all_directives: []` (nothing
+  was loaded before the failure), `directives_source: null` (the documented
+  provenance-unavailable signal), no resolution diagnostics and no
+  `governance_references`. Typed delivery, links and `project_charter` are
+  unchanged, so this is a degrade, not a refusal of the supported non-Git
+  input. The `directives_source` labels above still apply to Git checkouts, and
+  the catalogue-default/selection diagnostics are only emitted where the
+  reference emits them.
+- **Retired and malformed governance shapes are refused or degraded, never
+  guessed.** `governance.doctrine` is the retired selection key: the reference
+  raises `ActiveCharterConfigError` / `ACTIVE_CHARTER_CONFIG_INVALID` from
+  `require_canonical_governance`, and native raises the typed
+  `DoctrineError::RetiredGovernanceSelection` (`reference_code() ==
+  ACTIVE_CHARTER_CONFIG_INVALID`) with the `spec-kitty upgrade` and
+  `docs/migrations/charter-pack-cutover.md` remediation. A malformed shape
+  (`governance: []`, a scalar `charter`/`selected_directives`, an unparseable
+  `charter.yaml`, a bare-sequence/malformed `directives:` section) is the
+  reference's resolver-failure DEGRADE: the directly-loaded local directives
+  are returned with `directives_source: null`, no resolution diagnostics and no
+  `governance_references`. Neither path reads the retired selection or reports
+  an invented provenance.
+- **The absent-key catalogue default is `_graph_and_catalog_default_ids`.**
+  When an `activated_<kind>` key is absent, the seed set is every node of that
+  kind the merged graph declares — built-in, ORG and PROJECT — not just the
+  built-in catalogue, so an org pack's directives/tactics are delivered in the
+  default project state. The diagnostic still reports the built-in catalogue
+  size, exactly as the reference's `_resolve_paradigm_base` counts it.
+- **Packs-root spelling is normalized once.** `SPEC_KITTY_PACKS_ROOT` is
+  documented as the parent of `built-in`, but the CLI adapter also accepts the
+  built-in leaf (`<packs>/built-in`). `normalize_packs_root`,
+  `packs_root_override`, `configured_org_roots_with_packs_root`,
+  `org_charter_documents_with_packs_root`,
+  `read_org_required_{tokens,provenance}_with_packs_root`,
+  `required_floor_with_packs_root` and `context_roots_with_packs_root` apply the
+  same normalization, so a leaf value cannot silently empty the org required
+  floor while the CLI's own reads see the packs.
+- **Typed entry titles come from the artifact model.** `title` is the body's
+  `title` (then `name`) exactly as `artifact_to_dict` reads it; the DRG node
+  label is graph metadata and is never substituted (an org fragment label that
+  differs from the body title is a real repro).
 - `CharterContext::to_json` emits only contracted top-level keys; profile links
   and tension annotations are typed API fields, deliberately outside the JSON
   contract.
 
+### Installer integration
+
+`crates/sk-install/src/activation.rs` no longer writes the activation authority
+itself: `provision_mission_type_activations` delegates to the same
+`sk-doctrine` transaction (target resolution, observation, synthesis lock,
+precondition refusal, lossless write). Additive-only and preset-copy semantics
+are unchanged.
+
 ## Verification
 
-- `CARGO_BUILD_JOBS=2 cargo test -p sk-doctrine` — 69 unit + 18 baseline
-  conformance tests + 1 doctest.
+- `CARGO_BUILD_JOBS=2 cargo test -p sk-doctrine --locked`: **149 passed,**
+  **0 failed** (108 unit + 18 checked-in baseline conformance + 21
+  oracle-generated governance fixtures/regressions + 2 doctests).
+- Every fixture in `tests/governance_oracle.rs` fails closed on a missing or
+  non-lock-exact `.venv-rust-oracle` (`scripts/rust/verify_oracle.py`). They
+  generate, from the pinned Python oracle at test time:
+  - the full nested `charter context --json` payload. The comparison is
+    **exact, not a subset**: all five typed arrays entry-for-entry (id, source,
+    title, summary, `references[]`, `delivery` and the whole model-dump `body`),
+    the top-level link array (order and content, so an excluded-kind or extra
+    link fails), `all_directives`, `directives_source`, `project_charter` and
+    `governance_references`. Dedicated cases pin the catalogue-default delivery
+    of the whole tactic catalogue, a selected non-hub tactic delivered from its
+    own root, org-required roots independent of the action bundle (with a deny
+    control), the explicit-empty directive allow list keeping the independent
+    tactic catalogue, a single denied tactic removing only itself, the
+    absent-key default delivering ORG and PROJECT graph artifacts, the
+    malformed-`required_*` floor width, typed titles from the model for all five
+    kinds (graph labels deliberately differ), the retired
+    `governance.doctrine` refusal and its non-Git degrade control, the
+    malformed governance/directives shape degrades, the diagnostics parity case
+    (one `UNKNOWN_SELECTION_DROPPED` for one unknown activation token; exact
+    project-local `SELECTION_MERGED` wording), and the non-Git degrade (with and
+    without an authored local directive/selection) against its Git control.
+    Resolution `diagnostics` are compared exactly (order, code and message) for
+    every entry the native contract models; the only declared breadth gap is
+    the tools/template-set `FALLBACK_APPLIED` pair, removed from the oracle side
+    and never fabricated natively;
+  - the `org_charter` block (`load_org_charter_json_block`), including the
+    directory-basename `pack_name` fallback and a `schema_version` above the
+    scaffolded one;
+  - the profile catalogue: all **26** pinned built-in ids with **no** skips,
+    plus alias/`populate_by_name` spellings and the reference's `role`/`roles`
+    conflict refusal;
+  - the `org_charter` required floor/provenance for a malformed overlay field;
+  - the synthesis lock path, plus **actual cross-language contention**: a Python
+    process holds the canonical lock and the native transaction refuses with
+    `SynthesisLockHeld`, then commits after release.
 - Baseline conformance consumes the checked-in upstream fixtures
   (`tests/architectural/_fixtures/org_packs/example_org`,
   `tests/charter_offering/fixtures/minimal_org_pack_2`,
@@ -108,87 +270,80 @@ Contract mirrors (reference only):
   `tests/charter_offering/fixtures/valid-profile.agent.yaml`) and pins the
   exact reference URN grammar, ledger key order, diagnostic strings, activation
   warnings, tension annotation shape and context contract key set.
-- `CARGO_BUILD_JOBS=2 cargo clippy -p sk-doctrine --all-targets -- -D warnings`
-  and `cargo fmt -p sk-doctrine -- --check` pass.
+- `cargo clippy -p sk-doctrine --all-targets --locked -- -D warnings` and
+  `cargo fmt -p sk-doctrine -- --check` pass.
+- `cargo test -p sk-install --locked activation`: 7 passed (fresh ledger,
+  authored lists preserved, legacy target, preset failures, concurrent-change
+  refusal, canonical lock path).
 - No real project governance is mutated by tests: every write uses a temp
-  fixture root.
+  fixture root and a temporary HOME/XDG/TMP.
 
 ## Remaining full-charter gaps
 
 These are real missing behaviours, not aliases for a successful stub.
 
-1. **Org-charter policy import and required floors.** No reader for
-   `<pack>/org-charter.yaml`, `required_*` unions, expected artifacts or
-   revocation checks. Source: `src/charter/activation/org_charter.py`,
-   `org_charter_loader.py`, `org_pack_discovery.py`,
-   `org_expected_artifacts.py`, `org_requirement_kinds.py`. Consequence:
-   callers must supply `required_floor` / `required_by` data themselves; the
-   ledger cannot derive it.
-2. **Full project governance resolution.** `all_directives` currently covers the
-   action grain plus project-tier directives; catalog fallback, project-local
-   charter extraction, selection merging and `directives_source` branch values
-   are not ported. Source: `src/charter/activation/resolver.py`,
-   `context_json.py`, `selection.py`, `scope.py`, `charter_md_parsing.py`,
-   `governance_references.py`.
-3. **Progressive disclosure and text/JSON bodies.** The payload carries URN/id/
-   title/source/body_path links; it does not inline artifact bodies, render
-   profile sections, token-budget sections, template includes, or the text
-   `charter context` surface. Source:
-   `src/charter/activation/progressive_disclosure.py`,
-   `context_renderers/*`, `context_result_builders.py`,
-   `context_renderers/artifact_bodies.py`.
-4. **Mission-type profiles and action-index fallback.** Action context comes
+1. **Mission-type profiles and action-index fallback.** Action context comes
    from DRG `action:` nodes; `governance-profile.yaml` type grains and
    `actions/*/index.yaml` loading/union are not ported. Source:
    `src/charter/activation/mission_type_profiles.py`,
    `mission_type_profile_repository.py`, `action_grain.py`,
    `src/charter/offering/missions/action_index.py`.
-5. **Interview, synthesis and compiler.** No interview question flow, artifact
+2. **Project-governance breadth beyond directives.** `all_directives` and
+   `directives_source` are ported; the payload's `templates`/`tools`/paradigm
+   resolution, `template_set` selection, interview/selection overlays and
+   `charter.md`-frontmatter selection are not emitted (the contracts do not
+   currently expose those keys, so nothing is fabricated).
+3. **Text `charter context` renderers and compact-mode prose.** JSON bodies and
+   delivery are real; the plain-text renderer family
+   (`context_renderers/*`, `context_result_builders.py`,
+   `_activation_render.py`, token-budget/template-include sections) is not
+   ported, and compact mode intentionally carries no action grain.
+4. **Interview, synthesis and compiler.** No interview question flow, artifact
    synthesis, project DRG emission, charter compilation or synthesis manifest
-   stamp. Source: `src/charter/activation/interview.py`,
-   `synthesizer/**`, `compiler.py`, `manifest_loader.py`.
-6. **Pack acquisition and lifecycle.** No fetch/pin verification/download,
-   pack manager preset application, activation sync, provenance/versioning, or
+   stamp. Source: `src/charter/activation/interview.py`, `synthesizer/**`,
+   `compiler.py`, `manifest_loader.py`.
+5. **Pack acquisition and lifecycle.** No fetch/pin verification/download, pack
+   manager preset application, activation sync, provenance/versioning, or
    core-version compatibility evaluation. Source:
    `src/charter/packs.py`, `provenance.py`, `versioning.py`,
    `activation/pack_manager.py`, `preset_application.py`, `sync.py`;
    `sk-charter` covers the read-only descriptor/root checks used here.
-7. **Ledger migration and upgrade.** `plan_ledger_migration` /
+6. **Ledger migration and upgrade.** `plan_ledger_migration` /
    `apply_ledger_migration`, divergent legacy copies, manifest restamping and
    the project-intent rename writer are not ported; the deny guard recognises
    the rename shape but does not perform the migration. Source:
    `src/charter/activation/activation_ledger.py` (migration section),
    `synthesizer/legacy_rename.py`, `bundle_restamp.py`.
-8. **Replaceable-builtins adjudication.** The merge reports same-kind org
+7. **Replaceable-builtins adjudication.** The merge reports same-kind org
    overrides but does not read `replaceable-builtins.yaml` sanctions or
    produce `OverrideAdjudication`. Source:
    `src/charter/offering/drg/override_policy.py`.
-9. **Asset sidecar containment/reporting.** Org asset sidecars are labelled by
+8. **Asset sidecar containment/reporting.** Org asset sidecars are labelled by
    `sk-charter`'s read-only catalog, but the merge does not re-verify each
    sidecar's `path` containment or produce `AssetPathEscape` diagnostics.
    Source: `src/charter/offering/assets/repository.py`,
    `find_asset_path_escapes`.
-10. **Org governance-profile completeness.** Only the documented `selected_*`
-    fields are projected; revocation/expected-artifact semantics and
-    org-charter merge parity are not. Source:
-    `src/charter/offering/drg/org_governance.py`,
-    `src/charter/activation/org_charter_merge_parity` tests.
-11. **Topology schema validation.** `merge_topology_artifact` enforces the
+9. **Org governance-profile completeness.** Only the documented `selected_*`
+   fields are projected; revocation/expected-artifact semantics and
+   org-charter merge parity are not. Source:
+   `src/charter/offering/drg/org_governance.py`,
+   `src/charter/activation/org_charter_merge_parity` tests.
+10. **Topology schema validation.** `merge_topology_artifact` enforces the
     ordering/step-I/O invariants but does not validate the merged mission-type
     or step-contract schema. Source:
     `src/charter/offering/missions/models.py`, step-contract models.
-12. **Lock sidecar cleanup.** Writes use `sk_kernel::FileLock` through a thin
-    typed-error wrapper. The kernel keeps the lock inode (never unlinks it) and
-    is same-thread reentrant; stale-lock cleanup is deliberately not attempted.
+11. **Project-charter bundle-root refresh.** `project_charter` describes the
+    repository root; the reference can refresh/redirect to a canonical bundle
+    root (`charter/activation/sync.py`). Byte count and metadata are exact for
+    the in-tree bundle.
+12. **Lock cleanup.** The kernel keeps the lock inode (never unlinks it) and is
+    same-thread reentrant; stale-lock cleanup is deliberately not attempted.
     Windows identity equivalence is the kernel's contract, not re-tested here.
 13. **YAML edge cases.** Lossless mutation preserves top-level comments,
     quoting and order, and append/suffix-removal keeps item comments. A reorder
     or disjoint replacement of a list replaces that value (inner item comments
     are not reattached), and YAML alias/anchor write-back beyond what
     `yaml-edit` round-trips is not separately verified.
-14. **Context compact-mode parity.** JSON top-level keys match the 1.4.0 ledger,
-    but compact-mode `all_directives`/org-charter blocks are intentionally
-    minimal until gaps 1–3 close.
 
 ## API map for the coordinator CLI
 
@@ -198,16 +353,22 @@ use sk_doctrine::{
     load_graph_or_dir, validate_graph, resolve_context, deliver_action_context,
     // org/merge
     load_org_pack, merge_three_layers, merge_topology_artifact,
+    // org charter / floors
+    load_org_charter_policy, required_floor, org_required_stems,
+    read_org_required_provenance, resolve_org_expected_artifacts,
     // activation
     load_activation_ledger, resolve_activation_source, plan_activation,
     plan_deactivation, commit_plan, prepare_ledger_write, apply_ledger_write,
-    ActivationState, filter_graph_by_activation,
+    ActivationState, ActivationObservation, ActivationTransaction,
+    filter_graph_by_activation, deactivated_urns_with_floor,
+    synthesis_lock_path, acquire_synthesis_lock,
     // cascade
-    CascadeScope, cascade_activation_targets, deactivation_plan, referenced_but_not_cascaded,
+    CascadeScope, cascade_activation_targets_for_state, deactivation_plan,
     // context/profiles
     build_action_context, ContextRequest, ContextInputs, ProfileRepository,
+    org_charter_block,
     // identity/yaml
-    IdentityIndex, YamlDocument, PreparedWrite,
+    IdentityIndex, YamlDocument, PreparedWrite, LockScope,
 };
 ```
 
@@ -215,10 +376,12 @@ Typical CLI flow:
 
 1. `IdentityIndex::from_project(repo_root)` (or `from_roots`), load the merged
    graph (`load_org_pack` per configured pack → `merge_three_layers`).
-2. `load_activation_ledger`, then `ActivationState::from_ledger` with any
-   caller-supplied required floor; `filter_graph_by_activation`.
-3. `plan_activation`/`plan_deactivation` (pure), then `commit_plan` and
-   `PreparedWrite::apply` (single locked, lossless write).
-4. `build_action_context` for `charter context --json`; use the typed
+2. `ActivationTransaction::begin(repo_root)`; read the ledger through it,
+   compute the org floor with `required_floor`, then
+   `ActivationState::from_ledger` and `filter_graph_by_activation`.
+3. `plan_activation`/`plan_deactivation` (pure), then
+   `transaction.commit(&plan)` (one locked, observation-checked, lossless write).
+4. Cascade with `cascade_activation_targets_for_state`, which uses the effective
+   deny.
+5. `build_action_context` for `charter context --json`; use the typed
    `profile_links`/tension fields for surfaces outside the JSON contract.
-```

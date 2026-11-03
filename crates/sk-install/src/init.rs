@@ -11,24 +11,37 @@
 //! upstream sequence:
 //!
 //! 1. install the verified template tree (`memory/`, `templates/`, `missions/`,
-//!    `AGENTS.md`, `.claudeignore`), backing up operator subtrees;
+//!    and the packaged `AGENTS.md`/`.claudeignore` templates), backing up
+//!    operator subtrees;
 //! 2. write the authored configuration (`config.yaml`);
 //! 3. plan and commit the command surfaces (existing contract);
 //! 4. install the charter skill catalog (native roots + shared manifest);
-//! 5. protect runtime/agent paths in `.gitignore`;
-//! 6. seed `.gitattributes` merge-driver attributes and expose the clone-local
+//! 5. run the managed-skill surface repair;
+//! 6. write session-presence orientation (before profile projection, matching
+//!    the pinned `SessionPresenceManager.install()` before surface repair);
+//! 7. project the charter agent profiles and record ownership;
+//! 8. protect runtime/agent paths in `.gitignore`;
+//! 9. seed `.gitattributes` merge-driver attributes and expose the clone-local
 //!    git-config wiring plan to the Git owner;
-//! 7. provision mission-type activations from the built-in `default` preset;
-//! 8. save/stamp `.kittify/metadata.yaml` additively (comments preserved);
-//! 9. mint/persist project identity and append the `ProjectInitialized` event;
-//! 10. seed the migration ledger (tracked, plus proven clone-local effects);
-//! 11. restore the Vibe skill-path pointer when Vibe is selected;
-//! 12. run the managed-skill surface repair, then remove only proven
-//!     run-created scratch.
+//! 10. provision mission-type activations from the built-in `default` preset
+//!     (only when the activation key is still absent; the preset is validated
+//!     before the first managed write);
+//! 11. save/stamp `.kittify/metadata.yaml` additively (comments preserved);
+//! 12. mint/persist project identity and append the `ProjectInitialized` event;
+//! 13. seed the migration ledger (tracked, plus proven clone-local effects);
+//! 14. restore the Vibe skill-path pointer when Vibe is selected;
+//! 15. remove only proven run-created scratch.
 //!
 //! Optional steps report warnings; the required ones (template tree when
 //! configured, command commit, config, `.gitignore`, activation provisioning)
 //! fail closed and leave the pending record for a safe resume.
+//!
+//! **One lock authority.** The whole delivery runs under the canonical
+//! [`ProjectLock::for_project`] (machine state directory, keyed by the resolved
+//! project root), taken *before* the fresh/refresh/resume decision so two
+//! concurrent inits cannot both scaffold, back up each other's copies, or write
+//! the same managed surfaces. Nested commits (plan, identity, lifecycle event)
+//! re-enter the same lock on one thread, which the kernel explicitly supports.
 //!
 //! Without [`ProjectAssets`], the previous tranche's behavior is retained: the
 //! command/manifest/config/metadata core runs and every asset-dependent step is
@@ -44,10 +57,11 @@ use serde_yaml_ng::Value as YamlValue;
 use crate::agent::{AgentSurface, agent_surface};
 use crate::error::InstallError;
 use crate::ledger::{MigrationCatalog, MigrationLedger, clone_local_effect_in_place};
+use crate::lock::ProjectLock;
 use crate::metadata::{ProjectMetadata, stamp_schema_metadata};
 use crate::plan::{ApplicationReport, InstallPlan, PlanOptions, PlanSummary, now_utc_iso};
 use crate::render::{RenderedAsset, TemplateSource, render_asset};
-use crate::skills::{SkillCatalog, SkillInstallOptions};
+use crate::skills::SkillCatalog;
 use crate::template_tree::{
     TemplateTreeOptions, TemplateTreeSource, cleanup_init_scratch, install_template_tree,
 };
@@ -117,6 +131,8 @@ pub struct ProjectAssets {
     pub skills: Option<SkillCatalog>,
     /// The built-in `default` activation preset (`presets/default.yaml`).
     pub activation_preset: Option<PathBuf>,
+    /// The charter agent-profile catalog (`packs/built-in/agent_profiles`).
+    pub profiles: Option<crate::profiles::ProfileCatalog>,
     /// Optional missions pack pin and its lockfile path, enforced before copy.
     pub missions_pin: Option<(PathBuf, crate::pin::PackPin)>,
     /// Environment provenance stamped into metadata.
@@ -139,12 +155,19 @@ impl ProjectAssets {
                 None
             }
         };
-        let preset = checkout.join("packs/built-in/presets/default.yaml");
+        let preset = crate::template_tree::discover_pack_presets(checkout)
+            .map(|root| root.join("default.yaml"))
+            .filter(|path| path.is_file());
+        let profiles = match crate::template_tree::discover_pack_agent_profiles(checkout) {
+            Some(root) => crate::profiles::ProfileCatalog::discover(&root)?,
+            None => None,
+        };
         Ok(Self {
             template_tree,
             template_options: TemplateTreeOptions::default(),
             skills,
-            activation_preset: preset.is_file().then_some(preset),
+            activation_preset: preset,
+            profiles,
             missions_pin: None,
             environment: ProjectEnvironment::detect(),
         })
@@ -176,6 +199,12 @@ impl ProjectAssets {
     /// Attach the activation preset path.
     pub fn with_activation_preset(mut self, path: impl Into<PathBuf>) -> Self {
         self.activation_preset = Some(path.into());
+        self
+    }
+
+    /// Attach an explicit agent-profile catalog.
+    pub fn with_profiles(mut self, profiles: crate::profiles::ProfileCatalog) -> Self {
+        self.profiles = Some(profiles);
         self
     }
 }
@@ -497,14 +526,28 @@ pub struct InitDetails {
     pub skills_adopted: Vec<String>,
     /// Skill files whose managed bytes drifted.
     pub skills_drifted: Vec<String>,
+    /// Missing managed skill files restored by surface repair.
+    pub skills_restored: Vec<String>,
+    /// Agent-profile files projected (written).
+    pub profiles_written: Vec<String>,
+    /// Agent-profile files already holding the canonical render.
+    pub profiles_kept: Vec<String>,
+    /// Agent-profile files preserved because an operator owns them.
+    pub profiles_preserved: Vec<String>,
+    /// Orientation files written.
+    pub orientation_written: Vec<String>,
+    /// Orientation files preserved because an operator edited the block.
+    pub orientation_preserved: Vec<String>,
     /// Whether `.gitignore` changed.
     pub gitignore_modified: bool,
     /// `.gitignore` entries added.
     pub gitignore_added: Vec<String>,
     /// Whether `.gitattributes` changed.
     pub attributes_written: bool,
-    /// The typed clone-local merge-driver wiring plan (Git-owner work).
+    /// The typed clone-local merge-driver wiring plan.
     pub merge_driver_plan: Option<crate::attributes::MergeDriverWiringPlan>,
+    /// What applying the clone-local merge-driver config did.
+    pub merge_driver_wiring: Option<crate::attributes::MergeDriverWiringState>,
     /// Whether mission-type activations were provisioned.
     pub activation_provisioned: bool,
     /// The resolved identity, when minted/loaded.
@@ -527,6 +570,25 @@ pub fn initialize(request: &InitRequest) -> Result<InitReport, InstallError> {
 }
 
 /// Initialize and return the detailed effect report.
+///
+/// ## Recovery contract
+///
+/// Every required effect (template tree when assets are configured, command
+/// commit, `config.yaml`, charter skills, activation, identity, the
+/// `ProjectInitialized` event and the migration-ledger seed) is completed
+/// **idempotently** on every entry point:
+///
+/// * a fresh run performs all of them;
+/// * a resumed run — a pending record with or without `config.yaml` — performs
+///   all of them again, so an interruption at any point is completed rather than
+///   reported as success;
+/// * a refresh of an initialized project completes the ones that can be missing
+///   (skills, activation, identity, event, ledger, metadata) without
+///   re-scaffolding operator content.
+///
+/// A failure in any required effect returns the typed error and leaves the
+/// pending record in place. The record is cleared only after the whole delivery
+/// is durable.
 pub fn initialize_with_details(
     request: &InitRequest,
 ) -> Result<(InitReport, InitDetails), InstallError> {
@@ -544,23 +606,99 @@ pub fn initialize_with_details(
         });
     }
 
+    // One lock authority for the whole delivery, held *before* the
+    // fresh/refresh/resume decision. A second concurrent init therefore waits
+    // here and then observes the first run's `config.yaml` (refresh) instead of
+    // scaffolding again, moving the first run's freshly copied trees into a
+    // `.backup-*` directory. Plan/identity/event commits below re-enter this
+    // same lock on this thread.
+    let _delivery_lock = ProjectLock::for_project(root, request.lock_wait)?;
+
     let config_path = root.join(CONFIG_REL);
+    let pending = PendingDelivery::load(root)?;
+    let configured = if config_path.exists() {
+        read_configured_agents(root)?
+    } else {
+        Vec::new()
+    };
+    let requested = if request.agents.is_empty() {
+        Vec::new()
+    } else {
+        resolve_requested_agents(&request.agents)?
+    };
 
     if config_path.exists() {
-        let configured = read_configured_agents(root)?;
-        let requested = if request.agents.is_empty() {
-            Vec::new()
-        } else {
-            resolve_requested_agents(&request.agents)?
-        };
-        return refresh_or_resume(request, &configured, &requested);
+        if let Some(pending) = &pending {
+            return resume_delivery(request, pending, &configured, &requested);
+        }
+        return refresh_delivery(request, &configured, &requested);
     }
 
-    if request.agents.is_empty() {
+    // No `config.yaml`: a fresh run, or a fresh run interrupted before the
+    // configuration was written. The pending record still names the delivery.
+    let mut agents = requested;
+    if let Some(pending) = &pending {
+        validate_pending_selection(request, pending, &agents)?;
+        for key in pending.agents() {
+            if !agents.iter().any(|agent| agent.key == key) {
+                agents.push(crate::agent::agent_surface(key)?);
+            }
+        }
+        if agents.is_empty() {
+            return Err(InstallError::NoAgentsSelected);
+        }
+        return run_delivery(request, &agents, DeliveryMode::ResumeFresh, Some(pending));
+    }
+    if agents.is_empty() {
         return Err(InstallError::NoAgentsSelected);
     }
-    let requested = resolve_requested_agents(&request.agents)?;
-    fresh_initialize(request, &requested)
+    run_delivery(request, &agents, DeliveryMode::Fresh, None)
+}
+
+/// Whether this project still needs the built-in `default` activation preset.
+///
+/// The preset is only required while the `mission_type_activations` key is
+/// entirely absent. An already-activated project (a refresh, or a resume whose
+/// activation committed before the interruption) needs no preset at all; asking
+/// for one there rejects a legitimate refresh when the source file is gone.
+fn activation_preset_required(project_root: &Path) -> Result<bool, InstallError> {
+    let activation_path = project_root.join(crate::activation::ACTIVATION_REL);
+    let invalid = |error: sk_doctrine::DoctrineError| InstallError::MetadataInvalid {
+        path: activation_path.clone(),
+        detail: error.to_string(),
+    };
+    let transaction = sk_doctrine::ActivationTransaction::begin(project_root).map_err(invalid)?;
+    let ledger = transaction.ledger().map_err(invalid)?;
+    Ok(ledger.mission_type_activations.is_none())
+}
+
+/// Resolve and validate the activation preset before the first managed write.
+///
+/// Returns the preset path that the delivery must seed from, or `None` when the
+/// activation key already exists and provisioning is a no-op. A fresh project
+/// whose asset set has no preset fails here, before the template tree, config,
+/// skills or metadata are written.
+fn preflight_activation(request: &InitRequest) -> Result<Option<PathBuf>, InstallError> {
+    let Some(assets) = &request.assets else {
+        return Ok(None);
+    };
+    if !activation_preset_required(&request.project_root)? {
+        return Ok(None);
+    }
+    let preset =
+        assets
+            .activation_preset
+            .clone()
+            .ok_or_else(|| InstallError::ActivationPresetMissing {
+                path: PathBuf::from("packs/built-in/presets/default.yaml"),
+                detail: "the full asset set has no built-in `default` activation preset; \
+                     run the pack sync or pass one explicitly"
+                    .to_string(),
+            })?;
+    // Fail closed on a missing/malformed/empty preset *now*, not after the
+    // template tree and configuration have already landed.
+    crate::activation::default_preset_mission_types(&preset)?;
+    Ok(Some(preset))
 }
 
 fn enforce_assets_pin(request: &InitRequest) -> Result<(), InstallError> {
@@ -595,9 +733,135 @@ fn enforce_assets_pin(request: &InitRequest) -> Result<(), InstallError> {
     Ok(())
 }
 
-fn fresh_initialize(
+/// How a delivery run was entered.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DeliveryMode {
+    /// A brand-new project.
+    Fresh,
+    /// A pending delivery whose `config.yaml` was not written yet.
+    ResumeFresh,
+    /// A pending delivery on an initialized project.
+    Resume,
+    /// An already-initialized project being verified/refreshed.
+    Refresh,
+}
+
+impl DeliveryMode {
+    fn is_fresh(self) -> bool {
+        matches!(self, Self::Fresh | Self::ResumeFresh)
+    }
+
+    fn outcome(self) -> InitOutcome {
+        match self {
+            Self::Fresh => InitOutcome::Initialized,
+            Self::ResumeFresh | Self::Resume => InitOutcome::ResumedDelivery,
+            Self::Refresh => InitOutcome::AlreadyInitialized,
+        }
+    }
+}
+
+fn validate_pending_selection(
+    request: &InitRequest,
+    pending: &PendingDelivery,
+    requested: &[&'static AgentSurface],
+) -> Result<(), InstallError> {
+    if requested.is_empty() {
+        return Ok(());
+    }
+    // In full mode the record names the command-skill roster only, so compare
+    // against the requested command-skill subset; the legacy path records every
+    // selected agent.
+    let mut keys: Vec<String> = requested
+        .iter()
+        .filter(|agent| request.assets.is_none() || agent.installs_command_skills())
+        .map(|agent| agent.key.to_string())
+        .collect();
+    keys.sort();
+    keys.dedup();
+    if keys == pending.agents() {
+        return Ok(());
+    }
+    Err(InstallError::PendingDeliveryInvalid {
+        path: request.project_root.join(PENDING_DELIVERY_REL),
+        detail: format!(
+            "an interrupted delivery for {:?} is pending; re-run init without changing --ai to resume it",
+            pending.agents()
+        ),
+    })
+}
+
+fn resume_delivery(
+    request: &InitRequest,
+    pending: &PendingDelivery,
+    configured: &[String],
+    requested: &[&'static AgentSurface],
+) -> Result<(InitReport, InitDetails), InstallError> {
+    validate_pending_selection(request, pending, requested)?;
+    let missing: Vec<&str> = pending
+        .agents()
+        .iter()
+        .filter(|agent| !configured.iter().any(|known| known == *agent))
+        .map(String::as_str)
+        .collect();
+    if !missing.is_empty() {
+        return Err(InstallError::PendingDeliveryInvalid {
+            path: request.project_root.join(PENDING_DELIVERY_REL),
+            detail: format!(
+                "pending agents {missing:?} are not in the saved configuration; \
+                 inspect {} before retrying",
+                CONFIG_REL
+            ),
+        });
+    }
+    let mut agents: Vec<&'static AgentSurface> = configured
+        .iter()
+        .map(|key| crate::agent::agent_surface(key))
+        .collect::<Result<_, _>>()?;
+    for key in pending.agents() {
+        if !agents.iter().any(|agent| agent.key == key) {
+            agents.push(crate::agent::agent_surface(key)?);
+        }
+    }
+    run_delivery(request, &agents, DeliveryMode::Resume, Some(pending))
+}
+
+fn refresh_delivery(
+    request: &InitRequest,
+    configured: &[String],
+    requested: &[&'static AgentSurface],
+) -> Result<(InitReport, InitDetails), InstallError> {
+    // Refresh: an already-initialized project is never re-scaffolded. Requested
+    // agents must already be configured (upstream: "run agent config add").
+    let agents: Vec<&'static AgentSurface> = if requested.is_empty() {
+        configured
+            .iter()
+            .map(|key| crate::agent::agent_surface(key))
+            .collect::<Result<_, _>>()?
+    } else {
+        let unconfigured: Vec<&str> = requested
+            .iter()
+            .filter(|agent| !configured.iter().any(|known| known == agent.key))
+            .map(|agent| agent.key)
+            .collect();
+        if !unconfigured.is_empty() {
+            return Err(InstallError::AlreadyInitialized {
+                root: request.project_root.clone(),
+                detail: format!(
+                    "requested agents {unconfigured:?} are not configured; add them with \
+                     `spec-kitty agent config add` first"
+                ),
+            });
+        }
+        requested.to_vec()
+    };
+    run_delivery(request, &agents, DeliveryMode::Refresh, None)
+}
+
+fn run_delivery(
     request: &InitRequest,
     agents: &[&'static AgentSurface],
+    mode: DeliveryMode,
+    pending: Option<&PendingDelivery>,
 ) -> Result<(InitReport, InitDetails), InstallError> {
     let root = &request.project_root;
     let agent_keys: Vec<String> = agents.iter().map(|agent| agent.key.to_string()).collect();
@@ -614,12 +878,12 @@ fn fresh_initialize(
         request.assets.is_none(),
     )?;
 
-    // Recovery record first: if this run dies, the next one resumes exactly this
-    // agent set instead of re-scaffolding with a different selection. In full
-    // mode the record names the command-skill roster only (the upstream
-    // contract); native/shared charter skills are restored by surface repair on
-    // the next run. A selection with no command-skill agent has no record,
-    // exactly as upstream writes none.
+    // Recovery record first on a fresh run: if this run dies, the next one
+    // resumes exactly this agent set instead of re-scaffolding with a different
+    // selection. In full mode the record names the command-skill roster only
+    // (the upstream contract); native/shared charter skills are restored by
+    // surface repair on the next run. A selection with no command-skill agent
+    // has no record, exactly as upstream writes none.
     let pending_agents: Vec<String> = if request.assets.is_some() {
         agents
             .iter()
@@ -629,33 +893,63 @@ fn fresh_initialize(
     } else {
         agent_keys.clone()
     };
-    let pending = if pending_agents.is_empty() {
-        None
-    } else {
-        Some(PendingDelivery::write(root, &pending_agents)?)
-    };
-
-    let mut details = InitDetails::default();
-    if let Some(assets) = &request.assets {
-        let report = install_template_tree(root, &assets.template_tree, &assets.template_options)?;
-        details.template_mode = report.mode;
-        details.template_copied = report.copied;
-        details.backups = report.backups;
-        details.templates_created = report.templates_created;
+    if mode.is_fresh() {
+        if pending_agents.is_empty() {
+            if pending.is_some() {
+                return Err(InstallError::NoAgentsSelected);
+            }
+        } else {
+            PendingDelivery::write(root, &pending_agents)?;
+        }
     }
 
-    let config_written = write_fresh_config(root, agents)?;
-    std::fs::create_dir_all(root.join(MEMORY_REL)).map_err(|source| {
-        InstallError::io("create memory directory", root.join(MEMORY_REL), source)
-    })?;
+    let mut details = InitDetails::default();
+    let mut warnings: Vec<String> = Vec::new();
+    let activation_preset = preflight_activation(request)?;
+
+    if let Some(assets) = &request.assets {
+        let should_install = match mode {
+            DeliveryMode::Fresh => true,
+            DeliveryMode::ResumeFresh => !template_tree_present(root),
+            DeliveryMode::Resume | DeliveryMode::Refresh => false,
+        };
+        if should_install {
+            let report =
+                install_template_tree(root, &assets.template_tree, &assets.template_options)?;
+            details.template_mode = report.mode;
+            details.template_copied = report.copied;
+            details.backups = report.backups;
+            details.templates_created = report.templates_created;
+            warnings.extend(report.warnings);
+        } else if !root.join(MEMORY_REL).is_dir() && !root.join(".kittify/missions").is_dir() {
+            // Refresh/resume never re-scaffolds (upstream early-returns), but the
+            // missing tree is reported instead of claiming it was verified.
+            warnings.push(
+                "the template tree is absent from this project; init does not re-scaffold an \
+                 initialized project (run `spec-kitty upgrade`)"
+                    .to_string(),
+            );
+        }
+    }
+
+    let config_written = if mode.is_fresh() {
+        write_fresh_config(root, agents)?
+    } else {
+        false
+    };
+    if mode.is_fresh() {
+        std::fs::create_dir_all(root.join(MEMORY_REL)).map_err(|source| {
+            InstallError::io("create memory directory", root.join(MEMORY_REL), source)
+        })?;
+    }
 
     let plan = InstallPlan::plan(root, &request.version, &rendered, &request.options)?;
     let summary = plan.summary();
     let application = plan.commit(request.lock_wait)?;
-
-    let mut warnings = plan.warnings().to_vec();
+    warnings.extend(plan.warnings().iter().cloned());
     warnings.extend(application.warnings.iter().cloned());
 
+    // ---- metadata (additive, non-fatal upstream) -------------------------
     let environment = request
         .environment
         .clone()
@@ -666,102 +960,194 @@ fn fresh_initialize(
                 .map(|assets| assets.environment.clone())
         })
         .unwrap_or_else(ProjectEnvironment::detect);
-    let metadata = ProjectMetadata::for_new_project(
-        &request.version,
-        now_utc_iso(),
-        &environment.python_version,
-        &environment.platform,
-        &environment.platform_version,
-        None,
-    );
-    let metadata_written = match metadata.save(&root.join(".kittify")) {
-        Ok(written) => written,
-        Err(error) => {
-            warnings.push(format!("Could not save project metadata: {error}"));
-            false
-        }
-    };
+    let metadata_path = root.join(METADATA_REL);
+    let write_metadata = mode.is_fresh() || !metadata_path.is_file();
+    let mut metadata_written = false;
+    if write_metadata {
+        let metadata = ProjectMetadata::for_new_project(
+            &request.version,
+            now_utc_iso(),
+            &environment.python_version,
+            &environment.platform,
+            &environment.platform_version,
+            None,
+        );
+        metadata_written = match metadata.save(&root.join(".kittify")) {
+            Ok(written) => written,
+            Err(error) => {
+                warnings.push(format!("Could not save project metadata: {error}"));
+                false
+            }
+        };
+    }
     if let Err(error) = stamp_schema_metadata(&root.join(".kittify")) {
         warnings.push(format!("Could not stamp schema metadata: {error}"));
     }
 
+    // ---- charter skills --------------------------------------------------
     if let Some(assets) = &request.assets {
-        if let Some(catalog) = &assets.skills {
-            let options = SkillInstallOptions::default();
+        let catalog = assets
+            .skills
+            .as_ref()
+            .ok_or_else(|| InstallError::SkillsCatalogMissing {
+                path: root.to_path_buf(),
+                detail: "the full asset set has no charter skill catalog".to_string(),
+            })?;
+        let manifest_present = crate::skills::ManagedSkillManifest::load_strict(root)?
+            .is_some_and(|manifest| !manifest.entries.is_empty());
+        if mode.is_fresh() || !manifest_present {
+            let options = crate::skills::SkillInstallOptions::with_version(&request.version);
             match crate::skills::install_skills_for_agents(root, &agent_keys, catalog, &options) {
                 Ok(report) => {
                     details.skills_written = report.written;
                     details.skills_adopted = report.adopted;
                     details.skills_drifted = report.drifted;
+                    warnings.extend(report.warnings);
                 }
-                Err(error) => warnings.push(format!("Could not install charter skills: {error}")),
+                // An operator-owned file at a managed skill path is preserved
+                // (upstream logs a warning and continues). Every other failure
+                // is a real delivery failure and keeps the pending record.
+                Err(error @ InstallError::SkillCollision { .. }) => warnings.push(format!(
+                    "Charter skill installation was incomplete: {error}"
+                )),
+                Err(error) => return Err(error),
             }
         }
-        let builtin_skill_names = assets
-            .skills
-            .as_ref()
-            .map(SkillCatalog::names)
-            .unwrap_or_default();
-        let result = crate::gitignore::protect_all_agents(root, &agent_keys, &builtin_skill_names)?;
+        let repair = crate::skills::run_surface_repair(root, &agent_keys, catalog, false)?;
+        details.skills_restored = repair.restored.clone();
+        warnings.extend(repair.warnings.clone());
+        details.surface = repair;
+
+        // ---- session presence (before profile projection) ----------------
+        // Upstream runs `SessionPresenceManager.install()` before the tool-surface
+        // repair that projects profiles. That ordering is observable: a
+        // copilot-only fresh init has no `.github/` yet, so its `check_dir`
+        // guard skips the orientation file, which profile projection then adds.
+        let slug = crate::identity::resolve_identity(root)
+            .project_slug
+            .unwrap_or_else(|| crate::identity::derive_project_slug(root));
+        let session =
+            crate::session::apply_healthy_orientation(root, &agent_keys, &request.version, &slug)?;
+        details.orientation_written = session.written;
+        details.orientation_preserved = session.preserved;
+        warnings.extend(session.warnings);
+
+        // ---- agent-profile projection -----------------------------------
+        let profiles =
+            assets
+                .profiles
+                .as_ref()
+                .ok_or_else(|| InstallError::AgentProfileCatalogMissing {
+                    path: root.to_path_buf(),
+                    detail: "the full asset set has no agent-profile catalog".to_string(),
+                })?;
+        let report =
+            crate::profiles::project_agent_profiles(root, &agent_keys, profiles, "built-in")?;
+        details.profiles_written = report.written;
+        details.profiles_kept = report.kept;
+        details.profiles_preserved = report.preserved;
+        warnings.extend(report.warnings);
+    }
+
+    // ---- .gitignore (after the profile manifest exists) -------------------
+    let builtin_skill_names = request
+        .assets
+        .as_ref()
+        .and_then(|assets| assets.skills.as_ref())
+        .map(crate::skills::SkillCatalog::names)
+        .unwrap_or_default();
+    if request.assets.is_some() {
+        let result = crate::gitignore::protect_all_agents_with(
+            root,
+            &agent_keys,
+            &builtin_skill_names,
+            mode.is_fresh(),
+        )?;
         details.gitignore_modified = result.modified;
         details.gitignore_added = result.entries_added;
         warnings.extend(result.warnings);
     } else {
-        let result = crate::gitignore::protect_all_agents(root, &agent_keys, &[])?;
+        let result =
+            crate::gitignore::protect_all_agents_with(root, &agent_keys, &[], mode.is_fresh())?;
         details.gitignore_modified = result.modified;
         details.gitignore_added = result.entries_added;
         warnings.extend(result.warnings);
     }
 
-    match crate::attributes::ensure_attribute_lines(root) {
-        Ok(changed) => details.attributes_written = changed,
-        Err(error) => warnings.push(format!("Could not seed .gitattributes: {error}")),
+    // ---- .gitattributes + clone-local git config -------------------------
+    details.attributes_written = crate::attributes::ensure_attribute_lines(root)?;
+    let wiring_plan = crate::attributes::MergeDriverWiringPlan::plan(root)?;
+    details.merge_driver_plan = Some(wiring_plan.clone());
+    match wiring_plan.apply_git_config() {
+        Ok(state) => {
+            // The clone-local keys are delivered, but this build has no
+            // `spec-kitty merge-driver-*` route: never report the drivers as
+            // functional while that command is absent.
+            if state.changed() {
+                warnings.push(format!(
+                    "Installed clone-local merge-driver config for {} key(s); this build does not implement the `spec-kitty merge-driver-*` commands, so the drivers are configured but not functional yet",
+                    state.installed.len()
+                ));
+            }
+            for customization in &state.customized {
+                warnings.push(format!(
+                    "Kept your own {} setting ({}); the shipped value was not applied",
+                    customization.key, customization.value
+                ));
+            }
+            if let Some(reason) = &state.skip_reason
+                && wiring_plan.needs_git_config()
+                && !state.changed()
+            {
+                warnings.push(format!(
+                    "Clone-local merge-driver config was not written: {reason}"
+                ));
+            }
+            details.merge_driver_wiring = Some(state);
+        }
+        Err(error) => {
+            // Upstream treats git wiring as best-effort; the merge paths
+            // self-heal it later. The tracked `.gitattributes` half is durable.
+            warnings.push(format!(
+                "Could not configure Spec Kitty merge drivers; continuing without local git configuration: {error}"
+            ));
+        }
     }
-    details.merge_driver_plan = crate::attributes::MergeDriverWiringPlan::plan(root).ok();
 
-    if let Some(preset) = request
-        .assets
-        .as_ref()
-        .and_then(|assets| assets.activation_preset.as_ref())
-    {
+    // ---- mission-type activation (required only when absent) --------------
+    // The preset was resolved and validated by `preflight_activation` before the
+    // first managed write. When the activation key already exists no preset is
+    // needed and `provision` would be a no-op, so it is not called at all.
+    if let Some(preset) = &activation_preset {
         details.activation_provisioned =
             crate::activation::provision_mission_type_activations(root, preset)?;
     }
 
-    match crate::identity::ensure_identity(root, request.lock_wait) {
-        Ok(identity) => {
-            if let Some(uuid) = identity.project_uuid {
-                let payload = crate::lifecycle::payload_for_init(
-                    uuid.to_string(),
-                    identity.project_slug.clone(),
-                    Some(request.version.clone()),
-                );
-                match crate::lifecycle::emit_project_initialized(root, &payload, request.lock_wait)
-                {
-                    Ok(event) => details.event_written = event.is_some(),
-                    Err(error) => {
-                        warnings.push(format!("Could not emit ProjectInitialized: {error}"))
-                    }
-                }
-            }
-            details.identity = Some(identity);
-        }
-        Err(error) => warnings.push(format!("Could not persist project identity: {error}")),
-    }
+    // ---- identity + canonical event (required) ---------------------------
+    let identity = crate::identity::ensure_identity(root, request.lock_wait)?;
+    let project_uuid = identity
+        .project_uuid
+        .ok_or_else(|| InstallError::IdentityInvalid {
+            path: root.join(CONFIG_REL),
+            detail: "project identity has no uuid after ensure_identity".to_string(),
+        })?;
+    let payload = crate::lifecycle::payload_for_init(
+        project_uuid.to_string(),
+        identity.project_slug.clone(),
+        Some(request.version.clone()),
+    );
+    let event = crate::lifecycle::emit_project_initialized(root, &payload, request.lock_wait)?;
+    details.event_written = event.is_some();
+    details.identity = Some(identity);
 
-    match MigrationCatalog::embedded() {
-        Ok(catalog) => {
-            let ledger = MigrationLedger::new(root);
-            match ledger.seed_for_init(catalog, &request.version, |spec| {
-                clone_local_effect_in_place(root, spec)
-            }) {
-                Ok(seeded) => details.ledger_seeded = seeded,
-                Err(error) => warnings.push(format!("Could not seed migration ledger: {error}")),
-            }
-        }
-        Err(error) => warnings.push(format!("Migration catalog unavailable: {error}")),
-    }
+    // ---- migration-ledger seed (required) -------------------------------
+    let catalog = MigrationCatalog::embedded()?;
+    let ledger = MigrationLedger::new(root);
+    details.ledger_seeded = ledger.seed_for_init(catalog, &request.version, |spec| {
+        clone_local_effect_in_place(root, spec)
+    })?;
 
+    // ---- legacy compatibility surfaces ----------------------------------
     if agent_keys.iter().any(|key| key == "vibe") {
         match crate::vibe::ensure_project_skill_path(root) {
             Ok(_changed) => {}
@@ -771,24 +1157,15 @@ fn fresh_initialize(
         }
     }
 
-    if let Some(catalog) = request
-        .assets
-        .as_ref()
-        .and_then(|assets| assets.skills.as_ref())
-    {
-        match crate::skills::run_surface_repair(root, &agent_keys, catalog, false) {
-            Ok(summary) => details.surface = summary,
-            Err(error) => warnings.push(format!("Tool surface repair failed: {error}")),
+    if mode.is_fresh() {
+        let mut run_created: BTreeSet<PathBuf> = BTreeSet::new();
+        if details.templates_created {
+            run_created.insert(PathBuf::from(".kittify/templates"));
         }
-    }
-
-    let mut run_created: BTreeSet<PathBuf> = BTreeSet::new();
-    if details.templates_created {
-        run_created.insert(PathBuf::from(".kittify/templates"));
-    }
-    match cleanup_init_scratch(root, &run_created) {
-        Ok(preserved) => details.scratch_preserved = preserved,
-        Err(error) => warnings.push(format!("Could not clean init scratch: {error}")),
+        match cleanup_init_scratch(root, &run_created) {
+            Ok(preserved) => details.scratch_preserved = preserved,
+            Err(error) => warnings.push(format!("Could not clean init scratch: {error}")),
+        }
     }
 
     details.security_notice = crate::gitignore::agent_folder_notice(
@@ -796,18 +1173,12 @@ fn fresh_initialize(
     );
 
     // Only now is the delivery durable.
-    PendingDelivery::clear(root)?;
-    if let Some(pending) = &pending {
-        debug_assert!(
-            pending
-                .agents()
-                .iter()
-                .all(|agent| agent_keys.contains(agent))
-        );
+    if mode.is_fresh() || pending.is_some() {
+        PendingDelivery::clear(root)?;
     }
 
     let report = InitReport {
-        outcome: InitOutcome::Initialized,
+        outcome: mode.outcome(),
         summary,
         application,
         config_written,
@@ -817,189 +1188,16 @@ fn fresh_initialize(
     Ok((report, details))
 }
 
-fn refresh_or_resume(
-    request: &InitRequest,
-    configured: &[String],
-    requested: &[&'static AgentSurface],
-) -> Result<(InitReport, InitDetails), InstallError> {
-    let root = &request.project_root;
-    let templates = request.effective_templates();
-    let mut details = InitDetails::default();
-    let mut warnings: Vec<String> = Vec::new();
-
-    if let Some(pending) = PendingDelivery::load(root)? {
-        // Resume exactly the interrupted delivery, from the saved configuration.
-        // A request that names a different agent set would re-target the recovery
-        // record, so it is refused rather than silently ignored.
-        if !requested.is_empty() {
-            let mut requested_keys: Vec<String> = requested
-                .iter()
-                .filter(|agent| request.assets.is_none() || agent.installs_command_skills())
-                .map(|agent| agent.key.to_string())
-                .collect();
-            requested_keys.sort();
-            if requested_keys != pending.agents() {
-                return Err(InstallError::PendingDeliveryInvalid {
-                    path: root.join(PENDING_DELIVERY_REL),
-                    detail: format!(
-                        "an interrupted delivery for {:?} is pending; re-run init without changing --ai to resume it",
-                        pending.agents()
-                    ),
-                });
-            }
-        }
-        let missing: Vec<&str> = pending
-            .agents()
-            .iter()
-            .filter(|agent| !configured.iter().any(|known| known == *agent))
-            .map(String::as_str)
-            .collect();
-        if !missing.is_empty() {
-            return Err(InstallError::PendingDeliveryInvalid {
-                path: root.join(PENDING_DELIVERY_REL),
-                detail: format!(
-                    "pending agents {missing:?} are not in the saved configuration; \
-                     inspect {} before retrying",
-                    CONFIG_REL
-                ),
-            });
-        }
-        let surfaces = resolve_requested_agents(pending.agents())?;
-        let rendered = render_assets(
-            &surfaces,
-            &request.version,
-            templates.as_ref(),
-            request.assets.is_none(),
-        )?;
-        let plan = InstallPlan::plan(root, &request.version, &rendered, &request.options)?;
-        let summary = plan.summary();
-        let application = plan.commit(request.lock_wait)?;
-        warnings.extend(plan.warnings().iter().cloned());
-        warnings.extend(application.warnings.iter().cloned());
-        // A pending record names the command-skill roster, but a crash can also
-        // leave a native/shared charter-skill file missing: repair every
-        // configured agent's managed skill surface.
-        let agent_keys: Vec<String> = configured.to_vec();
-        if let Some(assets) = &request.assets {
-            if let Some(catalog) = &assets.skills {
-                match crate::skills::run_surface_repair(root, &agent_keys, catalog, false) {
-                    Ok(summary) => details.surface = summary,
-                    Err(error) => warnings.push(format!("Tool surface repair failed: {error}")),
-                }
-            }
-            let builtin_skill_names = assets
-                .skills
-                .as_ref()
-                .map(SkillCatalog::names)
-                .unwrap_or_default();
-            let result = crate::gitignore::protect_all_agents_with(
-                root,
-                &agent_keys,
-                &builtin_skill_names,
-                false,
-            )?;
-            details.gitignore_modified = result.modified;
-            details.gitignore_added = result.entries_added;
-            warnings.extend(result.warnings);
-        }
-        PendingDelivery::clear(root)?;
-        return Ok((
-            InitReport {
-                outcome: InitOutcome::ResumedDelivery,
-                summary,
-                application,
-                config_written: false,
-                metadata_written: false,
-                warnings,
-            },
-            details,
-        ));
-    }
-
-    // Refresh: an already-initialized project is never re-scaffolded. Requested
-    // agents must already be configured (upstream: "run agent config add").
-    let refresh_agents: Vec<&'static AgentSurface> = if request.agents.is_empty() {
-        resolve_requested_agents(configured)?
-    } else {
-        let unconfigured: Vec<&str> = requested
-            .iter()
-            .filter(|agent| !configured.iter().any(|known| known == agent.key))
-            .map(|agent| agent.key)
-            .collect();
-        if !unconfigured.is_empty() {
-            return Err(InstallError::AlreadyInitialized {
-                root: root.clone(),
-                detail: format!(
-                    "requested agents {unconfigured:?} are not configured; add them with \
-                     `spec-kitty agent config add` first"
-                ),
-            });
-        }
-        requested.to_vec()
-    };
-
-    let rendered = render_assets(
-        &refresh_agents,
-        &request.version,
-        templates.as_ref(),
-        request.assets.is_none(),
-    )?;
-    let plan = InstallPlan::plan(root, &request.version, &rendered, &request.options)?;
-    let summary = plan.summary();
-    let application = plan.commit(request.lock_wait)?;
-    warnings.extend(plan.warnings().iter().cloned());
-    warnings.extend(application.warnings.iter().cloned());
-
-    let agent_keys: Vec<String> = refresh_agents
-        .iter()
-        .map(|agent| agent.key.to_string())
-        .collect();
-    if let Some(assets) = &request.assets {
-        if let Some(catalog) = &assets.skills {
-            match crate::skills::run_surface_repair(root, &agent_keys, catalog, false) {
-                Ok(summary) => details.surface = summary,
-                Err(error) => warnings.push(format!("Tool surface repair failed: {error}")),
-            }
-        }
-        let builtin_skill_names = assets
-            .skills
-            .as_ref()
-            .map(SkillCatalog::names)
-            .unwrap_or_default();
-        let result = crate::gitignore::protect_all_agents_with(
-            root,
-            &agent_keys,
-            &builtin_skill_names,
-            false,
-        )?;
-        details.gitignore_modified = result.modified;
-        details.gitignore_added = result.entries_added;
-        warnings.extend(result.warnings);
-    }
-    if agent_keys.iter().any(|key| key == "vibe")
-        && !crate::vibe::skill_path_configured(root)
-        && let Err(error) = crate::vibe::ensure_project_skill_path(root)
-    {
-        warnings.push(format!(
-            "Could not restore the Vibe skill-path pointer: {error}"
-        ));
-    }
-    details.merge_driver_plan = crate::attributes::MergeDriverWiringPlan::plan(root).ok();
-    details.security_notice = crate::gitignore::agent_folder_notice(
-        &agent_keys.iter().map(String::as_str).collect::<Vec<_>>(),
-    );
-
-    Ok((
-        InitReport {
-            outcome: InitOutcome::AlreadyInitialized,
-            summary,
-            application,
-            config_written: false,
-            metadata_written: false,
-            warnings,
-        },
-        details,
-    ))
+/// Whether a full template tree is already installed (not a partial copy).
+///
+/// `.kittify/templates` is removed at the end of a successful fresh init, so it
+/// cannot be a sentinel; the mission tree's `software-dev/mission.yaml` and the
+/// memory tree's `README.md` are stable files a partial copy cannot fake.
+fn template_tree_present(project_root: &Path) -> bool {
+    project_root
+        .join(".kittify/missions/software-dev/mission.yaml")
+        .is_file()
+        && project_root.join(".kittify/memory/README.md").is_file()
 }
 
 fn resolve_requested_agents(keys: &[String]) -> Result<Vec<&'static AgentSurface>, InstallError> {
@@ -1138,11 +1336,13 @@ fn write_fresh_config(
         std::fs::create_dir_all(parent)
             .map_err(|source| InstallError::io("create directory", parent, source))?;
     }
-    let mut text = String::from("agents:\n  available:\n");
+    // Section order matches upstream's saved configuration: `project` is
+    // inserted at the top by `ensure_identity`, so `vcs` must precede `agents`.
+    let mut text = String::from("vcs:\n  type: git\nagents:\n  available:\n");
     for agent in agents {
         text.push_str(&format!("  - {}\n", agent.key));
     }
-    text.push_str("  auto_commit: true\n  lint_on_edit: false\nvcs:\n  type: git\n");
+    text.push_str("  auto_commit: true\n  lint_on_edit: false\n");
     sk_kernel::atomic_write(&path, text.as_bytes())
         .map_err(|error| InstallError::io("write config", &path, std::io::Error::other(error)))?;
     Ok(true)

@@ -407,8 +407,8 @@ fn activation_plan_and_commit_preserve_user_comments() {
         },
     )
     .unwrap();
-    let prepared = sk_doctrine::commit_plan(root, &plan).unwrap();
-    prepared.apply(sk_doctrine::DEFAULT_LOCK_TIMEOUT).unwrap();
+    let transaction = sk_doctrine::ActivationTransaction::begin(root).unwrap();
+    transaction.commit(&plan).unwrap();
     let text = fs::read_to_string(&ledger).unwrap();
     assert!(text.contains("# operator note"));
     assert!(text.contains("# keep this rationale"));
@@ -428,8 +428,7 @@ fn deactivation_is_refused_by_the_required_floor_without_a_write() {
         "001-arch".to_owned(),
         vec![sk_doctrine::RequiringPack {
             pack: "acme".to_owned(),
-            source: "org-charter.yaml".to_owned(),
-            policy_key: "required_directives".to_owned(),
+            via: None,
         }],
     )]);
     let available = vec!["001-arch".to_owned()];
@@ -514,11 +513,17 @@ fn context_payload_has_exactly_the_contracted_top_level_keys() {
     let expected: BTreeSet<&str> = CONTEXT_CONTRACT_TOP_LEVEL_KEYS.into_iter().collect();
     assert_eq!(keys, expected);
     assert_eq!(context.directives[0].id, "DIRECTIVE_001");
-    assert!(
+    assert_eq!(
+        context.directives[0].delivery,
+        sk_doctrine::Delivery::Inline
+    );
+    assert_eq!(
         context.directives[0]
-            .body_path
-            .as_deref()
-            .is_some_and(|path| path.ends_with("001-arch.directive.yaml"))
+            .body
+            .as_ref()
+            .and_then(|body| body.get("id"))
+            .and_then(|value| value.as_str()),
+        Some("DIRECTIVE_001")
     );
 }
 

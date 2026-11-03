@@ -1,0 +1,104 @@
+{
+  "binary_provenance": {
+    "spec-kitty": {
+      "predates_source": true,
+      "sha256": "0ae779448f13f41272b60baf92758da4778def4b2b2b0df9a2b33840ef077a26"
+    }
+  },
+  "certification": false,
+  "equivalent": true,
+  "exclusion_ruling": "Status lock artifacts are implementation-private, ephemeral and named differently by each implementation (.git/spec-kitty-locks/<slug>.status.lock upstream vs a hashed name natively). They are captured per invocation under ignored_artifacts, never asserted equal, and never counted as the observable post-state. Every user-facing byte -- including status.json -- is compared exactly.",
+  "fixture": {
+    "content_digest": "01c526e52d8a6c80a27e842cd27666fbda337144bd64a687dfd192357f5a65c7",
+    "file_count": 41,
+    "id": "replay-project",
+    "portable": true,
+    "recipe": {
+      "blocked_cycles_per_work_package": 4,
+      "coherent_events": 2800,
+      "coherent_work_packages": 200,
+      "events": 240,
+      "git": "unborn-main",
+      "git_version": "git version 2.43.0",
+      "kind": "compat-project",
+      "missions": 2,
+      "seed": 20261102,
+      "terms_per_scope": 40,
+      "work_packages_per_mission": 6
+    }
+  },
+  "generated_at": "2026-11-03T09:49:48.529377+00:00",
+  "ignored_artifact_prefixes": [
+    ".git/spec-kitty-locks/"
+  ],
+  "ignored_artifacts_differ": false,
+  "invocations": 2,
+  "master_unchanged": true,
+  "newest_build_input": "crates/sk-cli/src/compat/runtime.rs",
+  "notes": [
+    "Untimed conformance proof for the frozen status.replay workload: identical normalized payload and identical post-state delta on a fresh clone per invocation.",
+    "The recorded durations are tool metadata, not a timing campaign: no paired sampling, no load control, no ratio is claimed.",
+    "Not certification. The release binary predates the current source (tracked build inputs are newer), so no build receipt can bind it; 16 of the 17 frozen gate workloads are still absent natively.",
+    "Re-run `bench.py build`, then this tool, then `bench.py run` on a clean commit before any performance claim."
+  ],
+  "observed_invocations": [
+    {
+      "duration_s": 0.051396302,
+      "exit_code": 0,
+      "invocation": 0,
+      "payload_sha256": "172d87a0e7eded46250499f52e477bab122fdb73943ac4a22a8ee3cf5200fb02",
+      "side": "rust"
+    },
+    {
+      "duration_s": 0.068326546,
+      "exit_code": 0,
+      "invocation": 1,
+      "payload_sha256": "172d87a0e7eded46250499f52e477bab122fdb73943ac4a22a8ee3cf5200fb02",
+      "side": "rust"
+    },
+    {
+      "duration_s": 4.505984654,
+      "exit_code": 0,
+      "invocation": 0,
+      "payload_sha256": "172d87a0e7eded46250499f52e477bab122fdb73943ac4a22a8ee3cf5200fb02",
+      "side": "oracle"
+    },
+    {
+      "duration_s": 4.534938367,
+      "exit_code": 0,
+      "invocation": 1,
+      "payload_sha256": "172d87a0e7eded46250499f52e477bab122fdb73943ac4a22a8ee3cf5200fb02",
+      "side": "oracle"
+    }
+  ],
+  "oracle_python": {
+    "path": ".venv-rust-oracle/bin/python",
+    "real_sha256": "0253b01a7f5d96a042a2b9f5e0f5ff5062707a1c75be2b089098e3111cd186d2",
+    "version": "Python 3.11.15"
+  },
+  "packs": {
+    "digest": "896f2b577e11e4fd6fd39164bdcd903ccba12584155eef8643f75cb50246774d",
+    "file_count": 575,
+    "root": "packs"
+  },
+  "post_state": {
+    "added": [
+      "kitty-specs/002-bench-mission-002/status.json"
+    ],
+    "changed": [],
+    "removed": []
+  },
+  "post_state_equal": true,
+  "problems": [],
+  "registry_digest": "sha256:06c40f06451346b57c857c6de5853e475f90da7522a91180a8cd6ca64aa562d6",
+  "registry_sha256": "a1902a2643b5d43447c4d3834cb1fbc5c01cf2a0b4b56a29aadc79f349d06da4",
+  "repo_head": "ff4452b02e816ca14d484169a077703045e4d9eb",
+  "rust_binary": {
+    "path": "target/release/spec-kitty",
+    "sha256": "0ae779448f13f41272b60baf92758da4778def4b2b2b0df9a2b33840ef077a26"
+  },
+  "schema": "spkbench.mutation-conformance.v1",
+  "source_modified_after_binary": true,
+  "status": "conformance-only",
+  "workload": "status.replay"
+}

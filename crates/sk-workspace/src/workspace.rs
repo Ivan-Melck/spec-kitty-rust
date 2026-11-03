@@ -266,8 +266,29 @@ impl MissionWorkspace {
     }
 
     /// The canonical mission directory name (`<slug>-<mid8>`).
+    ///
+    /// This is the **NNN-stripping** composer, used for names that must be
+    /// idempotent with the `mission_id` path (the mission branch body, the
+    /// composed primary-directory name). It is *not* the coordination home:
+    /// see [`Self::coord_mission_dir_name`].
     pub fn canonical_mission_dir_name(&self) -> String {
         mission_dir_name(self.slug(), self.identity.mid8())
+    }
+
+    /// The canonical coordination Mission directory name (`<slug>-<mid8>`,
+    /// VERBATIM).
+    ///
+    /// The coordination read/seed/transaction path reconstructs the directory
+    /// the reference actually created, so it must not strip a legacy `NNN-`
+    /// prefix: upstream composes it with
+    /// `lanes.branch_naming.coord_mission_dir_name`, whose docstring names this
+    /// exact hazard ("the canonical, NNN-stripping `mission_dir_name` … would
+    /// drift a legacy `NNN-` slug to a name never created"). A coordination-
+    /// routed mission stored as `057-name` therefore lives at
+    /// `kitty-specs/057-name-<mid8>` inside its coordination worktree, while its
+    /// mission branch body drops the prefix.
+    pub fn coord_mission_dir_name(&self) -> String {
+        crate::naming::coord_mission_dir_name(self.slug(), self.identity.mid8())
     }
 
     /// The expected coordination worktree path, when the topology routes
@@ -308,11 +329,23 @@ impl MissionWorkspace {
     /// uses. `sk-git` bounds each remote contact with its own timeout, so this
     /// cannot hang indefinitely; a remote that answers nothing or errors keeps
     /// the branch `Unmaterialized` rather than reporting data loss.
+    ///
+    /// # A lost `coordination_branch` record
+    ///
+    /// `meta.json`'s `coordination_branch` is only a *record*. When it is absent
+    /// on a coordination-routed topology, this probe derives the same canonical
+    /// name the mint uses ([`crate::naming::coord_reconstruct_branch`]) and
+    /// probes **that** branch, setting [`CoordinationProbe::derived`]. The
+    /// reference does exactly this (`_derive_branch_for_undeclared`): a lost
+    /// record over a live canonical branch must proceed as if declared instead
+    /// of being labelled data loss, and only a derived branch that is genuinely
+    /// absent is `COORD_BRANCH_UNDECLARED_AND_ABSENT` on the write path.
     pub fn probe_coordination(&self) -> Result<CoordinationProbe, WorkspaceError> {
         if !routes_through_coordination(self.topology) {
             return Ok(CoordinationProbe {
                 state: CoordState::None,
                 branch: None,
+                derived: false,
                 worktree: None,
                 mission_dir: None,
                 local_head: false,
@@ -320,19 +353,12 @@ impl MissionWorkspace {
                 tip: None,
             });
         }
-        let Some(branch_text) = self.coordination_branch() else {
-            // A coord-routing topology with no declared branch is not a
-            // usable coordination surface. Fail closed with the delete-shaped
-            // refusal rather than reading the primary checkout.
-            return Ok(CoordinationProbe {
-                state: CoordState::Deleted,
-                branch: None,
-                worktree: None,
-                mission_dir: None,
-                local_head: false,
-                stray_directory: None,
-                tip: None,
-            });
+        let (branch_text, derived) = match self.coordination_branch() {
+            Some(branch_text) => (branch_text, false),
+            None => (
+                crate::naming::coord_reconstruct_branch(self.slug(), self.identity.mid8()),
+                true,
+            ),
         };
         let branch = BranchName::parse(&branch_text)?;
         let repository = self.workspace.repository();
@@ -340,7 +366,7 @@ impl MissionWorkspace {
         let coord_root = self.coord_worktree_path();
         let mission_dir = coord_root.as_ref().map(|root| {
             root.join(SPECS_DIR_NAME)
-                .join(self.canonical_mission_dir_name())
+                .join(self.coord_mission_dir_name())
         });
         let worktrees = repository.worktrees()?;
 
@@ -370,6 +396,7 @@ impl MissionWorkspace {
                     Ok(CoordinationProbe {
                         state,
                         branch: Some(branch_text),
+                        derived,
                         worktree: Some(root.clone()),
                         mission_dir,
                         local_head: local_tip.is_some(),
@@ -382,6 +409,7 @@ impl MissionWorkspace {
                     // not register is a husk, never a materialized surface.
                     state: CoordState::Unmaterialized,
                     branch: Some(branch_text),
+                    derived,
                     worktree: None,
                     mission_dir,
                     local_head: local_tip.is_some(),
@@ -395,6 +423,7 @@ impl MissionWorkspace {
             return Ok(CoordinationProbe {
                 state: CoordState::Unmaterialized,
                 branch: Some(branch_text),
+                derived,
                 worktree: None,
                 mission_dir,
                 local_head: true,
@@ -417,6 +446,7 @@ impl MissionWorkspace {
                 CoordState::Deleted
             },
             branch: Some(branch_text),
+            derived,
             worktree: None,
             mission_dir,
             local_head: false,
@@ -436,12 +466,17 @@ fn protected_target(target: &str, protected: &ProtectedBranches) -> Result<bool,
 pub struct CoordinationProbe {
     /// The materialization state.
     pub state: CoordState,
-    /// The declared branch, when known.
+    /// The declared or derived coordination branch, when known.
     pub branch: Option<String>,
+    /// `true` when `meta.json` lost `coordination_branch` and this is the name
+    /// the canonical grammar derived. A derived branch that is absent is a
+    /// typed undeclared-and-absent refusal, never a data-loss `Deleted` label.
+    pub derived: bool,
     /// The materialised worktree, when present and registered.
     pub worktree: Option<PathBuf>,
     /// The canonical coordination Mission directory
-    /// (`<worktree>/kitty-specs/<slug>-<mid8>`), whether or not it exists.
+    /// (`<worktree>/kitty-specs/<slug>-<mid8>`, VERBATIM), whether or not it
+    /// exists.
     pub mission_dir: Option<PathBuf>,
     /// Does the declared branch resolve as a local head?
     pub local_head: bool,

@@ -493,7 +493,15 @@ pub fn existing_schema_version(existing_snapshot: Option<&Value>) -> Option<i64>
 // Projections
 // ---------------------------------------------------------------------------
 
-fn project_cancellation_provenance(transitions: &[StatusEvent], snapshot: &mut Snapshot) {
+/// Project `cancellation_reason` / `reason_source` onto canceled WPs.
+///
+/// Exposed crate-internally so the writer's dependency-readiness verdict can
+/// read the same provenance the materialized snapshot carries (the diary fold
+/// alone does not project it). The reader pipeline is unchanged.
+pub(crate) fn project_cancellation_provenance(
+    transitions: &[StatusEvent],
+    snapshot: &mut Snapshot,
+) {
     for event in unique_by_first_occurrence(transitions) {
         if event.to_lane != Lane::Canceled {
             continue;

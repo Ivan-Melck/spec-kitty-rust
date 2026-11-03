@@ -5,8 +5,8 @@ use std::collections::BTreeSet;
 use sk_kernel::WpId;
 use sk_mission::MissionTopology;
 use sk_workspace::{
-    LANES_FILE_NAME, LanePlannerInput, LaneReadiness, LanesStore, MissionArtifactKind, WpPlan,
-    compute_lanes, lane_dependency_readiness,
+    LANES_FILE_NAME, LANES_LOCK_DIRECTORY, LanePlannerInput, LaneReadiness, LanesStore,
+    MissionArtifactKind, WpPlan, compute_lanes, lane_dependency_readiness,
 };
 
 fn wp(value: &str) -> WpId {
@@ -42,7 +42,17 @@ fn manifest_round_trips_through_the_store() {
     let manifest = dependency_manifest();
     let path = store.write(&manifest).unwrap();
     assert_eq!(path.file_name().unwrap(), LANES_FILE_NAME);
-    assert!(store.lock_path().exists());
+    // The lock is the reference's canonical one: never beside the manifest.
+    let lock = store.lock_path().unwrap();
+    assert!(lock.exists());
+    assert!(!feature_dir.join(".lanes.json.lock").exists());
+    assert!(
+        lock.parent()
+            .and_then(|parent| parent.file_name())
+            .is_some_and(|name| name == LANES_LOCK_DIRECTORY),
+        "non-Git projects lock under the temp root: {}",
+        lock.display()
+    );
 
     let decoded = store.read().unwrap().expect("manifest present");
     assert_eq!(decoded, manifest);
@@ -77,6 +87,46 @@ fn manifest_round_trips_through_the_store() {
     assert_eq!(decoded.lanes.len(), 2);
     assert!(decoded.has_code_lanes());
     assert!(!decoded.is_planning_artifact_only());
+}
+
+#[test]
+fn omitted_optional_lane_fields_use_the_reference_defaults() {
+    let temp = tempfile::tempdir().unwrap();
+    let store = LanesStore::new(temp.path());
+    let mut wire = serde_json::to_value(dependency_manifest()).unwrap();
+    for lane in wire["lanes"].as_array_mut().unwrap() {
+        let fields = lane.as_object_mut().unwrap();
+        for key in [
+            "write_scope",
+            "predicted_surfaces",
+            "depends_on_lanes",
+            "parallel_group",
+        ] {
+            fields.remove(key);
+        }
+    }
+    let bytes = serde_json::to_vec(&wire).unwrap();
+    std::fs::write(store.path(), &bytes).unwrap();
+    let decoded = store.read().unwrap().unwrap();
+    assert!(!decoded.lanes.is_empty());
+    for lane in &decoded.lanes {
+        assert!(lane.write_scope.is_empty());
+        assert!(lane.predicted_surfaces.is_empty());
+        assert!(lane.depends_on_lanes.is_empty());
+        assert_eq!(lane.parallel_group, 0);
+        assert!(!lane.wp_ids.is_empty());
+    }
+    assert_eq!(
+        std::fs::read(store.path()).unwrap(),
+        bytes,
+        "reading must not rewrite authored omissions"
+    );
+    wire["lanes"][0]["write_scope"] = serde_json::json!(7);
+    std::fs::write(store.path(), serde_json::to_vec(&wire).unwrap()).unwrap();
+    assert!(matches!(
+        store.read(),
+        Err(sk_workspace::WorkspaceError::CorruptLanes { .. })
+    ));
 }
 
 #[test]

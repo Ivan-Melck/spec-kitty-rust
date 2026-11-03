@@ -225,7 +225,18 @@ fn trailing_torn_bytes(path: &Path) -> Result<u64, RunStoreError> {
 
 /// Truncate the bytes after the final LF. Used only by explicit recovery,
 /// which holds the cursor lock. Returns the number of bytes removed.
+///
+/// The repair runs under the log's own event-log lock (the protocol every
+/// append already uses), and re-reads the file while holding it, so a repair
+/// cannot race an appender that opened the log before the truncation.
 pub fn truncate_torn_tail(path: &Path) -> Result<u64, RunStoreError> {
+    let lock_path = sk_kernel::event_log_append::event_log_lock_path(path)?;
+    let _lock = sk_kernel::FileLock::acquire(
+        &lock_path,
+        sk_kernel::event_log_append::EVENT_LOG_LOCK_TIMEOUT,
+    )
+    .map_err(RunStoreError::Kernel)?;
+
     let bytes = match sk_kernel::read_bounded(path, MAX_EVENT_LOG_BYTES) {
         Ok(bytes) => bytes,
         Err(sk_kernel::KernelError::Io { source, .. })

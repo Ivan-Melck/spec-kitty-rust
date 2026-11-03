@@ -140,10 +140,11 @@ fn an_existing_snapshot_refuses_a_second_migration_of_fresh_input() {
     let manifest =
         migrate_lifecycle_envelope(&log_path, false, Some(NODE_ID), None).expect("refusal");
     assert!(manifest.refused_reason.is_some());
-    assert_eq!(
-        manifest.migrated_count, 2,
-        "the manifest still explains the work"
-    );
+    // Baseline MIG4 returns a zeroed manifest on the snapshot refusal (the
+    // computed one is discarded), so a CLI/JSON consumer sees "nothing done".
+    assert_eq!(manifest.total_rows, 0);
+    assert_eq!(manifest.migrated_count, 0);
+    assert!(manifest.rows.is_empty());
     assert_eq!(read_text(&log_path), before, "a refusal writes nothing");
     assert_eq!(read_text(&backup), "earlier snapshot\n");
 }

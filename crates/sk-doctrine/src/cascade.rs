@@ -307,6 +307,35 @@ fn requires_parents(
         .collect()
 }
 
+/// Compute scoped cascade activation targets for an activation state.
+///
+/// The denied set is the state's **effective** deny (`D* = D − R`), so a stale
+/// deny of an org-required artifact can never stop a cascade at that artifact.
+pub fn cascade_activation_targets_for_state(
+    graph: &DrgGraph,
+    source_urn: &str,
+    scope: &CascadeScope,
+    state: &crate::activation::ActivationState,
+    include_deactivated: bool,
+) -> CascadeActivationResult {
+    cascade_activation_targets(
+        graph,
+        source_urn,
+        scope,
+        &state.deactivated_urns(),
+        include_deactivated,
+    )
+}
+
+/// The no-cascade report for an activation state (floor-netted deny).
+pub fn referenced_but_not_cascaded_for_state(
+    graph: &DrgGraph,
+    source_urn: &str,
+    state: &crate::activation::ActivationState,
+) -> NoCascadeReport {
+    referenced_but_not_cascaded(graph, source_urn, &state.deactivated_urns())
+}
+
 /// Compute scoped cascade activation targets for `source_urn`.
 pub fn cascade_activation_targets(
     graph: &DrgGraph,
@@ -575,6 +604,65 @@ mod tests {
             }]
         );
         assert!(plan.not_cascaded_kind_filtered.contains_key("template"));
+    }
+
+    #[test]
+    fn floor_netted_state_never_stops_a_cascade_at_a_required_artifact() {
+        use crate::activation::ActivationState;
+        use crate::identity::IdentityIndex;
+        use sk_charter::ArtifactKind;
+
+        let directory = tempfile::tempdir().unwrap();
+        let built_in = directory.path().join("built-in");
+        std::fs::create_dir_all(built_in.join("directives")).unwrap();
+        std::fs::write(
+            built_in.join("directives/001-arch.directive.yaml"),
+            "id: DIRECTIVE_001\n",
+        )
+        .unwrap();
+        std::fs::write(
+            built_in.join("directives/002-style.directive.yaml"),
+            "id: DIRECTIVE_002\n",
+        )
+        .unwrap();
+        let mut identity = IdentityIndex::from_roots(&built_in, &[], None);
+        crate::identity::scan_all(&mut identity);
+        let mut ledger = crate::ledger::ActivationLedger::default();
+        // A stale deny of an org-required directive.
+        ledger
+            .deny
+            .insert(ArtifactKind::Directive, vec!["001-arch".to_owned()]);
+        let floor = BTreeMap::from([(ArtifactKind::Directive, vec!["DIRECTIVE_001".to_owned()])]);
+        let state = ActivationState::from_ledger(&ledger, &identity, &floor).unwrap();
+        assert!(state.deactivated_urns().is_empty());
+
+        let graph = DrgGraph::new(
+            "1.0",
+            "x",
+            "t",
+            vec![
+                node("agent_profile:root", NodeKind::AgentProfile),
+                node("directive:DIRECTIVE_001", NodeKind::Directive),
+            ],
+            vec![edge(
+                "agent_profile:root",
+                "directive:DIRECTIVE_001",
+                Relation::Requires,
+            )],
+        )
+        .unwrap();
+        let result = cascade_activation_targets_for_state(
+            &graph,
+            "agent_profile:root",
+            &CascadeScope::all(),
+            &state,
+            false,
+        );
+        assert!(
+            result.activated["directive"].contains(&"DIRECTIVE_001".to_owned()),
+            "{result:?}"
+        );
+        assert!(!result.skipped_deactivated.contains_key("directive"));
     }
 
     #[test]

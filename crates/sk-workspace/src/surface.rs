@@ -301,37 +301,55 @@ pub fn resolve_artifact_surface(
         });
     }
 
-    match inputs.coord_state {
+    coord_read_surface(
+        inputs.coord_state,
+        inputs.mission_slug,
+        inputs.coordination_branch,
+        inputs.primary_dir,
+        inputs.coord_dir,
+    )
+}
+
+/// The one coordination read policy, shared by every reader in this crate.
+///
+/// `Materialized` answers the coordination directory, `None`/`Empty` answer the
+/// declared primary directory, and `Unmaterialized`/`Deleted` refuse with their
+/// typed errors. Both [`resolve_artifact_surface`] and
+/// [`crate::coord::read_coordination_surface`] call this function, so a caller
+/// cannot get a permissive answer from one and a refusal from the other.
+pub fn coord_read_surface(
+    state: CoordState,
+    mission_slug: &str,
+    coordination_branch: Option<&str>,
+    primary_dir: &Path,
+    coord_dir: Option<&Path>,
+) -> Result<ResolvedSurface, WorkspaceError> {
+    match state {
         CoordState::Deleted => Err(WorkspaceError::CoordinationBranchDeleted {
-            mission: inputs.mission_slug.to_owned(),
-            branch: inputs
-                .coordination_branch
+            mission: mission_slug.to_owned(),
+            branch: coordination_branch
                 .map(str::to_owned)
                 .unwrap_or_else(|| "<declared>".to_owned()),
         }),
         CoordState::Unmaterialized => Err(WorkspaceError::CoordinationWorktreeUnmaterialized {
-            mission: inputs.mission_slug.to_owned(),
-            branch: inputs
-                .coordination_branch
+            mission: mission_slug.to_owned(),
+            branch: coordination_branch
                 .map(str::to_owned)
                 .unwrap_or_else(|| "<declared>".to_owned()),
         }),
         CoordState::Materialized => {
-            let coord = inputs
-                .coord_dir
-                .ok_or_else(|| WorkspaceError::InvalidArtifact {
-                    artifact: "coord surface",
-                    detail:
-                        "CoordState::Materialized was supplied without a coordination directory"
-                            .to_owned(),
-                })?;
+            let coord = coord_dir.ok_or_else(|| WorkspaceError::InvalidArtifact {
+                artifact: "coord surface",
+                detail: "CoordState::Materialized was supplied without a coordination directory"
+                    .to_owned(),
+            })?;
             Ok(ResolvedSurface {
                 path: coord.to_path_buf(),
                 surface_kind: TopologySurface::Coord,
             })
         }
         CoordState::None | CoordState::Empty => Ok(ResolvedSurface {
-            path: inputs.primary_dir.to_path_buf(),
+            path: primary_dir.to_path_buf(),
             surface_kind: TopologySurface::Primary,
         }),
     }

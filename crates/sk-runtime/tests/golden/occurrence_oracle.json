@@ -1,0 +1,814 @@
+{
+  "cases": {
+    "bad_exceptions": {
+      "admissibility": {
+        "errors": [],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "cli_commands": {
+            "action": "rename"
+          },
+          "code_symbols": {
+            "action": "rename"
+          },
+          "filesystem_paths": {
+            "action": "rename"
+          },
+          "import_paths": {
+            "action": "rename"
+          },
+          "logs_telemetry": {
+            "action": "rename"
+          },
+          "serialized_keys": {
+            "action": "rename"
+          },
+          "tests_fixtures": {
+            "action": "rename"
+          },
+          "user_facing_strings": {
+            "action": "rename"
+          }
+        },
+        "exceptions": "nope",
+        "target": {
+          "operation": "rename",
+          "replacement": "Gadget",
+          "term": "Widget"
+        }
+      },
+      "validation": {
+        "errors": [
+          "'exceptions' must be a list when present"
+        ],
+        "warnings": []
+      }
+    },
+    "bad_moves": {
+      "admissibility": {
+        "errors": [],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "cli_commands": {
+            "action": "rename"
+          },
+          "code_symbols": {
+            "action": "rename"
+          },
+          "filesystem_paths": {
+            "action": "rename"
+          },
+          "import_paths": {
+            "action": "rename"
+          },
+          "logs_telemetry": {
+            "action": "rename"
+          },
+          "serialized_keys": {
+            "action": "rename"
+          },
+          "tests_fixtures": {
+            "action": "rename"
+          },
+          "user_facing_strings": {
+            "action": "rename"
+          }
+        },
+        "moves": {},
+        "target": {
+          "operation": "rename",
+          "replacement": "Gadget",
+          "term": "Widget"
+        }
+      },
+      "validation": {
+        "errors": [
+          "'moves' must be a list when present"
+        ],
+        "warnings": []
+      }
+    },
+    "bad_operation": {
+      "admissibility": {
+        "errors": [],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "cli_commands": {
+            "action": "rename"
+          },
+          "code_symbols": {
+            "action": "rename"
+          },
+          "filesystem_paths": {
+            "action": "rename"
+          },
+          "import_paths": {
+            "action": "rename"
+          },
+          "logs_telemetry": {
+            "action": "rename"
+          },
+          "serialized_keys": {
+            "action": "rename"
+          },
+          "tests_fixtures": {
+            "action": "rename"
+          },
+          "user_facing_strings": {
+            "action": "rename"
+          }
+        },
+        "target": {
+          "operation": "destroy",
+          "term": "Widget"
+        }
+      },
+      "validation": {
+        "errors": [
+          "Invalid target.operation 'destroy'; must be one of ['deprecate', 'remove', 'rename']"
+        ],
+        "warnings": []
+      }
+    },
+    "bad_structural": {
+      "admissibility": {
+        "errors": [],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "cli_commands": {
+            "action": "rename"
+          },
+          "code_symbols": {
+            "action": "rename"
+          },
+          "filesystem_paths": {
+            "action": "rename"
+          },
+          "import_paths": {
+            "action": "rename"
+          },
+          "logs_telemetry": {
+            "action": "rename"
+          },
+          "serialized_keys": {
+            "action": "rename"
+          },
+          "tests_fixtures": {
+            "action": "rename"
+          },
+          "user_facing_strings": {
+            "action": "rename"
+          }
+        },
+        "structural_targets": {},
+        "target": {
+          "operation": "rename",
+          "replacement": "Gadget",
+          "term": "Widget"
+        }
+      },
+      "validation": {
+        "errors": [
+          "'structural_targets' must be a list when present"
+        ],
+        "warnings": []
+      }
+    },
+    "category_bad_action": {
+      "admissibility": {
+        "errors": [
+          "Need at least 3 categories, got 1",
+          "Occurrence map is missing required standard categories: ['cli_commands', 'filesystem_paths', 'import_paths', 'logs_telemetry', 'serialized_keys', 'tests_fixtures', 'user_facing_strings']. Every category must be present \u2014 use action 'do_not_change' for risk surfaces that must not be modified."
+        ],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "code_symbols": {
+            "action": "delete"
+          }
+        },
+        "target": {
+          "term": "Widget"
+        }
+      },
+      "validation": {
+        "errors": [
+          "Category 'code_symbols' has invalid action 'delete'; must be one of ['do_not_change', 'manual_review', 'rename', 'rename_if_user_visible']"
+        ],
+        "warnings": []
+      }
+    },
+    "category_missing_action": {
+      "admissibility": {
+        "errors": [
+          "Need at least 3 categories, got 1",
+          "Occurrence map is missing required standard categories: ['cli_commands', 'filesystem_paths', 'import_paths', 'logs_telemetry', 'serialized_keys', 'tests_fixtures', 'user_facing_strings']. Every category must be present \u2014 use action 'do_not_change' for risk surfaces that must not be modified."
+        ],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "code_symbols": {}
+        },
+        "target": {
+          "term": "Widget"
+        }
+      },
+      "validation": {
+        "errors": [
+          "Category 'code_symbols' missing required 'action' key"
+        ],
+        "warnings": []
+      }
+    },
+    "category_not_mapping": {
+      "admissibility": {
+        "errors": [
+          "Need at least 3 categories, got 1",
+          "Occurrence map is missing required standard categories: ['cli_commands', 'filesystem_paths', 'import_paths', 'logs_telemetry', 'serialized_keys', 'tests_fixtures', 'user_facing_strings']. Every category must be present \u2014 use action 'do_not_change' for risk surfaces that must not be modified."
+        ],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "code_symbols": "rename"
+        },
+        "target": {
+          "term": "Widget"
+        }
+      },
+      "validation": {
+        "errors": [
+          "Category 'code_symbols' must be a mapping"
+        ],
+        "warnings": []
+      }
+    },
+    "empty_categories": {
+      "admissibility": {
+        "errors": [
+          "Need at least 3 categories, got 0",
+          "Occurrence map is missing required standard categories: ['cli_commands', 'code_symbols', 'filesystem_paths', 'import_paths', 'logs_telemetry', 'serialized_keys', 'tests_fixtures', 'user_facing_strings']. Every category must be present \u2014 use action 'do_not_change' for risk surfaces that must not be modified."
+        ],
+        "warnings": []
+      },
+      "map": {
+        "categories": {},
+        "target": {
+          "term": "Widget"
+        }
+      },
+      "validation": {
+        "errors": [
+          "'categories' must be a non-empty mapping"
+        ],
+        "warnings": []
+      }
+    },
+    "empty_term": {
+      "admissibility": {
+        "errors": [
+          "target.term '  ' is a placeholder; provide a real term before execution"
+        ],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "cli_commands": {
+            "action": "rename"
+          },
+          "code_symbols": {
+            "action": "rename"
+          },
+          "filesystem_paths": {
+            "action": "rename"
+          },
+          "import_paths": {
+            "action": "rename"
+          },
+          "logs_telemetry": {
+            "action": "rename"
+          },
+          "serialized_keys": {
+            "action": "rename"
+          },
+          "tests_fixtures": {
+            "action": "rename"
+          },
+          "user_facing_strings": {
+            "action": "rename"
+          }
+        },
+        "target": {
+          "term": "  "
+        }
+      },
+      "validation": {
+        "errors": [
+          "'target.term' must be a non-empty string"
+        ],
+        "warnings": []
+      }
+    },
+    "exception_entry": {
+      "admissibility": {
+        "errors": [],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "cli_commands": {
+            "action": "rename"
+          },
+          "code_symbols": {
+            "action": "rename"
+          },
+          "filesystem_paths": {
+            "action": "rename"
+          },
+          "import_paths": {
+            "action": "rename"
+          },
+          "logs_telemetry": {
+            "action": "rename"
+          },
+          "serialized_keys": {
+            "action": "rename"
+          },
+          "tests_fixtures": {
+            "action": "rename"
+          },
+          "user_facing_strings": {
+            "action": "rename"
+          }
+        },
+        "exceptions": [
+          {
+            "action": "delete",
+            "field_path": "   ",
+            "path": ""
+          }
+        ],
+        "target": {
+          "operation": "rename",
+          "replacement": "Gadget",
+          "term": "Widget"
+        }
+      },
+      "validation": {
+        "errors": [
+          "exceptions[0].path must be a non-empty string",
+          "exceptions[0] has invalid action 'delete'; must be one of ['do_not_change', 'manual_review', 'rename', 'rename_if_user_visible']",
+          "exceptions[0].field_path must be a non-empty string when present"
+        ],
+        "warnings": []
+      }
+    },
+    "missing_categories": {
+      "admissibility": {
+        "errors": [
+          "Need at least 3 categories, got 0",
+          "Occurrence map is missing required standard categories: ['cli_commands', 'code_symbols', 'filesystem_paths', 'import_paths', 'logs_telemetry', 'serialized_keys', 'tests_fixtures', 'user_facing_strings']. Every category must be present \u2014 use action 'do_not_change' for risk surfaces that must not be modified."
+        ],
+        "warnings": []
+      },
+      "map": {
+        "target": {
+          "term": "Widget"
+        }
+      },
+      "validation": {
+        "errors": [
+          "Missing required 'categories' section"
+        ],
+        "warnings": []
+      }
+    },
+    "missing_standard_categories": {
+      "admissibility": {
+        "errors": [
+          "Occurrence map is missing required standard categories: ['cli_commands', 'logs_telemetry', 'serialized_keys', 'tests_fixtures', 'user_facing_strings']. Every category must be present \u2014 use action 'do_not_change' for risk surfaces that must not be modified."
+        ],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "code_symbols": {
+            "action": "rename"
+          },
+          "filesystem_paths": {
+            "action": "rename"
+          },
+          "import_paths": {
+            "action": "rename"
+          }
+        },
+        "target": {
+          "term": "Widget"
+        }
+      },
+      "validation": {
+        "errors": [],
+        "warnings": []
+      }
+    },
+    "missing_target": {
+      "admissibility": {
+        "errors": [
+          "target.term '' is a placeholder; provide a real term before execution"
+        ],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "cli_commands": {
+            "action": "rename"
+          },
+          "code_symbols": {
+            "action": "rename"
+          },
+          "filesystem_paths": {
+            "action": "rename"
+          },
+          "import_paths": {
+            "action": "rename"
+          },
+          "logs_telemetry": {
+            "action": "rename"
+          },
+          "serialized_keys": {
+            "action": "rename"
+          },
+          "tests_fixtures": {
+            "action": "rename"
+          },
+          "user_facing_strings": {
+            "action": "rename"
+          }
+        }
+      },
+      "validation": {
+        "errors": [
+          "Missing required 'target' section"
+        ],
+        "warnings": []
+      }
+    },
+    "missing_term": {
+      "admissibility": {
+        "errors": [
+          "target.term '' is a placeholder; provide a real term before execution"
+        ],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "cli_commands": {
+            "action": "rename"
+          },
+          "code_symbols": {
+            "action": "rename"
+          },
+          "filesystem_paths": {
+            "action": "rename"
+          },
+          "import_paths": {
+            "action": "rename"
+          },
+          "logs_telemetry": {
+            "action": "rename"
+          },
+          "serialized_keys": {
+            "action": "rename"
+          },
+          "tests_fixtures": {
+            "action": "rename"
+          },
+          "user_facing_strings": {
+            "action": "rename"
+          }
+        },
+        "target": {
+          "operation": "rename"
+        }
+      },
+      "validation": {
+        "errors": [
+          "Missing required 'target.term'"
+        ],
+        "warnings": []
+      }
+    },
+    "move_entry": {
+      "admissibility": {
+        "errors": [],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "cli_commands": {
+            "action": "rename"
+          },
+          "code_symbols": {
+            "action": "rename"
+          },
+          "filesystem_paths": {
+            "action": "rename"
+          },
+          "import_paths": {
+            "action": "rename"
+          },
+          "logs_telemetry": {
+            "action": "rename"
+          },
+          "serialized_keys": {
+            "action": "rename"
+          },
+          "tests_fixtures": {
+            "action": "rename"
+          },
+          "user_facing_strings": {
+            "action": "rename"
+          }
+        },
+        "moves": [
+          {
+            "from": [],
+            "to": ""
+          }
+        ],
+        "target": {
+          "operation": "rename",
+          "replacement": "Gadget",
+          "term": "Widget"
+        }
+      },
+      "validation": {
+        "errors": [
+          "moves[0].from must be a non-empty list of paths",
+          "moves[0].to must be a non-empty string"
+        ],
+        "warnings": []
+      }
+    },
+    "placeholder_term": {
+      "admissibility": {
+        "errors": [
+          "target.term 'TODO' is a placeholder; provide a real term before execution",
+          "Occurrence map is missing required standard categories: ['cli_commands', 'logs_telemetry', 'serialized_keys', 'tests_fixtures', 'user_facing_strings']. Every category must be present \u2014 use action 'do_not_change' for risk surfaces that must not be modified."
+        ],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "code_symbols": {
+            "action": "do_not_change"
+          },
+          "filesystem_paths": {
+            "action": "do_not_change"
+          },
+          "import_paths": {
+            "action": "do_not_change"
+          }
+        },
+        "target": {
+          "term": "TODO"
+        }
+      },
+      "validation": {
+        "errors": [],
+        "warnings": []
+      }
+    },
+    "structural_entry": {
+      "admissibility": {
+        "errors": [],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "cli_commands": {
+            "action": "rename"
+          },
+          "code_symbols": {
+            "action": "rename"
+          },
+          "filesystem_paths": {
+            "action": "rename"
+          },
+          "import_paths": {
+            "action": "rename"
+          },
+          "logs_telemetry": {
+            "action": "rename"
+          },
+          "serialized_keys": {
+            "action": "rename"
+          },
+          "tests_fixtures": {
+            "action": "rename"
+          },
+          "user_facing_strings": {
+            "action": "rename"
+          }
+        },
+        "structural_targets": [
+          {
+            "path": "src/**/*.py",
+            "reason": ""
+          },
+          {
+            "path": "src",
+            "reason": "dir"
+          },
+          {
+            "path": "src/foo/bar.py",
+            "reason": "specific"
+          }
+        ],
+        "target": {
+          "operation": "rename",
+          "replacement": "Gadget",
+          "term": "Widget"
+        }
+      },
+      "validation": {
+        "errors": [
+          "structural_targets[0].path 'src/**/*.py' is too broad for a structural-target exemption: it must be a concrete file path with an extension (e.g. 'src/foo/bar.py') or an extension-bounded glob (e.g. 'src/foo/*.py', '**/bar_*.py'). Bare directories, directory-prefixes, and unbounded globs ('*', '**', '**/*') are rejected \u2014 a structural-target exemption must name specific file(s), never a whole directory tree.",
+          "structural_targets[0].reason must be a non-empty string",
+          "structural_targets[1].path 'src' is too broad for a structural-target exemption: it must be a concrete file path with an extension (e.g. 'src/foo/bar.py') or an extension-bounded glob (e.g. 'src/foo/*.py', '**/bar_*.py'). Bare directories, directory-prefixes, and unbounded globs ('*', '**', '**/*') are rejected \u2014 a structural-target exemption must name specific file(s), never a whole directory tree."
+        ],
+        "warnings": []
+      }
+    },
+    "target_not_mapping": {
+      "admissibility": {
+        "errors": [
+          "target.term '' is a placeholder; provide a real term before execution"
+        ],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "cli_commands": {
+            "action": "rename"
+          },
+          "code_symbols": {
+            "action": "rename"
+          },
+          "filesystem_paths": {
+            "action": "rename"
+          },
+          "import_paths": {
+            "action": "rename"
+          },
+          "logs_telemetry": {
+            "action": "rename"
+          },
+          "serialized_keys": {
+            "action": "rename"
+          },
+          "tests_fixtures": {
+            "action": "rename"
+          },
+          "user_facing_strings": {
+            "action": "rename"
+          }
+        },
+        "target": "Widget"
+      },
+      "validation": {
+        "errors": [
+          "'target' must be a mapping"
+        ],
+        "warnings": []
+      }
+    },
+    "too_few_categories": {
+      "admissibility": {
+        "errors": [
+          "Need at least 3 categories, got 1",
+          "Occurrence map is missing required standard categories: ['cli_commands', 'filesystem_paths', 'import_paths', 'logs_telemetry', 'serialized_keys', 'tests_fixtures', 'user_facing_strings']. Every category must be present \u2014 use action 'do_not_change' for risk surfaces that must not be modified."
+        ],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "code_symbols": {
+            "action": "rename"
+          }
+        },
+        "target": {
+          "term": "Widget"
+        }
+      },
+      "validation": {
+        "errors": [],
+        "warnings": []
+      }
+    },
+    "unknown_key": {
+      "admissibility": {
+        "errors": [],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "cli_commands": {
+            "action": "rename"
+          },
+          "code_symbols": {
+            "action": "rename"
+          },
+          "filesystem_paths": {
+            "action": "rename"
+          },
+          "import_paths": {
+            "action": "rename"
+          },
+          "logs_telemetry": {
+            "action": "rename"
+          },
+          "serialized_keys": {
+            "action": "rename"
+          },
+          "tests_fixtures": {
+            "action": "rename"
+          },
+          "user_facing_strings": {
+            "action": "rename"
+          }
+        },
+        "surprise": true,
+        "target": {
+          "operation": "rename",
+          "replacement": "Gadget",
+          "term": "Widget"
+        }
+      },
+      "validation": {
+        "errors": [],
+        "warnings": [
+          "Unknown top-level key 'surprise'"
+        ]
+      }
+    },
+    "valid": {
+      "admissibility": {
+        "errors": [],
+        "warnings": []
+      },
+      "map": {
+        "categories": {
+          "cli_commands": {
+            "action": "rename"
+          },
+          "code_symbols": {
+            "action": "rename"
+          },
+          "filesystem_paths": {
+            "action": "rename"
+          },
+          "import_paths": {
+            "action": "rename"
+          },
+          "logs_telemetry": {
+            "action": "rename"
+          },
+          "serialized_keys": {
+            "action": "rename"
+          },
+          "tests_fixtures": {
+            "action": "rename"
+          },
+          "user_facing_strings": {
+            "action": "rename"
+          }
+        },
+        "target": {
+          "operation": "rename",
+          "replacement": "Gadget",
+          "term": "Widget"
+        }
+      },
+      "validation": {
+        "errors": [],
+        "warnings": []
+      }
+    }
+  },
+  "provenance": {
+    "generator": "crates/sk-runtime/tests/oracle/generate_occurrence_goldens.py",
+    "python": "3.11.15",
+    "source": "spec-kitty 9aed3a8012cb5eb22c0128b14d525039f95fea7a"
+  }
+}

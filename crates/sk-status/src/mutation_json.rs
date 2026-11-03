@@ -222,7 +222,7 @@ pub(crate) fn has_unrepresentable_float(value: &Value) -> bool {
     }
 }
 
-fn python_number(number: &serde_json::Number) -> String {
+pub(crate) fn python_number(number: &serde_json::Number) -> String {
     let raw = number.to_string();
     if !raw.contains(['.', 'e', 'E']) {
         return if raw == "-0" { "0".to_owned() } else { raw };

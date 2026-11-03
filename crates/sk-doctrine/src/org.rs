@@ -668,9 +668,183 @@ pub fn walk_project_agent_profile_nodes(
     Ok(nodes)
 }
 
+/// The schema surface of one direct-write project artifact kind.
+struct ProjectArtifactSchema {
+    /// Required top-level keys.
+    required: &'static [&'static str],
+    /// Every top-level key the kind's model declares (`extra="forbid"`).
+    allowed: &'static [&'static str],
+}
+
+fn project_artifact_schema(kind: ArtifactKind) -> Option<ProjectArtifactSchema> {
+    let schema = match kind {
+        ArtifactKind::Directive => ProjectArtifactSchema {
+            required: &["id", "schema_version", "title", "intent", "enforcement"],
+            allowed: &[
+                "id",
+                "schema_version",
+                "title",
+                "intent",
+                "enforcement",
+                "scope",
+                "procedures",
+                "integrity_rules",
+                "validation_criteria",
+                "explicit_allowances",
+                "references",
+            ],
+        },
+        ArtifactKind::Tactic => ProjectArtifactSchema {
+            required: &["id", "schema_version", "name", "steps"],
+            allowed: &[
+                "id",
+                "schema_version",
+                "name",
+                "purpose",
+                "steps",
+                "failure_modes",
+                "applies_to_languages",
+                "references",
+                "notes",
+            ],
+        },
+        ArtifactKind::Styleguide => ProjectArtifactSchema {
+            required: &["id", "schema_version", "title", "scope", "principles"],
+            allowed: &[
+                "id",
+                "schema_version",
+                "title",
+                "scope",
+                "principles",
+                "patterns",
+                "anti_patterns",
+                "tooling",
+                "quality_test",
+                "applies_to_languages",
+                "references",
+                "structural_lint_config",
+            ],
+        },
+        ArtifactKind::Procedure => ProjectArtifactSchema {
+            required: &[
+                "schema_version",
+                "id",
+                "name",
+                "purpose",
+                "entry_condition",
+                "exit_condition",
+                "steps",
+            ],
+            allowed: &[
+                "schema_version",
+                "id",
+                "name",
+                "purpose",
+                "entry_condition",
+                "exit_condition",
+                "steps",
+                "anti_patterns",
+                "applies_to_languages",
+                "notes",
+                "references",
+            ],
+        },
+        ArtifactKind::AgentProfile => ProjectArtifactSchema {
+            required: &["profile-id", "name", "roles", "purpose", "specialization"],
+            allowed: &[
+                "profile-id",
+                "name",
+                "description",
+                "schema-version",
+                "roles",
+                "avatar-image",
+                "capabilities",
+                "routing-priority",
+                "max-concurrent-tasks",
+                "model",
+                "effort",
+                "purpose",
+                "specialization",
+                "collaboration",
+                "mode-defaults",
+                "initialization-declaration",
+                "sentinel",
+                "specialization-context",
+                "applies_to_languages",
+                "directive-references",
+                "tactic-references",
+                "toolguide-references",
+                "styleguide-references",
+                "self-review-protocol",
+                "excluding",
+            ],
+        },
+        _ => return None,
+    };
+    Some(schema)
+}
+
+fn validate_project_artifact(
+    path: &Path,
+    kind: ArtifactKind,
+    value: &serde_yaml_ng::Value,
+) -> Result<(), DoctrineError> {
+    let Some(schema) = project_artifact_schema(kind) else {
+        return Ok(());
+    };
+    let Some(mapping) = value.as_mapping() else {
+        return Err(DoctrineError::InvalidProfile {
+            path: path.to_path_buf(),
+            message: "expected a YAML mapping".to_owned(),
+        });
+    };
+    let mut problems = Vec::new();
+    for key in mapping.keys() {
+        let Some(key) = key.as_str() else {
+            problems.push("a non-string top-level key".to_owned());
+            continue;
+        };
+        if !schema.allowed.contains(&key) {
+            problems.push(format!("unknown field {key:?}"));
+        }
+    }
+    for key in schema.required {
+        match mapping.get(*key) {
+            None | Some(serde_yaml_ng::Value::Null) => {
+                problems.push(format!("missing required field {key:?}"));
+            }
+            Some(serde_yaml_ng::Value::String(text)) if text.trim().is_empty() => {
+                problems.push(format!("required field {key:?} is empty"));
+            }
+            Some(
+                serde_yaml_ng::Value::String(_)
+                | serde_yaml_ng::Value::Mapping(_)
+                | serde_yaml_ng::Value::Sequence(_),
+            ) => {}
+            Some(_) => problems.push(format!("required field {key:?} has the wrong type")),
+        }
+    }
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(DoctrineError::InvalidProfile {
+            path: path.to_path_buf(),
+            message: problems.join("; "),
+        })
+    }
+}
+
 /// Scan the five direct-write project artifact kinds.
+///
+/// Each file is contained under the project pack root (a symlink that escapes
+/// it is refused at this boundary) and validated against its kind's schema
+/// before its identity is minted, exactly as the reference `project_scan`
+/// does. A malformed file is never silently accepted as a project node.
 pub fn scan_project_artifacts(project_root: &Path) -> Result<Vec<ProjectArtifact>, DoctrineError> {
     let project_pack = project_root.join(".kittify/charter-packs");
+    let pack_root = project_pack
+        .canonicalize()
+        .unwrap_or_else(|_| project_pack.clone());
     let mut artifacts = Vec::new();
     let mut seen: BTreeMap<String, PathBuf> = BTreeMap::new();
     for kind in [
@@ -682,13 +856,27 @@ pub fn scan_project_artifacts(project_root: &Path) -> Result<Vec<ProjectArtifact
     ] {
         let directory = project_pack.join(kind.project_dir());
         for path in recursive_files(&directory, kind.glob_pattern()) {
-            let text = std::fs::read_to_string(&path)
+            let resolved = path
+                .canonicalize()
+                .map_err(|source| DoctrineError::io("resolve project artifact", &path, source))?;
+            if !resolved.starts_with(&pack_root) {
+                return Err(DoctrineError::InvalidProfile {
+                    path: path.clone(),
+                    message: format!(
+                        "escapes the project pack root {} (resolved to {})",
+                        pack_root.display(),
+                        resolved.display()
+                    ),
+                });
+            }
+            let text = std::fs::read_to_string(&resolved)
                 .map_err(|source| DoctrineError::io("read project artifact", &path, source))?;
             let value: serde_yaml_ng::Value =
                 serde_yaml_ng::from_str(&text).map_err(|error| DoctrineError::InvalidProfile {
                     path: path.clone(),
                     message: error.to_string(),
                 })?;
+            validate_project_artifact(&path, kind, &value)?;
             let field = if kind == ArtifactKind::AgentProfile {
                 "profile-id"
             } else {
@@ -744,25 +932,71 @@ pub fn project_reference_edges(
         if artifact.node.kind() != NodeKind::AgentProfile {
             continue;
         }
-        let mut candidates: Vec<(String, Relation)> = Vec::new();
-        for (field, kind) in [
-            ("directive-references", "directive"),
-            ("tactic-references", "tactic"),
-            ("styleguide-references", "styleguide"),
-            ("toolguide-references", "toolguide"),
-            ("procedure-references", "procedure"),
+        // The four reference families project exactly as the extractor does:
+        // directive and tactic references are eager `requires`; toolguide and
+        // styleguide references are link-delivered `suggests` (so cascade
+        // closure and profile-channel semantics follow the authored intent).
+        // Directive edges are minted bare; the other families carry the
+        // authored rationale.
+        let mut candidates: Vec<(String, Relation, Option<String>)> = Vec::new();
+        for (field, kind, relation, carries_reason, id_field) in [
+            (
+                "directive-references",
+                "directive",
+                Relation::Requires,
+                false,
+                "code",
+            ),
+            (
+                "tactic-references",
+                "tactic",
+                Relation::Requires,
+                true,
+                "id",
+            ),
+            (
+                "styleguide-references",
+                "styleguide",
+                Relation::Suggests,
+                true,
+                "id",
+            ),
+            (
+                "toolguide-references",
+                "toolguide",
+                Relation::Suggests,
+                true,
+                "id",
+            ),
         ] {
             let Some(items) = artifact.body.get(field) else {
                 continue;
             };
-            for item in items.as_sequence().into_iter().flatten() {
+            let Some(items) = items.as_sequence() else {
+                return (
+                    Vec::new(),
+                    vec![format!(
+                        "{} declares {field:?} as a non-list; author it as a list of references",
+                        artifact.node.urn()
+                    )],
+                );
+            };
+            for item in items {
                 let id = item
-                    .as_str()
-                    .or_else(|| item.get("code").and_then(serde_yaml_ng::Value::as_str))
-                    .or_else(|| item.get("id").and_then(serde_yaml_ng::Value::as_str));
-                if let Some(id) = id {
-                    candidates.push((artifact_to_urn(kind, id), Relation::Requires));
-                }
+                    .get(id_field)
+                    .and_then(serde_yaml_ng::Value::as_str)
+                    .or_else(|| item.as_str());
+                let Some(id) = id.filter(|id| !id.is_empty()) else {
+                    continue;
+                };
+                let reason = carries_reason
+                    .then(|| {
+                        item.get("rationale")
+                            .and_then(serde_yaml_ng::Value::as_str)
+                            .map(str::to_owned)
+                    })
+                    .flatten();
+                candidates.push((artifact_to_urn(kind, id), relation, reason));
             }
         }
         if let Some(procedures) = artifact
@@ -772,11 +1006,11 @@ pub fn project_reference_edges(
         {
             for item in procedures.as_sequence().into_iter().flatten() {
                 if let Some(id) = item.as_str() {
-                    candidates.push((artifact_to_urn("procedure", id), Relation::Requires));
+                    candidates.push((artifact_to_urn("procedure", id), Relation::Requires, None));
                 }
             }
         }
-        for (target, relation) in candidates {
+        for (target, relation, reason) in candidates {
             if !universe.contains(target.as_str()) {
                 warnings.push(format!(
                     "{} references unresolved {target}; author or install that artifact, then repeat charter activate --cascade all.",
@@ -784,9 +1018,12 @@ pub fn project_reference_edges(
                 ));
                 continue;
             }
-            let edge = DrgEdge::new(artifact.node.urn(), target, relation)
+            let mut edge = DrgEdge::new(artifact.node.urn(), target, relation)
                 .expect("project reference endpoints are valid URNs")
                 .with_provenance(Some("project".to_owned()));
+            if let Some(reason) = reason {
+                edge = edge.with_reason(&reason);
+            }
             edges.insert(
                 (
                     edge.source().to_owned(),
@@ -985,11 +1222,11 @@ edges:
         let root = directory.path();
         write(
             &root.join(".kittify/charter-packs/agent_profiles/p.agent.yaml"),
-            "profile-id: p\nname: P\ndirective-references:\n  - code: 001-arch\n",
+            "profile-id: p\nname: P\npurpose: review\nroles: [reviewer]\nspecialization:\n  primary-focus: review\ndirective-references:\n  - code: 001-arch\n    rationale: architecture\n",
         );
         write(
             &root.join(".kittify/charter-packs/directive/001-arch.directive.yaml"),
-            "id: 001-arch\n",
+            "id: 001-arch\nschema_version: '1.0'\ntitle: Architecture\nintent: Keep seams\nenforcement: required\n",
         );
         let available = vec![
             DrgNode::new(
@@ -1010,6 +1247,119 @@ edges:
                 .iter()
                 .any(|edge| edge.source() == "agent_profile:p")
         );
+    }
+
+    #[test]
+    fn project_profile_reference_relations_match_the_extractor() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        write(
+            &root.join(".kittify/charter-packs/agent_profiles/p.agent.yaml"),
+            "profile-id: p\nname: P\npurpose: review\nroles: [reviewer]\nspecialization:\n  primary-focus: review\ndirective-references:\n  - code: directive-a\ntactic-references:\n  - id: tactic-a\n    rationale: how\nstyleguide-references:\n  - id: style-a\n    rationale: style\ntoolguide-references:\n  - id: tool-a\n    rationale: tool\ncollaboration:\n  operating-procedures:\n    - procedure-a\n",
+        );
+        for (path, body) in [
+            (
+                "directive/directive-a.directive.yaml",
+                "id: DIRECTIVE_A\nschema_version: '1.0'\ntitle: t\nintent: i\nenforcement: required\n".to_owned(),
+            ),
+            (
+                "tactics/tactic-a.tactic.yaml",
+                "id: tactic-a\nschema_version: '1.0'\nname: t\nsteps:\n  - title: one\n".to_owned(),
+            ),
+            (
+                "styleguides/style-a.styleguide.yaml",
+                "id: style-a\nschema_version: '1.0'\ntitle: t\nscope: code\nprinciples: [p]\n".to_owned(),
+            ),
+            (
+                "procedures/procedure-a.procedure.yaml",
+                "schema_version: '1.0'\nid: procedure-a\nname: p\npurpose: why\nentry_condition: e\nexit_condition: x\nsteps:\n  - title: one\n".to_owned(),
+            ),
+        ] {
+            write(&root.join(".kittify/charter-packs").join(path), &body);
+        }
+        let available = vec![
+            DrgNode::new(
+                "directive:DIRECTIVE_A",
+                NodeKind::Directive,
+                None,
+                Vec::new(),
+            )
+            .unwrap(),
+            DrgNode::new("tactic:tactic-a", NodeKind::Tactic, None, Vec::new()).unwrap(),
+            DrgNode::new("styleguide:style-a", NodeKind::Styleguide, None, Vec::new()).unwrap(),
+            DrgNode::new("toolguide:tool-a", NodeKind::Toolguide, None, Vec::new()).unwrap(),
+            DrgNode::new(
+                "procedure:procedure-a",
+                NodeKind::Procedure,
+                None,
+                Vec::new(),
+            )
+            .unwrap(),
+        ];
+        let artifacts = scan_project_artifacts(root).unwrap();
+        let (edges, warnings) = project_reference_edges(&artifacts, &available);
+        assert!(warnings.is_empty(), "{warnings:?}");
+        let find = |target: &str| {
+            edges
+                .iter()
+                .find(|edge| edge.target() == target)
+                .unwrap_or_else(|| panic!("no edge to {target}"))
+        };
+        assert_eq!(find("directive:DIRECTIVE_A").relation(), Relation::Requires);
+        assert_eq!(find("directive:DIRECTIVE_A").reason(), None);
+        assert_eq!(find("tactic:tactic-a").relation(), Relation::Requires);
+        assert_eq!(find("tactic:tactic-a").reason(), Some("how"));
+        assert_eq!(find("styleguide:style-a").relation(), Relation::Suggests);
+        assert_eq!(find("styleguide:style-a").reason(), Some("style"));
+        assert_eq!(find("toolguide:tool-a").relation(), Relation::Suggests);
+        assert_eq!(find("toolguide:tool-a").reason(), Some("tool"));
+        assert_eq!(find("procedure:procedure-a").relation(), Relation::Requires);
+        assert!(
+            !edges
+                .iter()
+                .any(|edge| edge.relation() == Relation::Suggests
+                    && edge.target().starts_with("procedure:"))
+        );
+    }
+
+    #[test]
+    fn project_artifact_schema_and_containment_are_enforced() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        write(
+            &root.join(".kittify/charter-packs/directive/001-arch.directive.yaml"),
+            "id: 001-arch\n",
+        );
+        let error = scan_project_artifacts(root).unwrap_err();
+        assert!(matches!(error, DoctrineError::InvalidProfile { .. }));
+        assert!(error.to_string().contains("missing required field"));
+
+        write(
+            &root.join(".kittify/charter-packs/directive/001-arch.directive.yaml"),
+            "id: 001-arch\nschema_version: '1.0'\ntitle: t\nintent: i\nenforcement: required\nsurprise: 1\n",
+        );
+        let error = scan_project_artifacts(root).unwrap_err();
+        assert!(error.to_string().contains("unknown field"));
+
+        #[cfg(unix)]
+        {
+            let outside = directory.path().join("outside.directive.yaml");
+            write(
+                &outside,
+                "id: OUTSIDE\nschema_version: '1.0'\ntitle: t\nintent: i\nenforcement: required\n",
+            );
+            std::fs::remove_file(
+                root.join(".kittify/charter-packs/directive/001-arch.directive.yaml"),
+            )
+            .unwrap();
+            std::os::unix::fs::symlink(
+                &outside,
+                root.join(".kittify/charter-packs/directive/outside.directive.yaml"),
+            )
+            .unwrap();
+            let error = scan_project_artifacts(root).unwrap_err();
+            assert!(error.to_string().contains("escapes the project pack root"));
+        }
     }
 
     #[test]

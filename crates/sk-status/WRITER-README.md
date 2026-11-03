@@ -1,3 +1,10 @@
+> **Historical.** The authoritative, current status of the writer surface —
+> including typed lifecycle payloads, inner-state deltas, transition+claim
+> annotations in one replacement, lane-head stamps, dependency readiness and
+> the exact remaining gaps — is [`CONTINUATION-REPORT.md`](CONTINUATION-REPORT.md).
+> Where this file disagrees with it (e.g. gap 5/7, M5/L11-era claims), the
+> continuation report wins.
+
 # sk-status writers
 
 `sk_status::mutation` is the native **write** surface for the Spec Kitty status

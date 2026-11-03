@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 serde_json.workspace = true
+serde_yaml_ng.workspace = true
 uuid.workspace = true
 ulid.workspace = true
 thiserror.workspace = true
