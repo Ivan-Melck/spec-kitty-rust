@@ -224,6 +224,48 @@ impl Project {
     fn status_porcelain(&self) -> String {
         self.git(&["status", "--porcelain", "-uall"])
     }
+
+    /// An isolated `HOME` for real-binary runs.
+    fn home(&self) -> PathBuf {
+        let home = self._temp.path().join("home");
+        fs::create_dir_all(&home).unwrap();
+        home
+    }
+
+    /// Drop one `meta.json` field (the legacy meta shape).
+    fn remove_meta(&self, key: &str) {
+        let path = self.feature.join("meta.json");
+        let mut meta: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        meta.as_object_mut().expect("meta object").remove(key);
+        fs::write(&path, serde_json::to_string_pretty(&meta).unwrap()).unwrap();
+    }
+}
+
+/// Run the real `spec-kitty` binary from `root` with an isolated home.
+fn run_cli(root: &Path, home: &Path, args: &[&str]) -> std::process::Output {
+    let packs = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../packs/built-in")
+        .canonicalize()
+        .expect("built-in pack tree");
+    std::process::Command::new(env!("CARGO_BIN_EXE_spec-kitty"))
+        .current_dir(root)
+        .env("HOME", home)
+        .env("SPEC_KITTY_PACKS_ROOT", packs)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .args(args)
+        .output()
+        .expect("run spec-kitty")
+}
+
+/// Parse the single JSON document a `--json` route writes to stdout.
+fn single_json(output: &std::process::Output) -> Value {
+    let text = String::from_utf8(output.stdout.clone()).expect("stdout is UTF-8");
+    serde_json::from_str(&text).unwrap_or_else(|error| {
+        panic!(
+            "stdout was not one JSON document ({error}):\n{text}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+    })
 }
 
 /// A WP whose frontmatter declares `owned_files` (for the evidence window).
@@ -319,7 +361,7 @@ fn move_args(to: &str) -> MoveTaskArgs {
         tracker_ref: Vec::new(),
         skip_review_artifact_check: false,
         auto_commit: None,
-        no_auto_commit: Some(false),
+        no_auto_commit: Some(1),
         skip_pre_review_gate: false,
         owned_checkout: None,
         json: true,
@@ -618,7 +660,7 @@ fn mark_status_groups_by_owning_wp_and_is_idempotent() {
         wp: Some("WP01".to_owned()),
         agent: Some("claude".to_owned()),
         auto_commit: None,
-        no_auto_commit: Some(false),
+        no_auto_commit: Some(1),
         owned_checkout: None,
         json: true,
     };
@@ -668,7 +710,7 @@ fn mark_status_records_the_not_applicable_alias_as_skipped_and_reports_unknown_i
         wp: None,
         agent: None,
         auto_commit: None,
-        no_auto_commit: Some(false),
+        no_auto_commit: Some(1),
         owned_checkout: None,
         json: true,
     };
@@ -700,7 +742,7 @@ fn mark_status_refuses_an_ambiguous_roster_without_wp() {
         wp: None,
         agent: None,
         auto_commit: None,
-        no_auto_commit: Some(false),
+        no_auto_commit: Some(1),
         owned_checkout: None,
         json: true,
     };
@@ -1286,7 +1328,7 @@ fn mark_status_resolves_owners_case_insensitively_and_reports_the_format() {
             wp: None,
             agent: None,
             auto_commit: None,
-            no_auto_commit: Some(false),
+            no_auto_commit: Some(1),
             owned_checkout: None,
             json: true,
         },
@@ -1318,7 +1360,7 @@ fn mark_status_resolves_owners_case_insensitively_and_reports_the_format() {
             wp: None,
             agent: None,
             auto_commit: None,
-            no_auto_commit: Some(false),
+            no_auto_commit: Some(1),
             owned_checkout: None,
             json: true,
         },
@@ -1339,7 +1381,7 @@ fn mark_status_fails_with_exit_class_1_when_nothing_resolves() {
             wp: None,
             agent: None,
             auto_commit: None,
-            no_auto_commit: Some(false),
+            no_auto_commit: Some(1),
             owned_checkout: None,
             json: true,
         },
@@ -1371,7 +1413,7 @@ fn mark_status_fails_with_exit_class_1_when_nothing_resolves() {
             wp: None,
             agent: None,
             auto_commit: None,
-            no_auto_commit: Some(false),
+            no_auto_commit: Some(1),
             owned_checkout: None,
             json: true,
         },
@@ -1441,7 +1483,7 @@ fn legacy_missions_without_a_mission_id_keep_a_null_identity() {
             wp: None,
             agent: None,
             auto_commit: None,
-            no_auto_commit: Some(false),
+            no_auto_commit: Some(1),
             owned_checkout: None,
             json: true,
         },
@@ -1669,7 +1711,7 @@ fn move_task_refuses_a_protected_destination_before_writing() {
     let head = project.head();
 
     let mut args = move_args("claimed");
-    args.auto_commit = Some(true);
+    args.auto_commit = Some(1);
     args.no_auto_commit = None;
     let error = tasks::move_task(&project.root, &args).expect_err("protected destination");
     assert_eq!(
@@ -1729,7 +1771,7 @@ fn move_task_auto_commits_status_and_verdict_evidence_durably() {
 
     // A durable status commit carries the transition row on the target branch.
     let mut args = move_args("for_review");
-    args.auto_commit = Some(true);
+    args.auto_commit = Some(1);
     args.no_auto_commit = None;
     let payload = tasks::move_task(&project.root, &args).expect("for_review commit");
     let event_id = payload["event_id"].as_str().expect("event id").to_owned();
@@ -1747,7 +1789,7 @@ fn move_task_auto_commits_status_and_verdict_evidence_durably() {
     // evidence, and is durable only after the exact bytes read back.
     project.seed("WP01", "in_review");
     let mut args = approval_args(Some("bob"));
-    args.auto_commit = Some(true);
+    args.auto_commit = Some(1);
     args.no_auto_commit = None;
     args.reviewer = Some("alice".to_owned());
     args.approval_ref = Some("PR#42".to_owned());
@@ -1790,7 +1832,7 @@ fn move_task_rolls_back_the_status_tail_when_the_commit_did_not_land() {
     fs::write(&feedback, "Add a retry policy.\n").unwrap();
 
     let mut args = move_args("planned");
-    args.auto_commit = Some(true);
+    args.auto_commit = Some(1);
     args.no_auto_commit = None;
     args.review_feedback_file = Some(feedback);
     let error = tasks::move_task(&project.root, &args).expect_err("the commit is refused");
@@ -1889,7 +1931,7 @@ fn move_task_accepts_a_real_evidence_window_for_owned_files() {
     let mut args = move_args("for_review");
     args.mission = Some(slug.to_owned());
     args.auto_commit = None;
-    args.no_auto_commit = Some(false);
+    args.no_auto_commit = Some(1);
     let payload = tasks::move_task(&project.root, &args).expect("the owned change is evidence");
     assert_eq!(payload["to_lane"], json!("for_review"));
     assert_eq!(project.lane("WP01"), "for_review");
@@ -1907,7 +1949,7 @@ fn mark_status_auto_commits_annotation_rows_for_a_transactional_mission() {
         mission: Some(SLUG.to_owned()),
         wp: Some("WP01".to_owned()),
         agent: Some("claude".to_owned()),
-        auto_commit: Some(true),
+        auto_commit: Some(1),
         no_auto_commit: None,
         owned_checkout: None,
         json: true,
@@ -1936,7 +1978,7 @@ fn mark_status_rolls_back_when_the_annotation_commit_did_not_land() {
         mission: Some(SLUG.to_owned()),
         wp: Some("WP01".to_owned()),
         agent: Some("claude".to_owned()),
-        auto_commit: Some(true),
+        auto_commit: Some(1),
         no_auto_commit: None,
         owned_checkout: None,
         json: true,
@@ -1958,7 +2000,7 @@ fn mark_status_commits_nothing_when_every_requested_subtask_is_satisfied() {
         mission: Some(SLUG.to_owned()),
         wp: Some("WP01".to_owned()),
         agent: Some("claude".to_owned()),
-        auto_commit: Some(true),
+        auto_commit: Some(1),
         no_auto_commit: None,
         owned_checkout: None,
         json: true,
@@ -1970,4 +2012,666 @@ fn mark_status_commits_nothing_when_every_requested_subtask_is_satisfied() {
     assert_eq!(payload["summary"]["already_satisfied"], json!(1));
     assert_eq!(project.head(), head, "an idempotent mark creates no commit");
     assert_eq!(project.status_porcelain(), "");
+}
+
+// ===========================================================================
+// Second remediation — independent review findings F1-F6.
+//
+// Every case below drives the real `spec-kitty` binary or the real route with
+// a real temporary Git checkout, so the regression pins observable behavior
+// rather than an internal helper's shape.
+// ===========================================================================
+
+/// A single-branch fixture with auto-commit on, an unprotected target, a real
+/// Git checkout and `WP01` seeded to `planned`.
+fn auto_commit_fixture() -> Project {
+    let project = Project::new();
+    project.write_config("agents:\n  auto_commit: true\nprotection:\n  protected_branches: []\n");
+    project.set_meta("topology", json!("single_branch"));
+    write_wp(&project.feature, "WP01", &[], &[]);
+    project.git_init();
+    project.walk("WP01", &["planned"]);
+    project
+}
+
+fn prior_review_cycle(project: &Project) -> PathBuf {
+    let directory = sk_status::mutation_commit::review_cycle_dir(&project.feature, "WP01");
+    sk_status::mutation_commit::ReviewCycleArtifact {
+        cycle_number: 1,
+        wp_id: "WP01".to_owned(),
+        mission_slug: project.slug.clone(),
+        reviewer_agent: "alice".to_owned(),
+        reviewed_at: "2026-11-03T00:00:00Z".to_owned(),
+        affected_files: Vec::new(),
+        reproduction_command: None,
+        body: "The prior review finding.\n".to_owned(),
+        override_actor: None,
+        override_reason: None,
+    }
+    .write_new(&directory)
+    .expect("write the prior review-cycle artifact")
+}
+
+// --- F1 -------------------------------------------------------------------
+
+#[test]
+fn f1_a_refused_rollback_retains_the_transition_row_and_its_review_cycle_evidence() {
+    let project = Project::new();
+    project.write_config("agents:\n  auto_commit: true\nprotection:\n  protected_branches: []\n");
+    project.set_meta("topology", json!("single_branch"));
+    project.git_init();
+    walk_to_in_review(&project);
+    let rows_before = project.rows().len();
+    // The hook breaks HEAD and rejects the commit: the commit provably did not
+    // land, but the rollback then cannot PROVE the rows are uncommitted.
+    project.install_hook(
+        "pre-commit",
+        "#!/bin/sh\nprintf 'not-a-ref\\n' > .git/HEAD\nexit 1\n",
+    );
+    let feedback = project.root.join("feedback.md");
+    fs::write(&feedback, "Add a retry policy.\n").unwrap();
+
+    let output = run_cli(
+        &project.root,
+        &project.home(),
+        &[
+            "agent",
+            "tasks",
+            "move-task",
+            "WP01",
+            "--to",
+            "planned",
+            "--agent",
+            "claude",
+            "--review-feedback-file",
+            feedback.to_str().unwrap(),
+            "--auto-commit",
+            "--mission",
+            SLUG,
+            "--json",
+        ],
+    );
+    assert!(
+        !output.status.success(),
+        "the commit is refused: {output:?}"
+    );
+    let payload = single_json(&output);
+    assert_eq!(payload["error_code"], json!("VERDICT_PERSISTENCE_FAILED"));
+    let message = payload["error"].as_str().unwrap_or_default();
+    assert!(
+        message.contains("STATUS_ROLLBACK_REFUSED"),
+        "the rollback refusal is reported: {message}"
+    );
+
+    // The retained row is the applied rejection: the rollback refused, so the
+    // lane stays at the transition it recorded.
+    assert_eq!(
+        project.rows().len(),
+        rows_before + 1,
+        "the transition row is retained, not rolled back"
+    );
+    assert_eq!(project.lane("WP01"), "planned");
+    let artifact = project.feature.join("tasks/WP01/review-cycle-1.md");
+    assert!(
+        artifact.is_file(),
+        "evidence for a retained row is never deleted"
+    );
+    let rendered = fs::read_to_string(&artifact).unwrap();
+    assert!(
+        rendered.starts_with(
+            "---\naffected_files: []\ncycle_number: 1\nmission_slug: 034-cli-mutation-fixture\nreproduction_command:\nreviewed_at: '"
+        ),
+        "the canonical artifact layout survives: {rendered}"
+    );
+    assert!(
+        rendered.contains("\nreviewer_agent: claude\nwp_id: WP01\n---\n\nAdd a retry policy.\n")
+    );
+    let last = project.rows().last().cloned().expect("retained row");
+    let pointer = last["review_ref"]
+        .as_str()
+        .expect("the retained row keeps its review pointer");
+    assert!(pointer.ends_with("/review-cycle-1.md"), "got {pointer}");
+    assert!(
+        artifact.is_file(),
+        "the retained pointer must not dangle: {pointer}"
+    );
+}
+
+#[test]
+fn f1_a_hook_side_commit_keeps_the_committed_evidence() {
+    let project = Project::new();
+    project.write_config("agents:\n  auto_commit: true\nprotection:\n  protected_branches: []\n");
+    project.set_meta("topology", json!("single_branch"));
+    project.git_init();
+    walk_to_in_review(&project);
+    let rows_before = project.rows().len();
+    // The hook commits rows + artifact itself, then rejects the outer commit.
+    project.install_hook(
+        "pre-commit",
+        "#!/bin/sh\ngit add -A\ngit -c user.name=Hook -c user.email=hook@example.invalid commit --no-verify -qm 'hook side commit'\nexit 1\n",
+    );
+    let feedback = project.root.join("feedback.md");
+    fs::write(&feedback, "Add a retry policy.\n").unwrap();
+
+    let output = run_cli(
+        &project.root,
+        &project.home(),
+        &[
+            "agent",
+            "tasks",
+            "move-task",
+            "WP01",
+            "--to",
+            "planned",
+            "--agent",
+            "claude",
+            "--review-feedback-file",
+            feedback.to_str().unwrap(),
+            "--auto-commit",
+            "--mission",
+            SLUG,
+            "--json",
+        ],
+    );
+    assert!(
+        !output.status.success(),
+        "the commit is refused: {output:?}"
+    );
+    let payload = single_json(&output);
+    assert_eq!(payload["error_code"], json!("VERDICT_PERSISTENCE_FAILED"));
+    let message = payload["error"].as_str().unwrap_or_default();
+    assert!(
+        message.contains("already committed at HEAD"),
+        "the rollback refuses the side-committed rows: {message}"
+    );
+
+    let evidence_ref = "kitty-specs/034-cli-mutation-fixture/tasks/WP01/review-cycle-1.md";
+    let artifact = project.root.join(evidence_ref);
+    // The side commit is the checkout's HEAD and carries the evidence.
+    let committed = project.git(&["show", &format!("HEAD:{evidence_ref}")]);
+    assert_eq!(
+        committed,
+        fs::read_to_string(&artifact)
+            .expect("the committed evidence remains in the worktree")
+            .trim_end_matches('\n'),
+        "the committed evidence is not deleted from the checkout"
+    );
+    assert_eq!(
+        project.rows().len(),
+        rows_before + 1,
+        "the side-committed rows are retained"
+    );
+    let last = project.rows().last().cloned().expect("side-committed row");
+    let pointer = last["review_ref"]
+        .as_str()
+        .expect("the retained row keeps its review pointer");
+    assert!(pointer.ends_with("/review-cycle-1.md"), "got {pointer}");
+    assert!(
+        artifact.is_file(),
+        "the retained pointer must not dangle: {pointer}"
+    );
+    // The artifact is present and byte-identical to the committed blob; this
+    // call never stages or performs its deletion. (The hook's own commit used
+    // the safe-commit transaction's temporary index, so the operator index can
+    // lag it; repairing that index is the Git owner's contract, not this
+    // deletion guard.)
+    assert!(
+        !committed.is_empty(),
+        "the side commit still carries the evidence blob"
+    );
+}
+
+// --- F2 -------------------------------------------------------------------
+
+#[test]
+fn f2_mark_status_degrades_to_an_uncommitted_annotation_on_a_protected_branch() {
+    let project = Project::new();
+    // No config at all: the default project (auto-commit on, `main` protected).
+    project.set_meta("topology", json!("single_branch"));
+    project.git_init();
+    let head = project.head();
+
+    let output = run_cli(
+        &project.root,
+        &project.home(),
+        &[
+            "agent",
+            "tasks",
+            "mark-status",
+            "T001",
+            "--status",
+            "done",
+            "--wp",
+            "WP01",
+            "--agent",
+            "claude",
+            "--mission",
+            SLUG,
+            "--json",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "the ordinary implementer command must not hard-refuse: {output:?}"
+    );
+    let payload = single_json(&output);
+    assert_eq!(payload["summary"]["updated"], json!(1));
+    assert_eq!(
+        payload["durability_reason"],
+        json!("protected_target_branch")
+    );
+    assert_eq!(payload["destination_ref"], json!("main"));
+    assert_eq!(project.head(), head, "the annotation is not committed");
+    let rows = project.rows();
+    let annotation = rows
+        .iter()
+        .find(|row| row["kind"] == json!("annotation"))
+        .expect("the annotation is recorded locally");
+    assert_eq!(annotation["delta"], json!({"subtasks": {"T001": "done"}}));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(
+            "was written but not committed: the mission records directly on a protected branch"
+        ),
+        "the canonical degrade warning is printed: {stderr}"
+    );
+    assert!(
+        project.status_porcelain().contains("status.events.jsonl"),
+        "the local status write stays uncommitted"
+    );
+}
+
+// --- F3 -------------------------------------------------------------------
+
+#[test]
+fn f3_mark_status_leaves_lanes_annotations_uncommitted() {
+    // `LANES` and flat/legacy missions: neither is `single_branch`, so the
+    // reference records the annotation locally with no commit.
+    for topology in [Some("lanes"), None] {
+        let project = Project::new();
+        project
+            .write_config("agents:\n  auto_commit: true\nprotection:\n  protected_branches: []\n");
+        match topology {
+            Some(topology) => project.set_meta("topology", json!(topology)),
+            None => project.remove_meta("topology"),
+        }
+        project.git_init();
+        let head = project.head();
+
+        let output = run_cli(
+            &project.root,
+            &project.home(),
+            &[
+                "agent",
+                "tasks",
+                "mark-status",
+                "T001",
+                "--status",
+                "done",
+                "--wp",
+                "WP01",
+                "--agent",
+                "claude",
+                "--mission",
+                SLUG,
+                "--json",
+            ],
+        );
+        assert!(output.status.success(), "{topology:?}: {output:?}");
+        assert_eq!(single_json(&output)["summary"]["updated"], json!(1));
+        assert!(
+            project
+                .rows()
+                .iter()
+                .any(|row| row["kind"] == json!("annotation")),
+            "{topology:?}: the annotation is recorded"
+        );
+        assert_eq!(
+            project.head(),
+            head,
+            "{topology:?}: a non-single_branch annotation is written locally, exactly like the reference"
+        );
+    }
+}
+
+// --- F4 -------------------------------------------------------------------
+
+#[test]
+fn f4_move_task_commits_on_the_respected_current_branch_not_the_meta_target() {
+    let project = auto_commit_fixture();
+    project.git(&["checkout", "-q", "-b", "topic-branch"]);
+    project.walk("WP01", &["claimed", "in_progress"]);
+    let head = project.head();
+
+    let output = run_cli(
+        &project.root,
+        &project.home(),
+        &[
+            "agent",
+            "tasks",
+            "move-task",
+            "WP01",
+            "--to",
+            "for_review",
+            "--agent",
+            "claude",
+            "--auto-commit",
+            "--mission",
+            SLUG,
+            "--json",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "the ordinary topic-branch workflow must not be refused: {output:?}"
+    );
+    let payload = single_json(&output);
+    assert_eq!(payload["destination_ref"], json!("topic-branch"));
+    assert_ne!(
+        project.head(),
+        head,
+        "the commit landed on the current branch"
+    );
+    let committed = project.git(&[
+        "show",
+        "topic-branch:kitty-specs/034-cli-mutation-fixture/status.events.jsonl",
+    ]);
+    assert!(
+        committed.contains(payload["event_id"].as_str().unwrap()),
+        "the transition is committed on the respected current branch"
+    );
+    // The stored destination is unchanged; only the traced destination differs.
+    assert_eq!(
+        project.git(&[
+            "show",
+            "HEAD:kitty-specs/034-cli-mutation-fixture/meta.json"
+        ]),
+        fs::read_to_string(project.feature.join("meta.json"))
+            .unwrap()
+            .trim_end_matches('\n')
+    );
+}
+
+#[test]
+fn f4_move_task_commits_when_meta_has_no_stored_target_branch() {
+    let project = auto_commit_fixture();
+    project.remove_meta("target_branch");
+    project.walk("WP01", &["claimed", "in_progress"]);
+    let head = project.head();
+
+    let output = run_cli(
+        &project.root,
+        &project.home(),
+        &[
+            "agent",
+            "tasks",
+            "move-task",
+            "WP01",
+            "--to",
+            "for_review",
+            "--agent",
+            "claude",
+            "--auto-commit",
+            "--mission",
+            SLUG,
+            "--json",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "a legacy meta without `target_branch` is not a refusal: {output:?}"
+    );
+    assert_eq!(single_json(&output)["destination_ref"], json!("main"));
+    assert_ne!(project.head(), head);
+}
+
+// --- F5 -------------------------------------------------------------------
+
+#[test]
+fn f5_auto_commit_flags_reject_valued_spellings_and_resolve_polarity_last_wins() {
+    // Upstream declares ONE Typer boolean pair: a value is never accepted, so
+    // `--no-auto-commit=true` can never enable a commit and cannot even parse.
+    for spelling in [
+        "--no-auto-commit=true",
+        "--no-auto-commit=false",
+        "--auto-commit=false",
+        "--auto-commit=yes",
+    ] {
+        let project = auto_commit_fixture();
+        let rows = project.rows().len();
+        let head = project.head();
+        let output = run_cli(
+            &project.root,
+            &project.home(),
+            &[
+                "agent",
+                "tasks",
+                "move-task",
+                "WP01",
+                "--to",
+                "claimed",
+                "--agent",
+                "claude",
+                spelling,
+                "--mission",
+                SLUG,
+                "--json",
+            ],
+        );
+        assert!(
+            !output.status.success(),
+            "{spelling} must be rejected like the reference: {output:?}"
+        );
+        assert_eq!(project.rows().len(), rows, "{spelling} writes nothing");
+        assert_eq!(project.head(), head, "{spelling} commits nothing");
+    }
+
+    // Bare flags: repeats and the pair are last-wins, and the negative option
+    // never resolves to an enabling `true`.
+    let cases: &[(&[&str], bool)] = &[
+        (&["--auto-commit"], true),
+        (&["--no-auto-commit"], false),
+        (&["--auto-commit", "--no-auto-commit"], false),
+        (&["--no-auto-commit", "--auto-commit"], true),
+        (&["--auto-commit", "--auto-commit"], true),
+        (&["--no-auto-commit", "--no-auto-commit"], false),
+    ];
+    for (flags, expect_commit) in cases {
+        let project = auto_commit_fixture();
+        let head = project.head();
+        let mut argv = vec![
+            "agent",
+            "tasks",
+            "move-task",
+            "WP01",
+            "--to",
+            "claimed",
+            "--agent",
+            "claude",
+            "--mission",
+            SLUG,
+            "--json",
+        ];
+        argv.extend_from_slice(flags);
+        let output = run_cli(&project.root, &project.home(), &argv);
+        assert!(output.status.success(), "{flags:?}: {output:?}");
+        assert_eq!(single_json(&output)["new_lane"], json!("claimed"));
+        assert_eq!(
+            project.head() != head,
+            *expect_commit,
+            "flags {flags:?} must be last-wins and never inverted"
+        );
+    }
+}
+
+// --- F6 -------------------------------------------------------------------
+
+#[test]
+fn f6_move_task_refuses_a_prior_review_cycle_artifact_as_review_feedback() {
+    let project = Project::new();
+    walk_to_in_review(&project);
+    let prior = prior_review_cycle(&project);
+    let rows = project.rows().len();
+
+    let output = run_cli(
+        &project.root,
+        &project.home(),
+        &[
+            "agent",
+            "tasks",
+            "move-task",
+            "WP01",
+            "--to",
+            "planned",
+            "--agent",
+            "claude",
+            "--review-feedback-file",
+            prior.to_str().unwrap(),
+            "--no-auto-commit",
+            "--mission",
+            SLUG,
+            "--json",
+        ],
+    );
+    assert!(
+        !output.status.success(),
+        "a prior artifact is not fresh feedback: {output:?}"
+    );
+    let payload = single_json(&output);
+    let message = payload["error"].as_str().expect("error message");
+    assert!(
+        message
+            .contains("feedback_source is this WP's own review-cycle artifact (review-cycle-1.md)")
+            && message.contains("pass the underlying reviewer feedback"),
+        "got {message}"
+    );
+    assert_eq!(project.rows().len(), rows, "no row is written");
+    assert_eq!(project.lane("WP01"), "in_review");
+    assert!(
+        !project
+            .feature
+            .join("tasks/WP01/review-cycle-2.md")
+            .exists(),
+        "no new cycle wraps the prior artifact"
+    );
+
+    // Content identity: a copy at a non-artifact path is refused too.
+    let copy = project.root.join("feedback.md");
+    fs::copy(&prior, &copy).unwrap();
+    let output = run_cli(
+        &project.root,
+        &project.home(),
+        &[
+            "agent",
+            "tasks",
+            "move-task",
+            "WP01",
+            "--to",
+            "planned",
+            "--agent",
+            "claude",
+            "--review-feedback-file",
+            copy.to_str().unwrap(),
+            "--no-auto-commit",
+            "--mission",
+            SLUG,
+            "--json",
+        ],
+    );
+    assert!(!output.status.success(), "{output:?}");
+    let message = String::from_utf8_lossy(&output.stdout).to_string();
+    assert!(
+        message.contains("feedback_source content parses as a review-cycle artifact")
+            && message.contains("pass distinct reviewer feedback"),
+        "got {message}"
+    );
+    assert!(
+        !project
+            .feature
+            .join("tasks/WP01/review-cycle-2.md")
+            .exists(),
+        "no new cycle wraps a content copy"
+    );
+
+    // Positive control (FR-004): the same reviewer prose WITHOUT frontmatter is
+    // admissible, even byte-identical to the prior artifact's body.
+    let prose = project.root.join("prose-feedback.md");
+    fs::write(&prose, "The prior review finding.\n").unwrap();
+    let output = run_cli(
+        &project.root,
+        &project.home(),
+        &[
+            "agent",
+            "tasks",
+            "move-task",
+            "WP01",
+            "--to",
+            "planned",
+            "--agent",
+            "claude",
+            "--review-feedback-file",
+            prose.to_str().unwrap(),
+            "--no-auto-commit",
+            "--mission",
+            SLUG,
+            "--json",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "plain reviewer prose is admissible: {output:?}"
+    );
+    let new_artifact =
+        fs::read_to_string(project.feature.join("tasks/WP01/review-cycle-2.md")).unwrap();
+    assert!(new_artifact.ends_with("---\n\nThe prior review finding.\n"));
+}
+
+#[test]
+fn f6_move_task_refuses_a_prior_review_cycle_artifact_on_an_approval_edge() {
+    let project = Project::new();
+    walk_to_in_review(&project);
+    let prior = prior_review_cycle(&project);
+    let rows = project.rows().len();
+
+    let output = run_cli(
+        &project.root,
+        &project.home(),
+        &[
+            "agent",
+            "tasks",
+            "move-task",
+            "WP01",
+            "--to",
+            "approved",
+            "--agent",
+            "bob",
+            "--reviewer",
+            "alice",
+            "--review-feedback-file",
+            prior.to_str().unwrap(),
+            "--no-auto-commit",
+            "--mission",
+            SLUG,
+            "--json",
+        ],
+    );
+    assert!(
+        !output.status.success(),
+        "the approval feedback_source is guarded too: {output:?}"
+    );
+    let message = String::from_utf8_lossy(&output.stdout).to_string();
+    assert!(
+        message.contains("feedback_source is this WP's own review-cycle artifact")
+            && message.contains("pass the underlying reviewer feedback"),
+        "got {message}"
+    );
+    assert_eq!(project.rows().len(), rows, "no row is written");
+    assert_eq!(project.lane("WP01"), "in_review");
+    assert!(
+        !project
+            .feature
+            .join("tasks/WP01/review-cycle-2.md")
+            .exists(),
+        "no approval cycle wraps the prior artifact"
+    );
 }

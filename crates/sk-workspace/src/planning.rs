@@ -1548,10 +1548,10 @@ fn integrate_into_checkout(
                     // itself never resets anything and refuses to guess.
                     let payload = *unconfirmed;
                     let destination_tip = repository.read_branch_tip(destination).ok().flatten();
-                    // `sk-git` only names a candidate whose real parent set is
-                    // the pinned pair, so reachability from the destination tip
-                    // is the proof of landing. An unreadable ancestry answer is
-                    // NOT evidence of no landing: it stays unconfirmed.
+                    // `sk-git` supplies only invocation-bound creation evidence,
+                    // not a parent-set match alone. Reachability from the
+                    // destination tip then proves that candidate landed. Missing
+                    // evidence or unreadable ancestry stays unconfirmed.
                     let landed = match (&payload.candidate, &destination_tip) {
                         (Some(candidate), Some(tip)) => {
                             tip == candidate

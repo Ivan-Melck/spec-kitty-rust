@@ -361,7 +361,9 @@ impl GitRepository {
     /// The argv is fixed: no `-a`, no `--no-verify`, no pathspec, no
     /// `--allow-empty`, no `--amend`; hooks and the configured author are left
     /// to git. The returned `new_head` is the commit this call created, proven
-    /// from its parent set — never a blind post-hook `HEAD` read.
+    /// by this child's summary or a non-amend publication strictly newer than
+    /// its validated reflog boundary. Matching parents are necessary, not
+    /// creation proof — never a blind post-hook `HEAD` read.
     ///
     /// A rejected `pre-commit`/`commit-msg` hook is returned as a command
     /// failure and the operation stays in progress for the caller's abort path.
@@ -790,15 +792,24 @@ impl GitRepository {
                 return None;
             }
         };
-        let mut closed = matches!(mark.boundary, ReflogBoundary::Empty);
-        for record in records {
-            if let ReflogBoundary::At(boundary) = &mark.boundary
-                && record == *boundary
-            {
-                // Everything from here down predates the invocation.
-                closed = true;
-                break;
+        // Validate the boundary before considering any candidate. A plausible
+        // historical entry may precede a missing boundary in this bounded read;
+        // returning it early would falsely bind it to the current invocation.
+        let newer_records = match &mark.boundary {
+            ReflogBoundary::At(boundary) => {
+                let Some(position) = records.iter().position(|record| record == boundary) else {
+                    notes.push(format!(
+                        "the {} reflog no longer contains its pre-invocation entry in the bounded search, so its entries are not creation evidence for this call",
+                        mark.reference
+                    ));
+                    return None;
+                };
+                &records[..position]
             }
+            ReflogBoundary::Empty => records.as_slice(),
+            ReflogBoundary::Unreadable => return None,
+        };
+        for record in newer_records {
             let Some(separator) = record.iter().position(|byte| *byte == 0) else {
                 continue;
             };
@@ -807,7 +818,9 @@ impl GitRepository {
                 Err(_) => continue,
             };
             let subject = String::from_utf8_lossy(&record[separator + 1..]);
-            if !subject.starts_with("commit") {
+            if !subject.starts_with("commit") || subject.starts_with("commit (amend):") {
+                // A post-commit hook may amend the conclusion. That publication
+                // is not the original commit whose identity this call reports.
                 continue;
             }
             let Ok(oid) = Oid::parse(id_text) else {
@@ -821,17 +834,10 @@ impl GitRepository {
                 )),
             }
         }
-        if !closed {
-            notes.push(format!(
-                "the {} reflog no longer contains its pre-invocation entry, so its entries are not creation evidence for this call",
-                mark.reference
-            ));
-        } else {
-            notes.push(format!(
-                "no {} reflog entry appended by this call names a commit with the pinned parents",
-                mark.reference
-            ));
-        }
+        notes.push(format!(
+            "no {} non-amend reflog entry appended by this call names a commit with the pinned parents",
+            mark.reference
+        ));
         None
     }
 

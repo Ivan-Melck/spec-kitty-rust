@@ -1262,13 +1262,9 @@ fn workspace_for_wp(repo_root: &Path, mission: &sk_mission::Mission, wp_id: &str
     wp_workspace(repo_root, mission, wp_id).path
 }
 
-/// The work-package body (frontmatter stripped) for prompt authoring.
-fn work_package_body(path: &Path) -> Option<String> {
-    let source = fs::read_to_string(path).ok()?;
-    match sk_mission::split_frontmatter(&source) {
-        Ok(frontmatter) => Some(frontmatter.body.trim_start().to_string()),
-        Err(_) => Some(source),
-    }
+/// The full authored work-package text, including frontmatter and whitespace.
+fn work_package_text(path: &Path) -> Option<String> {
+    fs::read_to_string(path).ok()
 }
 
 // ---------------------------------------------------------------------------
@@ -2165,7 +2161,7 @@ fn compose_wp_prompt(
             mission.slug().as_str(),
         ));
     }
-    let body = work_package_body(package.source()).ok_or_else(|| {
+    let body = work_package_text(package.source()).ok_or_else(|| {
         format!(
             "Could not read canonical WORK_PACKAGE_TASK file {}",
             package.source().display()
@@ -2177,7 +2173,7 @@ fn compose_wp_prompt(
         "=".repeat(78),
         String::new(),
     ]);
-    lines.push(body.trim_end().to_string());
+    lines.push(body);
     lines.push(String::new());
     lines.extend([
         "=".repeat(78),
@@ -2248,16 +2244,16 @@ fn author_decision_prompt(
         .action
         .clone()
         .unwrap_or_else(|| state_alias(step).unwrap_or(step).to_string());
-    // The mission-type/prompt authority runs first: an activated type with no
-    // loadable profile fails closed, exactly as the reference does.
-    if let Some(error) = unknown_mission_type_error(&ctx.repo_root, &ctx.mission_type) {
-        return AuthoredPrompt::failed(format!(
-            "prompt resolution failed for action '{action}': {error}"
-        ));
-    }
     let content = if WP_ITERATION_STEPS.contains(&step)
         && let Some(wp_id) = envelope.wp_id.as_deref()
     {
+        // This authority belongs to WP governance. Non-WP custom steps retain
+        // their template/templateless path without requiring a type profile.
+        if let Some(error) = unknown_mission_type_error(&ctx.repo_root, &ctx.mission_type) {
+            return AuthoredPrompt::failed(format!(
+                "prompt resolution failed for action '{action}': {error}"
+            ));
+        }
         match compose_wp_prompt(
             &ctx.repo_root,
             ctx.mission,

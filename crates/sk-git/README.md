@@ -182,7 +182,10 @@ after a publication watermark captured before the command ran. The real parent
 set (HEAD plus `MERGE_HEAD` for a merge; HEAD alone for a cherry-pick or revert)
 is a necessary check, but a parent match alone is never creation proof and the
 observed `HEAD` is never accepted as a candidate. A reflog that no longer
-contains its pre-invocation boundary was rewritten and cannot be bound at all.
+contains its pre-invocation boundary in the bounded search cannot be bound at
+all, whether rewritten or beyond the retained window. The boundary is validated
+before any candidate is considered. Hook `commit (amend)` publications are not
+the original conclusion and are excluded from fallback creation evidence.
 `Ok` is returned only when that proven commit is also the current `HEAD` and the
 operation marker is consumed; anything else is `MergeConclusionUnconfirmed`.
 A completed `git commit` that fails with `HEAD` still pinned and the marker still

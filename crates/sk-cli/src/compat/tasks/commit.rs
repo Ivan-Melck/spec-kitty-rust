@@ -52,7 +52,7 @@ pub(super) fn resolve_auto_commit(
     Ok(config.resolve(explicit))
 }
 
-/// True for the modern stored topologies whose status artifacts the reference
+/// True for the modern stored topologies whose status artifacts `move-task`
 /// commits (`LANES` / `SINGLE_BRANCH`). A flat/legacy mission keeps the
 /// primary-uncommitted status write.
 pub(super) fn transactional_topology(mission: &impl MissionView) -> bool {
@@ -62,16 +62,27 @@ pub(super) fn transactional_topology(mission: &impl MissionView) -> bool {
     )
 }
 
+/// True only for `SINGLE_BRANCH`: the reference's `mark-status` commit
+/// predicate is `resolved_auto_commit and is_single_branch(resolve_topology(...))`
+/// (`tasks_mark_status.py::_ms_emit_subtask_state`), so a `LANES` annotation is
+/// written locally without a commit.
+pub(super) fn annotation_commit_topology(mission: &impl MissionView) -> bool {
+    mission.meta_field("topology").and_then(Value::as_str) == Some("single_branch")
+}
+
 /// The resolved destination and protection facts for one auto-commit move.
 pub(super) struct CommitAuthority {
     /// The already-opened checkout the commit runs from.
     pub repository: GitRepository,
-    /// The validated destination branch.
+    /// The validated destination branch (the respected current branch).
     pub target: BranchName,
     /// The destination spelling used in payloads.
     pub target_name: String,
     /// The caller-resolved protected set.
     pub protected: ProtectedBranches,
+    /// Whether the destination branch is protected (`move-task` refuses;
+    /// `mark-status` degrades the annotation to its uncommitted write).
+    pub protected_destination: bool,
 }
 
 impl CommitAuthority {
@@ -81,6 +92,53 @@ impl CommitAuthority {
             .ok()
             .and_then(|relative| relative.to_str())
             .map(|relative| relative.replace('\\', "/"))
+    }
+
+    /// True when a blob for `path` exists at the destination branch.
+    ///
+    /// This is the evidence analogue of the status log's
+    /// `HeadCommittedProbe`: an artifact that already landed must never be
+    /// deleted. `Err` means the fact could not be proven, which the caller
+    /// treats exactly like "committed" (retain).
+    pub(super) fn path_committed(&self, path: &Path) -> Result<bool, String> {
+        let relative = self.evidence_ref(path).ok_or_else(|| {
+            format!(
+                "{} is outside the committing checkout {}",
+                path.display(),
+                self.repository.root().display()
+            )
+        })?;
+        let git_path =
+            GitPath::from_git_bytes(relative.as_bytes()).map_err(|error| error.to_string())?;
+        let reference = RefName::parse(&format!("refs/heads/{}", self.target_name))
+            .map_err(|error| error.to_string())?;
+        // A destination ref with no commit can hold no committed blob; an
+        // unreadable ref is not proof and is reported as an error (retain).
+        match self.repository.read_ref(&reference) {
+            Ok(None) => return Ok(false),
+            Ok(Some(_)) => {}
+            Err(error) => return Err(error.to_string()),
+        }
+        match self
+            .repository
+            .read_blob_at(&StartPoint::Ref(reference), &git_path)
+        {
+            Ok(Some(_)) => Ok(true),
+            Ok(None) => Ok(false),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
+    /// The canonical protected-primary refusal for a route that must not
+    /// degrade (`move-task`).
+    pub(super) fn protected_refusal(&self, command: &str) -> CompatError {
+        CompatError::coded(
+            "PROTECTED_BRANCH_COMMIT_REFUSED",
+            format!(
+                "Refusing to run `{command}` with auto-commit on protected branch '{}' before mutating status files. Run status commit operations from an allowed coordination/lane branch, or unblock with: {PROTECTED_REMEDY}.",
+                self.target_name
+            ),
+        )
     }
 
     /// Read the committed blob at the destination and compare it with `bytes`.
@@ -105,8 +163,15 @@ impl CommitAuthority {
     }
 }
 
-/// Resolve the auto-commit authority, refusing a protected destination and a
-/// checkout that is not on the destination branch **before any mutation**.
+/// Resolve the auto-commit authority **before any mutation**.
+///
+/// The destination follows the reference's
+/// `tasks_shared._ensure_target_branch_checked_out`: it resolves the branch
+/// context with `respect_current=True`, so the **current branch is the
+/// destination** and nothing is checked out. A `meta.json` without a
+/// `target_branch` is tolerated (the reference's
+/// `read_target_branch_from_meta` answers `None` and it keeps the current
+/// branch); the stored target is never a checkout precondition.
 ///
 /// `Ok(None)` means the caller chose `--no-auto-commit` (or the project default
 /// is off); every write then stays local exactly like the reference's
@@ -114,36 +179,17 @@ impl CommitAuthority {
 pub(super) fn prepare(
     root: &Path,
     mission: &impl MissionView,
-    command: &str,
     auto_commit: bool,
 ) -> Result<Option<CommitAuthority>, CompatError> {
     if !auto_commit {
         return Ok(None);
     }
-    let target_name = mission
-        .meta_field("target_branch")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|name| !name.is_empty())
-        .ok_or_else(|| {
-            CompatError::domain(
-                "auto-commit needs a stored meta.json target_branch; pass --no-auto-commit to write status locally",
-            )
-        })?;
     let policy =
         ProtectionPolicy::resolve_for_mission(root, mission.slug_str()).map_err(|error| {
             CompatError::domain(format!(
                 "could not resolve the protected-branch policy for auto-commit: {error}"
             ))
         })?;
-    if policy.is_protected(target_name) {
-        return Err(CompatError::coded(
-            "PROTECTED_BRANCH_COMMIT_REFUSED",
-            format!(
-                "Refusing to run `{command}` with auto-commit on protected branch '{target_name}' before mutating status files. Run status commit operations from an allowed coordination/lane branch, or unblock with: {PROTECTED_REMEDY}."
-            ),
-        ));
-    }
     let repository = GitRepository::open(root).map_err(|error| {
         CompatError::coded(
             "AUTO_COMMIT_REQUIRES_GIT",
@@ -158,28 +204,26 @@ pub(super) fn prepare(
             format!("auto-commit could not read the checked-out branch: {error}"),
         )
     })?;
-    if observed.as_deref() != Some(target_name) {
-        return Err(CompatError::coded(
-            "AUTO_COMMIT_TARGET_CHECKOUT_REQUIRED",
-            format!(
-                "auto-commit records status/review evidence on the mission target branch '{target_name}', but {} has '{}' checked out. Check out '{target_name}' or pass --no-auto-commit.",
-                root.display(),
-                observed.as_deref().unwrap_or("<detached HEAD>")
-            ),
+    let Some(target_name) = observed else {
+        // The reference raises exactly this before mutating anything.
+        return Err(CompatError::domain(
+            "Detached HEAD — checkout a branch before continuing",
         ));
-    }
+    };
+    let protected_destination = policy.is_protected(&target_name);
     let protected = policy.branch_set().map_err(|error| {
         CompatError::domain(format!(
             "could not resolve the protected set for auto-commit: {error}"
         ))
     })?;
-    let target = BranchName::parse(target_name)
+    let target = BranchName::parse(&target_name)
         .map_err(|error| CompatError::domain(format!("invalid target branch: {error}")))?;
     Ok(Some(CommitAuthority {
         repository,
         target,
-        target_name: target_name.to_owned(),
+        target_name,
         protected,
+        protected_destination,
     }))
 }
 

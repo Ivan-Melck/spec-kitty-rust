@@ -345,6 +345,156 @@ fn parse_cycle_number(name: &str) -> Option<u32> {
     middle.parse::<u32>().ok().filter(|number| *number >= 1)
 }
 
+/// The strict artifact filename grammar (`_REVIEW_CYCLE_FILE_RE`:
+/// `^review-cycle-(?P<cycle>[1-9][0-9]*)\.md$`).
+///
+/// Distinct from [`parse_cycle_number`], which also tolerates a leading zero
+/// for allocation compatibility; the provenance guard uses the reference's
+/// stricter spelling.
+pub fn is_review_cycle_filename(name: &str) -> bool {
+    let Some(middle) = name
+        .strip_prefix(REVIEW_CYCLE_PREFIX)
+        .and_then(|rest| rest.strip_suffix(".md"))
+    else {
+        return false;
+    };
+    let mut bytes = middle.bytes();
+    match bytes.next() {
+        Some(first) if first.is_ascii_digit() && first != b'0' => {}
+        _ => return false,
+    }
+    bytes.all(|byte| byte.is_ascii_digit())
+}
+
+/// Why a reviewer-supplied `--review-feedback-file` is one of this WP's own
+/// prior review-cycle artifacts (`_guard_feedback_source_provenance`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FeedbackSourceProvenance {
+    /// The source lives in the WP's review-cycle directory under the artifact
+    /// filename grammar (path identity).
+    PriorArtifactPath,
+    /// The source's content parses as a `ReviewCycleArtifact` (content identity).
+    PriorArtifactContent,
+}
+
+impl FeedbackSourceProvenance {
+    /// The canonical refusal text for `source_name`.
+    pub fn refusal(self, source_name: &str) -> String {
+        match self {
+            FeedbackSourceProvenance::PriorArtifactPath => format!(
+                "feedback_source is this WP's own review-cycle artifact ({source_name}); pass the underlying reviewer feedback instead of a prior review-cycle artifact."
+            ),
+            FeedbackSourceProvenance::PriorArtifactContent => format!(
+                "feedback_source content parses as a review-cycle artifact ({source_name}); pass distinct reviewer feedback instead of a prior review-cycle artifact's content."
+            ),
+        }
+    }
+}
+
+/// Check `feedback_source` against the two independent provenance legs.
+///
+/// Mirrors `review/cycle.py::_guard_feedback_source_provenance`:
+///
+/// - **path identity** — the resolved source's parent is the resolved
+///   `sub_artifact_dir` and its filename matches the strict
+///   `review-cycle-N.md` grammar (leading zero refused, like the reference);
+/// - **content identity** — the file text parses as a `ReviewCycleArtifact`
+///   (frontmatter mapping with the required artifact fields). Plain reviewer
+///   prose never parses, so an honest re-report of the same words is admitted.
+///
+/// The legs are independent: a hand-edited artifact at an artifact-shaped path
+/// is still refused by the path leg, and an artifact copy at another path is
+/// refused by the content leg. An unreadable source is not a provenance
+/// refusal (the caller's own read already reported it).
+pub fn review_feedback_provenance(
+    feedback_source: &Path,
+    sub_artifact_dir: &Path,
+    feedback_text: &str,
+) -> Option<FeedbackSourceProvenance> {
+    if let Some(parent) = feedback_source.parent() {
+        let source_parent = normalized_absolute(parent)?;
+        let directory = normalized_absolute(sub_artifact_dir)?;
+        let name = feedback_source.file_name().and_then(|name| name.to_str());
+        if source_parent == directory && name.is_some_and(is_review_cycle_filename) {
+            return Some(FeedbackSourceProvenance::PriorArtifactPath);
+        }
+    }
+    parses_as_review_cycle_artifact(feedback_text)
+        .then_some(FeedbackSourceProvenance::PriorArtifactContent)
+}
+
+fn normalized_absolute(path: &Path) -> Option<PathBuf> {
+    match fs::canonicalize(path) {
+        Ok(path) => Some(path),
+        // `Path.resolve()` in the reference is non-strict: a not-yet-created
+        // directory still yields its absolute spelling.
+        Err(error) if error.kind() == io::ErrorKind::NotFound => std::path::absolute(path).ok(),
+        Err(_) => None,
+    }
+}
+
+/// True when `text` parses as `ReviewCycleArtifact.from_file` would parse it.
+///
+/// The required frontmatter fields and their types are the pinned
+/// `ReviewCycleArtifact.from_dict` contract; an absent `affected_files` defaults
+/// to an empty list and an absent `reproduction_command` to `None`.
+pub fn parses_as_review_cycle_artifact(text: &str) -> bool {
+    let Some(rest) = text.strip_prefix("---") else {
+        return false;
+    };
+    // `from_file`: an optional newline after the opening delimiter.
+    let rest = rest.strip_prefix('\n').unwrap_or(rest);
+    let Some(closing) = rest.find("\n---") else {
+        return false;
+    };
+    let frontmatter = &rest[..closing];
+    let Ok(serde_yaml_ng::Value::Mapping(mapping)) =
+        serde_yaml_ng::from_str::<serde_yaml_ng::Value>(frontmatter)
+    else {
+        return false;
+    };
+    let field = |key: &str| mapping.get(serde_yaml_ng::Value::String(key.to_owned()));
+    let non_empty_string = |key: &str| matches!(field(key), Some(serde_yaml_ng::Value::String(value)) if !value.is_empty());
+    let cycle_number_ok = match field("cycle_number") {
+        Some(serde_yaml_ng::Value::Number(number)) => {
+            number.as_u64().is_some_and(|number| number >= 1)
+        }
+        Some(serde_yaml_ng::Value::String(value)) => {
+            value.parse::<u64>().is_ok_and(|number| number >= 1)
+        }
+        _ => false,
+    };
+    if !cycle_number_ok
+        || !non_empty_string("wp_id")
+        || !non_empty_string("mission_slug")
+        || !non_empty_string("reviewer_agent")
+        || !non_empty_string("reviewed_at")
+    {
+        return false;
+    }
+    match field("reproduction_command") {
+        None | Some(serde_yaml_ng::Value::Null | serde_yaml_ng::Value::String(_)) => {}
+        Some(_) => return false,
+    }
+    match field("affected_files") {
+        None => true,
+        Some(serde_yaml_ng::Value::Sequence(entries)) => entries.iter().all(|entry| {
+            let serde_yaml_ng::Value::Mapping(entry) = entry else {
+                return false;
+            };
+            let path = entry.get(serde_yaml_ng::Value::String("path".to_owned()));
+            if !matches!(path, Some(serde_yaml_ng::Value::String(value)) if !value.is_empty()) {
+                return false;
+            }
+            matches!(
+                entry.get(serde_yaml_ng::Value::String("line_range".to_owned())),
+                None | Some(serde_yaml_ng::Value::Null | serde_yaml_ng::Value::String(_))
+            )
+        }),
+        Some(_) => false,
+    }
+}
+
 fn validate_segment(field: &'static str, value: &str) -> Result<(), ReviewCycleError> {
     let safe = !value.is_empty()
         && value != "."
@@ -816,6 +966,70 @@ mod tests {
             read_auto_commit_config(temp.path()),
             Err(CommitConfigError::InvalidYaml { .. })
         ));
+    }
+
+    #[test]
+    fn review_cycle_filename_grammar_is_the_strict_reference_spelling() {
+        assert!(is_review_cycle_filename("review-cycle-1.md"));
+        assert!(is_review_cycle_filename("review-cycle-12.md"));
+        assert!(!is_review_cycle_filename("review-cycle-0.md"));
+        assert!(!is_review_cycle_filename("review-cycle-01.md"));
+        assert!(!is_review_cycle_filename("review-cycle-.md"));
+        assert!(!is_review_cycle_filename("review-cycle-1.txt"));
+        assert!(!is_review_cycle_filename("review-cycle-final.md"));
+    }
+
+    #[test]
+    fn a_canonical_artifact_parses_and_plain_prose_does_not() {
+        let rendered = artifact("The prior review finding.\n").render();
+        assert!(parses_as_review_cycle_artifact(&rendered));
+        // The reference's FR-004 narrowing: prose never parses, even when it is
+        // byte-identical to a prior artifact's body.
+        assert!(!parses_as_review_cycle_artifact(
+            "The prior review finding.\n"
+        ));
+        // A frontmatter mapping missing a required field is not an artifact.
+        assert!(!parses_as_review_cycle_artifact(
+            "---\naffected_files: []\ncycle_number: 1\n---\n\nbody\n"
+        ));
+        // A non-mapping frontmatter is not an artifact.
+        assert!(!parses_as_review_cycle_artifact(
+            "---\n- one\n- two\n---\n\nbody\n"
+        ));
+    }
+
+    #[test]
+    fn the_provenance_guard_covers_path_and_content_identity() {
+        let temp = tempfile::tempdir().unwrap();
+        let directory = temp.path().join("tasks/WP01");
+        let prior = artifact("prior finding\n").write_new(&directory).unwrap();
+        let text = fs::read_to_string(&prior).unwrap();
+        assert_eq!(
+            review_feedback_provenance(&prior, &directory, &text),
+            Some(FeedbackSourceProvenance::PriorArtifactPath)
+        );
+        // Content identity alone: a copy outside the artifact directory.
+        let copy = temp.path().join("review-cycle-copy.md");
+        fs::write(&copy, &text).unwrap();
+        assert_eq!(
+            review_feedback_provenance(&copy, &directory, &text),
+            Some(FeedbackSourceProvenance::PriorArtifactContent)
+        );
+        // Plain prose at a non-artifact path is admitted.
+        let prose = temp.path().join("feedback.md");
+        fs::write(&prose, "prior finding\n").unwrap();
+        assert_eq!(
+            review_feedback_provenance(&prose, &directory, "prior finding\n"),
+            None
+        );
+        // Path identity alone: an artifact-shaped name whose bytes were edited
+        // to prose is still refused by the path leg.
+        let edited = directory.join("review-cycle-2.md");
+        fs::write(&edited, "hand-edited prose\n").unwrap();
+        assert_eq!(
+            review_feedback_provenance(&edited, &directory, "hand-edited prose\n"),
+            Some(FeedbackSourceProvenance::PriorArtifactPath)
+        );
     }
 
     #[test]

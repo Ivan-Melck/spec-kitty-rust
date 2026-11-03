@@ -441,25 +441,24 @@ pub struct MoveTaskArgs {
     #[arg(long = "skip-review-artifact-check")]
     pub skip_review_artifact_check: bool,
     /// Commit the status/verdict artifacts (default: from project config).
+    ///
+    /// Upstream declares one Typer boolean pair
+    /// (`typer.Option("--auto-commit/--no-auto-commit")`): a value is never
+    /// accepted, and the last spelling wins. The count is presence-only (the
+    /// negative option can therefore never resolve to an enabling `true`).
     #[arg(
         long = "auto-commit",
         overrides_with = "no_auto_commit",
-        num_args = 0..=1,
-        require_equals = true,
-        default_missing_value = "true",
-        action = clap::ArgAction::Set
+        action = clap::ArgAction::Count
     )]
-    pub auto_commit: Option<bool>,
+    pub auto_commit: Option<u8>,
     /// Disable automatic commits.
     #[arg(
         long = "no-auto-commit",
         overrides_with = "auto_commit",
-        num_args = 0..=1,
-        require_equals = true,
-        default_missing_value = "false",
-        action = clap::ArgAction::Set
+        action = clap::ArgAction::Count
     )]
-    pub no_auto_commit: Option<bool>,
+    pub no_auto_commit: Option<u8>,
     /// Skip the pre-review regression gate.
     #[arg(long = "skip-pre-review-gate")]
     pub skip_pre_review_gate: bool,
@@ -473,6 +472,22 @@ pub struct MoveTaskArgs {
 
 fn refusal_message(error: &sk_status::mutation::MutationError) -> String {
     error.to_string()
+}
+
+/// Resolve the explicit Typer boolean-pair decision.
+///
+/// Each side is presence-only, so a valued or inverted spelling can never turn
+/// the negative option into an enabling `true`. Clap's `overrides_with` makes
+/// the pair last-wins; if both were ever present (unreachable through the
+/// parser), the negative side wins, because it must never enable a commit.
+fn explicit_auto_commit(auto: Option<u8>, no_auto: Option<u8>) -> Option<bool> {
+    let auto = auto.is_some_and(|count| count > 0);
+    let no_auto = no_auto.is_some_and(|count| count > 0);
+    match (auto, no_auto) {
+        (true, false) => Some(true),
+        (false, true) | (true, true) => Some(false),
+        (false, false) => None,
+    }
 }
 
 fn current_lane(mission: &impl MissionView, wp_id: &str) -> Result<String, CompatError> {
@@ -736,13 +751,7 @@ fn review_cycle_for_move(
     body: String,
     reproduction_command: Option<String>,
 ) -> Result<(sk_status::mutation_commit::ReviewCycleArtifact, String), CompatError> {
-    let wp_slug = wp_file(mission, wp_id)
-        .and_then(|path| {
-            path.file_stem()
-                .and_then(|stem| stem.to_str())
-                .map(str::to_owned)
-        })
-        .unwrap_or_else(|| wp_id.to_owned());
+    let wp_slug = wp_slug_for(mission, wp_id);
     let directory = sk_status::mutation_commit::review_cycle_dir(mission.spec_dir(), &wp_slug);
     let cycle_number =
         sk_status::mutation_commit::next_review_cycle_number(&[directory]).map_err(|error| {
@@ -774,6 +783,80 @@ fn evidence_ref_from_root(root: &Path, path: &Path) -> String {
         .unwrap_or_else(|| path.display().to_string())
 }
 
+/// The directory slug of a work package (`WP01` -> the WP file stem).
+fn wp_slug_for(mission: &impl MissionView, wp_id: &str) -> String {
+    wp_file(mission, wp_id)
+        .and_then(|path| {
+            path.file_stem()
+                .and_then(|stem| stem.to_str())
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| wp_id.to_owned())
+}
+
+/// What happened to the review-cycle artifact this call wrote.
+enum EvidenceRetirement {
+    /// The artifact was this call's own, provably uncommitted file and is gone.
+    Removed,
+    /// The artifact was kept, with the reason to report.
+    Retained(String),
+}
+
+fn retire_failed_transition_evidence(
+    authority: Option<&commit::CommitAuthority>,
+    path: &Path,
+    error: &sk_status::mutation::MutationError,
+) -> EvidenceRetirement {
+    retire_uncommitted_evidence(authority, path, !error.may_have_mutated())
+}
+
+/// Remove the review-cycle artifact only after proof, symmetric with the log.
+///
+/// Deletion requires BOTH:
+///
+/// 1. the status rows this call wrote are provably absent or were provably
+///    uncommitted and cut (`status_proven_uncommitted`); and
+/// 2. no blob for the artifact path exists at the destination branch — the
+///    evidence analogue of the status log's committed-at-`HEAD` probe. An
+///    unreadable destination retains the file instead of guessing.
+///
+/// A hook that commits the rows and artifact itself, or a refused rollback,
+/// therefore keeps every byte and any `review_ref` that still points at it.
+fn retire_uncommitted_evidence(
+    authority: Option<&commit::CommitAuthority>,
+    path: &Path,
+    status_proven_uncommitted: bool,
+) -> EvidenceRetirement {
+    if !status_proven_uncommitted {
+        return EvidenceRetirement::Retained(
+            "the review-cycle artifact was retained because the status rows could not be proven uncommitted"
+                .to_owned(),
+        );
+    }
+    if let Some(authority) = authority {
+        match authority.path_committed(path) {
+            Ok(false) => {}
+            Ok(true) => {
+                return EvidenceRetirement::Retained(format!(
+                    "the review-cycle artifact was retained because a copy is already committed at '{}'",
+                    authority.target_name
+                ));
+            }
+            Err(error) => {
+                return EvidenceRetirement::Retained(format!(
+                    "the review-cycle artifact was retained because it could not be proven uncommitted ({error})"
+                ));
+            }
+        }
+    }
+    match std::fs::remove_file(path) {
+        Ok(()) => EvidenceRetirement::Removed,
+        Err(error) => EvidenceRetirement::Retained(format!(
+            "the uncommitted review-cycle artifact could not be removed ({error}); it was retained"
+        )),
+    }
+}
+
 /// Move a work package between lanes (`agent tasks move-task`).
 ///
 /// This is the canonical status mutation: one validated transition (with the
@@ -803,16 +886,19 @@ pub fn move_task(root: &Path, args: &MoveTaskArgs) -> Result<Value, CompatError>
     let wp_id = normalize_wp_id(&args.task_id)?;
     let mission = require_mission(root, args.mission.as_deref())?;
     refuse_coordination(&mission, "move-task")?;
-    // Auto-commit is a project default overridden by the explicit flag, and a
-    // protected destination is refused before any status read or mutation
-    // (`_protected_branch_status_commit_error`).
-    let auto_commit = commit::resolve_auto_commit(root, args.auto_commit.or(args.no_auto_commit))?;
-    let commit_authority = commit::prepare(
+    let auto_commit = commit::resolve_auto_commit(
         root,
-        &mission,
-        "spec-kitty agent tasks move-task",
-        auto_commit,
+        explicit_auto_commit(args.auto_commit, args.no_auto_commit),
     )?;
+    let commit_authority = commit::prepare(root, &mission, auto_commit)?;
+    // `move-task` keeps the reference's hard protected-primary refusal
+    // (`_protected_branch_status_commit_error`) before any status read. Only
+    // `mark-status` degrades this refusal (see `mark_status`).
+    if let Some(authority) = &commit_authority
+        && authority.protected_destination
+    {
+        return Err(authority.protected_refusal("spec-kitty agent tasks move-task"));
+    }
     let old_lane = current_lane(&mission, &wp_id)?;
     let target_lane = sk_status::Lane::parse_input(&args.to)
         .map_err(|error| CompatError::domain(error.to_string()))?;
@@ -871,6 +957,26 @@ pub fn move_task(root: &Path, args: &MoveTaskArgs) -> Result<Value, CompatError>
                 path.display()
             ))
         })?;
+        if feedback_recordable && !text.trim().is_empty() {
+            // #990/#2996(b): a prior review-cycle artifact is never fresh
+            // feedback, by path identity or by content identity
+            // (`_guard_feedback_source_provenance`). Both the rejection and the
+            // approval/done edges pass a supplied file as `feedback_source`
+            // (`_approval_feedback_source`); an empty approval file is dropped
+            // before the guard, exactly like the reference.
+            let wp_slug = wp_slug_for(&mission, &wp_id);
+            let directory =
+                sk_status::mutation_commit::review_cycle_dir(mission.spec_dir(), &wp_slug);
+            if let Some(provenance) =
+                sk_status::mutation_commit::review_feedback_provenance(path, &directory, &text)
+            {
+                let name = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or_default();
+                return Err(CompatError::domain(provenance.refusal(name)));
+            }
+        }
         if is_approved_reopen(&old_lane, target) && text.trim().is_empty() {
             return Err(CompatError::domain(format!(
                 "Review feedback file is empty: {}",
@@ -1215,11 +1321,19 @@ pub fn move_task(root: &Path, args: &MoveTaskArgs) -> Result<Value, CompatError>
     let outcome = match sk_status::mutation::emit_status_transition(&request) {
         Ok(outcome) => outcome,
         Err(error) => {
-            // No transition row exists, so this file is ours to unwind.
-            if let Some(path) = &review_cycle_path {
-                let _ = std::fs::remove_file(path);
+            // An emit error may occur after replacement or readback. Evidence
+            // retirement must honor that mutation boundary, not assume no row.
+            let mut evidence_note = String::new();
+            if let Some(path) = &review_cycle_path
+                && let EvidenceRetirement::Retained(reason) =
+                    retire_failed_transition_evidence(commit_authority.as_ref(), path, &error)
+            {
+                evidence_note = format!(" {reason}.");
             }
-            return Err(CompatError::domain(refusal_message(&error)));
+            return Err(CompatError::domain(format!(
+                "{}{evidence_note}",
+                refusal_message(&error)
+            )));
         }
     };
     let event = &outcome.event;
@@ -1228,6 +1342,10 @@ pub fn move_task(root: &Path, args: &MoveTaskArgs) -> Result<Value, CompatError>
     // and the review-cycle evidence. A flat mission keeps the primary-uncommitted
     // status write; its evidence still commits when auto-commit is on.
     let mut verdict_outcome: Option<sk_status::mutation_commit::VerdictDurabilityOutcome> = None;
+    // The destination this call's status commit landed on, traced even when the
+    // edge writes no review-cycle artifact (F4: the resolved destination is the
+    // respected current branch, never a stored `target_branch`).
+    let mut commit_destination: Option<String> = None;
     if let Some(authority) = &commit_authority {
         let mut paths: Vec<PathBuf> = Vec::new();
         if commit::transactional_topology(&mission) {
@@ -1252,6 +1370,7 @@ pub fn move_task(root: &Path, args: &MoveTaskArgs) -> Result<Value, CompatError>
             };
             match commit::commit_paths(authority, root, &paths, &message) {
                 commit::CommitAttempt::Landed => {
+                    commit_destination = Some(authority.target_name.clone());
                     if let Some(path) = &review_cycle_path {
                         let evidence_ref = authority
                             .evidence_ref(path)
@@ -1281,6 +1400,7 @@ pub fn move_task(root: &Path, args: &MoveTaskArgs) -> Result<Value, CompatError>
                     // cut. `rollback_status_artifacts` re-checks the multiset,
                     // torn-tail and committed-at-HEAD conditions and leaves every
                     // byte alone on any refusal.
+                    let mut rolled_back = false;
                     let mut rollback_note = String::new();
                     if outcome.persisted
                         && let (Some(lock), Some(point)) = (&mission_lock, &rollback_point)
@@ -1303,6 +1423,7 @@ pub fn move_task(root: &Path, args: &MoveTaskArgs) -> Result<Value, CompatError>
                             probe_ref,
                         ) {
                             Ok(rollback) if rollback.rolled_back => {
+                                rolled_back = true;
                                 rollback_note =
                                     " the status transition rows were rolled back".to_owned();
                             }
@@ -1316,13 +1437,24 @@ pub fn move_task(root: &Path, args: &MoveTaskArgs) -> Result<Value, CompatError>
                             }
                         }
                     }
-                    if let Some(path) = &review_cycle_path {
-                        let _ = std::fs::remove_file(path);
+                    // The evidence is retired only after the rows are proven
+                    // absent/uncommitted AND the destination does not already
+                    // carry a blob for it; otherwise a retained row's
+                    // `review_ref` would dangle (F1).
+                    let mut evidence_note = String::new();
+                    if let Some(path) = &review_cycle_path
+                        && let EvidenceRetirement::Retained(reason) = retire_uncommitted_evidence(
+                            Some(authority),
+                            path,
+                            !outcome.persisted || rolled_back,
+                        )
+                    {
+                        evidence_note = format!(" {reason}.");
                     }
                     return Err(CompatError::coded(
                         "VERDICT_PERSISTENCE_FAILED",
                         format!(
-                            "the commit did not land ({error}); no verdict is durable.{rollback_note}"
+                            "the commit did not land ({error}); no verdict is durable.{rollback_note}{evidence_note}"
                         ),
                     ));
                 }
@@ -1439,6 +1571,9 @@ pub fn move_task(root: &Path, args: &MoveTaskArgs) -> Result<Value, CompatError>
         }
         None => {
             payload.insert("verdict_durably_persisted".to_owned(), json!(false));
+            if let Some(destination) = commit_destination {
+                payload.insert("destination_ref".to_owned(), json!(destination));
+            }
         }
     }
     let payload = Value::Object(payload);
@@ -1471,25 +1606,22 @@ pub struct MarkStatusArgs {
     #[arg(long)]
     pub agent: Option<String>,
     /// Record status events when supported (default: from project config).
+    ///
+    /// Same Typer boolean-pair semantics as `move-task`: bare flags only, last
+    /// spelling wins, and the negative option only ever selects `false`.
     #[arg(
         long = "auto-commit",
         overrides_with = "no_auto_commit",
-        num_args = 0..=1,
-        require_equals = true,
-        default_missing_value = "true",
-        action = clap::ArgAction::Set
+        action = clap::ArgAction::Count
     )]
-    pub auto_commit: Option<bool>,
+    pub auto_commit: Option<u8>,
     /// Disable automatic commits.
     #[arg(
         long = "no-auto-commit",
         overrides_with = "auto_commit",
-        num_args = 0..=1,
-        require_equals = true,
-        default_missing_value = "false",
-        action = clap::ArgAction::Set
+        action = clap::ArgAction::Count
     )]
-    pub no_auto_commit: Option<bool>,
+    pub no_auto_commit: Option<u8>,
     /// Explicit owned single-branch checkout root (unsupported natively).
     #[arg(long = "owned-checkout", value_name = "PATH")]
     pub owned_checkout: Option<std::path::PathBuf>,
@@ -1614,14 +1746,29 @@ pub fn mark_status(root: &Path, args: &MarkStatusArgs) -> Result<Value, CompatEr
     let mission = require_mission(root, args.mission.as_deref())?;
     refuse_coordination(&mission, "mark-status")?;
     // The project config supplies the default; the explicit flag overrides it.
-    // A protected destination refuses before any status read or mutation.
-    let auto_commit = commit::resolve_auto_commit(root, args.auto_commit.or(args.no_auto_commit))?;
-    let commit_authority = commit::prepare(
+    // The destination is the respected current branch (F4); a stored
+    // `target_branch` is not a precondition.
+    let auto_commit = commit::resolve_auto_commit(
         root,
-        &mission,
-        "spec-kitty agent tasks mark-status",
-        auto_commit,
+        explicit_auto_commit(args.auto_commit, args.no_auto_commit),
     )?;
+    let prepared_authority = commit::prepare(root, &mission, auto_commit)?;
+    // F3: the reference commits an annotation only for `single_branch`
+    // (`st.resolved_auto_commit and is_single_branch(resolve_topology(...))`).
+    // F2: it applies NO protected-primary refusal here — a `single_branch`
+    // annotation that would commit on a protected branch degrades to the
+    // uncommitted write with the canonical warning (`_annotation_degrades_uncommitted`).
+    let annotation_topology = commit::annotation_commit_topology(&mission);
+    let protected_degraded_destination = prepared_authority
+        .as_ref()
+        .filter(|_| annotation_topology)
+        .filter(|authority| authority.protected_destination)
+        .map(|authority| authority.target_name.clone());
+    let commit_authority = if annotation_topology && protected_degraded_destination.is_none() {
+        prepared_authority
+    } else {
+        None
+    };
     let explicit_wp = args.wp.as_deref().map(normalize_wp_id).transpose()?;
 
     // `tasks.md` is the task-roster index this command resolves against. Its
@@ -1774,7 +1921,7 @@ pub fn mark_status(root: &Path, args: &MarkStatusArgs) -> Result<Value, CompatEr
 
     // The transactional status write commits the annotation rows; the hold and
     // its rollback point cover the write, the commit and any rollback.
-    let transactional = commit_authority.is_some() && commit::transactional_topology(&mission);
+    let transactional = commit_authority.is_some();
     let (mission_lock, rollback_point) = if transactional {
         let lock = sk_status::mutation::acquire_mission_lock(
             mission.spec_dir(),
@@ -1816,6 +1963,14 @@ pub fn mark_status(root: &Path, args: &MarkStatusArgs) -> Result<Value, CompatEr
         let outcome = sk_status::mutation::emit_inner_state_changed(&request)
             .map_err(|error| CompatError::domain(error.to_string()))?;
         applied.push(outcome.event_id);
+        if protected_degraded_destination.is_some() {
+            // The reference logs exactly this on the degrade arm.
+            eprintln!(
+                "Status annotation for {} {} was written but not committed: the mission records directly on a protected branch.",
+                mission.slug_str(),
+                wp
+            );
+        }
     }
 
     if transactional && !applied.is_empty() {
@@ -1868,7 +2023,23 @@ pub fn mark_status(root: &Path, args: &MarkStatusArgs) -> Result<Value, CompatEr
         }
     }
 
-    let payload = json!({"results": results, "summary": summary});
+    let mut payload = json!({"results": results, "summary": summary});
+    if let Some(destination) = &protected_degraded_destination {
+        // Additive native durability trace for the canonical degrade arm; the
+        // reference's only signal here is the warning above.
+        let object = payload
+            .as_object_mut()
+            .expect("the mark-status payload is an object");
+        object.insert(
+            "durability_classification".to_owned(),
+            json!("persistence_failed"),
+        );
+        object.insert(
+            "durability_reason".to_owned(),
+            json!(sk_status::mutation_commit::DURABILITY_REASON_PROTECTED_TARGET_BRANCH),
+        );
+        object.insert("destination_ref".to_owned(), json!(destination));
+    }
     if args.json {
         emit_json(&payload)
             .map_err(|error| CompatError::domain(format!("could not write JSON: {error}")))?;
@@ -1891,10 +2062,63 @@ pub fn mark_status(root: &Path, args: &MarkStatusArgs) -> Result<Value, CompatEr
 }
 
 #[cfg(test)]
+mod evidence_retirement_tests {
+    use std::fs;
+
+    use super::*;
+    use sk_status::mutation::MutationError;
+
+    #[test]
+    fn failed_emit_retains_evidence_when_the_status_write_may_have_landed() {
+        let path = PathBuf::from("status.events.jsonl");
+        let failures = [
+            MutationError::CommitIndeterminate {
+                path: path.clone(),
+                detail: "replacement may have landed".to_owned(),
+            },
+            MutationError::PostCommitVerification {
+                path: path.clone(),
+                source: Box::new(MutationError::InvalidRow {
+                    reason: "readback failed".to_owned(),
+                }),
+            },
+            MutationError::EventMissing {
+                path,
+                event_id: "already-published-event".to_owned(),
+            },
+        ];
+        for error in failures {
+            let temp = tempfile::tempdir().unwrap();
+            let evidence = temp.path().join("review-cycle-1.md");
+            fs::write(&evidence, "authored review evidence\n").unwrap();
+            assert!(
+                matches!(
+                    retire_failed_transition_evidence(None, &evidence, &error),
+                    EvidenceRetirement::Retained(_)
+                ),
+                "{error}"
+            );
+            assert_eq!(fs::read(&evidence).unwrap(), b"authored review evidence\n");
+        }
+        let temp = tempfile::tempdir().unwrap();
+        let evidence = temp.path().join("review-cycle-1.md");
+        fs::write(&evidence, "uncommitted evidence\n").unwrap();
+        let refusal = MutationError::InvalidRow {
+            reason: "refused before a write".to_owned(),
+        };
+        assert!(matches!(
+            retire_failed_transition_evidence(None, &evidence, &refusal),
+            EvidenceRetirement::Removed
+        ));
+        assert!(!evidence.exists());
+    }
+}
+
+#[cfg(test)]
 mod flag_tests {
     //! The `--auto-commit/--no-auto-commit` pair is upstream's
-    //! `bool | None` Typer option: absent means "use the project default", and
-    //! the last occurrence wins.
+    //! `bool | None` Typer option: a value is never accepted, absent means "use
+    //! the project default", and the last spelling wins.
 
     use super::*;
     use clap::Parser;
@@ -1905,22 +2129,24 @@ mod flag_tests {
         args: MoveTaskArgs,
     }
 
+    fn resolved(parts: &[&str]) -> Option<bool> {
+        let parsed = MoveCli::parse_from(parts);
+        explicit_auto_commit(parsed.args.auto_commit, parsed.args.no_auto_commit)
+    }
+
     #[test]
     fn the_auto_commit_flags_are_tri_state_and_last_wins() {
-        let absent = MoveCli::parse_from(["x", "WP01", "--to", "planned"]);
-        assert_eq!(absent.args.auto_commit, None);
-        assert_eq!(absent.args.no_auto_commit, None);
+        assert_eq!(resolved(&["x", "WP01", "--to", "planned"]), None);
+        assert_eq!(
+            resolved(&["x", "WP01", "--to", "planned", "--auto-commit"]),
+            Some(true)
+        );
+        assert_eq!(
+            resolved(&["x", "WP01", "--to", "planned", "--no-auto-commit"]),
+            Some(false)
+        );
 
-        let on = MoveCli::parse_from(["x", "WP01", "--to", "planned", "--auto-commit"]);
-        assert_eq!(on.args.auto_commit, Some(true));
-        assert_eq!(on.args.no_auto_commit, None);
-
-        let off = MoveCli::parse_from(["x", "WP01", "--to", "planned", "--no-auto-commit"]);
-        assert_eq!(off.args.auto_commit, None);
-        assert_eq!(off.args.no_auto_commit, Some(false));
-
-        // `num_args = 0..=1` must not swallow the following positional/option:
-        // the flag still resolves from its `default_missing_value`.
+        // A bare flag must not swallow the following positional/option.
         let before_positional = MoveCli::parse_from([
             "x",
             "--auto-commit",
@@ -1930,19 +2156,73 @@ mod flag_tests {
             "--mission",
             "034-demo",
         ]);
-        assert_eq!(before_positional.args.auto_commit, Some(true));
+        assert_eq!(
+            explicit_auto_commit(
+                before_positional.args.auto_commit,
+                before_positional.args.no_auto_commit
+            ),
+            Some(true)
+        );
         assert_eq!(before_positional.args.task_id, "WP01");
         assert_eq!(before_positional.args.mission.as_deref(), Some("034-demo"));
 
-        let last_off = MoveCli::parse_from([
-            "x",
-            "WP01",
-            "--to",
-            "planned",
-            "--auto-commit",
-            "--no-auto-commit",
-        ]);
-        assert_eq!(last_off.args.auto_commit, None);
-        assert_eq!(last_off.args.no_auto_commit, Some(false));
+        assert_eq!(
+            resolved(&[
+                "x",
+                "WP01",
+                "--to",
+                "planned",
+                "--auto-commit",
+                "--no-auto-commit"
+            ]),
+            Some(false)
+        );
+        assert_eq!(
+            resolved(&[
+                "x",
+                "WP01",
+                "--to",
+                "planned",
+                "--no-auto-commit",
+                "--auto-commit"
+            ]),
+            Some(true)
+        );
+        // Repeats are last-wins (the reference's boolean flag accepts them).
+        assert_eq!(
+            resolved(&[
+                "x",
+                "WP01",
+                "--to",
+                "planned",
+                "--auto-commit",
+                "--auto-commit"
+            ]),
+            Some(true)
+        );
+        assert_eq!(
+            resolved(&[
+                "x",
+                "WP01",
+                "--to",
+                "planned",
+                "--no-auto-commit",
+                "--no-auto-commit"
+            ]),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn the_auto_commit_flags_reject_every_valued_spelling() {
+        for spelling in [
+            "--auto-commit=true",
+            "--auto-commit=false",
+            "--no-auto-commit=true",
+            "--no-auto-commit=false",
+        ] {
+            let parsed = MoveCli::try_parse_from(["x", "WP01", "--to", "planned", spelling]);
+            assert!(parsed.is_err(), "{spelling} must be rejected");
+        }
     }
 }

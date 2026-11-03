@@ -344,6 +344,16 @@ These are real missing behaviours, not aliases for a successful stub.
     or disjoint replacement of a list replaces that value (inner item comments
     are not reattached), and YAML alias/anchor write-back beyond what
     `yaml-edit` round-trips is not separately verified.
+14. **Nested governance/directive model validation.** The canonical-root
+    retired-key refusal and structural malformed-shape degrade are independently
+    verified. Nested constraints are incomplete: invalid integer coverage or
+    approval fields, and malformed activation entries (missing/extra fields or
+    unknown mission type), can still resolve where the reference degrades to
+    directly loaded locals. The 149-test / 52-check review does not approve
+    those cases.
+15. **Scoped language vocabulary.** The CLI's fixed language detector does not
+    yet union languages declared by doctrine artifacts. A scoped custom `zig`
+    declaration can therefore exclude a profile that the reference admits.
 
 ## API map for the coordinator CLI
 

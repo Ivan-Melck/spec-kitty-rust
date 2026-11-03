@@ -1,4 +1,13 @@
-# Merge conclusion creation-evidence remediation — FINAL
+# Merge conclusion creation-evidence remediation — FINAL historical delivery
+
+> **Independent review correction:** the claims below describe the original
+> implementation delivery, not acceptance. Review at published `f42d5380b`
+> reproduced G1 (missing reflog boundary could falsely confirm a historical
+> commit) and G2 (hook amendment misattributed as the original creation).
+> `/tmp/sk-rust-conclusion-evidence-final-review.md` rejects final acceptance.
+> The subsequent coordinator correction and fresh evidence are recorded in
+> `BOUNDARY-REMEDIATION-REPORT.md`; the original source hashes below remain
+> historical, not rewritten to imply the defect never existed.
 
 > **STATUS: FINAL implementation evidence.** This pass closed the independent
 > review's **F2-R (MEDIUM)** finding and the coordinator's static finding about
@@ -10,7 +19,7 @@
 
 | Item | Value |
 | --- | --- |
-| Baseline (and still current) HEAD | `d64468a7693e4962712cbf3416d767440d22a649` (`rust/rewrite`, frozen) |
+| HEAD during original delivery | `d64468a7693e4962712cbf3416d767440d22a649` with uncommitted remediation; those bytes were published in `f42d5380b0d3be11773e0b2354eb73e9c2a2c47d` |
 | Input review | `/tmp/sk-rust-git-remediation-review.md` (FINAL; F2-R MEDIUM) |
 | Prior report | `crates/sk-git/OPERATIONS-REMEDIATION-REPORT.md` (corrected in place) |
 | Toolchain | rustc 1.99.1, git 2.43.0, Linux, SHA-1 repositories |
@@ -161,8 +170,11 @@ weakened, or newly ignored; the same three helpers remain parent-exercised.
 
 ## 5. Final source identity and state
 
-HEAD is still `d64468a7693e4962712cbf3416d767440d22a649`. Files changed by this
-pass (SHA-256):
+This table was captured with HEAD `d64468a7693e4962712cbf3416d767440d22a649`
+and uncommitted remediation. Its hashes bind to the files subsequently
+published in `f42d5380b0d3be11773e0b2354eb73e9c2a2c47d`, **not** to the older
+commit's tree and not to the current post-review correction. Original delivery
+files (SHA-256):
 
 | File | SHA-256 |
 | --- | --- |

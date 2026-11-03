@@ -8,7 +8,40 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Frozen Linux checkpoint — 2026-11-03, after `d64468a76`
+## Post-review Linux checkpoint — 2026-11-03, after `f42d5380b`
+
+All owners finished before the coordinator's final gate chain:
+**1,966 passed / 0 failed / 8 parent-exercised helpers**, 170 suite results;
+strict workspace all-target Clippy, full format check and both release CLIs
+pass. Logs: `/tmp/sk-native-post-boundary-{aggregate,clippy,fmt,release}.log`.
+This replaces the intermediate 1,965-pass run after one more evidence-retention
+boundary was corrected; both sets of logs are preserved.
+
+- Git: missing reflog watermark is validated before candidates; amend entries
+  excluded. Three real-Git tests fail red then pass; scoped **259/0/3 helpers**.
+  Fresh independent re-review still required; workspace attribution conditional.
+- Status: six independently found defects corrected (**234 status / 57 CLI
+  status / 9 CLI lib**). Coordinator additionally fixed emit-error evidence
+  cleanup to respect `MutationError::may_have_mutated`; its initial missing-
+  import compile failure and subsequent true assertion-red are distinguished
+  in `SECOND-COMMIT-REMEDIATION-REPORT.md`. Acceptance pending re-review.
+- Next: activated custom non-WP `specify`/`plan` prompts and full authored WP
+  frontmatter/trailing whitespace now pass two red-first regressions;
+  **27 runtime_next** tests. StepContract false advance remains open.
+- Doctrine: independent acceptance of N1/N2a/N2b(structural)/N3/N4 and packs-root
+  normalization: **149 scoped tests + 52 independent oracle checks**. Nested
+  validation and custom-language vocabulary remain open in the durable README.
+
+Fresh lock-exact-interpreter completion check stays **599 findings / 27 PERF
+errors / false / pending**, counting valid. The initial system-Python attempt
+failed setup (`typer` missing), not a completion result; preserved at
+`/tmp/sk-post-boundary-completion.log`. Actual report:
+`/tmp/sk-post-boundary-completion-oracle-report.json`. Python-tool Ruff's
+90 findings, 90 missing migrations, 16 absent performance workloads, source
+reconciliation and all full-workflow/platform/performance obligations remain.
+No coverage promotion or new acceptance policy.
+
+## Previous frozen Linux checkpoint — 2026-11-03, published in `f42d5380b`
 
 All implementation owners had finished before these coordinator gates; no
 source changed during the runs. Rust 1.99.1, existing target directory,

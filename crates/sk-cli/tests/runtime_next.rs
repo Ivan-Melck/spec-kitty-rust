@@ -701,6 +701,130 @@ fn the_differential_transcript_matches_the_pinned_oracle_decision_envelopes() {
 // ---------------------------------------------------------------------------
 
 #[test]
+fn activated_custom_non_wp_steps_keep_their_templateless_prompts() {
+    let (temp, home, slug, fixture) = input_mission();
+    let root = temp.path();
+    write(
+        &root.join(".kittify/config.yaml"),
+        "agents:\n  available: [codex]\nmission_type_activations: [demo-io]\n",
+    );
+    let first = run(
+        root,
+        &home,
+        &[
+            "next",
+            "--mission",
+            &slug,
+            "--agent",
+            "claude",
+            "--result",
+            "success",
+            "--json",
+        ],
+    );
+    assert!(first.status.success());
+    assert_eq!(
+        single_json(&first)["kind"],
+        fixture["steps"][0]["decision"]["kind"]
+    );
+    let specified = run(
+        root,
+        &home,
+        &[
+            "next",
+            "--mission",
+            &slug,
+            "--agent",
+            "claude",
+            "--answer",
+            "alice",
+            "--result",
+            "success",
+            "--json",
+        ],
+    );
+    let planned = run(
+        root,
+        &home,
+        &[
+            "next",
+            "--mission",
+            &slug,
+            "--agent",
+            "claude",
+            "--result",
+            "success",
+            "--json",
+        ],
+    );
+    for (output, step) in [(specified, "specify"), (planned, "plan")] {
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let value = single_json(&output);
+        assert_eq!(value["kind"], json!("step"), "{value}");
+        assert_eq!(value["step_id"], json!(step));
+        let prompt =
+            fs::read_to_string(value["prompt_file"].as_str().expect("authored prompt")).unwrap();
+        assert!(
+            prompt.starts_with(&format!("# demo-io — {step}\n")),
+            "{prompt}"
+        );
+    }
+}
+
+#[test]
+fn wp_prompt_preserves_frontmatter_and_authored_trailing_whitespace() {
+    let (temp, home, slug) = board_mission(
+        "demo-board",
+        BOARD_TEMPLATE,
+        &[("WP01", "genesis", "planned")],
+    );
+    let root = temp.path();
+    let source_path = root
+        .join("kitty-specs")
+        .join(&slug)
+        .join("tasks/WP01-first.md");
+    let mut source = fs::read_to_string(&source_path).unwrap();
+    source.push_str("\n  \n\n");
+    write(&source_path, &source);
+    let output = run(
+        root,
+        &home,
+        &[
+            "next",
+            "--mission",
+            &slug,
+            "--agent",
+            "claude",
+            "--result",
+            "success",
+            "--json",
+        ],
+    );
+    assert!(output.status.success());
+    let value = single_json(&output);
+    assert_eq!(value["kind"], json!("step"), "{value}");
+    let prompt =
+        fs::read_to_string(value["prompt_file"].as_str().expect("authored prompt")).unwrap();
+    let wp_block = prompt
+        .split("WORK PACKAGE PROMPT BEGINS")
+        .nth(1)
+        .unwrap()
+        .split("WORK PACKAGE PROMPT ENDS")
+        .next()
+        .unwrap();
+    assert!(
+        wp_block.contains(&source),
+        "full authored WP source must be preserved: {wp_block:?}"
+    );
+    assert!(wp_block.contains("work_package_id: WP01\n"));
+    assert!(wp_block.contains("owned_files:"));
+}
+
+#[test]
 fn the_finalized_board_dispatches_implement_then_review() {
     let (temp, home, slug) = board_mission(
         "demo-board",
