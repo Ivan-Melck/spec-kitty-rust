@@ -2023,20 +2023,6 @@ impl GitRepository {
     }
 }
 
-/// Validate a bounded reflog message for the compare-and-swap ref advance.
-pub(crate) fn reflog_message(message: &str) -> String {
-    let mut bounded = String::new();
-    for character in message.chars() {
-        if bounded.len() + character.len_utf8() > 2000 {
-            break;
-        }
-        bounded.push(character);
-    }
-    // Git normalizes whitespace in update-ref -m, including an empty recorded
-    // message for ASCII-whitespace-only input. Do not fabricate audit text.
-    bounded
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

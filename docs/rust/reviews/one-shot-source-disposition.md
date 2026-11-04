@@ -1,5 +1,10 @@
 # Existing one-shot commit facades: Source ordering
 
+> Historical `21254a41e` checkpoint below. Independent narrow review and the
+> coordinator's subsequent inclusive-boundary/full-reflog fixes, current four
+> overrides and gates: [one-shot-payload-disposition.md](one-shot-payload-disposition.md).
+> The original review does not certify the later small fixes.
+
 ## Subject and actual behavior
 
 Follow-up to published `1a7a62f452499ef0e5d0f51949be8b8a3ff4ee69`.

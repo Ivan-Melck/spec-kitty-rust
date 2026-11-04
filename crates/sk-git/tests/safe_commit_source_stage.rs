@@ -626,6 +626,10 @@ elif kind == "nul":
     message = "subject" + chr(0) + "tail"
 elif kind == "empty":
     message = ""
+elif kind.startswith("long:"):
+    message = "x" * int(kind.split(":", 1)[1])
+elif kind.startswith("rawlong:"):
+    message = b"\xff" * int(kind.split(":", 1)[1])
 elif kind == "equal_index_timestamp":
     # Source accepts os.PathLike arguments at Popen's argv conversion boundary.
     # This is a public helper/supplier probe, not the Op str-message surface.
@@ -1991,6 +1995,7 @@ fn footprint(fixture: &Fixture) -> Footprint {
 fn one_shot_error_class(error: &GitError) -> &'static str {
     match error {
         GitError::SafeCommitCommitFailed { .. } => "SafeCommitCommitFailed",
+        GitError::SafeCommitHookRejected { .. } => "SafeCommitHookRejected",
         GitError::SafeCommitStageFailed { .. } => "SafeCommitStageFailed",
         GitError::SafeCommitInvalidRequest { .. } => "SafeCommitInvalidRequest",
         GitError::SafeCommitNothingToCommit { .. } => "SafeCommitNothingToCommit",
@@ -2054,6 +2059,9 @@ fn one_shot_native_helper() {
                 "empty" => String::new(),
                 "nul" => "subject\u{0}tail".to_string(),
                 "ok" => MESSAGE.to_string(),
+                long if long.starts_with("long:") => {
+                    "x".repeat(long[5..].parse().expect("message byte count"))
+                }
                 other => panic!("unknown message kind {other}"),
             };
             let request =
@@ -2075,6 +2083,13 @@ fn one_shot_native_helper() {
                 "empty" => CommitMessage::from_text(""),
                 "nul" => CommitMessage::from_bytes(b"subject\0tail".to_vec()),
                 "ok" => CommitMessage::from_text(MESSAGE),
+                long if long.starts_with("long:") => CommitMessage::from_text(
+                    &"x".repeat(long[5..].parse().expect("message byte count")),
+                ),
+                long if long.starts_with("rawlong:") => {
+                    let count = long[8..].parse().expect("message byte count");
+                    CommitMessage::from_bytes(vec![0xff; count])
+                }
                 other => panic!("unknown message kind {other}"),
             };
             match repository.safe_physical_commit(&request, message) {
@@ -2163,6 +2178,22 @@ fn compare_one_shot(
     let destination = if shape.linked { "work-lane" } else { "work" };
 
     let source_before = State::read(&source);
+    // The common fixture already has v2 staged over HEAD's v1 and v3 in the
+    // worktree. Make that pre-staged-requested premise explicit before Source.
+    let staged = git(
+        &source.io,
+        &source.worktree,
+        &["show", &format!(":{REQUESTED}")],
+    );
+    assert_ne!(
+        staged,
+        git(
+            &source.io,
+            &source.worktree,
+            &["show", &format!("HEAD:{REQUESTED}")]
+        )
+    );
+    assert_ne!(staged, fs::read(source.worktree.join(REQUESTED)).unwrap());
     let report = run_source(&source, message_kind, &paths, destination);
     let source_fp = footprint(&source);
     assert!(
@@ -2207,6 +2238,17 @@ fn compare_one_shot(
         expected.restores_requested,
         "{label}: reference requested-path stage classification"
     );
+    if !expected.restores_requested {
+        assert_eq!(
+            git(
+                &source.io,
+                &source.worktree,
+                &["show", &format!(":{REQUESTED}")]
+            ),
+            fs::read(source.worktree.join(REQUESTED)).unwrap(),
+            "{label}: Source NUL retains the complete worktree payload in the index"
+        );
+    }
     for name in [UNRELATED, PARTIAL] {
         assert_eq!(
             source_fp.state.files.get(name),
@@ -2362,12 +2404,17 @@ fn one_shot_missing_second_path_precedes_the_payload_source_first() {
 
 #[test]
 fn one_shot_empty_argv_can_be_rescued_by_a_message_hook_source_first() {
-    for facade in ["legacy", "physical"] {
+    for (facade, hook_name) in [
+        ("legacy", "prepare-commit-msg"),
+        ("physical", "prepare-commit-msg"),
+        ("legacy", "commit-msg"),
+        ("physical", "commit-msg"),
+    ] {
         let (source, native) = twins(Shape::with_unrelated_partial());
         for fixture in [&source, &native] {
             install_one_shot_observation_hooks(fixture);
             fixture.install_hook(
-                "prepare-commit-msg",
+                hook_name,
                 "printf 'rescued subject\\n' > \"$1\"\nprintf 'rescued\\n' >> hook-observed.txt",
             );
         }
@@ -2419,6 +2466,108 @@ fn one_shot_empty_argv_can_be_rescued_by_a_message_hook_source_first() {
                 "{facade}: raw {path} bytes"
             );
         }
+    }
+}
+
+fn compare_long_one_shot_source_first(facade: &str, kind: &str, subject: &[u8]) {
+    let (source, native) = twins(Shape::with_unrelated_partial());
+    let paths = paths_for(Shape::with_unrelated_partial());
+    let report = run_source(&source, kind, &paths, "work");
+    assert!(source_ok(&report), "{facade}/{kind}: Source: {report}");
+    let source_fp = footprint(&source);
+    let mut artifact = subject.to_vec();
+    artifact.push(b'\n');
+    assert_eq!(source_fp.artifact, artifact);
+    let source_object = git(
+        &source.io,
+        &source.worktree,
+        &["cat-file", "commit", "HEAD"],
+    );
+    assert!(!source_object.is_empty());
+    let reflog_paths = [".git/logs/HEAD", ".git/logs/refs/heads/work"];
+    let source_reflogs: Vec<_> = reflog_paths
+        .iter()
+        .map(|path| fs::read(source.worktree.join(path)).expect("source reflog"))
+        .collect();
+    let mut suffix = b"\tcommit: ".to_vec();
+    suffix.extend_from_slice(subject);
+    suffix.push(b'\n');
+    for bytes in &source_reflogs {
+        assert!(
+            bytes.ends_with(&suffix),
+            "{facade}/{kind}: full Source subject"
+        );
+    }
+
+    let native_report = run_native_one_shot(&native, facade, kind, &paths, "work");
+    assert!(
+        native_report.starts_with("result=ok"),
+        "{facade}/{kind}: Native refused Source-valid payload: {native_report}"
+    );
+    assert_eq!(
+        git(
+            &native.io,
+            &native.worktree,
+            &["cat-file", "commit", "HEAD"]
+        ),
+        source_object,
+        "{facade}/{kind}: full object"
+    );
+    assert_eq!(footprint(&native), source_fp, "{facade}/{kind}: footprint");
+    for (path, expected) in reflog_paths.iter().zip(source_reflogs) {
+        assert_eq!(
+            fs::read(native.worktree.join(path)).expect("native reflog"),
+            expected,
+            "{facade}/{kind}: full raw {path}"
+        );
+    }
+}
+
+#[test]
+fn one_shot_inclusive_64k_payload_boundary_source_first() {
+    for facade in ["legacy", "physical"] {
+        compare_long_one_shot_source_first(facade, "long:65536", &vec![b'x'; 65536]);
+    }
+}
+
+#[test]
+fn one_shot_long_subject_reflogs_keep_all_text_and_raw_bytes_source_first() {
+    for facade in ["legacy", "physical"] {
+        compare_long_one_shot_source_first(facade, "long:65535", &vec![b'x'; 65535]);
+    }
+    compare_long_one_shot_source_first("physical", "rawlong:2100", &vec![0xff; 2100]);
+}
+
+#[test]
+fn one_shot_empty_rejected_precommit_restores_pre_staged_requested_source_first() {
+    for facade in ["legacy", "physical"] {
+        let (source, native) = twins(Shape::with_unrelated_partial());
+        for fixture in [&source, &native] {
+            install_one_shot_observation_hooks(fixture);
+            fixture.install_hook(
+                "pre-commit",
+                "printf 'rejected\\n' >> hook-observed.txt\nexit 1",
+            );
+        }
+        let before = State::read(&source);
+        let paths = paths_for(Shape::with_unrelated_partial());
+        let report = run_source(&source, "empty", &paths, "work");
+        assert!(!source_ok(&report), "{facade}: {report}");
+        assert_eq!(source_error_class(&report), "RuntimeError");
+        let source_fp = footprint(&source);
+        assert_eq!(source_fp.state.head, before.head);
+        assert_eq!(source_fp.state.stage, before.stage);
+        assert_eq!(source_fp.state.cached, before.cached);
+        assert_eq!(source_fp.artifact, b"seed\n");
+        assert_eq!(source_fp.hook.as_deref(), Some(b"rejected\n".as_slice()));
+
+        let native_report = run_native_one_shot(&native, facade, "empty", &paths, "work");
+        assert_eq!(native_class(&native_report), "SafeCommitHookRejected");
+        assert_eq!(
+            footprint(&native),
+            source_fp,
+            "{facade}: recovery footprint"
+        );
     }
 }
 

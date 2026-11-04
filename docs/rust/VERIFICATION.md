@@ -8,7 +8,32 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Existing one-shot Source ordering — after `1a7a62f45`
+## One-shot review / inclusive boundary / complete reflogs — after `21254a41e`
+
+Independent narrow PASS WITH FINDINGS at21254 reproduces684 scoped/strict/docs/
+fmt/offline/exact53/fail-closed/six hashes/exact12files and own Source-first
+NUL-prestaged/commit-msg rescue/precommit rejection pairs. It exposes real
+Source-valid65536 post-hook refusal and long-subject reflog truncation. Both
+fixed by coordinator Source-first: allow cleanup's one trailing LF with a
+sentinel read; remove private audit truncation and carry full bytes through
+same ref syntax/CAS authority, public ref-plan budget unchanged. Permanent
+65535/65536 full-object/raw HEAD+destination-reflog pairs, raw2100 subject,
+both message-hook rescue phases and empty precommit rejection pass. Fixture
+already staged requestedv2 overHEADv1/worktreev3; explicit Source preconditions
+added, not a claimed absent test fixed.
+
+Current **2444/0/19helpers/194suites**, Git441+Op246 scoped687/0/14/40; strict
+workspace Clippy/fullfmt/Git+Opdocs/all-targetoffline/both release CLIs+optimized
+Op/exact53 green. Completion unchanged599/PERF27/pending/accounting valid0of16.
+Evidence `/tmp/sk-one-shot-review-followup.CHOOIe/command-log-index.tsv`,
+current four hashes/chronology/review qualification in
+`reviews/one-shot-payload-disposition.md`. Compiler E0308/style/setup first
+failures are not business reds. Small findings coordinator-fixed without a new
+delegate/re-check verdict. Source-valid65537 is still a required false refusal,
+not approved by disclosure; raw stat/TREE/process/platform/workflow/performance
+acceptance remains open.
+
+## Historical existing one-shot Source ordering — after `1a7a62f45`
 
 Ordinary UTF8/physical-byte one-shot facades now stage through the same canonical
 core before payload handling; no new public API or second planner/writer. NUL

@@ -194,14 +194,17 @@ const MAX_MESSAGE_LEN: usize = 2048;
 
 /// Validate a textual reflog/plan message used by ref writes.
 pub(crate) fn validate_message(message: &str) -> Result<(), GitError> {
-    validate_message_bytes(message.as_bytes())
+    validate_message_bytes(message.as_bytes(), Some(MAX_MESSAGE_LEN))
 }
 
 /// Validate reflog/plan message bytes; the one shared rule set.
-fn validate_message_bytes(message: &[u8]) -> Result<(), GitError> {
-    if message.is_empty() || message.len() > MAX_MESSAGE_LEN {
+fn validate_message_bytes(message: &[u8], max_length: Option<usize>) -> Result<(), GitError> {
+    if message.is_empty() || max_length.is_some_and(|limit| message.len() > limit) {
         return Err(GitError::InvalidPlan {
-            detail: format!("a ref transaction message must be 1..={MAX_MESSAGE_LEN} bytes"),
+            detail: match max_length {
+                Some(limit) => format!("a ref transaction message must be 1..={limit} bytes"),
+                None => "a ref transaction message must not be empty".to_string(),
+            },
         });
     }
     if message.contains(&0) {
@@ -356,7 +359,8 @@ impl GitRepository {
         message: &str,
         changes: Vec<RefChange>,
     ) -> Result<RefTransactionPlan, GitError> {
-        let core = self.plan_ref_transaction_message(message.as_bytes(), changes)?;
+        let core =
+            self.plan_ref_transaction_message(message.as_bytes(), changes, Some(MAX_MESSAGE_LEN))?;
         Ok(RefTransactionPlan {
             message: message.to_string(),
             core,
@@ -365,24 +369,26 @@ impl GitRepository {
 
     /// Prepare a ref transaction with an exact-byte reflog message.
     ///
-    /// The same validation and compare-and-swap planning as
-    /// [`GitRepository::plan_ref_transaction`], for a payload that is not valid
-    /// UTF-8. The message never passes through a lossy decode or an escaped
-    /// `Debug` rendering.
+    /// The same syntax validation and compare-and-swap planning as
+    /// [`GitRepository::plan_ref_transaction`], without the public adapter's
+    /// length budget: Source commit subjects must not be truncated. The message
+    /// may be non-UTF-8 and never passes through a lossy decode or escaped
+    /// `Debug` rendering. Git owns reflog whitespace normalization.
     pub(crate) fn plan_ref_transaction_bytes(
         &self,
         message: &[u8],
         changes: Vec<RefChange>,
     ) -> Result<RawRefTransactionPlan, GitError> {
-        self.plan_ref_transaction_message(message, changes)
+        self.plan_ref_transaction_message(message, changes, None)
     }
 
     fn plan_ref_transaction_message(
         &self,
         message: &[u8],
         changes: Vec<RefChange>,
+        max_message_length: Option<usize>,
     ) -> Result<RawRefTransactionPlan, GitError> {
-        validate_message_bytes(message)?;
+        validate_message_bytes(message, max_message_length)?;
         if changes.is_empty() {
             return Err(GitError::InvalidPlan {
                 detail: "a ref transaction must contain at least one change".to_string(),
@@ -543,6 +549,20 @@ fn describe_observed(observed: Option<&Oid>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn source_commit_audit_keeps_full_bytes_without_changing_public_budget() {
+        for long in [vec![b'x'; 65_536], vec![0xff; 2_100]] {
+            assert!(validate_message_bytes(&long, None).is_ok());
+            assert!(validate_message_bytes(&long, Some(MAX_MESSAGE_LEN)).is_err());
+        }
+        for invalid in [b"".as_slice(), b"subject\0tail"] {
+            assert!(validate_message_bytes(invalid, None).is_err());
+            assert!(validate_message_bytes(invalid, Some(MAX_MESSAGE_LEN)).is_err());
+        }
+        assert!(validate_message(&"x".repeat(MAX_MESSAGE_LEN)).is_ok());
+        assert!(validate_message(&"x".repeat(MAX_MESSAGE_LEN + 1)).is_err());
+    }
 
     #[test]
     fn describe_uses_absent_not_an_empty_value() {

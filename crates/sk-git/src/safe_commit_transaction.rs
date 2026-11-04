@@ -98,7 +98,7 @@ use crate::refs::RefChange;
 use crate::repository::GitRepository;
 use crate::safe_commit::{
     DestinationMatch, ExpectedBlob, SafeCommitCoreOutcome, SafeCommitExecution, SafeCommitRecovery,
-    SafeCommitRoute, reflog_message,
+    SafeCommitRoute,
 };
 
 /// How many times the post-landing, idempotent real-index reconciliation is
@@ -767,10 +767,7 @@ where
         let advance = artifact_lock
             .as_ref()
             .map_or(Ok(()), OperatorIndexLock::ensure_owned)
-            .and_then(|()| {
-                repository
-                    .plan_ref_transaction_bytes(&reflog_message_bytes(&audit_message), vec![change])
-            })
+            .and_then(|()| repository.plan_ref_transaction_bytes(&audit_message, vec![change]))
             .and_then(|transaction| repository.apply_ref_transaction_raw(&transaction));
         if let Err(error) = advance {
             let observed = repository.read_ref(plan.destination_ref());
@@ -1797,7 +1794,9 @@ fn write_commit_artifact(path: &Path, bytes: &[u8]) -> Result<(), GitError> {
 
 /// Read the artifact back, following symlinks as git does.
 fn read_commit_artifact(path: &Path) -> Result<Vec<u8>, GitError> {
-    let limit = crate::safe_commit::MAX_COMMIT_MESSAGE_LEN as u64 + 1;
+    // A full-size payload can acquire one trailing LF during message cleanup.
+    // Read one further sentinel byte so an oversized artifact is not truncated.
+    let limit = crate::safe_commit::MAX_COMMIT_MESSAGE_LEN as u64 + 2;
     let file = File::open(path).map_err(|source| GitError::SafeCommitInvalidRequest {
         detail: format!("read commit message: {source}"),
     })?;
@@ -1817,7 +1816,8 @@ fn read_commit_artifact(path: &Path) -> Result<Vec<u8>, GitError> {
             detail: format!("read commit message: {source}"),
         }
     })?;
-    if bytes.len() as u64 > limit - 1 {
+    let payload = bytes.strip_suffix(b"\n").unwrap_or(&bytes);
+    if payload.len() > crate::safe_commit::MAX_COMMIT_MESSAGE_LEN {
         return Err(GitError::SafeCommitInvalidRequest {
             detail: format!(
                 "the commit message exceeds the {}-byte limit",
@@ -1881,19 +1881,6 @@ fn first_line_bytes(message: &[u8]) -> &[u8] {
             .unwrap_or(&message[..end]),
         None => message,
     }
-}
-
-/// The reflog/audit message for a payload.
-///
-/// UTF-8 truncation uses the scalar boundaries in [`reflog_message`]; other
-/// payloads keep their exact bytes within the same 2000-byte budget. Git owns
-/// whitespace normalization (including an empty recorded message); no invented
-/// fallback, `U+FFFD`, or escaped `Debug` data replaces the pre-conversion bytes.
-fn reflog_message_bytes(message: &[u8]) -> Vec<u8> {
-    if let Ok(text) = std::str::from_utf8(message) {
-        return reflog_message(text).into_bytes();
-    }
-    message.iter().take(2000).copied().collect()
 }
 
 /// Post-landing work that must know the commit exists.
@@ -2745,30 +2732,21 @@ mod tests {
     }
 
     #[test]
-    fn utf8_reflog_bytes_use_the_canonical_text_truncation() {
-        for text in [
-            "commit: op(\u{00a0}): a",
-            "commit: subject",
-            "pinned message\n\nbody",
-            "   ",
-            "",
-        ] {
-            assert_eq!(
-                reflog_message_bytes(text.as_bytes()),
-                reflog_message(text).into_bytes(),
-                "the UTF-8 and byte routes share text truncation, including whitespace"
-            );
+    fn artifact_budget_excludes_one_trailing_lf_and_detects_the_sentinel() {
+        let file = NamedTempFile::new().unwrap();
+        let max = crate::safe_commit::MAX_COMMIT_MESSAGE_LEN;
+        let mut payload = vec![0xff; max];
+        fs::write(file.path(), &payload).unwrap();
+        assert_eq!(read_commit_artifact(file.path()).unwrap(), payload);
+        payload.push(b'\n');
+        fs::write(file.path(), &payload).unwrap();
+        assert_eq!(read_commit_artifact(file.path()).unwrap(), payload);
+        for oversized in [vec![b'x'; max + 1], vec![b'x'; max + 2]] {
+            fs::write(file.path(), oversized).unwrap();
+            assert!(matches!(
+                read_commit_artifact(file.path()),
+                Err(GitError::SafeCommitInvalidRequest { .. })
+            ));
         }
-    }
-
-    #[test]
-    fn raw_reflog_bytes_are_exact_and_bounded() {
-        assert_eq!(
-            reflog_message_bytes(b"commit: op(\x80): rewritten"),
-            b"commit: op(\x80): rewritten".to_vec()
-        );
-        assert_eq!(reflog_message_bytes(b" \t "), b" \t ".to_vec());
-        let long = vec![0xffu8; 2_100];
-        assert_eq!(reflog_message_bytes(&long), vec![0xffu8; 2_000]);
     }
 }
