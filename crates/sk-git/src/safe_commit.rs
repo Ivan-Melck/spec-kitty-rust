@@ -115,6 +115,7 @@ use std::path::{Component, Path, PathBuf};
 use crate::branch::ProtectedBranches;
 use crate::error::GitError;
 use crate::index_authority::OperatorIndex;
+use crate::message::CommitMessage;
 use crate::oid::Oid;
 use crate::path::GitPath;
 use crate::refname::BranchName;
@@ -292,10 +293,13 @@ impl fmt::Debug for ExpectedBlob {
     }
 }
 
-/// A validated safe-commit request.
+/// The preflight inputs for a safe commit, without a message.
 ///
-/// Construct with [`SafeCommitRequest::new`] and the `with_*` builders. The
-/// destination is a validated short [`BranchName`].
+/// Construct with [`SafeCommitTargetRequest::new`] and the `with_*` builders.
+/// A target plan runs the native preflight without a message: the payload
+/// cannot influence path, HEAD, tip, parent, guard, or lock preflight. Native
+/// progress is not proof of reference path semantics or of its staging-before-
+/// encoding failure footprint; callers must establish those separately.
 ///
 /// # Protection is caller-supplied
 ///
@@ -304,12 +308,11 @@ impl fmt::Debug for ExpectedBlob {
 /// not a safe default for production: the application layer must resolve the
 /// real facts (configuration, remote default branch, operator hatch, mission
 /// `commit_to_target`) and attach them with
-/// [`SafeCommitRequest::with_protection`] before committing anywhere a
+/// [`SafeCommitTargetRequest::with_protection`] before committing anywhere a
 /// protected branch is possible. This crate never reads `.kittify`.
 #[derive(Debug, Clone)]
-pub struct SafeCommitRequest {
+pub struct SafeCommitTargetRequest {
     destination: BranchName,
-    message: String,
     paths: Vec<GitPath>,
     deletions: Vec<GitPath>,
     expected_parent: Option<Oid>,
@@ -318,16 +321,11 @@ pub struct SafeCommitRequest {
     capability: CommitGuardCapability,
 }
 
-impl SafeCommitRequest {
+impl SafeCommitTargetRequest {
     /// A worktree-content commit of exactly `paths` on `destination`.
-    pub fn new(
-        destination: BranchName,
-        message: impl Into<String>,
-        paths: impl IntoIterator<Item = GitPath>,
-    ) -> Self {
+    pub fn new(destination: BranchName, paths: impl IntoIterator<Item = GitPath>) -> Self {
         Self {
             destination,
-            message: message.into(),
             paths: paths.into_iter().collect(),
             deletions: Vec::new(),
             expected_parent: None,
@@ -378,11 +376,6 @@ impl SafeCommitRequest {
         &self.destination
     }
 
-    /// The commit message.
-    pub fn message(&self) -> &str {
-        &self.message
-    }
-
     /// The requested worktree paths, as supplied (not yet normalised).
     pub fn paths(&self) -> &[GitPath] {
         &self.paths
@@ -404,6 +397,97 @@ impl SafeCommitRequest {
     }
 }
 
+/// A validated safe-commit request, message included.
+///
+/// Construct with [`SafeCommitRequest::new`] and the `with_*` builders. The
+/// destination is a validated short [`BranchName`]. The message is a UTF-8
+/// `String` here; [`CommitMessage`] is the exact-byte equivalent, and
+/// [`SafeCommitTargetRequest`] is the message-free target these builders
+/// delegate to. Protection is caller-supplied exactly as documented on
+/// [`SafeCommitTargetRequest`].
+#[derive(Debug, Clone)]
+pub struct SafeCommitRequest {
+    target: SafeCommitTargetRequest,
+    message: String,
+}
+
+impl SafeCommitRequest {
+    /// A worktree-content commit of exactly `paths` on `destination`.
+    pub fn new(
+        destination: BranchName,
+        message: impl Into<String>,
+        paths: impl IntoIterator<Item = GitPath>,
+    ) -> Self {
+        Self {
+            target: SafeCommitTargetRequest::new(destination, paths),
+            message: message.into(),
+        }
+    }
+
+    /// Set the index-only removals (the file stays on disk).
+    pub fn with_index_deletions(mut self, deletions: impl IntoIterator<Item = GitPath>) -> Self {
+        self.target = self.target.with_index_deletions(deletions);
+        self
+    }
+
+    /// Pin the exact parent commit ([`SafeCommitRoute::PinnedParent`]).
+    pub fn with_expected_parent(mut self, parent: Oid) -> Self {
+        self.target = self.target.with_expected_parent(parent);
+        self
+    }
+
+    /// Assert exact staged bytes for requested paths (requires a pinned parent).
+    pub fn with_expected_bytes(mut self, expected: impl IntoIterator<Item = ExpectedBlob>) -> Self {
+        self.target = self.target.with_expected_bytes(expected);
+        self
+    }
+
+    /// Supply the caller-resolved protected set and the asserted capability.
+    pub fn with_protection(
+        mut self,
+        protected: ProtectedBranches,
+        capability: CommitGuardCapability,
+    ) -> Self {
+        self.target = self.target.with_protection(protected, capability);
+        self
+    }
+
+    /// The declared destination branch.
+    pub fn destination(&self) -> &BranchName {
+        self.target.destination()
+    }
+
+    /// The commit message.
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    /// The requested worktree paths, as supplied (not yet normalised).
+    pub fn paths(&self) -> &[GitPath] {
+        self.target.paths()
+    }
+
+    /// The requested index-only removals, as supplied.
+    pub fn index_deletions(&self) -> &[GitPath] {
+        self.target.index_deletions()
+    }
+
+    /// The pinned parent, when one was supplied.
+    pub fn expected_parent(&self) -> Option<&Oid> {
+        self.target.expected_parent()
+    }
+
+    /// The exact-bytes assertions.
+    pub fn expected_bytes(&self) -> &[ExpectedBlob] {
+        self.target.expected_bytes()
+    }
+
+    /// The message-free target this request delegates to.
+    pub fn target(&self) -> &SafeCommitTargetRequest {
+        &self.target
+    }
+}
+
 /// Which mutation strategy a plan selected.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SafeCommitRoute {
@@ -417,15 +501,97 @@ pub enum SafeCommitRoute {
     PinnedParent,
 }
 
-/// A validated, preflighted safe commit.
+/// Which preflight check refused a message-free target plan.
+///
+/// The variant names the check that actually ran and refused; it is never
+/// parsed out of error text, never guessed from a `Display` string, and never a
+/// generic "protected or invalid" bucket. `Message` can only be produced by a
+/// message-carrying entry point, and `IndexAuthority` belongs to apply-time
+/// rechecks rather than this planner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SafeCommitPreflightStage {
+    /// The captured repository/index authority refuses a redirected write.
+    Environment,
+    /// The payload is empty, oversized, or contains NUL.
+    Message,
+    /// Empty changeset, deletion conflict, or inconsistent expected bytes.
+    RequestShape,
+    /// Path normalisation, an outside-worktree path, or a symlink loop.
+    PathResolution,
+    /// A `.worktrees/` payload path.
+    PathPolicy,
+    /// A directory argument or the gitlink index probe that exempts one.
+    PathShape,
+    /// `HEAD` is not the destination branch, or that read failed.
+    HeadAssertion,
+    /// The destination tip or `HEAD` commit cannot be resolved or read.
+    DestinationExistence,
+    /// `HEAD` and the destination tip disagree.
+    HeadTipConsistency,
+    /// A pinned parent is missing, unreadable, or is not the observed tip.
+    ExpectedParent,
+    /// The protected-branch verdict refuses this destination.
+    Guard,
+    /// A merge/rebase marker, a held index lock, or that read blocks the commit.
+    OperationInProgress,
+    /// Apply-time recheck of the captured operator-index authority.
+    IndexAuthority,
+}
+
+/// A refused target plan: the typed stage plus the exact original error value.
+#[derive(Debug)]
+pub struct SafeCommitPlanFailure {
+    stage: SafeCommitPreflightStage,
+    error: GitError,
+}
+
+impl SafeCommitPlanFailure {
+    pub(crate) fn new(stage: SafeCommitPreflightStage, error: GitError) -> Self {
+        Self { stage, error }
+    }
+
+    /// Which check refused the plan.
+    pub fn stage(&self) -> SafeCommitPreflightStage {
+        self.stage
+    }
+
+    /// The original error, unchanged.
+    pub fn error(&self) -> &GitError {
+        &self.error
+    }
+
+    /// Consume the failure and return the original error value.
+    pub fn into_error(self) -> GitError {
+        self.error
+    }
+}
+
+impl fmt::Display for SafeCommitPlanFailure {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "safe-commit preflight {:?}: {}",
+            self.stage, self.error
+        )
+    }
+}
+
+impl std::error::Error for SafeCommitPlanFailure {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.error)
+    }
+}
+
+/// A successfully checked native target, without a message.
 ///
 /// Holds the observed HEAD and destination tip, the normalised path set, the
-/// chosen route, and the protection verdict. It is not a capability to run
-/// arbitrary git: applying it can only produce the commit described here.
+/// chosen route, and the protection verdict — never a payload. It is not a
+/// capability to run arbitrary git: the only way to reach a mutation is
+/// [`SafeCommitTargetPlan::prepare`], and applying can only produce the commit
+/// described here.
 #[derive(Debug, Clone)]
-pub struct SafeCommitPlan {
+pub struct SafeCommitTargetPlan {
     destination: BranchName,
-    message: String,
     worktree_root: PathBuf,
     head: Oid,
     destination_tip: Oid,
@@ -438,15 +604,10 @@ pub struct SafeCommitPlan {
     index_authority: OperatorIndex,
 }
 
-impl SafeCommitPlan {
+impl SafeCommitTargetPlan {
     /// The destination branch.
     pub fn destination(&self) -> &BranchName {
         &self.destination
-    }
-
-    /// The commit message.
-    pub fn message(&self) -> &str {
-        &self.message
     }
 
     /// The checkout the commit lands in.
@@ -495,10 +656,6 @@ impl SafeCommitPlan {
     }
 
     /// The operator index authority recorded at plan time.
-    ///
-    /// Applying the plan against a repository with a different authority (for
-    /// example a reopened handle whose `GIT_INDEX_FILE` changed) is refused, so
-    /// a plan can never reconcile an index other than the one it planned for.
     pub fn index_authority(&self) -> &OperatorIndex {
         &self.index_authority
     }
@@ -506,6 +663,312 @@ impl SafeCommitPlan {
     /// Every path the commit is expected to carry (adds and removals).
     pub fn requested_paths(&self) -> Vec<GitPath> {
         let mut all = self.paths.clone();
+        all.extend(self.deletions.iter().cloned());
+        all
+    }
+
+    /// Attach an exact-byte message, producing the only applicable plan.
+    ///
+    /// The message is validated again through the same authority the planner
+    /// uses, so an empty, oversized, or NUL-bearing payload is
+    /// [`SafeCommitPreflightStage::Message`] — exactly the legacy plan's error
+    /// value at the same stage. A target plan is not applicable on its own.
+    pub fn prepare(
+        self,
+        message: CommitMessage,
+    ) -> Result<SafeCommitMessagePlan, SafeCommitPlanFailure> {
+        message.validate().map_err(|error| {
+            SafeCommitPlanFailure::new(SafeCommitPreflightStage::Message, error)
+        })?;
+        Ok(SafeCommitMessagePlan {
+            target: self,
+            message,
+        })
+    }
+}
+
+/// A target plan plus the exact message bytes it will commit.
+///
+/// The only value [`GitRepository::apply_safe_message_commit`] accepts. Message
+/// inspection is explicit: [`SafeCommitMessagePlan::message_bytes`] is the
+/// payload, [`SafeCommitMessagePlan::message_utf8`] is an optional text view and
+/// never a fabricated or lossy `String`.
+#[derive(Debug, Clone)]
+pub struct SafeCommitMessagePlan {
+    target: SafeCommitTargetPlan,
+    message: CommitMessage,
+}
+
+impl SafeCommitMessagePlan {
+    /// The destination branch.
+    pub fn destination(&self) -> &BranchName {
+        self.target.destination()
+    }
+
+    /// The checkout the commit lands in.
+    pub fn worktree_root(&self) -> &Path {
+        self.target.worktree_root()
+    }
+
+    /// The destination tip (`HEAD`) observed when the plan was prepared.
+    pub fn head(&self) -> &Oid {
+        self.target.head()
+    }
+
+    /// The destination branch tip observed when the plan was prepared.
+    pub fn destination_tip(&self) -> &Oid {
+        self.target.destination_tip()
+    }
+
+    /// The selected mutation route.
+    pub fn route(&self) -> SafeCommitRoute {
+        self.target.route()
+    }
+
+    /// The normalised worktree paths to commit.
+    pub fn paths(&self) -> &[GitPath] {
+        self.target.paths()
+    }
+
+    /// The normalised index-only removals.
+    pub fn index_deletions(&self) -> &[GitPath] {
+        self.target.index_deletions()
+    }
+
+    /// The pinned parent, when the pinned-parent route was selected.
+    pub fn expected_parent(&self) -> Option<&Oid> {
+        self.target.expected_parent()
+    }
+
+    /// The normalised exact-bytes assertions.
+    pub fn expected_bytes(&self) -> &[ExpectedBlob] {
+        self.target.expected_bytes()
+    }
+
+    /// The protection verdict recorded at plan time.
+    pub fn guard_verdict(&self) -> &CommitGuardVerdict {
+        self.target.guard_verdict()
+    }
+
+    /// The operator index authority recorded at plan time.
+    pub fn index_authority(&self) -> &OperatorIndex {
+        self.target.index_authority()
+    }
+
+    /// Every path the commit is expected to carry (adds and removals).
+    pub fn requested_paths(&self) -> Vec<GitPath> {
+        self.target.requested_paths()
+    }
+
+    /// The exact message bytes this plan will commit.
+    pub fn message_bytes(&self) -> &[u8] {
+        self.message.as_bytes()
+    }
+
+    /// The message as text only when it is valid UTF-8, never lossily.
+    pub fn message_utf8(&self) -> Option<&str> {
+        self.message.as_utf8()
+    }
+
+    /// Where the message bytes came from.
+    pub fn message_origin(&self) -> crate::MessageOrigin {
+        self.message.origin()
+    }
+
+    /// The message-free target this plan was prepared from.
+    pub fn target(&self) -> &SafeCommitTargetPlan {
+        &self.target
+    }
+}
+
+/// A validated, preflighted safe commit with a UTF-8 message.
+///
+/// Holds the target plan and the legacy `String` payload. [`Self::message`]
+/// returns `&str` for the existing callers; [`SafeCommitTargetPlan::prepare`]
+/// produces the exact-byte [`SafeCommitMessagePlan`] instead. It is not a
+/// capability to run arbitrary git: applying it can only produce the commit
+/// described here.
+#[derive(Debug, Clone)]
+pub struct SafeCommitPlan {
+    target: SafeCommitTargetPlan,
+    message: String,
+}
+
+impl SafeCommitPlan {
+    /// The destination branch.
+    pub fn destination(&self) -> &BranchName {
+        self.target.destination()
+    }
+
+    /// The commit message.
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    /// The checkout the commit lands in.
+    pub fn worktree_root(&self) -> &Path {
+        self.target.worktree_root()
+    }
+
+    /// The destination tip (`HEAD`) observed when the plan was prepared.
+    pub fn head(&self) -> &Oid {
+        self.target.head()
+    }
+
+    /// The destination branch tip observed when the plan was prepared.
+    pub fn destination_tip(&self) -> &Oid {
+        self.target.destination_tip()
+    }
+
+    /// The selected mutation route.
+    pub fn route(&self) -> SafeCommitRoute {
+        self.target.route()
+    }
+
+    /// The normalised worktree paths to commit.
+    pub fn paths(&self) -> &[GitPath] {
+        self.target.paths()
+    }
+
+    /// The normalised index-only removals.
+    pub fn index_deletions(&self) -> &[GitPath] {
+        self.target.index_deletions()
+    }
+
+    /// The pinned parent, when the pinned-parent route was selected.
+    pub fn expected_parent(&self) -> Option<&Oid> {
+        self.target.expected_parent()
+    }
+
+    /// The normalised exact-bytes assertions.
+    pub fn expected_bytes(&self) -> &[ExpectedBlob] {
+        self.target.expected_bytes()
+    }
+
+    /// The protection verdict recorded at plan time.
+    pub fn guard_verdict(&self) -> &CommitGuardVerdict {
+        self.target.guard_verdict()
+    }
+
+    /// The operator index authority recorded at plan time.
+    pub fn index_authority(&self) -> &OperatorIndex {
+        self.target.index_authority()
+    }
+
+    /// Every path the commit is expected to carry (adds and removals).
+    pub fn requested_paths(&self) -> Vec<GitPath> {
+        self.target.requested_paths()
+    }
+
+    /// The message-free target this plan was prepared from.
+    pub fn target(&self) -> &SafeCommitTargetPlan {
+        &self.target
+    }
+
+    /// The one execution view both plan types share.
+    pub(crate) fn execution(&self) -> SafeCommitExecution<'_> {
+        SafeCommitExecution {
+            destination: self.target.destination(),
+            worktree_root: self.target.worktree_root(),
+            head: self.target.head(),
+            destination_tip: self.target.destination_tip(),
+            route: self.target.route(),
+            paths: self.target.paths(),
+            deletions: self.target.index_deletions(),
+            expected_parent: self.target.expected_parent(),
+            expected_bytes: self.target.expected_bytes(),
+            index_authority: self.target.index_authority(),
+            message: self.message.as_bytes(),
+        }
+    }
+}
+
+impl SafeCommitMessagePlan {
+    /// The one execution view both plan types share.
+    pub(crate) fn execution(&self) -> SafeCommitExecution<'_> {
+        SafeCommitExecution {
+            destination: self.target.destination(),
+            worktree_root: self.target.worktree_root(),
+            head: self.target.head(),
+            destination_tip: self.target.destination_tip(),
+            route: self.target.route(),
+            paths: self.target.paths(),
+            deletions: self.target.index_deletions(),
+            expected_parent: self.target.expected_parent(),
+            expected_bytes: self.target.expected_bytes(),
+            index_authority: self.target.index_authority(),
+            message: self.message.as_bytes(),
+        }
+    }
+}
+
+/// The shared, read-only view one execution body consumes.
+///
+/// Legacy [`SafeCommitPlan`] and exact-byte [`SafeCommitMessagePlan`] both
+/// produce this view, so the transaction, hooks, CAS advance, index
+/// reconciliation, and landed/unconfirmed evidence have exactly one
+/// implementation.
+pub(crate) struct SafeCommitExecution<'a> {
+    destination: &'a BranchName,
+    worktree_root: &'a Path,
+    head: &'a Oid,
+    destination_tip: &'a Oid,
+    route: SafeCommitRoute,
+    paths: &'a [GitPath],
+    deletions: &'a [GitPath],
+    expected_parent: Option<&'a Oid>,
+    expected_bytes: &'a [ExpectedBlob],
+    index_authority: &'a OperatorIndex,
+    message: &'a [u8],
+}
+
+impl SafeCommitExecution<'_> {
+    pub(crate) fn destination(&self) -> &BranchName {
+        self.destination
+    }
+
+    pub(crate) fn worktree_root(&self) -> &Path {
+        self.worktree_root
+    }
+
+    pub(crate) fn head(&self) -> &Oid {
+        self.head
+    }
+
+    pub(crate) fn destination_tip(&self) -> &Oid {
+        self.destination_tip
+    }
+
+    pub(crate) fn route(&self) -> SafeCommitRoute {
+        self.route
+    }
+
+    pub(crate) fn paths(&self) -> &[GitPath] {
+        self.paths
+    }
+
+    pub(crate) fn index_deletions(&self) -> &[GitPath] {
+        self.deletions
+    }
+
+    pub(crate) fn expected_parent(&self) -> Option<&Oid> {
+        self.expected_parent
+    }
+
+    pub(crate) fn expected_bytes(&self) -> &[ExpectedBlob] {
+        self.expected_bytes
+    }
+
+    pub(crate) fn index_authority(&self) -> &OperatorIndex {
+        self.index_authority
+    }
+
+    pub(crate) fn message_bytes(&self) -> &[u8] {
+        self.message
+    }
+
+    pub(crate) fn requested_paths(&self) -> Vec<GitPath> {
+        let mut all = self.paths.to_vec();
         all.extend(self.deletions.iter().cloned());
         all
     }
@@ -830,25 +1293,6 @@ fn is_symlink_loop(error: &std::io::Error) -> bool {
     }
 }
 
-fn validate_commit_message(message: &str) -> Result<(), GitError> {
-    if message.is_empty() {
-        return Err(GitError::SafeCommitInvalidRequest {
-            detail: "a safe commit needs a non-empty message".to_string(),
-        });
-    }
-    if message.len() > MAX_COMMIT_MESSAGE_LEN {
-        return Err(GitError::SafeCommitInvalidRequest {
-            detail: format!("the commit message exceeds the {MAX_COMMIT_MESSAGE_LEN}-byte limit"),
-        });
-    }
-    if message.contains('\0') {
-        return Err(GitError::SafeCommitInvalidRequest {
-            detail: "the commit message must not contain NUL".to_string(),
-        });
-    }
-    Ok(())
-}
-
 /// Normalise, de-duplicate (order-preserving), and shape-check one path list.
 fn normalize_paths(root: &Path, requested: &[GitPath]) -> Result<Vec<GitPath>, GitError> {
     let mut normalized: Vec<GitPath> = Vec::with_capacity(requested.len());
@@ -935,6 +1379,24 @@ fn index_entry_mode(
 }
 
 impl GitRepository {
+    /// Prepare a native safe-commit target without mutating the repository.
+    ///
+    /// This entry point omits the payload check. Its progress names native
+    /// checks, not reference path semantics or staging/encoding order. The
+    /// single planner body is shared with
+    /// [`GitRepository::plan_safe_commit`], whose legacy order
+    /// `Environment → Message → RequestShape → paths → HEAD → tip → expected
+    /// parent → guard → operation` and exact error values are unchanged.
+    ///
+    /// Nothing is written. Applying an applicable plan re-runs the state checks,
+    /// so a preflight never grants stale authority.
+    pub fn plan_safe_commit_target(
+        &self,
+        request: &SafeCommitTargetRequest,
+    ) -> Result<SafeCommitTargetPlan, SafeCommitPlanFailure> {
+        self.plan_safe_commit_inner(request, None)
+    }
+
     /// Prepare a safe commit without mutating the repository.
     ///
     /// Validates, in order: the message, a non-empty path set, request
@@ -951,97 +1413,181 @@ impl GitRepository {
         &self,
         request: &SafeCommitRequest,
     ) -> Result<SafeCommitPlan, GitError> {
-        self.process().ensure_unredirected_write()?;
-        validate_commit_message(&request.message)?;
+        let message = CommitMessage::from_text(&request.message);
+        let target = self
+            .plan_safe_commit_inner(&request.target, Some(&message))
+            .map_err(SafeCommitPlanFailure::into_error)?;
+        Ok(SafeCommitPlan {
+            target,
+            message: request.message.clone(),
+        })
+    }
+
+    /// The one planner body both entry points call.
+    ///
+    /// `message: Option<&CommitMessage>` keeps the legacy `Message` stage at its
+    /// exact position and makes it unreachable from the message-free target
+    /// entry. No second path validator and no reordering exist here.
+    fn plan_safe_commit_inner(
+        &self,
+        request: &SafeCommitTargetRequest,
+        message: Option<&CommitMessage>,
+    ) -> Result<SafeCommitTargetPlan, SafeCommitPlanFailure> {
+        let fail = SafeCommitPlanFailure::new;
+        self.process()
+            .ensure_unredirected_write()
+            .map_err(|error| fail(SafeCommitPreflightStage::Environment, error))?;
+        if let Some(message) = message {
+            message
+                .validate()
+                .map_err(|error| fail(SafeCommitPreflightStage::Message, error))?;
+        }
         if request.paths.is_empty() && request.deletions.is_empty() {
-            return Err(GitError::SafeCommitEmptyChangeset);
+            return Err(fail(
+                SafeCommitPreflightStage::RequestShape,
+                GitError::SafeCommitEmptyChangeset,
+            ));
         }
         if !request.expected_bytes.is_empty() && request.expected_parent.is_none() {
-            return Err(GitError::SafeCommitInvalidRequest {
-                detail: "expected raw bytes require an expected parent".to_string(),
-            });
+            return Err(fail(
+                SafeCommitPreflightStage::RequestShape,
+                GitError::SafeCommitInvalidRequest {
+                    detail: "expected raw bytes require an expected parent".to_string(),
+                },
+            ));
         }
 
         let root = self.root();
-        let paths = normalize_paths(root, &request.paths)?;
-        let deletions = normalize_paths(root, &request.deletions)?;
+        let paths = normalize_paths(root, &request.paths)
+            .map_err(|error| fail(SafeCommitPreflightStage::PathResolution, error))?;
+        let deletions = normalize_paths(root, &request.deletions)
+            .map_err(|error| fail(SafeCommitPreflightStage::PathResolution, error))?;
         let conflicts: Vec<String> = deletions
             .iter()
             .filter(|path| paths.contains(path))
             .map(GitPath::display_lossy)
             .collect();
         if !conflicts.is_empty() {
-            return Err(GitError::SafeCommitIndexDeletionConflict { paths: conflicts });
+            return Err(fail(
+                SafeCommitPreflightStage::RequestShape,
+                GitError::SafeCommitIndexDeletionConflict { paths: conflicts },
+            ));
         }
         for path in paths.iter().chain(deletions.iter()) {
-            validate_path_policy(root, path)?;
-            validate_path_shape(self, path)?;
+            validate_path_policy(root, path)
+                .map_err(|error| fail(SafeCommitPreflightStage::PathPolicy, error))?;
+            validate_path_shape(self, path)
+                .map_err(|error| fail(SafeCommitPreflightStage::PathShape, error))?;
         }
-        let expected_bytes = self.normalize_expected_bytes(request, &paths)?;
+        let expected_bytes = self
+            .normalize_expected_bytes(request, &paths)
+            .map_err(|error| {
+                let stage = match &error {
+                    GitError::SafeCommitInvalidRequest { .. } => {
+                        SafeCommitPreflightStage::RequestShape
+                    }
+                    GitError::SafeCommitPathPolicy { .. } => SafeCommitPreflightStage::PathPolicy,
+                    _ => SafeCommitPreflightStage::PathResolution,
+                };
+                fail(stage, error)
+            })?;
 
         let destination = request.destination.clone();
-        let observed = self.current_branch()?;
+        let observed = self
+            .current_branch()
+            .map_err(|error| fail(SafeCommitPreflightStage::HeadAssertion, error))?;
         if observed.as_deref() != Some(destination.as_str()) {
-            return Err(GitError::SafeCommitHeadMismatch {
-                destination: destination.as_str().to_string(),
-                observed_head: observed.unwrap_or_else(|| "<detached>".to_string()),
-                worktree_root: root.to_path_buf(),
-            });
-        }
-        let destination_tip = self.read_branch_tip(&destination)?.ok_or_else(|| {
-            GitError::SafeCommitDestinationMissing {
-                destination: destination.as_str().to_string(),
-                worktree_root: root.to_path_buf(),
-            }
-        })?;
-        let head_text =
-            self.head_commit()?
-                .ok_or_else(|| GitError::SafeCommitDestinationMissing {
+            return Err(fail(
+                SafeCommitPreflightStage::HeadAssertion,
+                GitError::SafeCommitHeadMismatch {
                     destination: destination.as_str().to_string(),
+                    observed_head: observed.unwrap_or_else(|| "<detached>".to_string()),
                     worktree_root: root.to_path_buf(),
-                })?;
-        let head = Oid::parse(&head_text)?;
+                },
+            ));
+        }
+        let destination_tip = self
+            .read_branch_tip(&destination)
+            .map_err(|error| fail(SafeCommitPreflightStage::DestinationExistence, error))?
+            .ok_or_else(|| {
+                fail(
+                    SafeCommitPreflightStage::DestinationExistence,
+                    GitError::SafeCommitDestinationMissing {
+                        destination: destination.as_str().to_string(),
+                        worktree_root: root.to_path_buf(),
+                    },
+                )
+            })?;
+        let head_text = self
+            .head_commit()
+            .map_err(|error| fail(SafeCommitPreflightStage::DestinationExistence, error))?
+            .ok_or_else(|| {
+                fail(
+                    SafeCommitPreflightStage::DestinationExistence,
+                    GitError::SafeCommitDestinationMissing {
+                        destination: destination.as_str().to_string(),
+                        worktree_root: root.to_path_buf(),
+                    },
+                )
+            })?;
+        let head = Oid::parse(&head_text)
+            .map_err(|error| fail(SafeCommitPreflightStage::DestinationExistence, error))?;
         if head != destination_tip {
-            return Err(GitError::PlanStale {
-                what: destination.as_ref_name().to_string(),
-                detail: format!(
-                    "HEAD is {head} but the branch tip is {destination_tip}; the checkout is inconsistent"
-                ),
-            });
+            return Err(fail(
+                SafeCommitPreflightStage::HeadTipConsistency,
+                GitError::PlanStale {
+                    what: destination.as_ref_name().to_string(),
+                    detail: format!(
+                        "HEAD is {head} but the branch tip is {destination_tip}; the checkout is inconsistent"
+                    ),
+                },
+            ));
         }
         if let Some(parent) = &request.expected_parent {
-            if !self.commit_exists(parent)? {
-                return Err(GitError::RefMissing {
-                    name: parent.to_string(),
-                });
+            if !self
+                .commit_exists(parent)
+                .map_err(|error| fail(SafeCommitPreflightStage::ExpectedParent, error))?
+            {
+                return Err(fail(
+                    SafeCommitPreflightStage::ExpectedParent,
+                    GitError::RefMissing {
+                        name: parent.to_string(),
+                    },
+                ));
             }
             if parent != &destination_tip {
-                return Err(GitError::PlanStale {
-                    what: destination.as_ref_name().to_string(),
-                    detail: format!("expected parent {parent}, observed tip {destination_tip}"),
-                });
+                return Err(fail(
+                    SafeCommitPreflightStage::ExpectedParent,
+                    GitError::PlanStale {
+                        what: destination.as_ref_name().to_string(),
+                        detail: format!("expected parent {parent}, observed tip {destination_tip}"),
+                    },
+                ));
             }
         }
 
         let guard = evaluate_commit_guard(&destination, &request.protected, request.capability);
         if !guard.allowed() {
-            return Err(GitError::SafeCommitProtectedBranch {
-                destination: destination.as_str().to_string(),
-                worktree_root: root.to_path_buf(),
-                capability: request.capability.as_str(),
-            });
+            return Err(fail(
+                SafeCommitPreflightStage::Guard,
+                GitError::SafeCommitProtectedBranch {
+                    destination: destination.as_str().to_string(),
+                    worktree_root: root.to_path_buf(),
+                    capability: request.capability.as_str(),
+                },
+            ));
         }
 
-        self.require_no_commit_operation()?;
+        self.require_no_commit_operation()
+            .map_err(|error| fail(SafeCommitPreflightStage::OperationInProgress, error))?;
 
         let route = match (&request.expected_parent, deletions.is_empty()) {
             (Some(_), _) => SafeCommitRoute::PinnedParent,
             (None, false) => SafeCommitRoute::IndexDeletions,
             (None, true) => SafeCommitRoute::Worktree,
         };
-        Ok(SafeCommitPlan {
+        Ok(SafeCommitTargetPlan {
             destination,
-            message: request.message.clone(),
             worktree_root: root.to_path_buf(),
             head,
             destination_tip,
@@ -1063,18 +1609,21 @@ impl GitRepository {
     /// resynchronisation or readback fails is [`GitError::SafeCommitLanded`],
     /// which names the commit and the repair action; no user state is reset.
     pub fn apply_safe_commit(&self, plan: &SafeCommitPlan) -> Result<SafeCommitOutcome, GitError> {
-        if plan.worktree_root() != self.root() {
-            return Err(GitError::InvalidPlan {
-                detail: format!(
-                    "safe-commit plan was prepared for {} but applied to {}",
-                    plan.worktree_root().display(),
-                    self.root().display()
-                ),
-            });
-        }
-        crate::safe_commit_transaction::execute(self, plan)
+        crate::safe_commit_transaction::execute(self, &plan.execution())
     }
 
+    /// Execute a prepared exact-byte commit.
+    ///
+    /// The same one execution body as [`GitRepository::apply_safe_commit`]: the
+    /// captured operator index, HEAD/tip compare-and-swap, hooks, cleanup,
+    /// signing, and landed/unconfirmed evidence are shared. Only the payload
+    /// reaching the message file differs.
+    pub fn apply_safe_message_commit(
+        &self,
+        plan: &SafeCommitMessagePlan,
+    ) -> Result<SafeCommitOutcome, GitError> {
+        crate::safe_commit_transaction::execute(self, &plan.execution())
+    }
     /// Plan and apply one safe commit.
     ///
     /// This is the single-call convenience form. Callers that need a real
@@ -1088,7 +1637,7 @@ impl GitRepository {
 
     fn normalize_expected_bytes(
         &self,
-        request: &SafeCommitRequest,
+        request: &SafeCommitTargetRequest,
         paths: &[GitPath],
     ) -> Result<Vec<ExpectedBlob>, GitError> {
         let root = self.root();
@@ -1191,10 +1740,18 @@ mod tests {
 
     #[test]
     fn message_validation_refuses_empty_nul_and_oversized_messages() {
-        assert!(validate_commit_message("ok").is_ok());
-        assert!(validate_commit_message("").is_err());
-        assert!(validate_commit_message("has\0nul").is_err());
-        assert!(validate_commit_message(&"x".repeat(MAX_COMMIT_MESSAGE_LEN + 1)).is_err());
+        assert!(CommitMessage::from_text("ok").validate().is_ok());
+        assert!(CommitMessage::from_text("").validate().is_err());
+        assert!(CommitMessage::from_text("has\0nul").validate().is_err());
+        assert!(
+            CommitMessage::from_text(&"x".repeat(MAX_COMMIT_MESSAGE_LEN + 1))
+                .validate()
+                .is_err()
+        );
+        assert!(
+            CommitMessage::from_bytes(b"op(\x80)").validate().is_ok(),
+            "the byte payload uses the same rule set"
+        );
     }
 
     fn git_in(root: &Path, args: &[&str]) -> Vec<u8> {

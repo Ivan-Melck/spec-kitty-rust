@@ -101,6 +101,20 @@
 //! * A safe commit runs hooks with `git hook run`, which requires git >= 2.36;
 //!   older Git is refused with [`GitError::Unsupported`] rather than skipping
 //!   hooks. Its exact raw-bytes assertion is bounded by the seam's stdin limit.
+//! * Commit messages are exact bytes ([`CommitMessage`]). The legacy
+//!   `String` request/plan types and their `message() -> &str` getters are
+//!   unchanged; [`SafeCommitTargetPlan::prepare`] produces the applicable
+//!   exact-byte plan, and one execution body writes the payload to the message
+//!   file so Git — not this crate — owns `i18n.commitEncoding`, conversion,
+//!   hooks, cleanup, signing, and the UTF-8 warning. A commit message is bounded
+//!   at 64 KiB and must not contain NUL, as before; the reference has no such
+//!   length bound.
+//! * A branch reflog keeps the exact pre-conversion message bytes (the same
+//!   bytes the reference records). On non-Unix platforms a reflog message must be
+//!   valid UTF-8: a plan whose payload is not valid UTF-8 is refused with
+//!   [`GitError::Unsupported`] before any index mutation, rather than
+//!   pretending a wide-argv encoding was tested. A hook that rewrites a payload
+//!   to non-UTF-8 on such a platform is not a claimed capability.
 //! * User and system Git configuration still affects behaviour (for example
 //!   `core.autocrlf`, `status.showUntrackedFiles`, `safe.directory`, and
 //!   attributes). The adapter does not rewrite configuration and does not claim
@@ -133,6 +147,7 @@ mod ignore;
 mod index_authority;
 mod merge;
 mod merge_start;
+mod message;
 mod objects;
 mod oid;
 mod path;
@@ -164,6 +179,7 @@ pub use merge::{
 pub use merge_start::{
     MergeAbortOutcome, MergeAbortPlan, MergeStartOutcome, MergeStartPlan, MergeStartStatus,
 };
+pub use message::{CommitMessage, MessageOrigin};
 pub use objects::{
     BlobLookup, DEFAULT_MAX_BLOB_BYTES, MAX_BLOB_BYTES, TreeEntry, TreeEntryKind, UnmergedPath,
     UnmergedStage,
@@ -181,8 +197,10 @@ pub use repo_state::{GitDirs, InProgressOperation, MERGE_TREE_WRITE_TREE_MIN_VER
 pub use repository::GitRepository;
 pub use safe_commit::{
     CommitGuardCapability, CommitGuardVerdict, ExpectedBlob, MAX_COMMIT_MESSAGE_LEN,
-    SafeCommitOutcome, SafeCommitPlan, SafeCommitRecovery, SafeCommitRequest, SafeCommitRoute,
-    WORKTREES_DIR, evaluate_commit_guard, normalize_safe_commit_path,
+    SafeCommitMessagePlan, SafeCommitOutcome, SafeCommitPlan, SafeCommitPlanFailure,
+    SafeCommitPreflightStage, SafeCommitRecovery, SafeCommitRequest, SafeCommitRoute,
+    SafeCommitTargetPlan, SafeCommitTargetRequest, WORKTREES_DIR, evaluate_commit_guard,
+    normalize_safe_commit_path,
 };
 pub use sparse::{
     MAX_SPARSE_PATTERN_FILE_BYTES, SPARSE_CHECKOUT_MIN_VERSION, SparseCheckoutMode,

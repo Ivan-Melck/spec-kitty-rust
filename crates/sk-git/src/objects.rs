@@ -26,6 +26,7 @@ use std::collections::BTreeMap;
 use crate::error::GitError;
 use crate::oid::Oid;
 use crate::path::GitPath;
+use crate::refname::RefName;
 use crate::refname::StartPoint;
 use crate::repository::GitRepository;
 
@@ -293,15 +294,11 @@ impl GitRepository {
     /// it must be a valid `refs/...` name, and that ref must be absent. Anything
     /// else is [`GitError::UnreadableHead`].
     fn require_unborn_head(&self) -> Result<(), GitError> {
-        let symbolic = self.symbolic_head_ref()?;
-        let Some(name) = symbolic else {
+        let Some(reference) = self.symbolic_head_ref()? else {
             return Err(GitError::UnreadableHead {
                 detail: "HEAD is detached but does not resolve to a commit".to_string(),
             });
         };
-        let reference = crate::RefName::parse(&name).map_err(|error| GitError::UnreadableHead {
-            detail: format!("HEAD names an invalid ref ({name:?}): {error}"),
-        })?;
         match self.read_ref(&reference)? {
             None => Ok(()),
             Some(oid) => Err(GitError::UnreadableHead {
@@ -312,16 +309,25 @@ impl GitRepository {
         }
     }
 
-    /// The symbolic target of `HEAD`, or `None` for a detached `HEAD`.
+    /// The symbolic target of `HEAD` as a validated full ref name.
     ///
-    /// `git symbolic-ref --quiet HEAD` uses three answers: exit 0 prints the
-    /// target, exit 1 means `HEAD` is detached, and any other status means
-    /// `HEAD` exists but names no usable ref (for example `ref: refs/heads/`,
-    /// for which git exits 128 with `fatal: No such ref: HEAD`). The last case
-    /// is [`GitError::UnreadableHead`], never a plain command failure, so a
-    /// rollback-point capture cannot mistake a corrupt `HEAD` for an absent or
-    /// unreadable answer of some other kind.
-    fn symbolic_head_ref(&self) -> Result<Option<String>, GitError> {
+    /// This is the one full `HEAD` authority: `git symbolic-ref --quiet HEAD`
+    /// uses three answers — exit 0 prints the target, exit 1 means `HEAD` is
+    /// detached, and any other status means `HEAD` exists but names no usable
+    /// ref (for example `ref: refs/heads/`, for which git exits 128 with
+    /// `fatal: No such ref: HEAD`). The last case, a target that is not UTF-8,
+    /// and a target that fails [`RefName`](crate::RefName) validation are all
+    /// [`GitError::UnreadableHead`]: a corrupt `HEAD` is never reported as
+    /// absent, detached, or a plain command failure.
+    ///
+    /// The result is the **full** target (`refs/heads/<name>`,
+    /// `refs/spec-kitty/lane-tip/<name>`, ...), never a shortened label and
+    /// never a widened `RefName` for `HEAD` itself. It is also the unborn-HEAD
+    /// proof: a symbolic target whose ref does not exist is an unborn
+    /// branch/namespace, not corruption. Use
+    /// [`GitRepository::current_branch`](crate::GitRepository::current_branch)
+    /// for git's `--short` label.
+    pub fn symbolic_head_ref(&self) -> Result<Option<RefName>, GitError> {
         let output = self.process().run(&["symbolic-ref", "--quiet", "HEAD"])?;
         match output.status.code() {
             Some(0) => {}
@@ -347,12 +353,14 @@ impl GitRepository {
                 detail: "git symbolic-ref printed an empty HEAD target".to_string(),
             });
         }
-        match std::str::from_utf8(raw) {
-            Ok(text) => Ok(Some(text.to_string())),
-            Err(_) => Err(GitError::UnreadableHead {
-                detail: "HEAD names a ref that is not valid UTF-8".to_string(),
-            }),
-        }
+        let text = std::str::from_utf8(raw).map_err(|_| GitError::UnreadableHead {
+            detail: "HEAD names a ref that is not valid UTF-8".to_string(),
+        })?;
+        RefName::parse(text)
+            .map(Some)
+            .map_err(|error| GitError::UnreadableHead {
+                detail: format!("HEAD names an invalid ref ({text:?}): {error}"),
+            })
     }
 
     fn read_entry_blob(

@@ -16,6 +16,7 @@
 //! than being overwritten.
 
 use std::collections::BTreeSet;
+use std::ffi::OsString;
 
 use crate::error::GitError;
 use crate::oid::Oid;
@@ -127,25 +128,40 @@ impl RefChange {
 #[derive(Debug, Clone)]
 pub struct RefTransactionPlan {
     message: String,
-    changes: Vec<RefChange>,
-    observed: Vec<RefState>,
+    core: RawRefTransactionPlan,
 }
 
 impl RefTransactionPlan {
     /// The reflog message that will be recorded.
+    ///
+    /// An exact-byte reflog message (a non-UTF-8 commit payload) is carried by
+    /// the private raw plan instead and is not exposed as a lossy `&str`.
     pub fn message(&self) -> &str {
         &self.message
     }
 
     /// The operations in execution order.
     pub fn changes(&self) -> &[RefChange] {
-        &self.changes
+        &self.core.changes
     }
 
     /// The ref values observed when the plan was prepared.
     pub fn observed(&self) -> &[RefState] {
-        &self.observed
+        &self.core.observed
     }
+}
+
+/// The one ref-transaction value: exact reflog bytes plus the CAS operations.
+///
+/// [`RefTransactionPlan`] is the public textual view; a commit payload that is
+/// not valid UTF-8 uses this private form so the reflog keeps the exact bytes the
+/// reference records. Both forms share the same validation, pre-state readback,
+/// CAS write, and post-write readback below — there is no second writer.
+#[derive(Debug, Clone)]
+pub(crate) struct RawRefTransactionPlan {
+    message: Vec<u8>,
+    changes: Vec<RefChange>,
+    observed: Vec<RefState>,
 }
 
 /// The evidence left by a successful ref transaction.
@@ -176,19 +192,42 @@ impl RefTransactionOutcome {
 /// The maximum reflog message length accepted by this adapter.
 const MAX_MESSAGE_LEN: usize = 2048;
 
-/// Validate a reflog/plan message used by ref writes.
+/// Validate a textual reflog/plan message used by ref writes.
 pub(crate) fn validate_message(message: &str) -> Result<(), GitError> {
+    validate_message_bytes(message.as_bytes())
+}
+
+/// Validate reflog/plan message bytes; the one shared rule set.
+fn validate_message_bytes(message: &[u8]) -> Result<(), GitError> {
     if message.is_empty() || message.len() > MAX_MESSAGE_LEN {
         return Err(GitError::InvalidPlan {
             detail: format!("a ref transaction message must be 1..={MAX_MESSAGE_LEN} bytes"),
         });
     }
-    if message.contains('\0') {
+    if message.contains(&0) {
         return Err(GitError::InvalidPlan {
             detail: "a ref transaction message must not contain NUL".to_string(),
         });
     }
     Ok(())
+}
+
+/// The `git update-ref -m` argument for an exact reflog payload.
+fn reflog_os_string(message: &[u8]) -> Result<OsString, GitError> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStringExt;
+        Ok(OsString::from_vec(message.to_vec()))
+    }
+    #[cfg(not(unix))]
+    {
+        match std::str::from_utf8(message) {
+            Ok(text) => Ok(OsString::from(text)),
+            Err(_) => Err(GitError::NonUtf8 {
+                field: "reflog message",
+            }),
+        }
+    }
 }
 
 impl GitRepository {
@@ -306,7 +345,33 @@ impl GitRepository {
         message: &str,
         changes: Vec<RefChange>,
     ) -> Result<RefTransactionPlan, GitError> {
-        validate_message(message)?;
+        let core = self.plan_ref_transaction_message(message.as_bytes(), changes)?;
+        Ok(RefTransactionPlan {
+            message: message.to_string(),
+            core,
+        })
+    }
+
+    /// Prepare a ref transaction with an exact-byte reflog message.
+    ///
+    /// The same validation and compare-and-swap planning as
+    /// [`GitRepository::plan_ref_transaction`], for a payload that is not valid
+    /// UTF-8. The message never passes through a lossy decode or an escaped
+    /// `Debug` rendering.
+    pub(crate) fn plan_ref_transaction_bytes(
+        &self,
+        message: &[u8],
+        changes: Vec<RefChange>,
+    ) -> Result<RawRefTransactionPlan, GitError> {
+        self.plan_ref_transaction_message(message, changes)
+    }
+
+    fn plan_ref_transaction_message(
+        &self,
+        message: &[u8],
+        changes: Vec<RefChange>,
+    ) -> Result<RawRefTransactionPlan, GitError> {
+        validate_message_bytes(message)?;
         if changes.is_empty() {
             return Err(GitError::InvalidPlan {
                 detail: "a ref transaction must contain at least one change".to_string(),
@@ -352,8 +417,8 @@ impl GitRepository {
             });
         }
 
-        Ok(RefTransactionPlan {
-            message: message.to_string(),
+        Ok(RawRefTransactionPlan {
+            message: message.to_vec(),
             changes,
             observed,
         })
@@ -370,6 +435,30 @@ impl GitRepository {
         &self,
         plan: &RefTransactionPlan,
     ) -> Result<RefTransactionOutcome, GitError> {
+        let applied = self.apply_ref_transaction_message(&plan.core)?;
+        Ok(RefTransactionOutcome {
+            message: plan.message.clone(),
+            previous: plan.core.observed.clone(),
+            applied,
+        })
+    }
+
+    /// Execute a prepared exact-byte ref transaction.
+    ///
+    /// Same re-read, CAS write, and readback as
+    /// [`GitRepository::apply_ref_transaction`]; only the reflog message
+    /// argument is carried as exact bytes.
+    pub(crate) fn apply_ref_transaction_raw(
+        &self,
+        plan: &RawRefTransactionPlan,
+    ) -> Result<(), GitError> {
+        self.apply_ref_transaction_message(plan).map(|_| ())
+    }
+
+    fn apply_ref_transaction_message(
+        &self,
+        plan: &RawRefTransactionPlan,
+    ) -> Result<Vec<RefState>, GitError> {
         for state in &plan.observed {
             let current = self.read_ref(state.reference())?;
             if current != state.oid {
@@ -404,8 +493,14 @@ impl GitRepository {
             }
         }
 
+        let message = reflog_os_string(&plan.message)?;
         self.process().checked_with_stdin(
-            &["update-ref", "-m", &plan.message, "--stdin"],
+            &[
+                std::ffi::OsStr::new("update-ref"),
+                std::ffi::OsStr::new("-m"),
+                message.as_os_str(),
+                std::ffi::OsStr::new("--stdin"),
+            ],
             stdin.as_bytes(),
         )?;
 
@@ -416,11 +511,7 @@ impl GitRepository {
                 oid: self.read_ref(change.reference())?,
             });
         }
-        Ok(RefTransactionOutcome {
-            message: plan.message.clone(),
-            previous: plan.observed.clone(),
-            applied,
-        })
+        Ok(applied)
     }
 }
 

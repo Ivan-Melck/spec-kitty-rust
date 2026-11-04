@@ -8,6 +8,32 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
+## Canonical Git byte messages / target progress — after `1bf9dc702`
+
+Actual Git-only capability: opaque exact-byte CommitMessage, message-free native
+TargetRequest/Plan and typed failure, validated applicable MessagePlan, one planner/
+transaction/CAS/index authority, private raw ref-message carrier with legacy public
+Stringgetters preserved; existing fullHEAD reader promoted in place. OldUTF8request
++ raw-writing-hook warning/reflog true reds fixed. Source has PRE-CONVERSION reflog80
+but objectC280: coordinator reproduces OID672394dc... and corrects earlier suggestion
+of postconversion reflog. No Debug/lossywire/re-encoding. No new Op/CLI wiring.
+
+Owner327/0/7helpers vs293baseline,32unchangedcorpus. Coordinator catches E0599 in
+nonUnix cfg branch (host source-projection compile, NOT Windows certification),
+E0277 failureError usability, and real source-checkoutCWD red8pass/2fail in oracle/
+alternate helpers (harness red NOT business). Fixed canonical source+roots, added
+1OSunit+3actual byte pinned/exactblob/index-delete/signing positive controls: Git331.
+Source seven-row fullobject/reflog/status/path equality reruns in actual isolatedCWD.
+
+Stable2268/0/14helpers,188suites/doctests, strictworkspaceClippy/fullfmt/bothreleaseCLIs
++optimizedOplib pass. Unique logs `/tmp/sk-byte-coordinator.XcG2Dn/`; exact53 and
+completion599/PERF27/pending/valid accounting/0of16 unchanged. Current bindings and
+qualifications `crates/sk-git/BYTE-MESSAGE-TARGET-INTEGRATION-REPORT.md`; owner report
+historical. Two owner wrong-import probe logs overwritten/missing, honestly disclosed
+but not compliant/retained/business reds. Coor logs unique. Fresh independent review
+pending; coordinator commits+PUSHES verified work, draft staysdraft. No OpF4/unborn/
+exactrefs/Sourcepath-progress/encoding-stage-indexfootprint/platform/perf approval.
+
 ## Unicode independent review / generator consistency — after `0e3a51b9f`
 
 NARROW PASS WITH FINDINGS: table/full scalar+20008 composed repr checks,29 real

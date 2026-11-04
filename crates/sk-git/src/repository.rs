@@ -236,8 +236,17 @@ impl GitRepository {
         }
     }
 
-    /// The short branch name currently checked out, or `None` for a detached
+    /// The `git symbolic-ref --short HEAD` label, or `None` for a detached
     /// HEAD.
+    ///
+    /// This is a **label**, not a fully-qualified ref: git shortens
+    /// `refs/heads/<name>` to `<name>`, but under tag disambiguation it prints
+    /// `heads/<name>` (the documented `--short` behaviour). Other namespaces
+    /// may also be shortened; this is not an exact-target API. Use
+    /// [`GitRepository::symbolic_head_ref`] when the full validated
+    /// `refs/...` target is what matters. This method keeps its existing
+    /// label/acceptance behaviour; it never widens `BranchName` or accepts
+    /// `HEAD`.
     ///
     /// An unborn branch (a fresh repository with no commits) still has a
     /// symbolic HEAD and is reported as `Some("main")`-style value.

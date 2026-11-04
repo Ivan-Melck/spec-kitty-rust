@@ -73,7 +73,9 @@ Current changed bindings (other0e3 bindings unchanged):
 ```
 
 Small generator correction coordinator-tested, not fresh independent verdict.
-Next is actual bounded canonical Git byte-message/target-progress capability,
-then Op composition/failure-footprint/unborn/exact-ref work with fresh review.
+Subsequent canonical Git byte-message/target-progress capability is now implemented
+and coordinator-tested, awaiting fresh review; current Git integration report is
+`crates/sk-git/BYTE-MESSAGE-TARGET-INTEGRATION-REPORT.md`. Op composition/failure-
+footprint/unborn/exact-ref work remains required.
 `git-byte-message-plan.md` records the amended plan, not implementation. Coordinator
 commits+PUSHES verified checkpoint; PR stays draft, full completion remains open.

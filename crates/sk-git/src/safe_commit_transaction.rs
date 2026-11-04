@@ -61,7 +61,7 @@ use crate::process::{CommandOutput, GitProcess, ScopedIndex};
 use crate::refs::RefChange;
 use crate::repository::GitRepository;
 use crate::safe_commit::{
-    ExpectedBlob, SafeCommitOutcome, SafeCommitPlan, SafeCommitRecovery, SafeCommitRoute,
+    ExpectedBlob, SafeCommitExecution, SafeCommitOutcome, SafeCommitRecovery, SafeCommitRoute,
     reflog_message,
 };
 
@@ -116,8 +116,23 @@ impl IndexTarget<'_> {
 
 pub(crate) fn execute(
     repository: &GitRepository,
-    plan: &SafeCommitPlan,
+    plan: &SafeCommitExecution<'_>,
 ) -> Result<SafeCommitOutcome, GitError> {
+    if plan.worktree_root() != repository.root() {
+        return Err(GitError::InvalidPlan {
+            detail: format!(
+                "safe-commit plan was prepared for {} but applied to {}",
+                plan.worktree_root().display(),
+                repository.root().display()
+            ),
+        });
+    }
+    #[cfg(not(unix))]
+    if std::str::from_utf8(plan.message_bytes()).is_err() {
+        return Err(GitError::Unsupported {
+            feature: "a non-UTF-8 commit message reflog on this platform",
+        });
+    }
     repository.process().ensure_unredirected_write()?;
     ensure_index_authority(repository, plan)?;
     recheck_plan(repository, plan)?;
@@ -147,7 +162,7 @@ pub(crate) fn execute(
 /// than retargeted.
 fn ensure_index_authority(
     repository: &GitRepository,
-    plan: &SafeCommitPlan,
+    plan: &SafeCommitExecution<'_>,
 ) -> Result<(), GitError> {
     if repository.operator_index() == plan.index_authority() {
         return Ok(());
@@ -169,7 +184,10 @@ fn ensure_index_authority(
 }
 
 /// Re-read the state the plan recorded, before any mutation.
-fn recheck_plan(repository: &GitRepository, plan: &SafeCommitPlan) -> Result<(), GitError> {
+fn recheck_plan(
+    repository: &GitRepository,
+    plan: &SafeCommitExecution<'_>,
+) -> Result<(), GitError> {
     let observed = repository.current_branch()?;
     if observed.as_deref() != Some(plan.destination().as_str()) {
         return Err(GitError::SafeCommitHeadMismatch {
@@ -218,7 +236,7 @@ fn recheck_plan(repository: &GitRepository, plan: &SafeCommitPlan) -> Result<(),
 /// neither add paths nor change requested content.
 fn create_commit(
     repository: &GitRepository,
-    plan: &SafeCommitPlan,
+    plan: &SafeCommitExecution<'_>,
     parent: &Oid,
     isolate_hooks: bool,
     warnings: &mut Vec<String>,
@@ -251,7 +269,7 @@ fn create_commit(
 
     let index = ScopedIndex::in_git_dir(repository.git_dirs()?.git_dir())?;
     let target = IndexTarget::Scoped(&index);
-    let message_file = write_message_file(plan.message(), isolate_hooks)?;
+    let message_file = write_message_file(plan.message_bytes(), isolate_hooks)?;
     let message_path = message_file.path().to_path_buf();
     let cleanup = MessageCleanup::resolve(process, isolate_hooks)?;
 
@@ -343,34 +361,36 @@ fn create_commit(
             detail: "Aborting commit due to empty commit message".to_owned(),
         });
     }
-    let new_sha = create_commit_object(
+    let (new_sha, commit_warnings) = create_commit_object(
         process,
         target,
         &tree,
         parent,
         &message_path,
         isolate_hooks,
-        plan.destination().as_str(),
+        plan,
     )?;
+    warnings.extend(commit_warnings);
     // The private index is no longer needed: the commit object exists.
     drop(index);
 
     let audit_message = if isolate_hooks {
-        plan.message().to_owned()
+        plan.message_bytes().to_vec()
     } else {
-        let message = String::from_utf8_lossy(&final_message);
-        format!("commit: {}", message.lines().next().unwrap_or_default())
+        let mut message = b"commit: ".to_vec();
+        message.extend_from_slice(first_line_bytes(&final_message));
+        message
     };
     let advance = repository
-        .plan_ref_transaction(
-            &reflog_message(&audit_message),
+        .plan_ref_transaction_bytes(
+            &reflog_message_bytes(&audit_message),
             vec![RefChange::set(
                 plan.destination().as_ref_name(),
                 new_sha.clone(),
                 Some(parent.clone()),
             )],
         )
-        .and_then(|transaction| repository.apply_ref_transaction(&transaction));
+        .and_then(|transaction| repository.apply_ref_transaction_raw(&transaction));
     if let Err(error) = advance {
         let observed = repository.read_branch_tip(plan.destination());
         let reachable = match &observed {
@@ -467,17 +487,16 @@ impl MessageCleanup {
     }
 }
 
-fn write_message_file(message: &str, pinned: bool) -> Result<NamedTempFile, GitError> {
+fn write_message_file(message: &[u8], pinned: bool) -> Result<NamedTempFile, GitError> {
     let mut file = NamedTempFile::new().map_err(|source| GitError::Io {
         context: "create the safe-commit message file",
         source,
     })?;
-    let bytes = if pinned || !message.ends_with('\n') {
-        format!("{message}\n")
-    } else {
-        message.to_owned()
-    };
-    file.write_all(bytes.as_bytes())
+    let mut bytes = message.to_vec();
+    if pinned || !bytes.ends_with(b"\n") {
+        bytes.push(b'\n');
+    }
+    file.write_all(&bytes)
         .and_then(|_| file.flush())
         .map_err(|source| GitError::Io {
             context: "write the safe-commit message file",
@@ -486,10 +505,41 @@ fn write_message_file(message: &str, pinned: bool) -> Result<NamedTempFile, GitE
     Ok(file)
 }
 
+/// The first line of an exact message payload, without a trailing CR.
+///
+/// This mirrors `str::lines().next()` for valid UTF-8 and keeps raw bytes
+/// untouched for payloads that are not text.
+fn first_line_bytes(message: &[u8]) -> &[u8] {
+    match message.iter().position(|byte| *byte == b'\n') {
+        Some(end) => message[..end]
+            .strip_suffix(b"\r")
+            .unwrap_or(&message[..end]),
+        None => message,
+    }
+}
+
+/// The reflog/audit message for a payload.
+///
+/// For valid UTF-8 this is byte-identical to the legacy [`reflog_message`]
+/// rendering. For any other payload the exact bytes are kept (bounded by the
+/// same 2000-byte budget) instead of substituting `U+FFFD` or an escaped
+/// `Debug` form: the reference records the pre-conversion message bytes.
+fn reflog_message_bytes(message: &[u8]) -> Vec<u8> {
+    if let Ok(text) = std::str::from_utf8(message) {
+        return reflog_message(text).into_bytes();
+    }
+    let bounded: Vec<u8> = message.iter().take(2000).copied().collect();
+    if bounded.iter().all(u8::is_ascii_whitespace) {
+        b"safe commit".to_vec()
+    } else {
+        bounded
+    }
+}
+
 /// Post-landing work that must know the commit exists.
 fn finish_landed_commit(
     repository: &GitRepository,
-    plan: &SafeCommitPlan,
+    plan: &SafeCommitExecution<'_>,
     sha: &Oid,
     warnings: &mut Vec<String>,
 ) -> Result<Vec<GitPath>, GitError> {
@@ -581,7 +631,7 @@ fn seed_and_stage(
     process: &GitProcess,
     target: IndexTarget<'_>,
     parent: &Oid,
-    plan: &SafeCommitPlan,
+    plan: &SafeCommitExecution<'_>,
 ) -> Result<(), GitError> {
     target.checked(process, &["read-tree", parent.as_str()])?;
     stage_paths(process, target, plan.paths())
@@ -593,7 +643,7 @@ fn seed_stage_and_write_tree(
     process: &GitProcess,
     target: IndexTarget<'_>,
     parent: &Oid,
-    plan: &SafeCommitPlan,
+    plan: &SafeCommitExecution<'_>,
 ) -> Result<Oid, GitError> {
     seed_and_stage(process, target, parent, plan)?;
     write_tree(process, target)
@@ -789,7 +839,7 @@ fn extra_paths(committed: &[GitPath], requested: &[GitPath]) -> Vec<GitPath> {
 }
 
 fn landed_error(
-    plan: &SafeCommitPlan,
+    plan: &SafeCommitExecution<'_>,
     sha: &Oid,
     kind: SafeCommitLandedKind,
     detail: String,
@@ -805,7 +855,7 @@ fn landed_error(
 }
 
 fn outcome(
-    plan: &SafeCommitPlan,
+    plan: &SafeCommitExecution<'_>,
     commit: Oid,
     committed_paths: Vec<GitPath>,
     warnings: Vec<String>,
@@ -973,8 +1023,10 @@ fn create_commit_object(
     parent: &Oid,
     message_path: &Path,
     honor_signing: bool,
-    destination: &str,
-) -> Result<Oid, GitError> {
+    plan: &SafeCommitExecution<'_>,
+) -> Result<(Oid, Vec<String>), GitError> {
+    let destination = plan.destination().as_str();
+    let mut warnings = Vec::new();
     let mut args: Vec<OsString> = vec![OsString::from("commit-tree")];
     if honor_signing && commit_is_signed(process)? {
         args.push(OsString::from("-S"));
@@ -992,8 +1044,16 @@ fn create_commit_object(
             detail: combined_output(&output),
         });
     }
+    if !output.stderr.is_empty() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        if !stderr.is_empty() {
+            warnings.push(format!(
+                "commit-tree reported on a successful commit: {stderr}"
+            ));
+        }
+    }
     let text = utf8_field(strip_line_feed(&output.stdout), "commit id")?;
-    Oid::parse(text.trim())
+    Ok((Oid::parse(text.trim())?, warnings))
 }
 
 /// Translate `commit.gpgsign` into `commit-tree`'s explicit option, exactly as
@@ -1005,4 +1065,50 @@ fn commit_is_signed(process: &GitProcess) -> Result<bool, GitError> {
         return Ok(false);
     }
     Ok(strip_line_feed(&output.stdout) == b"true")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_first_line_mirrors_str_lines_for_utf8() {
+        assert_eq!(first_line_bytes(b"subject\nbody\n"), b"subject");
+        assert_eq!(first_line_bytes(b"subject\r\nbody"), b"subject");
+        assert_eq!(first_line_bytes(b"subject"), b"subject");
+        assert_eq!(
+            first_line_bytes(b"subject\r"),
+            b"subject\r",
+            "a lone trailing CR is not a line ending for str::lines either"
+        );
+        assert_eq!(first_line_bytes(b"\nbody"), b"");
+    }
+
+    #[test]
+    fn utf8_reflog_bytes_are_identical_to_the_legacy_rendering() {
+        for text in [
+            "commit: op(\u{00a0}): a",
+            "commit: subject",
+            "pinned message\n\nbody",
+            "   ",
+            "",
+        ] {
+            assert_eq!(
+                reflog_message_bytes(text.as_bytes()),
+                reflog_message(text).into_bytes(),
+                "the legacy UTF-8 reflog derivation is unchanged"
+            );
+        }
+    }
+
+    #[test]
+    fn raw_reflog_bytes_are_exact_and_bounded() {
+        assert_eq!(
+            reflog_message_bytes(b"commit: op(\x80): rewritten"),
+            b"commit: op(\x80): rewritten".to_vec()
+        );
+        assert_eq!(reflog_message_bytes(b" \t "), b"safe commit".to_vec());
+        let long = vec![0xffu8; 2_100];
+        assert_eq!(reflog_message_bytes(&long), vec![0xffu8; 2_000]);
+    }
 }
