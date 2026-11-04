@@ -506,8 +506,8 @@ pub enum SafeCommitRoute {
 /// The variant names the check that actually ran and refused; it is never
 /// parsed out of error text, never guessed from a `Display` string, and never a
 /// generic "protected or invalid" bucket. `Message` can only be produced by a
-/// message-carrying entry point, and `IndexAuthority` belongs to apply-time
-/// rechecks rather than this planner.
+/// message-carrying entry point. Apply-time authority rechecks return plain
+/// [`GitError`] values, not preflight stages.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SafeCommitPreflightStage {
     /// The captured repository/index authority refuses a redirected write.
@@ -534,8 +534,6 @@ pub enum SafeCommitPreflightStage {
     Guard,
     /// A merge/rebase marker, a held index lock, or that read blocks the commit.
     OperationInProgress,
-    /// Apply-time recheck of the captured operator-index authority.
-    IndexAuthority,
 }
 
 /// A refused target plan: the typed stage plus the exact original error value.
@@ -1700,11 +1698,9 @@ pub(crate) fn reflog_message(message: &str) -> String {
         }
         bounded.push(character);
     }
-    if bounded.trim().is_empty() {
-        "safe commit".to_string()
-    } else {
-        bounded
-    }
+    // Git normalizes whitespace in update-ref -m, including an empty recorded
+    // message for ASCII-whitespace-only input. Do not fabricate audit text.
+    bounded
 }
 
 #[cfg(test)]

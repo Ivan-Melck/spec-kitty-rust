@@ -520,20 +520,15 @@ fn first_line_bytes(message: &[u8]) -> &[u8] {
 
 /// The reflog/audit message for a payload.
 ///
-/// For valid UTF-8 this is byte-identical to the legacy [`reflog_message`]
-/// rendering. For any other payload the exact bytes are kept (bounded by the
-/// same 2000-byte budget) instead of substituting `U+FFFD` or an escaped
-/// `Debug` form: the reference records the pre-conversion message bytes.
+/// UTF-8 truncation uses the scalar boundaries in [`reflog_message`]; other
+/// payloads keep their exact bytes within the same 2000-byte budget. Git owns
+/// whitespace normalization (including an empty recorded message); no invented
+/// fallback, `U+FFFD`, or escaped `Debug` data replaces the pre-conversion bytes.
 fn reflog_message_bytes(message: &[u8]) -> Vec<u8> {
     if let Ok(text) = std::str::from_utf8(message) {
         return reflog_message(text).into_bytes();
     }
-    let bounded: Vec<u8> = message.iter().take(2000).copied().collect();
-    if bounded.iter().all(u8::is_ascii_whitespace) {
-        b"safe commit".to_vec()
-    } else {
-        bounded
-    }
+    message.iter().take(2000).copied().collect()
 }
 
 /// Post-landing work that must know the commit exists.
@@ -1085,7 +1080,7 @@ mod tests {
     }
 
     #[test]
-    fn utf8_reflog_bytes_are_identical_to_the_legacy_rendering() {
+    fn utf8_reflog_bytes_use_the_canonical_text_truncation() {
         for text in [
             "commit: op(\u{00a0}): a",
             "commit: subject",
@@ -1096,7 +1091,7 @@ mod tests {
             assert_eq!(
                 reflog_message_bytes(text.as_bytes()),
                 reflog_message(text).into_bytes(),
-                "the legacy UTF-8 reflog derivation is unchanged"
+                "the UTF-8 and byte routes share text truncation, including whitespace"
             );
         }
     }
@@ -1107,7 +1102,7 @@ mod tests {
             reflog_message_bytes(b"commit: op(\x80): rewritten"),
             b"commit: op(\x80): rewritten".to_vec()
         );
-        assert_eq!(reflog_message_bytes(b" \t "), b"safe commit".to_vec());
+        assert_eq!(reflog_message_bytes(b" \t "), b" \t ".to_vec());
         let long = vec![0xffu8; 2_100];
         assert_eq!(reflog_message_bytes(&long), vec![0xffu8; 2_000]);
     }

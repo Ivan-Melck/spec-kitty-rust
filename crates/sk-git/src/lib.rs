@@ -109,8 +109,10 @@
 //!   hooks, cleanup, signing, and the UTF-8 warning. A commit message is bounded
 //!   at 64 KiB and must not contain NUL, as before; the reference has no such
 //!   length bound.
-//! * A branch reflog keeps the exact pre-conversion message bytes (the same
-//!   bytes the reference records). On non-Unix platforms a reflog message must be
+//! * A branch reflog passes bounded pre-conversion message bytes through Git's
+//!   whitespace normalization. Whitespace-only pinned messages no longer get
+//!   invented fallback text; existing UTF-8 APIs/getters are unchanged. On
+//!   non-Unix platforms a reflog message must be
 //!   valid UTF-8: a plan whose payload is not valid UTF-8 is refused with
 //!   [`GitError::Unsupported`] before any index mutation, rather than
 //!   pretending a wide-argv encoding was tested. A hook that rewrites a payload

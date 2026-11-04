@@ -8,6 +8,24 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
+## Git byte review / findings — after `d792fe11e`
+
+Independent NARROWPASSWITHFINDINGS reproduces11bindings/Git331/strictscoped/exact53;
+10ordinary table rows+1pinnedUTF8 OID/body/reflog/status/path checks, not wholeSource
+or Op/platform/perf approval. F1 valid pinned whitespace has identical object but
+native invented safe-commit reflog; coor actual oldAPI red0/1 then lets Git normalize
+NONEMPTY bounded payload (no public ref-validator relaxation). NBSP preserved;
+11live pairs7ordinary+4pinned all pass. F2 unused IndexAuthority stage removed,
+applyerrors stay plainGitError. No fabricated behavior red for enum cleanup.
+
+Stable2269/0/14helpers188suites/doctests, Git332/0/7; strictworkspaceall-targetClippy/
+fullfmt/bothCLIs+optimizedOp green; exact53/completion599/PERF27/pending/valid/0of16.
+Unique logs `/tmp/sk-git-review-findings.WdyXbc/command-log-index.tsv`; current
+hashes/limits `reviews/git-byte-message-disposition.md`. Historical reports retained;
+small findings tested not fresh review. Published+PUSHED draftcheckpoint, then
+actual bounded Op byte integration. F4/J-P/sourcepath/footprint/unborn/exactrefs/
+platform/perf gaps still required, not waived by scope or pre-existing attribution.
+
 ## Canonical Git byte messages / target progress — after `1bf9dc702`
 
 Actual Git-only capability: opaque exact-byte CommitMessage, message-free native

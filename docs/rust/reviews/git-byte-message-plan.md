@@ -6,8 +6,9 @@ audience: software-engineer
 # Canonical Git byte-message and target-preflight increment
 
 **Historical design, not acceptance.** First Git-only increment now implemented
-and coordinator-tested; fresh independent review pending. Current code/evidence/
-source corrections: `crates/sk-git/BYTE-MESSAGE-TARGET-INTEGRATION-REPORT.md`.
+and narrowly independently accepted with findings; small follow-up/current
+bindings in `git-byte-message-disposition.md`. Historical code/evidence/source
+corrections: `crates/sk-git/BYTE-MESSAGE-TARGET-INTEGRATION-REPORT.md`.
 Original plan follows. Final architect proposal
 `/tmp/sk-git-byte-message-preflight-design.md`; immutable provisional retained;
 coordinator amendments `/tmp/sk-byte-message-coordinator-assessment.md`.

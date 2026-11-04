@@ -1,6 +1,8 @@
 # Byte messages / target progress / full HEAD — coordinator integration
 
-Status: coordinator tested; **fresh independent review pending**. Owner snapshot
+Status: historical d792 coordinator snapshot. Independent review NARROW PASS
+WITH FINDINGS; small F1/F2 follow-up/current bindings in
+`docs/rust/reviews/git-byte-message-disposition.md`. Owner snapshot
 `BYTE-MESSAGE-TARGET-REPORT.md` retains original counts/hashes/missing evidence.
 Provisional integration plan `/tmp/sk-git-byte-integration.md` preceded changes.
 Starting published1bf9dc702480a48225becfcba544013cf1c70e08; source/oracle remains

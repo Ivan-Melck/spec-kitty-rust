@@ -125,11 +125,11 @@ fn last_reflog_message(reflog: &[u8]) -> Vec<u8> {
         .split(|byte| *byte == b'\n')
         .rfind(|line| !line.is_empty())
         .expect("reflog has a recorded advance");
-    let tab = line
-        .iter()
-        .position(|byte| *byte == b'\t')
-        .expect("a reflog record separates the message with a tab");
-    line[tab + 1..].to_vec()
+    // Git omits both the separator and message for a normalized empty message.
+    match line.iter().position(|byte| *byte == b'\t') {
+        Some(tab) => line[tab + 1..].to_vec(),
+        None => Vec::new(),
+    }
 }
 
 fn contains(haystack: &[u8], needle: &[u8]) -> bool {
@@ -403,6 +403,37 @@ fn byte_pinned_parent_preserves_verbatim_payload_and_exact_blob_assertions() {
 }
 
 #[test]
+fn legacy_pinned_whitespace_keeps_git_normalized_reflog_instead_of_fabricating_text() {
+    for message in ["   ", "\t\r\n", "\u{00a0}"] {
+        let fixture = Fixture::new();
+        let repository = fixture.open();
+        let parent = repository
+            .read_branch_tip(&fixture.destination())
+            .unwrap()
+            .unwrap();
+        let request =
+            sk_git::SafeCommitRequest::new(fixture.destination(), message, [fixture.record()])
+                .with_expected_parent(parent);
+        let outcome = repository.safe_commit(&request).unwrap();
+        let expected = if message == "\u{00a0}" {
+            message.as_bytes()
+        } else {
+            b""
+        };
+        assert_eq!(
+            last_reflog_message(&fixture.reflog()),
+            expected,
+            "preserve source bytes for Git normalization, do not invent 'safe commit'"
+        );
+        assert!(
+            fixture
+                .commit_bytes(outcome.commit().as_str())
+                .ends_with(format!("\n\n{message}\n").as_bytes())
+        );
+    }
+}
+
+#[test]
 fn byte_index_deletion_keeps_the_worktree_file() {
     let fixture = Fixture::new();
     let repository = fixture.open();
@@ -630,18 +661,22 @@ fn oracle_byte_case_helper() {
         "oracle drift or missing requirements: {verification}"
     );
 
-    // (name, exact message bytes for both routes, configured encoding)
-    let cases: &[(&str, &[u8], Option<&str>)] = &[
-        ("raw80", b"op(\x80): a\n", None),
-        ("rawff", b"op(\xff): a\n", None),
-        ("nbspan", "op(\u{00a0}): a\n".as_bytes(), None),
-        ("astral", "op(\u{1f600}): a\n".as_bytes(), None),
-        ("raw80_latin1", b"op(\x80): a\n", Some("ISO-8859-1")),
-        ("rawff_latin1", b"op(\xff): a\n", Some("ISO-8859-1")),
-        ("hook_rewrite80", b"op(\x80): a\n", None),
+    // (name, exact message bytes, configured encoding, pinned-parent route)
+    let cases: &[(&str, &[u8], Option<&str>, bool)] = &[
+        ("raw80", b"op(\x80): a\n", None, false),
+        ("rawff", b"op(\xff): a\n", None, false),
+        ("nbspan", "op(\u{00a0}): a\n".as_bytes(), None, false),
+        ("astral", "op(\u{1f600}): a\n".as_bytes(), None, false),
+        ("raw80_latin1", b"op(\x80): a\n", Some("ISO-8859-1"), false),
+        ("rawff_latin1", b"op(\xff): a\n", Some("ISO-8859-1"), false),
+        ("hook_rewrite80", b"op(\x80): a\n", None, false),
+        ("pinned_spaces", b"   ", None, true),
+        ("pinned_tabs_crlf", b"\t\r\n", None, true),
+        ("pinned_nbsp", "\u{00a0}".as_bytes(), None, true),
+        ("pinned_utf8", "op(é): pinned".as_bytes(), None, true),
     ];
 
-    for (name, bytes, encoding) in cases {
+    for (name, bytes, encoding, pinned) in cases {
         let base = root.join(name);
         fs::create_dir_all(&base).unwrap();
         let native_repo = base.join("native");
@@ -686,7 +721,18 @@ fn oracle_byte_case_helper() {
         let destination =
             BranchName::parse(&repository.current_branch().unwrap().unwrap()).unwrap();
         let record = GitPath::from_git_bytes(b"kitty-ops/01ARZ3ND.jsonl").unwrap();
-        let target = SafeCommitTargetRequest::new(destination, [record]);
+        let mut target = SafeCommitTargetRequest::new(destination, [record]);
+        let expected_parent = if *pinned {
+            let parent = repository
+                .read_branch_tip(target.destination())
+                .unwrap()
+                .unwrap();
+            let text = parent.to_string();
+            target = target.with_expected_parent(parent);
+            text
+        } else {
+            String::new()
+        };
         let prepared = repository
             .plan_safe_commit_target(&target)
             .unwrap_or_else(|failure| panic!("{name}: target plan failed: {failure:?}"))
@@ -697,7 +743,7 @@ fn oracle_byte_case_helper() {
             .unwrap_or_else(|error| panic!("{name}: native byte apply failed: {error:?}"));
         let native_oid = native.commit().as_str().to_string();
 
-        // Live pinned source, ordinary route, from the exact fsencode bytes.
+        // Live pinned source: ordinary fsencode bytes or UTF-8 pinned payload.
         let script = root.join("source_commit.py");
         fs::write(
             &script,
@@ -717,6 +763,7 @@ result = safe_commit(
     message=message,
     paths=(root / "kitty-ops" / "01ARZ3ND.jsonl",),
     capability=GuardCapability.STANDARD,
+    expected_parent_sha=sys.argv[4] or None,
 )
 print("OID=" + result.sha)
 "#,
@@ -727,7 +774,8 @@ print("OID=" + result.sha)
             .arg(&script)
             .arg(&source_repo)
             .arg(hex(bytes))
-            .arg(LANE);
+            .arg(LANE)
+            .arg(expected_parent);
         python_env(&mut source);
         let run = source.output().expect("run the pinned source commit");
         assert!(
