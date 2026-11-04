@@ -1,12 +1,42 @@
 ---
 type: reference
-updated: 2026-11-03
+updated: 2026-11-04
 audience: software-engineer
 ---
 # Rust verification evidence
 
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
+
+## Unicode independent review / generator consistency — after `0e3a51b9f`
+
+NARROW PASS WITH FINDINGS: table/full scalar+20008 composed repr checks,29 real
+service/source cases:17 equal actual objects,10 both refuse,2 used-low-surrogate
+source-commit/native-refuse. Op178/strict scoped/exact53 reproduced. Correct codepoint
+membership count1,114,112 (review prose uses scalar count1,112,064 incorrectly);
+original checker loops0x110000 including2048Cs. Coor rerun in isolatedCWD has zero
+mismatches; original table-check log records checkoutCWD, not claimed isolated.
+
+One canonical repr is within sk-invocation, not repo-wide: Workspace/Doctrine
+pre-existing helpers still affect non-ASCII policy detail/YAML type names. UsedNUL
+sourceValueError+staged vs native NUL validation/no stage is new concrete F5 instance.
+New controls establish decisions/durable-data/read-only only, not gap closure.
+
+Generator tiny render red0/1 then derives test counts from ranges/total; current
+701-range data byte-identical/no source or table pin change. Six Python controls+
+targeted Ruff pass. Stable owner-idle2230/0/11 helpers,184 suites/doctests, strict
+workspace Clippy/full fmt/both releases+optimized Op library pass. Unique logs/root:
+`/tmp/sk-unicode-disposition.eFbMFP/gate-log-index.txt`; exact53/completion599/PERF27/
+pending/valid accounting/0of16 in same root. Current bindings/details:
+`reviews/op-unicode-disposition.md`. Small fix tested, not fresh review.
+
+Amended byte-target plan `reviews/git-byte-message-plan.md` is NOT implementation.
+Source path-before-guard and doctor-stage-before-encoding counterexamples retained;
+no source-footprint waiver or Debug-as-reflog data. Next actual bounded Git capability,
+then source-grounded composition/unborn/exactrefs; no full Op/CLI/platform/perf approval.
+Fork REMOTE main/upstream recheckedde5f4dc5f374170226a5331129c80927946e5d64; localmain
+unchanged/stale, active checkout rust/rewrite.705-commit semantic gap. Verified work
+committed+PUSHED, PR remains draft.
 
 ## Unicode repr / code-point string integration — after `4858240fb`
 

@@ -50,6 +50,14 @@ class GeneratorTests(unittest.TestCase):
         self.assertNotEqual(Path(observed.call_args.kwargs["cwd"]).resolve(), ROOT)
         self.assertIn(str(ROOT), observed.call_args.args[0])
 
+    def test_rendered_tests_are_consistent_with_the_rendered_ranges(self) -> None:
+        # A future explicit pin bump must not emit stale test counts. This is
+        # pure rendering, not a substitute for real verified oracle controls.
+        text = GENERATOR.render([(0, 1), (9, 10)], "test-version")
+        self.assertIn("NONPRINTABLE_RANGE_COUNT: usize = 2;", text)
+        self.assertIn("assert_eq!(NONPRINTABLE_RANGE_COUNT, 2);", text)
+        self.assertIn("assert_eq!(total, 4,", text)
+
     def test_exact_oracle_and_committed_table_pass(self) -> None:
         with tempfile.TemporaryDirectory() as scratch:
             result = self.run_check(ROOT, Path(scratch))

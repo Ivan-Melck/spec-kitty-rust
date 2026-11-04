@@ -131,7 +131,7 @@ mod tests {{
     #[test]
     fn table_is_sorted_disjoint_and_counted() {{
         // The generator and the integration oracle test pin these facts.
-        assert_eq!(NONPRINTABLE_RANGE_COUNT, 701);
+        assert_eq!(NONPRINTABLE_RANGE_COUNT, {len(ranges)});
         assert_eq!(NONPRINTABLE_RANGES.len(), NONPRINTABLE_RANGE_COUNT);
         let mut total = 0u32;
         let mut previous_end = None;
@@ -144,7 +144,7 @@ mod tests {{
             total += end - start + 1;
             previous_end = Some(end);
         }}
-        assert_eq!(total, 969_596, "the table is never vacuous");
+        assert_eq!(total, {total:_}, "the table is never vacuous");
     }}
 
     #[test]

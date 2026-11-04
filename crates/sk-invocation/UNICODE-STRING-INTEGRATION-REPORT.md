@@ -5,13 +5,15 @@ audience: software-engineer
 ---
 # Unicode repr / Python-string integration
 
-Status: coordinator verified, fresh independent review pending. Baseline published
+Status: historical0e3a51b9f coordinator snapshot. Independent review now accepts
+this correction narrowly; later generator/count/scope corrections and current
+bindings: `docs/rust/reviews/op-unicode-disposition.md`. Baseline published
 4858240fb62632a7cce67f049f6932aeda6d0bdc; fixed Python source/oracle9aed3a8012cb5eb22c0128b14d525039f95fea7a unchanged. Provisional plan before edits:
 `/tmp/sk-unicode-integration.md`.
 
 ## Real behavior
 
-One canonical code-point repr primitive with &str wrapper uses verified CPython
+One canonical code-point repr primitive WITHIN sk-invocation with &str wrapper uses verified CPython
 3.11.15/Unicode14.0.0 printability:701 ranges,969596 nonprintable points including
 2048 surrogate units. Native PythonString preserves exact code points, paired/
 nonpaired escapes, decoded key equality/duplicate order. Unused surrogate fields/
@@ -60,7 +62,7 @@ approved by disclosure. Existing1000 operational budget/small recursion band and
 runtime-setting limits, F4 judged-vs-physical/shadow false admission, F5 error text,
 full executor/StepContract/CLI/workflow/platform/performance remain open.
 
-## Stable verification / current bindings
+## Historical0e3a51b9f stable verification / bindings
 
 Owners idle; all entire Cargo via whole-command lease helper/2jobs/noincremental/
 existing target/isolated HOME/XDG/TMP. **2228pass/0fail/11 helpers**,184 suites incl

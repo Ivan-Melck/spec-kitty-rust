@@ -2532,6 +2532,72 @@ fn python_repr_matches_cpython_isprintable_for_every_unicode_scalar() {
     }
 }
 
+/// A used NUL is valid JSON but cannot be a commit argument. Pin decisions,
+/// durable data and the measured source footprint without claiming F5 equality.
+#[test]
+fn legacy_used_nul_refuses_without_rewriting_the_record() {
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let source = Fixture::with_positive_primary();
+    source.checkout_new("topic");
+    let line = format!("{}\n", r#"{"profile_id":"\u0000","action":"a"}"#);
+    fixture.write_record_line(RECORD, &line);
+    source.write_record_line(RECORD, &line);
+    let head = fixture.head();
+    let source_head = source.head();
+    let reference = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+    assert_eq!(reference["committed"], false);
+    assert!(
+        reference["refusal"]
+            .as_str()
+            .unwrap()
+            .contains("embedded null")
+    );
+    let mut service = fixture.service();
+    let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
+    assert!(!outcome.committed());
+    assert!(outcome.refusal().is_some());
+    assert!(
+        !outcome
+            .refusal()
+            .unwrap()
+            .contains("Invalid invocation record")
+    );
+    assert!(outcome.evidence().is_none());
+    assert_eq!(fixture.head(), head);
+    assert_eq!(source.head(), source_head);
+    assert_eq!(fixture.record_bytes(RECORD), line.as_bytes());
+    assert_eq!(source.record_bytes(RECORD), line.as_bytes());
+    let path = format!("kitty-ops/{RECORD}.jsonl\n");
+    assert_eq!(
+        source.git_ok(&["diff", "--cached", "--name-only"]),
+        path.as_bytes()
+    );
+    // Native/source index equality is an OPEN footprint contract, not a
+    // passing acceptance claim. Do not pin the wrong footprint as desired.
+}
+
+#[test]
+fn legacy_nonascii_policy_detail_has_matching_code_without_false_text_parity() {
+    let fixture = Fixture::with_positive_primary();
+    let source = Fixture::with_positive_primary();
+    protect(&fixture.root, "a\u{a0}b");
+    protect(&source.root, "a\u{a0}b");
+    let before = fixture.snapshot();
+    let reference = oracle_admission(&source.root, &source.root, None);
+    assert_eq!(reference["code"], "OP_WRITE_PROTECTION_CONFIG_INVALID");
+    assert!(reference["reason"].as_str().unwrap().contains(r"a\xa0b"));
+    let mut service = fixture.service();
+    let refusal = service
+        .op_write_refusal()
+        .unwrap()
+        .expect("invalid config refuses");
+    assert_eq!(refusal.code, OpWriteRefusalCode::ProtectionConfigInvalid);
+    assert_eq!(fixture.snapshot(), before);
+    // Workspace's repr detail remains separate/pre-existing; this test
+    // establishes code/read-only semantics, NOT reason-text equivalence.
+}
+
 /// Decision-order control: the reference only fails on a used surrogate when it
 /// encodes the message at the commit step, so an earlier skip or protected-
 /// branch decision still wins. Native defers its encoding refusal past skip,

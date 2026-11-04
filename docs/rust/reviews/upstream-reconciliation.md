@@ -1,6 +1,6 @@
 # Upstream reconciliation: current fork, older rewrite baseline
 
-Fork `main` and upstream `main` both resolve to
+Fork REMOTE `origin/main` and upstream remote `main` both resolve to
 `de5f4dc5f374170226a5331129c80927946e5d64` (fork fast-forwarded and both remotes
 rechecked). Total gap: **705 commits**. Newest10 afterba53b7aa6 changes36 files
 (+1898/-73); production tracer_append.py and retrospective/tracer_writer.py

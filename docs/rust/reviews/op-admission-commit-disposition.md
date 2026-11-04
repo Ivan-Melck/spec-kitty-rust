@@ -83,8 +83,9 @@ reviewed. Source-surrogate/printability/caller-dependent recursion and F4/F5 rem
 open. Shadow false-admission proof/design amendments in `op-shadow-branch-plan.md`.
 Later Unicode/surrogate representation now tested: one code-point repr authority,
 verified Unicode14 printability,1,112,064 scalar comparison, unused/nested surrogate
-real-source commits; Op178 and stable2228/0/11. Fresh independent review pending.
-Current bindings/limits `crates/sk-invocation/UNICODE-STRING-INTEGRATION-REPORT.md`.
+real-source commits; Op178 and stable2228/0/11. Independent review now narrowly accepts this correction:29 service cases/17 equal
+objects, full scalar and20008 composed repr. Cross-crate repr not unified. Current
+disposition/bindings `op-unicode-disposition.md`; earlier crate report is0e3 snapshot.
 Source-used low-surrogate byte messages and protection/encoding/index-error precedence
 remain capability gaps, not invalid JSON. Next: independent review and canonical
 byte-message/target-preflight extension coordinated with F4 source identity/progress.
