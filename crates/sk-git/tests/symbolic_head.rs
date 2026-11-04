@@ -226,6 +226,62 @@ fn corrupt_head_content_is_unreadable_not_absent() {
 }
 
 #[test]
+fn completed_nonzero_observation_is_distinct_from_successful_invalid_output() {
+    let fixture = Fixture::new("main");
+    let repository = fixture.open();
+    fs::write(fixture.head_file(), b"ref: refs/heads/\n").unwrap();
+    let observed = repository.observe_symbolic_head().unwrap();
+    assert_eq!(observed.status_code(), Some(128));
+    assert_eq!(observed.target_text(), None);
+    assert!(matches!(
+        repository.symbolic_head_ref(),
+        Err(GitError::UnreadableHead { .. })
+    ));
+    fs::write(fixture.head_file(), b"ref: refs/x\n").unwrap();
+    assert_eq!(
+        repository.observe_symbolic_head().unwrap().target_text(),
+        Some("refs/x"),
+        "observation retains a successful target even when the stricter publication type cannot represent it"
+    );
+    assert!(
+        matches!(
+            repository.symbolic_head_ref(),
+            Err(GitError::UnreadableHead { .. })
+        ),
+        "strict full-ref API validation is unchanged"
+    );
+    fs::write(fixture.head_file(), b"ref: refs/heads/raw\xff\n").unwrap();
+    assert!(
+        matches!(
+            repository.observe_symbolic_head(),
+            Err(GitError::UnreadableHead { .. })
+        ),
+        "successful malformed stdout is an error, not a completed-nonzero answer"
+    );
+}
+
+#[test]
+fn exact_ref_existence_does_not_require_a_commit_or_a_born_head() {
+    let fixture = Fixture::new("main");
+    let repository = fixture.open();
+    assert!(repository.ref_exists(&ref_name("refs/heads/main")).unwrap());
+    assert!(
+        !repository
+            .ref_exists(&ref_name("refs/heads/missing"))
+            .unwrap()
+    );
+    let blob = fixture.git(&["rev-parse", "HEAD:a.txt"]);
+    let blob = std::str::from_utf8(&blob).unwrap().trim();
+    fixture.git(&["update-ref", "refs/spec-kitty/blob", blob]);
+    assert!(
+        repository
+            .ref_exists(&ref_name("refs/spec-kitty/blob"))
+            .unwrap(),
+        "rev-parse existence is not commit peeling"
+    );
+}
+
+#[test]
 fn a_non_utf8_head_target_is_unreadable() {
     let fixture = Fixture::new("main");
     fs::write(fixture.head_file(), b"ref: refs/heads/garbage\xff\n").unwrap();

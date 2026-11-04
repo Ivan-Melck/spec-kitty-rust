@@ -1,11 +1,14 @@
 ---
 type: explanation
-updated: 2026-11-03
+updated: 2026-11-04
 audience: software-engineer
 ---
 # Shadow branch: source-judged name vs physical publication
 
-**Plan/evidence only, not implementation or parity acceptance.** Designer report
+**Historical plan/evidence, not acceptance.** Current J/H/P source-order and
+supported born-publication implementation now coordinator-tested, fresh independent
+review pending: `crates/sk-invocation/JP-TARGET-INTEGRATION-REPORT.md`. Unborn/exact-
+ref backend and broader Source semantics remain required. Original designer report
 `/tmp/sk-op-shadow-branch-design.md`, coordinator assessment/amendments
 `/tmp/sk-op-shadow-coordinator-assessment.md`, target758a99d41. Production unchanged
 during both design and parallel parser review.

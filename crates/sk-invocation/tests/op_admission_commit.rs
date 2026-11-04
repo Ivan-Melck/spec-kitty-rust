@@ -221,8 +221,16 @@ impl Fixture {
     }
 
     fn snapshot(&self) -> Snapshot {
+        // An unborn HEAD has no commit to verify; the empty marker still binds
+        // the "unchanged" comparison for read-only admission controls.
+        let head_output = self.git_at(&self.root, &["rev-parse", "--verify", "HEAD"]);
+        let head = if head_output.status.success() {
+            head_output.stdout
+        } else {
+            Vec::new()
+        };
         Snapshot {
-            head: self.git_ok(&["rev-parse", "--verify", "HEAD"]),
+            head,
             status: self.status(),
             stage: self.stage(),
             refs: self.refs(),
@@ -375,6 +383,37 @@ print(json.dumps({"committed": outcome.committed, "refusal": outcome.refusal, "s
     });
     let output = support::run_python(script, Some(&request.to_string()));
     serde_json::from_str(&output).expect("commit oracle JSON")
+}
+
+/// The close oracle with the fixture's fixed author/committer dates, so the
+/// complete commit object (including timestamps) is comparable. The variables
+/// are set inside the child interpreter, never in the test process.
+fn oracle_commit_bound(
+    project: &Path,
+    record: &Path,
+    invocation_id: &str,
+    closed_by: &str,
+) -> serde_json::Value {
+    let script = r#"
+import json, os, sys
+from pathlib import Path
+os.environ["GIT_AUTHOR_DATE"] = "2020-01-01T00:00:00+0000"
+os.environ["GIT_COMMITTER_DATE"] = "2020-01-01T00:00:00+0000"
+from specify_cli.invocation.executor import ProfileInvocationExecutor
+request = json.load(sys.stdin)
+os.environ.pop("SPEC_KITTY_ALLOW_PROTECTED_BRANCH_COMMITS", None)
+executor = ProfileInvocationExecutor(Path(request["project"]), record_root=Path(request["record"]))
+outcome = executor._commit_op_record(request["id"], closed_by=request["closed_by"])
+print(json.dumps({"committed": outcome.committed, "refusal": outcome.refusal, "skipped": outcome.skipped}))
+"#;
+    let request = json!({
+        "project": project,
+        "record": record,
+        "id": invocation_id,
+        "closed_by": closed_by,
+    });
+    let output = support::run_python(script, Some(&request.to_string()));
+    serde_json::from_str(&output).expect("bound commit oracle JSON")
 }
 
 #[test]
@@ -2663,4 +2702,586 @@ fn legacy_used_surrogate_keeps_source_decision_order() {
         "the encoding refusal did not mask the guard: {refusal:?}"
     );
     assert_eq!(fixture.record_bytes(RECORD), line.as_bytes());
+}
+
+// ---------------------------------------------------------------------------
+// Source-ordered J/P adjudication: judged destination vs physical publication.
+// ---------------------------------------------------------------------------
+
+const NBSP_PHYSICAL: &str = "topic\u{a0}";
+
+fn ref_tip(fixture: &Fixture, full_ref: &str) -> Option<String> {
+    let output = fixture.git_at(
+        &fixture.root,
+        &["rev-parse", "--verify", "--quiet", full_ref],
+    );
+    output.status.success().then(|| {
+        String::from_utf8(output.stdout)
+            .expect("rev-parse object id is UTF-8")
+            .trim()
+            .to_owned()
+    })
+}
+
+fn commit_object(fixture: &Fixture, revision: &str) -> Vec<u8> {
+    fixture.git_ok(&["cat-file", "commit", revision])
+}
+
+/// The last reflog entry's message, before any Git message conversion.
+fn reflog_message(fixture: &Fixture, branch: &str) -> Vec<u8> {
+    let path = fixture.root.join(".git/logs/refs/heads").join(branch);
+    let log = fs::read(path).expect("read the branch reflog");
+    let last = log
+        .split(|byte| *byte == b'\n')
+        .rfind(|line| !line.is_empty())
+        .expect("one reflog entry");
+    let tab = last
+        .iter()
+        .position(|byte| *byte == b'\t')
+        .expect("a reflog line carries a message");
+    last[tab + 1..].to_vec()
+}
+
+/// A positive-primary checkout with `topic` as the shadow ref and the exact
+/// physical branch checked out (`born`) or created unborn (root-commit shape).
+fn shadow_fixture(physical: &str, born: bool) -> Fixture {
+    let fixture = Fixture::with_positive_primary();
+    fixture.git_ok(&["branch", "topic"]);
+    if born {
+        fixture.checkout_new(physical);
+    } else {
+        fixture.git_ok(&["checkout", "-q", "--orphan", physical]);
+        // An orphan checkout keeps the previous index; empty it so the source's
+        // `commit --only` publishes the first commit without inherited paths.
+        fixture.git_ok(&["read-tree", "--empty"]);
+    }
+    fixture
+}
+
+/// Protect the judged name `topic`, or install an unparsable protection block.
+fn shadow_protection(fixture: &Fixture, protected: bool) {
+    if protected {
+        protect(&fixture.root, "[\"topic\"]");
+    } else {
+        protect(&fixture.root, "not-a-list");
+    }
+}
+
+const BORN_BOUND_GUARD: &str = "SK_JP_BORN_BOUND_CHILD";
+
+/// Bind the complete commit object by running this one test in a child process
+/// whose environment carries the fixture's fixed author/committer dates. The
+/// native Git process and the live source interpreter both inherit them, so
+/// OID/object/reflog equality is bound metadata, not a coincidence.
+fn born_bound_child() -> bool {
+    if std::env::var_os(BORN_BOUND_GUARD).is_some() {
+        assert_eq!(
+            std::env::current_dir().unwrap(),
+            PathBuf::from(std::env::var_os("SK_JP_BORN_BOUND_ROOT").unwrap()),
+            "born metadata child must not inherit the source checkout CWD"
+        );
+        return true;
+    }
+    let sandbox = tempfile::tempdir().unwrap();
+    for name in ["home", "config", "cache", "data", "state", "tmp"] {
+        fs::create_dir_all(sandbox.path().join(name)).unwrap();
+    }
+    let output = Command::new(std::env::current_exe().expect("current test binary"))
+        .args([
+            "--exact",
+            "shadow_branch_unprotected_born_publication_matches_the_source",
+            "--nocapture",
+        ])
+        .env(BORN_BOUND_GUARD, "1")
+        .env("SK_JP_BORN_BOUND_ROOT", sandbox.path())
+        .current_dir(sandbox.path())
+        .env("HOME", sandbox.path().join("home"))
+        .env("XDG_CONFIG_HOME", sandbox.path().join("config"))
+        .env("XDG_CACHE_HOME", sandbox.path().join("cache"))
+        .env("XDG_DATA_HOME", sandbox.path().join("data"))
+        .env("XDG_STATE_HOME", sandbox.path().join("state"))
+        .env("TMPDIR", sandbox.path().join("tmp"))
+        .env("GIT_AUTHOR_DATE", "2020-01-01T00:00:00+0000")
+        .env("GIT_COMMITTER_DATE", "2020-01-01T00:00:00+0000")
+        .output()
+        .expect("run the bound-metadata child");
+    assert!(
+        output.status.success(),
+        "bound-metadata child failed:\n{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    false
+}
+
+#[test]
+fn shadow_branch_unprotected_born_publication_matches_the_source() {
+    if !born_bound_child() {
+        return;
+    }
+    let native = shadow_fixture(NBSP_PHYSICAL, true);
+    let source = shadow_fixture(NBSP_PHYSICAL, true);
+    let physical_ref = format!("refs/heads/{NBSP_PHYSICAL}");
+
+    assert_eq!(
+        native
+            .service()
+            .op_write_refusal()
+            .expect("admission answers"),
+        None,
+        "the source admits a shadow checkout with an existing judged ref"
+    );
+    assert_eq!(
+        oracle_admission(&source.root, &source.root, None),
+        serde_json::Value::Null
+    );
+    let before = native.snapshot();
+    assert_eq!(native.snapshot(), before, "admission is read-only");
+
+    native.write_started_and_completed(RECORD, "p", "a");
+    source.write_started_and_completed(RECORD, "p", "a");
+    let record = native.record_bytes(RECORD);
+    let head_before = native.head();
+    let shadow_before = ref_tip(&native, "refs/heads/topic");
+    let main_before = ref_tip(&native, "refs/heads/main");
+
+    let mut service = native.service();
+    let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
+    assert!(outcome.committed(), "{outcome:?}");
+    let published = ref_tip(&native, &physical_ref).expect("the physical ref exists");
+    assert_ne!(published, head_before, "the physical ref advanced");
+    assert_eq!(ref_tip(&native, "refs/heads/topic"), shadow_before);
+    assert_eq!(ref_tip(&native, "refs/heads/main"), main_before);
+    assert_eq!(
+        native.record_bytes(RECORD),
+        record,
+        "the audit row is retained"
+    );
+    match outcome.evidence().expect("committed evidence") {
+        OpCommitEvidence::Committed {
+            commit,
+            destination,
+            committed_paths,
+            ..
+        } => {
+            assert_eq!(destination.as_str(), NBSP_PHYSICAL, "evidence names P");
+            assert_eq!(
+                commit.as_str(),
+                published,
+                "the bound OID is the physical tip"
+            );
+            assert_eq!(
+                committed_paths.as_slice(),
+                &[
+                    GitPath::from_git_bytes(format!("kitty-ops/{RECORD}.jsonl").as_bytes())
+                        .unwrap()
+                ],
+                "only the record path is committed"
+            );
+        }
+        other => panic!("expected committed evidence, got {other:?}"),
+    }
+
+    let reference = oracle_commit_bound(&source.root, &source.root, RECORD, "agent");
+    assert_eq!(
+        reference["committed"], true,
+        "source outcome: {reference:?}"
+    );
+    assert_eq!(
+        source.head(),
+        published,
+        "one bound commit id on both sides"
+    );
+    assert_eq!(
+        commit_object(&source, "HEAD"),
+        commit_object(&native, &published),
+        "the complete commit object is identical"
+    );
+    assert_eq!(
+        reflog_message(&native, NBSP_PHYSICAL),
+        reflog_message(&source, NBSP_PHYSICAL),
+        "the physical ref reflog carries the same payload"
+    );
+    assert_eq!(source.commit_paths(), native.commit_paths());
+}
+
+#[test]
+fn shadow_branch_born_protected_and_invalid_admission_and_close_match_the_source() {
+    for protected in [true, false] {
+        let native = shadow_fixture(NBSP_PHYSICAL, true);
+        let source = shadow_fixture(NBSP_PHYSICAL, true);
+        shadow_protection(&native, protected);
+        shadow_protection(&source, protected);
+        let physical_ref = format!("refs/heads/{NBSP_PHYSICAL}");
+        let before = native.snapshot();
+        let source_before = source.snapshot();
+
+        let reference = oracle_admission(&source.root, &source.root, None);
+        let expected_code = if protected {
+            "OP_WRITE_PROTECTED_BRANCH"
+        } else {
+            "OP_WRITE_PROTECTION_CONFIG_INVALID"
+        };
+        assert_eq!(reference["code"], expected_code);
+        assert_eq!(
+            source.snapshot(),
+            source_before,
+            "source admission is read-only"
+        );
+
+        let mut service = native.service();
+        let refusal = service
+            .op_write_refusal()
+            .expect("admission answers")
+            .expect("the judged name refuses");
+        assert_eq!(
+            refusal.code.as_str(),
+            expected_code,
+            "the shadow family no longer false-admits"
+        );
+        assert_eq!(refusal.reason, reference["reason"].as_str().unwrap());
+        assert_eq!(native.snapshot(), before, "native admission is read-only");
+
+        native.write_started_and_completed(RECORD, "p", "a");
+        source.write_started_and_completed(RECORD, "p", "a");
+        let record = native.record_bytes(RECORD);
+        let physical_before = ref_tip(&native, &physical_ref);
+        let shadow_before = ref_tip(&native, "refs/heads/topic");
+        let main_before = ref_tip(&native, "refs/heads/main");
+
+        let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
+        assert!(!outcome.committed(), "{outcome:?}");
+        assert!(outcome.refusal().is_some(), "{outcome:?}");
+        assert_eq!(ref_tip(&native, &physical_ref), physical_before);
+        assert_eq!(ref_tip(&native, "refs/heads/topic"), shadow_before);
+        assert_eq!(ref_tip(&native, "refs/heads/main"), main_before);
+        assert_eq!(native.record_bytes(RECORD), record);
+
+        let source_outcome = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+        assert_eq!(source_outcome["committed"], false, "{source_outcome:?}");
+        assert_eq!(ref_tip(&source, &physical_ref), physical_before);
+        assert_eq!(ref_tip(&source, "refs/heads/topic"), shadow_before);
+        assert_eq!(ref_tip(&source, "refs/heads/main"), main_before);
+    }
+}
+
+#[test]
+fn shadow_branch_unborn_unprotected_is_source_allowed_but_native_nonpublishable() {
+    let native = shadow_fixture(NBSP_PHYSICAL, false);
+    let source = shadow_fixture(NBSP_PHYSICAL, false);
+    let physical_ref = format!("refs/heads/{NBSP_PHYSICAL}");
+
+    let before = native.snapshot();
+    let source_before = source.snapshot();
+    let mut service = native.service();
+    assert_eq!(
+        service.op_write_refusal().expect("admission answers"),
+        None,
+        "the source admits: step 5 sees the shadow ref"
+    );
+    assert_eq!(native.snapshot(), before, "admission is read-only");
+    assert_eq!(
+        oracle_admission(&source.root, &source.root, None),
+        serde_json::Value::Null
+    );
+    assert_eq!(
+        source.snapshot(),
+        source_before,
+        "source admission is read-only"
+    );
+
+    native.write_started_and_completed(RECORD, "p", "a");
+    source.write_started_and_completed(RECORD, "p", "a");
+    let record = native.record_bytes(RECORD);
+    let shadow_before = ref_tip(&native, "refs/heads/topic");
+    let main_before = ref_tip(&native, "refs/heads/main");
+
+    let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
+    assert!(!outcome.committed(), "{outcome:?}");
+    let refusal = outcome.refusal().expect("a truthful native refusal");
+    assert!(
+        refusal.contains("native publisher"),
+        "the source-allow/native-nonpublishable verdict is explicit: {refusal:?}"
+    );
+    assert!(
+        !refusal.contains("protected branch"),
+        "the refusal is not mislabelled as a source/policy refusal: {refusal:?}"
+    );
+    assert_eq!(
+        outcome.evidence(),
+        None,
+        "no plan and no fabricated evidence"
+    );
+    assert_eq!(ref_tip(&native, &physical_ref), None, "P stays absent");
+    assert_eq!(ref_tip(&native, "refs/heads/topic"), shadow_before);
+    assert_eq!(ref_tip(&native, "refs/heads/main"), main_before);
+    assert_eq!(native.record_bytes(RECORD), record);
+
+    let reference = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+    assert_eq!(
+        reference["committed"], true,
+        "source outcome: {reference:?}"
+    );
+    let published = ref_tip(&source, &physical_ref).expect("the source created P");
+    assert_eq!(source.head(), published);
+    let parents = String::from_utf8(source.git_ok(&["rev-list", "--parents", "-n", "1", "HEAD"]))
+        .expect("rev-list is UTF-8");
+    assert_eq!(
+        parents.split_whitespace().count(),
+        1,
+        "the source's first publication is a root commit with no fabricated parent"
+    );
+    assert_eq!(ref_tip(&source, "refs/heads/topic"), shadow_before);
+    assert_eq!(ref_tip(&source, "refs/heads/main"), main_before);
+}
+
+#[test]
+fn shadow_branch_unborn_protected_and_invalid_refuse_before_the_native_plan() {
+    for protected in [true, false] {
+        let native = shadow_fixture(NBSP_PHYSICAL, false);
+        let source = shadow_fixture(NBSP_PHYSICAL, false);
+        shadow_protection(&native, protected);
+        shadow_protection(&source, protected);
+        let physical_ref = format!("refs/heads/{NBSP_PHYSICAL}");
+
+        let before = native.snapshot();
+        let source_before = source.snapshot();
+        let reference = oracle_admission(&source.root, &source.root, None);
+        let expected_code = if protected {
+            "OP_WRITE_PROTECTED_BRANCH"
+        } else {
+            "OP_WRITE_PROTECTION_CONFIG_INVALID"
+        };
+        assert_eq!(reference["code"], expected_code);
+        assert_eq!(
+            source.snapshot(),
+            source_before,
+            "source admission is read-only"
+        );
+
+        let mut service = native.service();
+        let refusal = service
+            .op_write_refusal()
+            .expect("admission answers")
+            .expect("the judged guard refuses before the unborn publication gap");
+        assert_eq!(refusal.code.as_str(), expected_code);
+        assert_eq!(refusal.reason, reference["reason"].as_str().unwrap());
+        assert_eq!(native.snapshot(), before, "admission is read-only");
+
+        native.write_started_and_completed(RECORD, "p", "a");
+        source.write_started_and_completed(RECORD, "p", "a");
+        let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
+        assert!(!outcome.committed(), "{outcome:?}");
+        assert_eq!(ref_tip(&native, &physical_ref), None);
+        let source_outcome = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+        assert_eq!(source_outcome["committed"], false, "{source_outcome:?}");
+        assert_eq!(ref_tip(&source, &physical_ref), None);
+    }
+}
+
+#[test]
+fn judged_refs_prefixed_branch_uses_source_path_order_before_the_guard() {
+    for protected in [true, false] {
+        for sentinel_directory in [false, true] {
+            let native = Fixture::with_positive_primary();
+            native.git_ok(&["checkout", "-q", "-b", "refs/x"]);
+            let source = Fixture::with_positive_primary();
+            source.git_ok(&["checkout", "-q", "-b", "refs/x"]);
+            if protected {
+                protect(&native.root, "[\"refs/x\"]");
+                protect(&source.root, "[\"refs/x\"]");
+            } else {
+                protect(&native.root, "not-a-list");
+                protect(&source.root, "not-a-list");
+            }
+            if sentinel_directory {
+                fs::create_dir_all(native.root.join(ADMISSION_PROBE_RECORD)).unwrap();
+                fs::create_dir_all(source.root.join(ADMISSION_PROBE_RECORD)).unwrap();
+            }
+            let before = native.snapshot();
+            let source_before = source.snapshot();
+            let reference = oracle_admission(&source.root, &source.root, None);
+            assert_eq!(source.snapshot(), source_before);
+
+            let mut service = native.service();
+            let native_verdict = service.op_write_refusal().expect("admission answers");
+            if sentinel_directory {
+                assert_eq!(
+                    reference,
+                    serde_json::Value::Null,
+                    "the source directory refusal precedes the guard"
+                );
+                assert_eq!(native_verdict, None, "the same path refusal admits");
+            } else {
+                let expected_code = if protected {
+                    "OP_WRITE_PROTECTED_BRANCH"
+                } else {
+                    "OP_WRITE_PROTECTION_CONFIG_INVALID"
+                };
+                assert_eq!(reference["code"], expected_code);
+                let refusal = native_verdict.expect("the source guard refusal is restored");
+                assert_eq!(refusal.code.as_str(), expected_code);
+                assert_eq!(refusal.reason, reference["reason"].as_str().unwrap());
+            }
+            assert_eq!(native.snapshot(), before, "admission is read-only");
+        }
+    }
+}
+
+#[test]
+fn judged_refs_prefixed_branch_publication_is_truthfully_nonpublishable() {
+    let native = Fixture::with_positive_primary();
+    native.git_ok(&["checkout", "-q", "-b", "refs/x"]);
+    let source = Fixture::with_positive_primary();
+    source.git_ok(&["checkout", "-q", "-b", "refs/x"]);
+    assert_eq!(
+        native
+            .service()
+            .op_write_refusal()
+            .expect("admission answers"),
+        None
+    );
+    assert_eq!(
+        oracle_admission(&source.root, &source.root, None),
+        serde_json::Value::Null
+    );
+
+    native.write_started_and_completed(RECORD, "p", "a");
+    source.write_started_and_completed(RECORD, "p", "a");
+    let before = ref_tip(&native, "refs/heads/refs/x");
+    let source_before = ref_tip(&source, "refs/heads/refs/x");
+    let mut service = native.service();
+    let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
+    assert!(!outcome.committed(), "{outcome:?}");
+    assert!(
+        outcome
+            .refusal()
+            .is_some_and(|reason| reason.contains("native publisher")),
+        "{outcome:?}"
+    );
+    assert_eq!(
+        ref_tip(&native, "refs/heads/refs/x"),
+        before,
+        "the unrepresentable physical ref is never rewritten"
+    );
+
+    let reference = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+    assert_eq!(
+        reference["committed"], true,
+        "the source commits on the exact physical ref: {reference:?}"
+    );
+    assert_ne!(ref_tip(&source, "refs/heads/refs/x"), source_before);
+}
+
+#[test]
+fn tag_disambiguated_short_label_keeps_the_source_head_mismatch_refusal() {
+    let native = Fixture::with_positive_primary();
+    native.checkout_new("topic");
+    native.git_ok(&["tag", "topic"]);
+    let source = Fixture::with_positive_primary();
+    source.checkout_new("topic");
+    source.git_ok(&["tag", "topic"]);
+
+    // `--short` disambiguates to `heads/topic`, while the full symbolic ref
+    // strips to `topic`: the source's own step 4 mismatch is not "repaired".
+    assert_eq!(
+        native
+            .service()
+            .op_write_refusal()
+            .expect("admission answers"),
+        None
+    );
+    assert_eq!(
+        oracle_admission(&source.root, &source.root, None),
+        serde_json::Value::Null
+    );
+
+    native.write_started_and_completed(RECORD, "p", "a");
+    source.write_started_and_completed(RECORD, "p", "a");
+    let head = native.head();
+    let source_head = source.head();
+    let mut service = native.service();
+    let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
+    assert!(!outcome.committed(), "{outcome:?}");
+    assert!(outcome.refusal().is_some());
+    assert_eq!(native.head(), head, "no ref moved");
+    let reference = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+    assert_eq!(reference["committed"], false, "{reference:?}");
+    assert_eq!(source.head(), source_head, "source also commits nothing");
+}
+
+#[test]
+fn source_allowed_non_branch_symbolic_target_is_not_invented_as_a_head_mismatch() {
+    let native = Fixture::with_positive_primary();
+    let source = Fixture::with_positive_primary();
+    for fixture in [&native, &source] {
+        fixture.git_ok(&["branch", "x"]);
+        fixture.git_ok(&["branch", "refs/x"]);
+        fixture.git_ok(&["update-ref", "refs/x", &fixture.head()]);
+        fixture.git_ok(&["symbolic-ref", "HEAD", "refs/x"]);
+        fs::write(fixture.root.join(".git/x"), format!("{}\n", fixture.head())).unwrap();
+        let short = fixture.git_ok(&["symbolic-ref", "--short", "HEAD"]);
+        assert_eq!(String::from_utf8(short).unwrap().trim(), "refs/x");
+        fixture.write_started_and_completed(RECORD, "p", "a");
+    }
+    let reference = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+    assert_eq!(
+        reference["committed"], true,
+        "actual source commits through the non-heads symbolic target: {reference:?}"
+    );
+    let before = native.head();
+    let outcome = native
+        .service()
+        .commit_op_record(&id(RECORD), OpClosedBy::Agent);
+    assert!(!outcome.committed());
+    let reason = outcome.refusal().unwrap();
+    assert!(
+        reason.contains("native publisher"),
+        "source preflight passed; this is native non-publication, not a source HEAD mismatch: {reason}"
+    );
+    assert_eq!(native.head(), before);
+    assert!(outcome.evidence().is_none());
+}
+
+#[test]
+fn actual_only_protection_quirk_still_commits_on_the_physical_ref() {
+    // The configuration protects the raw physical spelling, while the judged
+    // name is the stripped `topic`. The source decides protection on J, so it
+    // commits; native must not add a speculative P refusal.
+    let physical_ref = format!("refs/heads/{NBSP_PHYSICAL}");
+    let native = shadow_fixture(NBSP_PHYSICAL, true);
+    let source = shadow_fixture(NBSP_PHYSICAL, true);
+    let config = serde_json::to_string(&[NBSP_PHYSICAL]).unwrap();
+    protect(&native.root, &config);
+    protect(&source.root, &config);
+    assert_eq!(
+        native
+            .service()
+            .op_write_refusal()
+            .expect("admission answers"),
+        None,
+        "protection is decided on the judged name, not on P"
+    );
+    assert_eq!(
+        oracle_admission(&source.root, &source.root, None),
+        serde_json::Value::Null
+    );
+
+    native.write_started_and_completed(RECORD, "p", "a");
+    source.write_started_and_completed(RECORD, "p", "a");
+    let native_before = ref_tip(&native, &physical_ref);
+    let source_before = ref_tip(&source, &physical_ref);
+
+    let outcome = native
+        .service()
+        .commit_op_record(&id(RECORD), OpClosedBy::Agent);
+    assert!(outcome.committed(), "{outcome:?}");
+    assert_ne!(ref_tip(&native, &physical_ref), native_before);
+
+    let reference = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+    assert_eq!(
+        reference["committed"], true,
+        "source outcome: {reference:?}"
+    );
+    assert_ne!(ref_tip(&source, &physical_ref), source_before);
 }

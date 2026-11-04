@@ -8,6 +8,31 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
+## Source-ordered J/H/P adjudication / born publication — after `33a9102d8`
+
+One per-call source shape→roots→H==J→Jrefexists→SOURCEpath→Jpolicy/pureguard,
+then exactP native target/bytes/apply. Four born/unborn shadow falseadmissions fixed,
+supportedborn Source/native fullobject/OID/reflog/path/Ptip/Jseed matches. D1missing
+vsdirectoryguardorder, P-onlyprotectionquirk and Source tagmismatch preserved. Unborn
+SourceROOT0parents vsnativehonestnoPlan/evidence/Pabsent; root/exact-ref backendNEXT.
+
+CoorSourcepath0/2actualpublicAPIreds fixed: absoluteleafloop +missing/..; Op nowuses
+actualwriterpathspelling, canonicalKernel resolution/leafprobe and sealednormalized
+stagingpath. Exactrev-parsepredicate(noOIDparse/enumeration); one fullHEADobservation
+separatescompletednonzero fromsuccessfuldecode/validation, strictoldRefNameAPIunchanged.
+Sourcelegalnonheads refs/x withrealrootx disambiguator commits; fixed falseSourceHEAD
+mismatch(H==Jsame) toNativeCannotPublish, NOTpublicationparity. Firstshort-labelfixture
+assumption failureNOTbusinessred; classification/chronology retained. Bornchildactual
+sourceCWDharnessred0/1 fixedexplicitallroots/assertion, notbusinessred.
+
+Git343/0/7helpers27suites,Op233/0/2helpers10suites;stableworkspace2333/0/14helpers191
+suites/doctests,strictworkspaceClippy/fullfmt/bothCLIs+optimizedOp green.Exact53/
+completion599/PERF27/pending/valid/0of16 unchanged. Unique logs
+`/tmp/sk-jp-integration.dpvKNJ/command-log-index.tsv`; current13bindings/preciseSource
+scope `crates/sk-invocation/JP-TARGET-INTEGRATION-REPORT.md`. Owner232/338historical,
+6pathcontrolsrealGitnot6Sourcepairs; actualSource3controlscoor. Published+PUSHEDdraft,
+freshindependentJP/pathreviewpending; unimplementedrequiredgapsnotwaived.
+
 ## Op byte/locale review and Latin-9/alias follow-up — after `a522ebbd2`
 
 IndependentNARROWPASSWITHFINDINGS:220tests/9bindings/scopedstrict/exact53; own16pairs

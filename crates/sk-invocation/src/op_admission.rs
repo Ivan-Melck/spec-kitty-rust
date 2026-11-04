@@ -1,52 +1,50 @@
 //! Pre-write admission for the Op audit trail (#6564).
 //!
 //! Source: `specify_cli/invocation/executor.py` (`op_write_refusal`,
-//! `require_op_write_admitted`). The decision mirrors the auto-commit's own
-//! order rather than predicting it:
+//! `require_op_write_admitted`). Admission consumes the same per-call
+//! source-ordered target adjudication as the real close
+//! ([`crate::op_target`]); it does not predict the close with a second order.
 //!
-//! 1. No current branch (no work tree) admits: there is no branch whose guard
-//!    could refuse the commit, and the source reports that after the write.
+//! 1. No judged branch (no work tree) admits: the source reports that after the
+//!    write.
 //! 2. The #6410 skip probe runs next. An ignored exact path, a primary branch
-//!    that tracks no Op records, an unresolved primary, or an undecidable
-//!    probe means the repository keeps its records locally; that admits.
-//! 3. Only a branch that would actually be committed is preflighted, with the
-//!    same message-free `SafeCommitTargetRequest` builder the real commit uses:
-//!    project-root OR record-checkout `ProtectionPolicy`, `STANDARD`
-//!    capability, the current record branch, and the exact ULID-shaped sentinel
-//!    path. The preflight never inspects the payload (the reference's
-//!    `preflight_commit` does not either), so no synthetic placeholder message
-//!    is handed to the backend.
-//! 4. `GitRepository::plan_safe_commit_target` is the canonical read-only
-//!    preflight. `SafeCommitProtectedBranch` becomes
-//!    [`OP_WRITE_PROTECTED_BRANCH`]; an unreadable/malformed protection
-//!    configuration becomes [`OP_WRITE_PROTECTION_CONFIG_INVALID`]; every other
-//!    preflight failure admits in this bridge. Known J/P and source path-policy
-//!    reachability differences remain; native progress is not a source proof.
+//!    that tracks no Op records, an unresolved primary, or an undecidable probe
+//!    means the repository keeps its records locally; that admits.
+//! 3. The target adjudication runs in source preflight order: shape, worktree
+//!    relationship, full-HEAD assertion against J, `refs/heads/J` existence,
+//!    the source path proof (6a/6b), then protection on J through the ONE
+//!    canonical guard core.
+//! 4. Only the source's own 6c guard answer refuses the write
+//!    ([`OP_WRITE_PROTECTED_BRANCH`] naming J, or
+//!    [`OP_WRITE_PROTECTION_CONFIG_INVALID`]). Every other source preflight
+//!    failure is a `SafeCommitError` in the reference and therefore admits the
+//!    audit write; the close still refuses the commit itself. A source-allowed
+//!    shape the native publisher cannot prepare yet (unborn P, unrepresentable
+//!    P) admits here as well, truthfully, and never becomes a source refusal.
 //!
-//! The plan is read-only: no `kitty-ops/` directory, index file, record,
-//! reference, or worktree is created or changed by admission. A protection
-//! refusal never names the operator override. Branch and protection are
+//! The adjudication is read-only: no `kitty-ops/` directory, index file, record,
+//! reference, or worktree is created or changed. A protection refusal never
+//! names the operator override. Branch, path, existence, and protection are
 //! re-judged by [`OpCommitService::commit_op_record`] at the close; only the
 //! primary-tracking answer shares the source's executor lifetime cache.
 //!
 //! # Limits
 //!
-//! The source's `_current_branch` also tries `git rev-parse --abbrev-ref
-//! HEAD` when `symbolic-ref` answers nothing; the native adapter exposes the
-//! symbolic answer. A git probe that cannot run at all is surfaced as an
-//! [`OpAdmissionError`], not silently turned into admission. No full executor,
+//! The source's `_current_branch` also tries `git rev-parse --abbrev-ref HEAD`
+//! when `symbolic-ref` answers nothing; the native adapter exposes the symbolic
+//! answer. A git probe that cannot run at all is surfaced as an
+//! [`OpAdmissionError`], not silently turned into admission. Native-only path
+//! restrictions are not treated as source path refusals. No full executor,
 //! CLI, or protected-main false-advance repair is claimed.
 
 use std::path::Path;
 
-use sk_git::{BranchName, GitError, GitPath, ProtectedBranches};
+use sk_git::{GitError, GitPath};
 use thiserror::Error;
 
-use crate::op_commit::{
-    ADMISSION_PROBE_RECORD, OpCommitService, ProtectionRead, build_safe_commit_target,
-    git_path_from_relative,
-};
+use crate::op_commit::{ADMISSION_PROBE_RECORD, OpCommitService, git_path_from_relative};
 use crate::op_custody::{OpWriteAction, OpWriteRefusal, OpWriteRefused};
+use crate::op_target::OpTargetVerdict;
 
 /// Admission could not answer, or refused the write.
 #[derive(Debug, Error)]
@@ -80,9 +78,9 @@ impl OpCommitService {
     /// unreadable protection configuration as a post-write report, so those
     /// admitted cases are `Ok(None)` here.
     pub fn op_write_refusal(&mut self) -> Result<Option<OpWriteRefusal>, OpAdmissionError> {
-        let branch = match self.open_repository() {
-            Some(_) => match self.current_branch() {
-                Ok(branch) => branch,
+        let judged = match self.open_repository() {
+            Some(_) => match self.judged_destination() {
+                Ok(judged) => judged,
                 Err(error) => return Err(OpAdmissionError::Repository(error)),
             },
             None => {
@@ -92,7 +90,7 @@ impl OpCommitService {
                 return Ok(None);
             }
         };
-        let Some(branch) = branch else {
+        let Some(judged) = judged else {
             return Ok(None);
         };
 
@@ -102,69 +100,23 @@ impl OpCommitService {
             return Ok(None);
         }
 
-        // The source preflight checks the worktree relationship and the
-        // destination ref before it reads protection. Those failures are
-        // `SafeCommitError`s there (logged and admitted), so they admit here
-        // too, before a malformed protection block could be reported.
-        if !self.roots_are_linked() || !self.has_destination_commit() {
-            return Ok(None);
-        }
-        let Ok(destination) = BranchName::parse(&branch) else {
-            // The source's preflight would fail on the bridge's representation
-            // before reaching the guard; that is another admitted commit
-            // problem, never an invented write refusal.
-            return Ok(None);
-        };
-
-        let repository = self
-            .open_repository()
-            .expect("the branch was read from an open repository");
-        let protected = match self.resolve_protected(&branch) {
-            Ok(protected) => protected,
-            Err(ProtectionRead::InvalidConfig(reason)) => {
-                // The source reads protection at step 6c, after its HEAD,
-                // destination and path checks. Re-run the same read-only target
-                // plan with an empty set. This retains the earlier heuristic,
-                // not a source-path proof: J/P and environmental failures still
-                // need source-grounded reachability (see remaining F4 work).
-                let probe =
-                    build_safe_commit_target(&destination, &sentinel, ProtectedBranches::default());
-                let reached = match repository.plan_safe_commit_target(&probe) {
-                    Ok(_) => true,
-                    // OperationInProgress is after the native guard, but the
-                    // environment refusal is before it. Preserve the existing
-                    // decision here without falsely claiming both prove source
-                    // guard reachability; that heuristic remains required work.
-                    Err(failure) => matches!(
-                        failure.error(),
-                        GitError::OperationInProgress { .. }
-                            | GitError::RepositoryEnvironmentRefused { .. }
-                    ),
-                };
-                return if reached {
-                    Ok(Some(OpWriteRefusal::protection_config_invalid(reason)))
-                } else {
-                    Ok(None)
-                };
+        // Source preflight order and the same builder the close uses. A source
+        // path failure admits the audit write; a protected/invalid 6c verdict
+        // refuses it; a native-only non-publishable shape admits because the
+        // source would have written (and then committed) there.
+        match self.judge_record_target(&judged, &sentinel) {
+            OpTargetVerdict::SourceRefuses(_)
+            | OpTargetVerdict::SourcePathRefuses(_)
+            | OpTargetVerdict::SourceAllowedButNativeCannotPublish { .. }
+            | OpTargetVerdict::Ready { .. } => Ok(None),
+            OpTargetVerdict::Protected { judged } => {
+                Ok(Some(OpWriteRefusal::protected_branch(&judged)))
             }
-            Err(ProtectionRead::Unavailable(error)) => {
-                return Err(OpAdmissionError::Protection(error));
+            OpTargetVerdict::InvalidConfig { detail } => {
+                Ok(Some(OpWriteRefusal::protection_config_invalid(detail)))
             }
-            Err(ProtectionRead::BranchName(error)) => {
-                return Err(OpAdmissionError::Repository(error));
-            }
-        };
-        let target = build_safe_commit_target(&destination, &sentinel, protected);
-        match repository.plan_safe_commit_target(&target) {
-            Ok(_) => Ok(None),
-            Err(failure) => match failure.error() {
-                GitError::SafeCommitProtectedBranch { destination, .. } => {
-                    Ok(Some(OpWriteRefusal::protected_branch(destination)))
-                }
-                // Any other preflight failure is the source's "could not judge
-                // the commit" branch: admitted, and observable after the write.
-                _ => Ok(None),
-            },
+            OpTargetVerdict::Repository(error) => Err(OpAdmissionError::Repository(error)),
+            OpTargetVerdict::Protection(error) => Err(OpAdmissionError::Protection(error)),
         }
     }
 

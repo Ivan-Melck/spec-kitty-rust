@@ -53,6 +53,7 @@ mod op_admission;
 mod op_commit;
 mod op_commit_policy;
 mod op_custody;
+mod op_target;
 mod os_locale;
 mod python_json;
 mod python_os_encoding;

@@ -101,11 +101,15 @@
 //!   acceptance claim. The existing PYTHONINTMAXSTRDIGITS startup setting is
 //!   honored; customized recursion settings/runtime Python limit mutations and
 //!   caller-dependent source recursion limits are not emulated.
-//! * With a whitespace-suffixed current ref and an existing stripped-name
-//!   shadow ref, the source may commit on the checked-out ref while the native
-//!   canonical HEAD assertion refuses. Shadow+protected/invalid-config can also
-//!   falsely admit the write; born/unborn targeted probes confirm this. These
-//!   valid-input differences remain open.
+//! * J/P source targeting: the judged destination is the source-normalized
+//!   `--short` name and the published destination is the exact physical ref
+//!   named by the full symbolic `HEAD`. The source's whitespace-stripped shadow
+//!   case now commits on that physical ref, and the judged guard refuses
+//!   protected/invalid shadow cases before the native plan. Unborn physical refs
+//!   and short names `BranchName` cannot represent (`refs/...`, `HEAD`,
+//!   `-name`) are source-allowed but truthfully reported as native
+//!   non-publishable; no parent, ref, or plan is fabricated. The source's own
+//!   tag-disambiguation mismatch (`heads/topic` vs `topic`) stays a refusal.
 //! * Cross-checkout CLAIM composition is not implemented; the started-record
 //!   read is local to this writer's record root, like `_read_started_event`.
 
@@ -123,9 +127,9 @@ use thiserror::Error;
 use crate::legacy_json::{self, LegacyObject, PythonString, PythonText};
 use crate::op_commit_policy::{
     OpCommitProbeError, PrimaryTracking, op_commit_skip_reason, probe_primary_tracking,
-    strip_git_stdout,
 };
 use crate::op_custody::is_worktree_of;
+use crate::op_target::{JudgedDestination, OpTargetVerdict, native_nonpublishable_reason};
 use crate::python_os_encoding::{OsEncodeError, OsEncodingContext};
 use crate::record::InvocationId;
 use crate::writer::{EVENTS_DIR, InvocationWriter, OP_CLOSURES_FILENAME};
@@ -281,9 +285,6 @@ pub(crate) enum ProtectionRead {
     InvalidConfig(String),
     /// A non-configuration protection read failed.
     Unavailable(WorkspaceError),
-    /// The current branch could not be represented as a `BranchName` for the
-    /// Git guard input.
-    BranchName(GitError),
 }
 
 /// The source-started record could not be read as the source helper reads it.
@@ -308,14 +309,13 @@ pub(crate) enum StartedReadError {
 /// The one message-free request builder shared by admission and the real
 /// commit.
 ///
-/// `protected` is the **project-root OR record-checkout** decision projected
-/// onto the destination branch. Passing the destination only when the union
-/// protects it keeps the guard's canonical decision exact without re-parsing
-/// irrelevant protected names (an unrelated malformed name must not turn into
-/// a new configuration refusal). The builder carries exactly the facts both
-/// call sites must agree on — destination, the one requested path, and the
-/// protection union — and no payload, so neither caller can judge a different
-/// commit than the other and no placeholder message reaches the backend.
+/// `protected` is the **verdict decided on the source-judged destination J**,
+/// projected 1:1 onto the physical destination P. The Op reaches this builder
+/// only after that judged guard allowed, so it passes the empty set — which
+/// preserves the source's actual-only-protection quirk instead of hardening P.
+/// The builder carries exactly the facts the source requested — destination, the
+/// one requested path, and the projected protection — and no payload, so no
+/// placeholder message reaches the backend.
 pub(crate) fn build_safe_commit_target(
     destination: &BranchName,
     path: &GitPath,
@@ -436,20 +436,6 @@ impl OpCommitService {
         }
     }
 
-    /// Source `_current_branch` strips symbolic stdout; the generic Git API
-    /// deliberately retains legal whitespace in the ref name.
-    pub(crate) fn current_branch(&self) -> Result<Option<String>, GitError> {
-        let Some(repository) = self.open_repository() else {
-            return Ok(None);
-        };
-        repository.current_branch().map(|branch| {
-            branch.and_then(|branch| {
-                let branch = strip_git_stdout(&branch);
-                (!branch.is_empty()).then(|| branch.to_owned())
-            })
-        })
-    }
-
     pub(crate) fn probe_failure(&self) -> Option<&str> {
         match &self.binding {
             RepositoryBinding::ProbeFailure(reason) => Some(reason),
@@ -464,17 +450,6 @@ impl OpCommitService {
     /// mismatched root.
     pub(crate) fn roots_are_linked(&self) -> bool {
         is_worktree_of(&self.project_root, self.record_root())
-    }
-
-    /// Whether the current branch has a commit (source preflight step 5).
-    ///
-    /// `false` also covers a failed destination probe: the source's
-    /// `_destination_ref_exists` treats it as absent, so admission admits it
-    /// rather than inventing a refusal.
-    pub(crate) fn has_destination_commit(&self) -> bool {
-        self.open_repository()
-            .and_then(|repository| repository.head_commit().ok().flatten())
-            .is_some()
     }
 
     /// The source skip decision with the executor-lifetime primary cache.
@@ -504,18 +479,20 @@ impl OpCommitService {
         }
     }
 
-    /// Resolve the union of the project-root and record-checkout policies.
-    pub(crate) fn resolve_protected(
+    /// The source's protection verdict, decided on the **judged** name `J`.
+    ///
+    /// The project-root and record-checkout policies are both resolved and
+    /// OR-ed exactly like `preflight_commit` step 6c. The verdict is a boolean
+    /// fact: the Op never forces `J` through `BranchName`, so a judged name the
+    /// native publisher cannot represent is still judged by the reference's own
+    /// rule.
+    pub(crate) fn judged_protection(
         &self,
-        branch: &str,
-    ) -> Result<ProtectedBranches, ProtectionRead> {
+        judged: &JudgedDestination,
+    ) -> Result<bool, ProtectionRead> {
         let project = self.resolve_policy(&self.project_root)?;
         let record = self.resolve_policy(self.record_root())?;
-        if !(project.is_protected(branch) || record.is_protected(branch)) {
-            return Ok(ProtectedBranches::default());
-        }
-        let destination = BranchName::parse(branch).map_err(ProtectionRead::BranchName)?;
-        Ok(ProtectedBranches::new([destination]))
+        Ok(project.is_protected(judged.as_str()) || record.is_protected(judged.as_str()))
     }
 
     fn resolve_policy(&self, root: &Path) -> Result<ProtectionPolicy, ProtectionRead> {
@@ -568,14 +545,14 @@ impl OpCommitService {
                 Err(reason) => return OpCommitOutcome::new_refused(reason),
             };
 
-        let current_branch = match &self.binding {
-            RepositoryBinding::Open(_) => match self.current_branch() {
-                Ok(branch) => branch,
+        // Source `_current_branch` runs before the skip probe; a binding that
+        // is not a work tree reports the source's literal outcome, while a
+        // detached work tree is decided after the skip below.
+        let judged = match &self.binding {
+            RepositoryBinding::Open(_) => match self.judged_destination() {
+                Ok(judged) => judged,
                 Err(error) => return OpCommitOutcome::new_refused(error.to_string()),
             },
-            // The source checks these before the skip decision: a non-worktree
-            // root is reported directly and a detached HEAD is decided after
-            // the skip probe below.
             RepositoryBinding::NotAWorkTree => {
                 return OpCommitOutcome::new_refused(NOT_A_WORKTREE);
             }
@@ -593,62 +570,58 @@ impl OpCommitService {
         if let Some(reason) = self.skip_reason(&path) {
             return OpCommitOutcome::new_skipped(reason);
         }
-        let Some(branch) = current_branch else {
+        let Some(judged) = judged else {
             return OpCommitOutcome::new_refused("detached HEAD");
         };
-        if !self.roots_are_linked() {
-            return OpCommitOutcome::new_refused(format!(
-                "safe_commit: {} is not a git worktree. Pass a resolved worktree path.",
-                self.record_root().display()
-            ));
-        }
 
-        let protected = match self.resolve_protected(&branch) {
-            Ok(protected) => protected,
-            Err(ProtectionRead::InvalidConfig(reason)) => {
-                return OpCommitOutcome::new_refused(reason);
+        // Source preflight order 1 → 3 → 4 → 5 → 6a/6b → 6c, then (only if the
+        // source allows) the native publication plan. A source path refusal
+        // still admits the audit write but refuses the actual commit; the two
+        // verdicts are not conflated.
+        match self.judge_record_target(&judged, &path) {
+            OpTargetVerdict::SourceRefuses(error) => {
+                OpCommitOutcome::new_refused(error.to_string())
             }
-            Err(ProtectionRead::Unavailable(error)) => {
-                return OpCommitOutcome::new_refused(error.to_string());
+            OpTargetVerdict::SourcePathRefuses(error) => {
+                OpCommitOutcome::new_refused(error.to_string())
             }
-            Err(ProtectionRead::BranchName(error)) => {
-                return OpCommitOutcome::new_refused(error.to_string());
+            OpTargetVerdict::Protected { judged } => OpCommitOutcome::new_refused(
+                crate::op_custody::OpWriteRefusal::protected_branch(&judged).reason,
+            ),
+            OpTargetVerdict::InvalidConfig { detail } => OpCommitOutcome::new_refused(detail),
+            OpTargetVerdict::Repository(error) => OpCommitOutcome::new_refused(error.to_string()),
+            OpTargetVerdict::Protection(error) => OpCommitOutcome::new_refused(error.to_string()),
+            OpTargetVerdict::SourceAllowedButNativeCannotPublish { judged, cause } => {
+                OpCommitOutcome::new_refused(native_nonpublishable_reason(&judged, &cause))
             }
-        };
-        let destination = match BranchName::parse(&branch) {
-            Ok(destination) => destination,
-            Err(error) => return OpCommitOutcome::new_refused(error.to_string()),
-        };
-        let repository = self
-            .open_repository()
-            .expect("a branch was read from an open repository");
-        // Canonical target preflight first: the protection guard (and the
-        // path/HEAD/tip/operation checks) decides before the payload exists, so
-        // a supported protected destination refuses before message encoding.
-        // This does not establish source path semantics or stage-before-encode
-        // failure footprints (source stages before building the git argv).
-        let target_request = build_safe_commit_target(&destination, &path, protected);
-        let target_plan = match repository.plan_safe_commit_target(&target_request) {
-            Ok(plan) => plan,
-            Err(failure) => return commit_error_outcome(failure.into_error()),
-        };
-        // Late OS encoding of the exact Python code points, then the existing
-        // native payload guard (empty/oversized/NUL) through the only plan a
-        // byte commit accepts.
-        let payload = match self.os_encoding.encode(message.codepoints()) {
-            Ok(payload) => payload,
-            Err(error) => {
-                return OpCommitOutcome::new_refused(message_encoding_refusal(
-                    &error,
-                    &self.os_encoding.label(),
-                ));
+            OpTargetVerdict::Ready { target, plan } => {
+                let plan = *plan;
+                // Late OS encoding of the exact Python code points, then the
+                // existing native payload guard through the only plan a byte
+                // commit accepts. The plan's destination is the exact physical
+                // ref `P`, never the judged name.
+                let payload = match self.os_encoding.encode(message.codepoints()) {
+                    Ok(payload) => payload,
+                    Err(error) => {
+                        return OpCommitOutcome::new_refused(message_encoding_refusal(
+                            &error,
+                            &self.os_encoding.label(),
+                        ));
+                    }
+                };
+                let message_plan = match plan.prepare(CommitMessage::from_bytes(payload)) {
+                    Ok(plan) => plan,
+                    Err(failure) => return commit_error_outcome(failure.into_error()),
+                };
+                let repository = self
+                    .open_repository()
+                    .expect("a resolved target names an open repository");
+                commit_outcome_for(
+                    repository.apply_safe_message_commit(&message_plan),
+                    target.judged().as_str(),
+                )
             }
-        };
-        let message_plan = match target_plan.prepare(CommitMessage::from_bytes(payload)) {
-            Ok(plan) => plan,
-            Err(failure) => return commit_error_outcome(failure.into_error()),
-        };
-        commit_outcome(repository.apply_safe_message_commit(&message_plan))
+        }
     }
 
     /// The exact repository-relative path and commit message code points.
@@ -693,8 +666,12 @@ impl OpCommitService {
 ///
 /// The evidence vocabulary, destination naming and best-effort semantics are
 /// unchanged; only the entry point that produced the error moved from the
-/// legacy plan/apply pair to the exact-byte plan.
-fn commit_outcome(result: Result<SafeCommitOutcome, GitError>) -> OpCommitOutcome {
+/// legacy plan/apply pair to the exact-byte plan. A protected refusal names the
+/// source-judged destination `J`, not the physical `P` the request carried.
+fn commit_outcome_for(
+    result: Result<SafeCommitOutcome, GitError>,
+    judged: &str,
+) -> OpCommitOutcome {
     match result {
         Ok(outcome) => OpCommitOutcome::new_committed(OpCommitEvidence::Committed {
             commit: outcome.commit().clone(),
@@ -702,6 +679,9 @@ fn commit_outcome(result: Result<SafeCommitOutcome, GitError>) -> OpCommitOutcom
             committed_paths: outcome.committed_paths().to_vec(),
             warnings: outcome.warnings().to_vec(),
         }),
+        Err(GitError::SafeCommitProtectedBranch { .. }) => OpCommitOutcome::new_refused(
+            crate::op_custody::OpWriteRefusal::protected_branch(judged).reason,
+        ),
         Err(error) => commit_error_outcome(error),
     }
 }

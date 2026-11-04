@@ -108,8 +108,6 @@
 
 use std::ffi::{OsStr, OsString};
 use std::fmt;
-use std::fs;
-use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
 
 use crate::branch::ProtectedBranches;
@@ -120,6 +118,10 @@ use crate::oid::Oid;
 use crate::path::GitPath;
 use crate::refname::BranchName;
 use crate::repository::GitRepository;
+use crate::safe_commit_paths::{
+    canonical_worktree, native_path_shape_refusal, normalize_paths, path_to_git_bytes,
+    refuse_symlink_loop, resolve_absolute_path, validate_path_policy,
+};
 
 /// Repository-relative directory whose contents must never be committed from
 /// the primary checkout (upstream FR-005 / issue #1887).
@@ -232,7 +234,7 @@ pub fn evaluate_commit_guard(
     protected: &ProtectedBranches,
     capability: CommitGuardCapability,
 ) -> CommitGuardVerdict {
-    let allowed = !protected.contains(destination) || capability.authorizes_protected_flow();
+    let allowed = evaluate_commit_guard_decision(protected.contains(destination), capability);
     let reason = if !protected.contains(destination) {
         format!("destination {destination:?} is not in the resolved protected set")
     } else if allowed {
@@ -251,6 +253,17 @@ pub fn evaluate_commit_guard(
         destination: destination.clone(),
         reason,
     }
+}
+
+/// The pure guard decision over already-resolved facts.
+///
+/// This is the ONE decision core: [`evaluate_commit_guard`] delegates to it with
+/// the typed destination/set membership, and callers that resolve the source's
+/// protection verdict under a differently-normalised name use it with that
+/// boolean. No message text, file content, environment, or capability is
+/// derived here; a `STANDARD` capability authorizes no protected flow.
+pub fn evaluate_commit_guard_decision(protected: bool, capability: CommitGuardCapability) -> bool {
+    !protected || capability.authorizes_protected_flow()
 }
 
 /// One exact raw-bytes assertion for a pinned-parent commit.
@@ -1140,242 +1153,6 @@ pub fn normalize_safe_commit_path(
     Ok(git_path)
 }
 
-/// Resolve an absolute path, following symlinked parent directories and
-/// refusing a loop.
-fn resolve_absolute_path(root: &Path, supplied: &Path) -> Result<PathBuf, GitError> {
-    let Some(name) = supplied.file_name() else {
-        return Err(GitError::SafeCommitPathOutsideWorktree {
-            path: supplied.to_path_buf(),
-            worktree_root: root.to_path_buf(),
-        });
-    };
-    let parent = match supplied.parent() {
-        Some(parent) if !parent.as_os_str().is_empty() => parent,
-        _ => root,
-    };
-    let resolved_parent = canonicalize_nearest_existing(root, parent, supplied)?;
-    Ok(resolved_parent.join(name))
-}
-
-/// Canonicalise the nearest existing ancestor of `path` and re-append the
-/// missing tail lexically, so a deletion request under a removed directory still
-/// resolves.
-fn canonicalize_nearest_existing(
-    root: &Path,
-    path: &Path,
-    supplied: &Path,
-) -> Result<PathBuf, GitError> {
-    let mut missing: Vec<OsString> = Vec::new();
-    let mut current = path.to_path_buf();
-    loop {
-        match fs::canonicalize(&current) {
-            Ok(mut resolved) => {
-                for name in missing.iter().rev() {
-                    resolved.push(name);
-                }
-                return Ok(resolved);
-            }
-            Err(error) if error.kind() == ErrorKind::NotFound => {
-                let Some(name) = current.file_name() else {
-                    return Err(GitError::SafeCommitPathOutsideWorktree {
-                        path: supplied.to_path_buf(),
-                        worktree_root: root.to_path_buf(),
-                    });
-                };
-                missing.push(name.to_os_string());
-                match current.parent() {
-                    Some(parent) if parent != current => current = parent.to_path_buf(),
-                    _ => {
-                        return Err(GitError::Io {
-                            context: "resolve a safe-commit path",
-                            source: error,
-                        });
-                    }
-                }
-            }
-            Err(error) if is_symlink_loop(&error) => {
-                return Err(GitError::SafeCommitPathLoop {
-                    path: supplied.to_path_buf(),
-                    worktree_root: root.to_path_buf(),
-                });
-            }
-            Err(error) => {
-                return Err(GitError::Io {
-                    context: "resolve a safe-commit path",
-                    source: error,
-                });
-            }
-        }
-    }
-}
-
-/// Refuse a path whose resolution loops. `symlink_metadata` does not follow the
-/// final component, so the follow-up `metadata` is what detects a looped link.
-fn refuse_symlink_loop(root: &Path, path: &GitPath) -> Result<(), GitError> {
-    match fs::metadata(root.join(path.to_path_buf())) {
-        Ok(_) => Ok(()),
-        Err(error) if is_symlink_loop(&error) => Err(GitError::SafeCommitPathLoop {
-            path: path.to_path_buf(),
-            worktree_root: root.to_path_buf(),
-        }),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(GitError::Io {
-            context: "inspect a safe-commit path",
-            source: error,
-        }),
-    }
-}
-
-fn canonical_worktree(worktree_root: &Path) -> Result<PathBuf, GitError> {
-    fs::canonicalize(worktree_root).map_err(|source| GitError::Io {
-        context: "canonicalise the safe-commit worktree",
-        source,
-    })
-}
-
-#[cfg(unix)]
-fn path_to_git_bytes(relative: &Path) -> Result<Vec<u8>, GitError> {
-    use std::os::unix::ffi::OsStrExt;
-    Ok(relative.as_os_str().as_bytes().to_vec())
-}
-
-#[cfg(not(unix))]
-fn path_to_git_bytes(relative: &Path) -> Result<Vec<u8>, GitError> {
-    match relative.to_str() {
-        Some(text) => Ok(text.replace('\\', "/").into_bytes()),
-        None => Err(GitError::NonUtf8 {
-            field: "safe-commit path",
-        }),
-    }
-}
-
-/// Whether an I/O error is the operating system's symlink-loop refusal.
-///
-/// Stable Rust does not expose `ErrorKind::FilesystemLoop` on this toolchain,
-/// so the platform `ELOOP`/`ERROR_CANT_RESOLVE_FILENAME` value is compared. The
-/// comparison is only used to choose a typed refusal; a platform without a
-/// known value reports the generic I/O error instead of guessing.
-fn is_symlink_loop(error: &std::io::Error) -> bool {
-    #[cfg(target_os = "linux")]
-    {
-        error.raw_os_error() == Some(40)
-    }
-    #[cfg(any(
-        target_os = "macos",
-        target_os = "ios",
-        target_os = "freebsd",
-        target_os = "openbsd",
-        target_os = "netbsd",
-        target_os = "dragonfly"
-    ))]
-    {
-        error.raw_os_error() == Some(62)
-    }
-    #[cfg(windows)]
-    {
-        error.raw_os_error() == Some(1921)
-    }
-    #[cfg(not(any(
-        target_os = "linux",
-        target_os = "macos",
-        target_os = "ios",
-        target_os = "freebsd",
-        target_os = "openbsd",
-        target_os = "netbsd",
-        target_os = "dragonfly",
-        windows
-    )))]
-    {
-        let _ = error;
-        false
-    }
-}
-
-/// Normalise, de-duplicate (order-preserving), and shape-check one path list.
-fn normalize_paths(root: &Path, requested: &[GitPath]) -> Result<Vec<GitPath>, GitError> {
-    let mut normalized: Vec<GitPath> = Vec::with_capacity(requested.len());
-    for path in requested {
-        let path = normalize_safe_commit_path(root, path.to_path_buf())?;
-        if !normalized.contains(&path) {
-            normalized.push(path);
-        }
-    }
-    Ok(normalized)
-}
-
-fn validate_path_policy(root: &Path, path: &GitPath) -> Result<(), GitError> {
-    let first = Path::new(path.as_os_str()).components().next();
-    if matches!(first, Some(Component::Normal(name)) if name == OsStr::new(WORKTREES_DIR)) {
-        return Err(GitError::SafeCommitPathPolicy {
-            path: root.join(path.to_path_buf()),
-            worktree_root: root.to_path_buf(),
-        });
-    }
-    Ok(())
-}
-
-fn validate_path_shape(repository: &GitRepository, path: &GitPath) -> Result<(), GitError> {
-    let root = repository.root();
-    let absolute = root.join(path.to_path_buf());
-    match fs::symlink_metadata(&absolute) {
-        Ok(metadata) if metadata.file_type().is_symlink() => Ok(()),
-        Ok(metadata) if metadata.is_dir() => {
-            if index_entry_mode(repository, path)? == Some("160000".to_string()) {
-                Ok(())
-            } else {
-                Err(GitError::SafeCommitDirectoryArgument {
-                    path: absolute,
-                    worktree_root: root.to_path_buf(),
-                })
-            }
-        }
-        Ok(_) => Ok(()),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-        Err(error) if is_symlink_loop(&error) => Err(GitError::SafeCommitPathLoop {
-            path: absolute,
-            worktree_root: root.to_path_buf(),
-        }),
-        Err(error) => Err(GitError::Io {
-            context: "inspect a safe-commit path",
-            source: error,
-        }),
-    }
-}
-
-/// The index mode of exactly `path`, or `None` when it is not tracked.
-fn index_entry_mode(
-    repository: &GitRepository,
-    path: &GitPath,
-) -> Result<Option<String>, GitError> {
-    let output = repository.process().checked(&[
-        OsStr::new("--literal-pathspecs"),
-        OsStr::new("ls-files"),
-        OsStr::new("--full-name"),
-        OsStr::new("--stage"),
-        OsStr::new("-z"),
-        OsStr::new("--"),
-        path.as_os_str(),
-    ])?;
-    for record in output.stdout.split(|byte| *byte == 0) {
-        if record.is_empty() {
-            continue;
-        }
-        let Some(tab) = record.iter().position(|byte| *byte == b'\t') else {
-            continue;
-        };
-        let listed = GitPath::from_git_bytes(&record[tab + 1..])?;
-        if &listed != path {
-            continue;
-        }
-        let mode = record[..tab]
-            .split(|byte| *byte == b' ')
-            .next()
-            .map(|mode| String::from_utf8_lossy(mode).into_owned());
-        return Ok(mode);
-    }
-    Ok(None)
-}
-
 impl GitRepository {
     /// Prepare a native safe-commit target without mutating the repository.
     ///
@@ -1474,7 +1251,7 @@ impl GitRepository {
         for path in paths.iter().chain(deletions.iter()) {
             validate_path_policy(root, path)
                 .map_err(|error| fail(SafeCommitPreflightStage::PathPolicy, error))?;
-            validate_path_shape(self, path)
+            native_path_shape_refusal(self, path)
                 .map_err(|error| fail(SafeCommitPreflightStage::PathShape, error))?;
         }
         let expected_bytes = self

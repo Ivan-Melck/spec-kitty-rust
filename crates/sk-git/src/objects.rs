@@ -30,6 +30,29 @@ use crate::refname::RefName;
 use crate::refname::StartPoint;
 use crate::repository::GitRepository;
 
+/// A completed full-symbolic-HEAD probe, with exit status separate from
+/// successful target text decoding. Spawn/capture failures and malformed successful
+/// output are errors, never a completed nonzero/absent answer.
+#[derive(Debug, Clone)]
+pub struct SymbolicHeadObservation {
+    status_code: Option<i32>,
+    target: Option<String>,
+    stderr: Vec<u8>,
+}
+
+impl SymbolicHeadObservation {
+    /// The completed process status; `None` means termination by signal.
+    pub fn status_code(&self) -> Option<i32> {
+        self.status_code
+    }
+    /// The exact decoded full target after a successful exit. This observation
+    /// grants no publication authority; callers requiring `RefName` use the
+    /// canonical validating `symbolic_head_ref` adapter.
+    pub fn target_text(&self) -> Option<&str> {
+        self.target.as_deref()
+    }
+}
+
 /// The default bound for one blob read (8 MiB).
 ///
 /// The subprocess seam caps one captured stream at 64 MiB for an explicitly
@@ -328,39 +351,58 @@ impl GitRepository {
     /// [`GitRepository::current_branch`](crate::GitRepository::current_branch)
     /// for git's `--short` label.
     pub fn symbolic_head_ref(&self) -> Result<Option<RefName>, GitError> {
-        let output = self.process().run(&["symbolic-ref", "--quiet", "HEAD"])?;
-        match output.status.code() {
-            Some(0) => {}
-            Some(1) => return Ok(None),
+        let observed = self.observe_symbolic_head()?;
+        match observed.status_code() {
+            Some(0) => observed
+                .target
+                .map(|text| {
+                    RefName::parse(&text).map_err(|error| GitError::UnreadableHead {
+                        detail: format!("HEAD names an invalid ref ({text:?}): {error}"),
+                    })
+                })
+                .transpose(),
+            Some(1) => Ok(None),
             _ => {
-                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-                return Err(GitError::UnreadableHead {
+                let stderr = String::from_utf8_lossy(&observed.stderr).trim().to_string();
+                Err(GitError::UnreadableHead {
                     detail: format!(
                         "git symbolic-ref --quiet HEAD failed (status {:?}): {}",
-                        output.status.code(),
+                        observed.status_code(),
                         if stderr.is_empty() {
                             "no error output".to_string()
                         } else {
                             stderr
                         }
                     ),
-                });
+                })
             }
         }
-        let raw = crate::path::strip_line_feed(&output.stdout);
-        if raw.is_empty() {
-            return Err(GitError::UnreadableHead {
-                detail: "git symbolic-ref printed an empty HEAD target".to_string(),
-            });
-        }
-        let text = std::str::from_utf8(raw).map_err(|_| GitError::UnreadableHead {
-            detail: "HEAD names a ref that is not valid UTF-8".to_string(),
-        })?;
-        RefName::parse(text)
-            .map(Some)
-            .map_err(|error| GitError::UnreadableHead {
-                detail: format!("HEAD names an invalid ref ({text:?}): {error}"),
-            })
+    }
+
+    /// Observe the one canonical full HEAD probe without conflating a completed
+    /// nonzero exit with failed validation of successful stdout. The strict
+    /// [`Self::symbolic_head_ref`] API retains its existing error mapping.
+    pub fn observe_symbolic_head(&self) -> Result<SymbolicHeadObservation, GitError> {
+        let output = self.process().run(&["symbolic-ref", "--quiet", "HEAD"])?;
+        let target = if output.status.success() {
+            let raw = crate::path::strip_line_feed(&output.stdout);
+            if raw.is_empty() {
+                return Err(GitError::UnreadableHead {
+                    detail: "git symbolic-ref printed an empty HEAD target".to_string(),
+                });
+            }
+            let text = std::str::from_utf8(raw).map_err(|_| GitError::UnreadableHead {
+                detail: "HEAD names a ref that is not valid UTF-8".to_string(),
+            })?;
+            Some(text.to_owned())
+        } else {
+            None
+        };
+        Ok(SymbolicHeadObservation {
+            status_code: output.status.code(),
+            target,
+            stderr: output.stderr,
+        })
     }
 
     fn read_entry_blob(

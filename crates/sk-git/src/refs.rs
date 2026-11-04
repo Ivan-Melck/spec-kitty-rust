@@ -257,6 +257,17 @@ impl GitRepository {
         Ok(None)
     }
 
+    /// Test exact ref existence with `rev-parse --verify --quiet`.
+    ///
+    /// Every completed nonzero exit is false; spawn/timeout/capture failures
+    /// remain typed errors. This does not require a commit or enumerate refs.
+    pub fn ref_exists(&self, reference: &RefName) -> Result<bool, GitError> {
+        let output =
+            self.process()
+                .run(&["rev-parse", "--verify", "--quiet", reference.as_str()])?;
+        Ok(output.status.success())
+    }
+
     /// Read a local branch's tip, or `None` when the branch does not exist.
     pub fn read_branch_tip(
         &self,

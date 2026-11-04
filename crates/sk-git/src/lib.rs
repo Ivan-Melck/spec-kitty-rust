@@ -160,6 +160,7 @@ mod remote;
 mod repo_state;
 mod repository;
 mod safe_commit;
+mod safe_commit_paths;
 mod safe_commit_transaction;
 mod sparse;
 mod status;
@@ -183,8 +184,8 @@ pub use merge_start::{
 };
 pub use message::{CommitMessage, MessageOrigin};
 pub use objects::{
-    BlobLookup, DEFAULT_MAX_BLOB_BYTES, MAX_BLOB_BYTES, TreeEntry, TreeEntryKind, UnmergedPath,
-    UnmergedStage,
+    BlobLookup, DEFAULT_MAX_BLOB_BYTES, MAX_BLOB_BYTES, SymbolicHeadObservation, TreeEntry,
+    TreeEntryKind, UnmergedPath, UnmergedStage,
 };
 pub use oid::Oid;
 pub use path::GitPath;
@@ -202,7 +203,10 @@ pub use safe_commit::{
     SafeCommitMessagePlan, SafeCommitOutcome, SafeCommitPlan, SafeCommitPlanFailure,
     SafeCommitPreflightStage, SafeCommitRecovery, SafeCommitRequest, SafeCommitRoute,
     SafeCommitTargetPlan, SafeCommitTargetRequest, WORKTREES_DIR, evaluate_commit_guard,
-    normalize_safe_commit_path,
+    evaluate_commit_guard_decision, normalize_safe_commit_path,
+};
+pub use safe_commit_paths::{
+    SourceCommitPath, SourcePathRefusal, plan_source_commit_path, source_preflight_path,
 };
 pub use sparse::{
     MAX_SPARSE_PATTERN_FILE_BYTES, SPARSE_CHECKOUT_MIN_VERSION, SparseCheckoutMode,
