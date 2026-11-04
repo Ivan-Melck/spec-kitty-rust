@@ -61,6 +61,17 @@
 //!   staged, unstaged, and untracked content is never read, moved, stashed, or
 //!   restored; the real index is reconciled for the requested paths only after
 //!   the commit exists.
+//! * **Exact refs, including a genuinely absent destination.** The exact-ref
+//!   family ([`SafeCommitPhysicalRequest`]) names the fully-qualified ref `HEAD`
+//!   symbolically points at — `refs/x`, `refs/heads/HEAD`, `refs/heads/-name`, a
+//!   trailing-NBSP branch — and the *planner* observes whether that ref is born
+//!   or absent. An absent ref is published as a zero-parent root commit from
+//!   git's own empty tree, through the same planner, hooks, object creation and
+//!   one compare-and-swap: the ref transition is `RefChange::create`, i.e. "must
+//!   be absent". A ref that appears between plan and apply is
+//!   [`GitError::PlanStale`], never an overwrite; no parent, shadow or sentinel
+//!   object is invented. The reflog subject is git's own (`commit: …` or
+//!   `commit (initial): …`).
 //!
 //! # Operations
 //!
@@ -121,6 +132,12 @@
 //!   `core.autocrlf`, `status.showUntrackedFiles`, `safe.directory`, and
 //!   attributes). The adapter does not rewrite configuration and does not claim
 //!   byte-for-byte parity with every possible configuration.
+//! * The exact-ref family is the ordinary path-only route. Index-only removals, a
+//!   pinned parent and exact raw-byte assertions remain on the short-branch API,
+//!   and are refused for an unborn destination rather than faked. A destination
+//!   no [`BranchName`] can express cannot be a member of a caller-supplied
+//!   [`ProtectedBranches`] set either, so policy resolution for those names stays
+//!   in the application layer; the guard decision itself is still the one core.
 //! * Remote reads do not fetch. A freshness comparison against a listed tip
 //!   requires that object to exist locally; otherwise the verdict is
 //!   `compare_failed` with that explanation. Upstream fetches tracking refs
@@ -161,6 +178,7 @@ mod repo_state;
 mod repository;
 mod safe_commit;
 mod safe_commit_paths;
+mod safe_commit_physical;
 mod safe_commit_transaction;
 mod sparse;
 mod status;
@@ -207,6 +225,10 @@ pub use safe_commit::{
 };
 pub use safe_commit_paths::{
     SourceCommitPath, SourcePathRefusal, plan_source_commit_path, source_preflight_path,
+};
+pub use safe_commit_physical::{
+    SafeCommitPhysicalGuardVerdict, SafeCommitPhysicalMessagePlan, SafeCommitPhysicalOutcome,
+    SafeCommitPhysicalPlan, SafeCommitPhysicalRequest,
 };
 pub use sparse::{
     MAX_SPARSE_PATTERN_FILE_BYTES, SPARSE_CHECKOUT_MIN_VERSION, SparseCheckoutMode,

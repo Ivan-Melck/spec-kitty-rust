@@ -8,6 +8,28 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
+## Exact physical/unborn Git backend — after `102f3b81b`
+
+One shared planner/transaction now accepts exact validated RefName and observes
+born/unborn state. Dynamic empty index/tree, commit-tree without -p, existing
+absent-ref CAS, root initial-reflog subject, same hooks/index/readback/uncertainty;
+legacy borrowed APIs retain born-only shapes. Removes invented refs/x minimum,
+not all ref-byte/platform limits. Ten live Source/native bound full-state pairs
+include roots/NBSP/shadow/nonheads/HEAD/-name/captured index, configured unusable
+signer and always-reflog. Root candidate/CAS race retains real zero-parent
+candidate/exact P/observed tip; corrupt-present-ref was an already-green control.
+
+Coordinator real legacy API red0/1 restores PlanStale.what full ref; two child-CWD
+harness failures fixed with actual temp CWD and permanent all-root assertions.
+Neither harness failures nor compiler/lint fixes are Source business reds. Default
+index raw bytes unchanged in alternate-index pair. Current Git357/0/8helpers,
+workspace2347/0/15helpers/192suites, strict full Clippy/fmt/both release CLIs/
+optimized Op/offline/exact53 green; completion599/PERF27/pending/valid/0of16.
+Evidence `/tmp/sk-physical-integration.86WO9L/command-log-index.tsv`; current
+7bindings/limits `crates/sk-git/PHYSICAL-TARGET-INTEGRATION-REPORT.md`.
+Fresh independent backend review pending; actual Op consumer still lacks this
+publication wiring. No Op/CLI/workflow/platform/performance acceptance implied.
+
 ## Independent J/H/P review / path follow-up — after `fc61898c9`
 
 Narrow PASS for exercised Op-reachable slice: independent 13 bindings, Git343/

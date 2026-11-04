@@ -1,4 +1,5 @@
-//! Mutation routes for [`SafeCommitPlan`](crate::SafeCommitPlan).
+//! Mutation routes for [`SafeCommitPlan`](crate::SafeCommitPlan) and
+//! [`SafeCommitPhysicalMessagePlan`](crate::SafeCommitPhysicalMessagePlan).
 //!
 //! Every route runs through the one bounded subprocess seam in
 //! [`crate::process`]. The only environment difference is [`IndexTarget`]: the
@@ -16,17 +17,25 @@
 //! 1. `git read-tree <parent>`, then stage exactly the requested paths
 //!    (`git add --force`, or `git rm --cached --ignore-unmatch` for index-only
 //!    removals). Nothing the operator staged in the real index is read, so
-//!    nothing unrelated can enter the commit.
+//!    nothing unrelated can enter the commit. An **unborn** destination (the
+//!    exact-ref route with a genuinely absent ref) seeds from git's own
+//!    canonical empty tree with `git read-tree --empty`, so no parent object and
+//!    no hardcoded empty-tree id is involved.
 //! 2. Prepare the route's configured/verbatim commit-message pipeline.
 //! 3. Run the repository's own commit-message hooks before no-op checks through `git hook run` with
 //!    `GIT_INDEX_FILE` pointing at the private index. Never `--no-verify`, and
 //!    never by executing the hook file directly.
 //! 4. Write the tree and create the commit object with `git commit-tree`,
 //!    whose parent is the pinned parent. The commit object therefore carries
-//!    exactly the index content that was built against that parent.
+//!    exactly the index content that was built against that parent. For an
+//!    unborn destination no `-p` is passed at all: the object is a zero-parent
+//!    root commit.
 //! 5. Advance the destination branch with a compare-and-swap that requires the
-//!    pinned parent. A concurrent writer wins and the whole commit is refused
-//!    with candidate/readback evidence if advancement is unconfirmed. Hooks may
+//!    pinned parent; for an unborn destination the compare-and-swap requires the
+//!    ref to be **absent** (`RefChange::create`), so a ref that appeared after
+//!    planning is refused rather than overwritten. A concurrent writer wins and
+//!    the whole commit is refused with candidate/readback evidence if advancement
+//!    is unconfirmed. Hooks may
 //!    themselves change history; no blind retry or user-state reset follows. This is what makes the transaction safe
 //!    under contention: a commit built against an old `HEAD` can never land on a
 //!    branch that has moved on.
@@ -58,11 +67,12 @@ use crate::error::{GitError, SafeCommitLandedKind};
 use crate::oid::Oid;
 use crate::path::{GitPath, strip_line_feed, utf8_field};
 use crate::process::{CommandOutput, GitProcess, ScopedIndex};
+use crate::refname::BranchName;
 use crate::refs::RefChange;
 use crate::repository::GitRepository;
 use crate::safe_commit::{
-    ExpectedBlob, SafeCommitExecution, SafeCommitOutcome, SafeCommitRecovery, SafeCommitRoute,
-    reflog_message,
+    DestinationMatch, ExpectedBlob, SafeCommitCoreOutcome, SafeCommitExecution, SafeCommitRecovery,
+    SafeCommitRoute, reflog_message,
 };
 
 /// How many times the post-landing, idempotent real-index reconciliation is
@@ -117,7 +127,7 @@ impl IndexTarget<'_> {
 pub(crate) fn execute(
     repository: &GitRepository,
     plan: &SafeCommitExecution<'_>,
-) -> Result<SafeCommitOutcome, GitError> {
+) -> Result<SafeCommitCoreOutcome, GitError> {
     if plan.worktree_root() != repository.root() {
         return Err(GitError::InvalidPlan {
             detail: format!(
@@ -138,18 +148,7 @@ pub(crate) fn execute(
     recheck_plan(repository, plan)?;
     repository.require_no_commit_operation()?;
     let mut warnings = Vec::new();
-    let sha = match plan.route() {
-        SafeCommitRoute::Worktree | SafeCommitRoute::IndexDeletions => {
-            create_commit(repository, plan, plan.head(), false, &mut warnings)?
-        }
-        SafeCommitRoute::PinnedParent => create_commit(
-            repository,
-            plan,
-            plan.expected_parent().expect("pinned-parent route"),
-            true,
-            &mut warnings,
-        )?,
-    };
+    let sha = create_commit(repository, plan, &mut warnings)?;
     let committed = finish_landed_commit(repository, plan, &sha, &mut warnings)?;
     Ok(outcome(plan, sha, committed, warnings))
 }
@@ -184,43 +183,88 @@ fn ensure_index_authority(
 }
 
 /// Re-read the state the plan recorded, before any mutation.
+///
+/// The destination is re-read through the same identity the plan pinned: the
+/// legacy short label for a short-branch plan, the exact full symbolic `HEAD`
+/// for an exact-ref plan. An unborn destination must still be genuinely absent —
+/// a ref that appeared between plan and apply is [`GitError::PlanStale`], never
+/// an overwrite or a guessed parent.
 fn recheck_plan(
     repository: &GitRepository,
     plan: &SafeCommitExecution<'_>,
 ) -> Result<(), GitError> {
-    let observed = repository.current_branch()?;
-    if observed.as_deref() != Some(plan.destination().as_str()) {
-        return Err(GitError::SafeCommitHeadMismatch {
-            destination: plan.destination().as_str().to_string(),
-            observed_head: observed.unwrap_or_else(|| "<detached>".to_string()),
-            worktree_root: plan.worktree_root().to_path_buf(),
-        });
+    match plan.destination_match() {
+        DestinationMatch::ShortLabel => {
+            let observed = repository.current_branch()?;
+            if observed.as_deref() != Some(plan.destination_label()) {
+                return Err(GitError::SafeCommitHeadMismatch {
+                    destination: plan.destination_label().to_string(),
+                    observed_head: observed.unwrap_or_else(|| "<detached>".to_string()),
+                    worktree_root: plan.worktree_root().to_path_buf(),
+                });
+            }
+        }
+        DestinationMatch::ExactRef => {
+            let observed = repository.symbolic_head_ref()?;
+            if observed.as_ref() != Some(plan.destination_ref()) {
+                return Err(GitError::SafeCommitHeadMismatch {
+                    destination: plan.destination_label().to_string(),
+                    observed_head: observed
+                        .map(|observed| observed.as_str().to_string())
+                        .unwrap_or_else(|| "<detached>".to_string()),
+                    worktree_root: plan.worktree_root().to_path_buf(),
+                });
+            }
+        }
     }
-    let tip = repository
-        .read_branch_tip(plan.destination())?
-        .ok_or_else(|| GitError::SafeCommitDestinationMissing {
-            destination: plan.destination().as_str().to_string(),
-            worktree_root: plan.worktree_root().to_path_buf(),
-        })?;
-    if &tip != plan.destination_tip() {
-        return Err(GitError::PlanStale {
-            what: plan.destination().as_ref_name().to_string(),
-            detail: format!("planned tip {}, observed {tip}", plan.destination_tip()),
-        });
-    }
-    let head_text =
-        repository
-            .head_commit()?
-            .ok_or_else(|| GitError::SafeCommitDestinationMissing {
-                destination: plan.destination().as_str().to_string(),
+    let tip = repository.read_ref(plan.destination_ref())?;
+    match plan.destination_tip() {
+        Some(planned) => {
+            let tip = tip.ok_or_else(|| GitError::SafeCommitDestinationMissing {
+                destination: plan.destination_label().to_string(),
                 worktree_root: plan.worktree_root().to_path_buf(),
             })?;
-    let head = Oid::parse(&head_text)?;
-    if &head != plan.head() {
-        return Err(GitError::PlanStale {
-            what: plan.destination().as_ref_name().to_string(),
-            detail: format!("planned HEAD {}, observed {head}", plan.head()),
-        });
+            if &tip != planned {
+                return Err(GitError::PlanStale {
+                    what: plan.destination_ref().to_string(),
+                    detail: format!("planned tip {planned}, observed {tip}"),
+                });
+            }
+            let head_text = repository.head_commit()?.ok_or_else(|| {
+                GitError::SafeCommitDestinationMissing {
+                    destination: plan.destination_label().to_string(),
+                    worktree_root: plan.worktree_root().to_path_buf(),
+                }
+            })?;
+            let head = Oid::parse(&head_text)?;
+            if Some(&head) != plan.head() {
+                let planned_head = plan
+                    .head()
+                    .expect("a born destination pins both HEAD and the tip");
+                return Err(GitError::PlanStale {
+                    what: plan.destination_ref().to_string(),
+                    detail: format!("planned HEAD {planned_head}, observed {head}"),
+                });
+            }
+        }
+        None => {
+            // A destination that was absent at plan time must still be absent,
+            // and HEAD must still name no commit: anything else is a race this
+            // transaction refuses rather than overwrites.
+            if let Some(observed) = tip {
+                return Err(GitError::PlanStale {
+                    what: plan.destination_label().to_string(),
+                    detail: format!("planned an absent destination, observed {observed}"),
+                });
+            }
+            if repository.head_commit()?.is_some() {
+                return Err(GitError::PlanStale {
+                    what: plan.destination_label().to_string(),
+                    detail: "planned an unborn destination, but HEAD now resolves to a commit"
+                        .to_string(),
+                });
+            }
+        }
     }
     Ok(())
 }
@@ -234,11 +278,15 @@ fn recheck_plan(
 /// `isolate_hooks` selects the pinned-parent behaviour: the tree is written
 /// before the hooks run and must be identical after a re-isolation, so hooks can
 /// neither add paths nor change requested content.
+///
+/// The parent is the pinned parent for that route, otherwise the destination
+/// commit itself, or `None` for a genuinely **unborn** destination: that route
+/// seeds the private index from git's own empty tree and creates a zero-parent
+/// object (no `-p`), so no seed, shadow, `main`, zero or sentinel parent is ever
+/// invented.
 fn create_commit(
     repository: &GitRepository,
     plan: &SafeCommitExecution<'_>,
-    parent: &Oid,
-    isolate_hooks: bool,
     warnings: &mut Vec<String>,
 ) -> Result<Oid, GitError> {
     let process = repository.process();
@@ -248,17 +296,31 @@ fn create_commit(
         });
     }
 
-    if plan.route() == SafeCommitRoute::PinnedParent {
-        let checkouts = repository.checkouts_of(plan.destination())?;
+    let isolate_hooks = plan.route() == SafeCommitRoute::PinnedParent;
+    let parent: Option<&Oid> = match plan.route() {
+        SafeCommitRoute::PinnedParent => plan.expected_parent(),
+        SafeCommitRoute::Worktree | SafeCommitRoute::IndexDeletions => plan.head(),
+    };
+
+    if isolate_hooks {
+        // The pinned-parent route is the legacy short-branch contract; its
+        // destination label is a validated `BranchName`.
+        let branch =
+            BranchName::parse(plan.destination_label()).map_err(|error| GitError::InvalidPlan {
+                detail: format!(
+                    "the pinned-parent route needs a short branch destination: {error}"
+                ),
+            })?;
+        let checkouts = repository.checkouts_of(&branch)?;
         if checkouts.len() > 1 {
             return Err(GitError::BranchCheckedOut {
-                branch: plan.destination().as_str().to_string(),
+                branch: branch.as_str().to_string(),
                 worktrees: checkouts,
             });
         }
         if !checkouts.iter().any(|path| path == plan.worktree_root()) {
             return Err(GitError::PlanStale {
-                what: plan.destination().as_ref_name().to_string(),
+                what: branch.as_ref_name().to_string(),
                 detail: format!(
                     "the destination is not checked out in the worktree safe commit reconciles at {}",
                     plan.worktree_root().display()
@@ -273,17 +335,16 @@ fn create_commit(
     let message_path = message_file.path().to_path_buf();
     let cleanup = MessageCleanup::resolve(process, isolate_hooks)?;
 
+    // The baseline is the parent's tree, or git's own canonical empty tree for
+    // a root commit, so the initially-empty and no-op checks below are the same
+    // rule for a born and an unborn destination.
+    let baseline_tree = seed_index(process, target, parent)?;
+    stage_into(process, target, plan)?;
+
     let (intended_tree, initially_empty) = if isolate_hooks {
-        (
-            Some(seed_stage_and_write_tree(process, target, parent, plan)?),
-            false,
-        )
+        (Some(write_tree(process, target)?), false)
     } else {
-        seed_and_stage(process, target, parent, plan)?;
-        (
-            None,
-            write_tree(process, target)? == tree_of(process, parent)?,
-        )
+        (None, write_tree(process, target)? == baseline_tree)
     };
 
     record_hook_warnings(
@@ -295,7 +356,7 @@ fn create_commit(
     // changeset, but a formatter cannot turn that snapshot into a commit.
     if initially_empty {
         return Err(GitError::SafeCommitNothingToCommit {
-            destination: plan.destination().as_str().to_owned(),
+            destination: plan.destination_label().to_owned(),
             detail: "the requested snapshot matched HEAD before the pre-commit hook".to_owned(),
         });
     }
@@ -347,16 +408,20 @@ fn create_commit(
         None => write_tree(process, target)?,
     };
 
-    if tree == tree_of(process, parent)? {
+    if tree == baseline_tree {
         return Err(GitError::SafeCommitNothingToCommit {
-            destination: plan.destination().as_str().to_string(),
-            detail: "the candidate tree equals the pinned parent's tree".to_string(),
+            destination: plan.destination_label().to_string(),
+            detail: if parent.is_some() {
+                "the candidate tree equals the pinned parent's tree".to_string()
+            } else {
+                "the candidate tree is the empty tree a root commit starts from".to_string()
+            },
         });
     }
 
     if final_message.is_empty() {
         return Err(GitError::SafeCommitCommitFailed {
-            destination: plan.destination().as_str().to_owned(),
+            destination: plan.destination_label().to_owned(),
             status: None,
             detail: "Aborting commit due to empty commit message".to_owned(),
         });
@@ -374,25 +439,37 @@ fn create_commit(
     // The private index is no longer needed: the commit object exists.
     drop(index);
 
+    // Git's own reflog subject for a commit: `commit: <subject>` normally,
+    // `commit (initial): <subject>` for the first commit on a ref. The
+    // pre-conversion payload bytes are what is recorded; nothing here writes
+    // the object body or a lossy rendering.
     let audit_message = if isolate_hooks {
         plan.message_bytes().to_vec()
     } else {
-        let mut message = b"commit: ".to_vec();
+        let mut message = if parent.is_some() {
+            b"commit: ".to_vec()
+        } else {
+            b"commit (initial): ".to_vec()
+        };
         message.extend_from_slice(first_line_bytes(&final_message));
         message
     };
+    // One compare-and-swap through the canonical ref transaction: a born
+    // destination requires the observed parent, an unborn destination requires
+    // the ref to be **absent** (`RefChange::create` writes the zero old value).
+    let change = match parent {
+        Some(parent) => RefChange::set(
+            plan.destination_ref().clone(),
+            new_sha.clone(),
+            Some(parent.clone()),
+        ),
+        None => RefChange::create(plan.destination_ref().clone(), new_sha.clone()),
+    };
     let advance = repository
-        .plan_ref_transaction_bytes(
-            &reflog_message_bytes(&audit_message),
-            vec![RefChange::set(
-                plan.destination().as_ref_name(),
-                new_sha.clone(),
-                Some(parent.clone()),
-            )],
-        )
+        .plan_ref_transaction_bytes(&reflog_message_bytes(&audit_message), vec![change])
         .and_then(|transaction| repository.apply_ref_transaction_raw(&transaction));
     if let Err(error) = advance {
-        let observed = repository.read_branch_tip(plan.destination());
+        let observed = repository.read_ref(plan.destination_ref());
         let reachable = match &observed {
             Ok(Some(tip)) if tip == &new_sha => Ok(true),
             Ok(Some(tip)) => process
@@ -412,11 +489,15 @@ fn create_commit(
             warnings.push(format!("ref advance reported {error}, but readback proves candidate {new_sha} is reachable; finishing reconciliation"));
         } else {
             return Err(GitError::SafeCommitAdvanceUnconfirmed {
-                destination: plan.destination().as_str().to_owned(),
+                destination: plan.destination_label().to_owned(),
                 candidate: new_sha,
                 observed_tip: observed.as_ref().ok().and_then(Clone::clone),
                 detail: format!(
-                    "expected parent {parent}; {error}; ref readback: {observed:?}; candidate reachability: {reachable:?}; hooks and concurrent writers may have changed history; do not assume nothing happened"
+                    "expected parent {}; {error}; ref readback: {observed:?}; candidate reachability: {reachable:?}; hooks and concurrent writers may have changed history; do not assume nothing happened",
+                    match parent {
+                        Some(parent) => parent.to_string(),
+                        None => "<absent destination>".to_string(),
+                    }
                 ),
             });
         }
@@ -622,13 +703,37 @@ fn finish_landed_commit(
 // Shared path-scoped index helpers
 // ---------------------------------------------------------------------------
 
-fn seed_and_stage(
+/// Seed the private index from the commit's baseline and return the tree that
+/// baseline stands for.
+///
+/// A born destination seeds from the parent commit. An **unborn** destination
+/// seeds from git's own canonical empty tree (`read-tree --empty` then
+/// `write-tree`), so the object id is whatever the repository's hash algorithm
+/// produces — never a hardcoded empty-object constant.
+fn seed_index(
     process: &GitProcess,
     target: IndexTarget<'_>,
-    parent: &Oid,
+    parent: Option<&Oid>,
+) -> Result<Oid, GitError> {
+    match parent {
+        Some(parent) => {
+            target.checked(process, &["read-tree", parent.as_str()])?;
+            tree_of(process, parent)
+        }
+        None => {
+            target.checked(process, &["read-tree", "--empty"])?;
+            write_tree(process, target)
+        }
+    }
+}
+
+/// Stage exactly the requested paths (and index-only removals) in the private
+/// index. Nothing the operator staged is read.
+fn stage_into(
+    process: &GitProcess,
+    target: IndexTarget<'_>,
     plan: &SafeCommitExecution<'_>,
 ) -> Result<(), GitError> {
-    target.checked(process, &["read-tree", parent.as_str()])?;
     stage_paths(process, target, plan.paths())
         .map_err(|(path, detail)| GitError::SafeCommitStageFailed { path, detail })?;
     remove_cached_paths(process, target, plan.index_deletions())
@@ -637,10 +742,11 @@ fn seed_and_stage(
 fn seed_stage_and_write_tree(
     process: &GitProcess,
     target: IndexTarget<'_>,
-    parent: &Oid,
+    parent: Option<&Oid>,
     plan: &SafeCommitExecution<'_>,
 ) -> Result<Oid, GitError> {
-    seed_and_stage(process, target, parent, plan)?;
+    seed_index(process, target, parent)?;
+    stage_into(process, target, plan)?;
     write_tree(process, target)
 }
 
@@ -842,7 +948,7 @@ fn landed_error(
 ) -> GitError {
     GitError::SafeCommitLanded {
         kind,
-        destination: plan.destination().as_str().to_string(),
+        destination: plan.destination_label().to_string(),
         worktree_root: plan.worktree_root().to_path_buf(),
         detail,
         recovery: Box::new(SafeCommitRecovery::new(sha.clone(), affected)),
@@ -854,10 +960,10 @@ fn outcome(
     commit: Oid,
     committed_paths: Vec<GitPath>,
     warnings: Vec<String>,
-) -> SafeCommitOutcome {
-    SafeCommitOutcome::new(
+) -> SafeCommitCoreOutcome {
+    SafeCommitCoreOutcome::new(
         commit,
-        plan.destination().clone(),
+        plan.is_unborn(),
         plan.worktree_root().to_path_buf(),
         committed_paths,
         warnings,
@@ -1011,24 +1117,30 @@ fn run_hook(
     })
 }
 
+/// Create the commit object from the candidate tree.
+///
+/// `parent` is `None` for a genuinely unborn destination, and then no `-p` is
+/// passed at all: `git commit-tree <tree>` creates the zero-parent root commit.
 fn create_commit_object(
     process: &GitProcess,
     target: IndexTarget<'_>,
     tree: &Oid,
-    parent: &Oid,
+    parent: Option<&Oid>,
     message_path: &Path,
     honor_signing: bool,
     plan: &SafeCommitExecution<'_>,
 ) -> Result<(Oid, Vec<String>), GitError> {
-    let destination = plan.destination().as_str();
+    let destination = plan.destination_label();
     let mut warnings = Vec::new();
     let mut args: Vec<OsString> = vec![OsString::from("commit-tree")];
     if honor_signing && commit_is_signed(process)? {
         args.push(OsString::from("-S"));
     }
     args.push(OsString::from(tree.as_str()));
-    args.push(OsString::from("-p"));
-    args.push(OsString::from(parent.as_str()));
+    if let Some(parent) = parent {
+        args.push(OsString::from("-p"));
+        args.push(OsString::from(parent.as_str()));
+    }
     args.push(OsString::from("-F"));
     args.push(message_path.as_os_str().to_os_string());
     let output = target.run(process, &args)?;

@@ -241,14 +241,24 @@ fn completed_nonzero_observation_is_distinct_from_successful_invalid_output() {
     assert_eq!(
         repository.observe_symbolic_head().unwrap().target_text(),
         Some("refs/x"),
-        "observation retains a successful target even when the stricter publication type cannot represent it"
+        "observation retains the successful target text"
     );
+    // `refs/x` is a Git-legal fully-qualified ref (`git check-ref-format
+    // refs/x` succeeds), so the strict publication type must accept it. An
+    // earlier version of this adapter invented a `refs/<ns>/<name>` minimum;
+    // that invented rule was removed against the actual-Git control.
+    assert_eq!(
+        repository.symbolic_head_ref().unwrap(),
+        Some(ref_name("refs/x")),
+        "the strict full-ref API accepts every Git-legal `refs/` name"
+    );
+    fs::write(fixture.head_file(), b"ref: heads/x\n").unwrap();
     assert!(
         matches!(
             repository.symbolic_head_ref(),
             Err(GitError::UnreadableHead { .. })
         ),
-        "strict full-ref API validation is unchanged"
+        "strict full-ref validation still refuses a non-`refs/` target"
     );
     fs::write(fixture.head_file(), b"ref: refs/heads/raw\xff\n").unwrap();
     assert!(

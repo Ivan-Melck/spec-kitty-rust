@@ -48,6 +48,23 @@
 //! concurrent writer is never overwritten. An unconfirmed ref advance carries
 //! candidate/readback evidence; no commit is automatically retried.
 //!
+//! # Exact refs and genuinely absent destinations
+//!
+//! The three routes above are the **short-branch** view: the destination is a
+//! [`BranchName`] and its getters borrow a real object id, so it can only
+//! describe a branch that already exists. A ref `HEAD` can symbolically name
+//! that no short branch name expresses (`refs/x`, `refs/heads/HEAD`,
+//! `refs/heads/-name`), or one that is genuinely absent, is published through the
+//! exact-ref family ([`crate::SafeCommitPhysicalRequest`] and its plan/outcome).
+//! That family feeds the **same** planner body below and the **same** transaction
+//! in [`crate::safe_commit_transaction`]; it only adds a real `Born`/`Unborn`
+//! destination state, an exact-`HEAD` comparison, git's canonical empty tree as
+//! the seed for a root commit, a `commit-tree` invocation without `-p`, the
+//! `commit (initial): ` reflog subject, and an absent-ref compare-and-swap
+//! create. Path policy, protection, hooks, cleanup, signing, the captured
+//! operator index, readback and landed/unconfirmed evidence are shared, so there
+//! is exactly one writer.
+//!
 //! # Expected-state checks
 //!
 //! Every plan records the observed `HEAD`, the destination branch tip, and the
@@ -116,7 +133,7 @@ use crate::index_authority::OperatorIndex;
 use crate::message::CommitMessage;
 use crate::oid::Oid;
 use crate::path::GitPath;
-use crate::refname::BranchName;
+use crate::refname::{BranchName, RefName};
 use crate::repository::GitRepository;
 use crate::safe_commit_paths::{
     canonical_worktree, native_path_shape_refusal, normalize_paths, path_to_git_bytes,
@@ -264,6 +281,45 @@ pub fn evaluate_commit_guard(
 /// derived here; a `STANDARD` capability authorizes no protected flow.
 pub fn evaluate_commit_guard_decision(protected: bool, capability: CommitGuardCapability) -> bool {
     !protected || capability.authorizes_protected_flow()
+}
+
+/// The exact-ref destination verdict, decided by the ONE decision core.
+///
+/// This is [`evaluate_commit_guard_decision`] with the membership fact computed
+/// for a fully-qualified ref instead of a [`BranchName`].
+///
+/// [`ProtectedBranches`] holds `BranchName`s, so only a destination whose
+/// `refs/heads/` suffix is a representable short branch name can be a member of
+/// the caller's set; `refs/x`, `refs/heads/HEAD` and `refs/heads/-name` are
+/// therefore never protected *by that set*, because its element type cannot
+/// name them. Resolving policy for those names stays in the application layer —
+/// the Op decides the verdict on the source-judged `J` and passes the
+/// projection, exactly as it does today. Nothing here adds a capability:
+/// [`CommitGuardCapability::Standard`] still authorizes no protected flow, and
+/// the caller-resolved set is still the only protection input.
+fn evaluate_exact_guard(
+    reference: &RefName,
+    protected: &ProtectedBranches,
+    capability: CommitGuardCapability,
+) -> (bool, String) {
+    let member = reference
+        .short_branch()
+        .is_some_and(|branch| protected.contains(&branch));
+    let allowed = evaluate_commit_guard_decision(member, capability);
+    let reason = if !member {
+        format!("destination {reference:?} is not in the resolved protected set")
+    } else if allowed {
+        format!(
+            "capability {:?} authorizes the bookkeeping flow onto protected ref {reference:?}",
+            capability.as_str()
+        )
+    } else {
+        format!(
+            "protected ref {reference:?} is refused: capability {:?} authorizes no protected-branch flow",
+            capability.as_str()
+        )
+    };
+    (allowed, reason)
 }
 
 /// One exact raw-bytes assertion for a pinned-parent commit.
@@ -593,6 +649,193 @@ impl std::error::Error for SafeCommitPlanFailure {
     }
 }
 
+/// Which identity a plan's destination was expressed as.
+///
+/// The legacy API names a **short branch**; the exact API names the **fully
+/// qualified ref** that `HEAD` symbolically points at. They are different
+/// questions (git's `--short` label can be disambiguated to `heads/x`), so the
+/// plan records which one it pinned and the apply-time re-check uses that same
+/// authority. Nothing here re-derives or normalises one into the other.
+#[derive(Debug, Clone)]
+pub(crate) enum DestinationAuthority {
+    /// A short branch name, compared with git's `--short` label (legacy).
+    Branch(BranchName),
+    /// A fully-qualified ref, compared with the full symbolic `HEAD` (exact).
+    ExactRef(RefName),
+}
+
+/// The destination state the planner actually observed.
+///
+/// `Born` pins a real commit; `Unborn` records that the exact ref was genuinely
+/// **absent** and `HEAD` resolved to no commit. There is no third state and no
+/// placeholder object id: a corrupt `HEAD`, a failed read, or a ref that exists
+/// but names a non-commit object is a typed failure, never `Unborn`.
+#[derive(Debug, Clone)]
+pub(crate) enum DestinationState {
+    /// The destination ref exists and names this commit.
+    Born {
+        /// The commit `HEAD` resolves to (equal to `tip`).
+        head: Oid,
+        /// The destination ref's value at plan time.
+        tip: Oid,
+    },
+    /// The destination ref is absent and `HEAD` has no commit.
+    Unborn,
+}
+
+/// Which HEAD authority an apply-time re-check uses for its destination.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DestinationMatch {
+    /// The legacy short-label comparison (`symbolic-ref --short HEAD`).
+    ShortLabel,
+    /// The exact full symbolic `HEAD` ref comparison.
+    ExactRef,
+}
+
+/// The normalised, message-free request one planner body consumes.
+///
+/// Both public request families (short branch and exact ref) reduce to this
+/// view, so the environment, message, shape, path, destination, parent, guard
+/// and operation checks exist once.
+pub(crate) struct SafeCommitRequestView<'a> {
+    authority: DestinationAuthority,
+    paths: &'a [GitPath],
+    deletions: &'a [GitPath],
+    expected_parent: Option<&'a Oid>,
+    expected_bytes: &'a [ExpectedBlob],
+    protected: &'a ProtectedBranches,
+    capability: CommitGuardCapability,
+}
+
+impl<'a> SafeCommitRequestView<'a> {
+    /// The legacy short-branch view of a target request.
+    pub(crate) fn branch(branch: &BranchName, request: &'a SafeCommitTargetRequest) -> Self {
+        Self {
+            authority: DestinationAuthority::Branch(branch.clone()),
+            paths: &request.paths,
+            deletions: &request.deletions,
+            expected_parent: request.expected_parent.as_ref(),
+            expected_bytes: &request.expected_bytes,
+            protected: &request.protected,
+            capability: request.capability,
+        }
+    }
+
+    /// The exact-ref view: the ordinary path-only route, with the destination
+    /// state (born or unborn) observed by the planner rather than declared by
+    /// the caller.
+    pub(crate) fn exact(
+        destination: &RefName,
+        paths: &'a [GitPath],
+        protected: &'a ProtectedBranches,
+        capability: CommitGuardCapability,
+    ) -> Self {
+        Self {
+            authority: DestinationAuthority::ExactRef(destination.clone()),
+            paths,
+            deletions: &[],
+            expected_parent: None,
+            expected_bytes: &[],
+            protected,
+            capability,
+        }
+    }
+}
+
+/// The single planner output: every fact an execution needs, with a real
+/// `Born`/`Unborn` destination state.
+#[derive(Debug, Clone)]
+pub(crate) struct SafeCommitPlanCore {
+    destination_ref: RefName,
+    destination_label: String,
+    destination_match: DestinationMatch,
+    destination: DestinationState,
+    worktree_root: PathBuf,
+    route: SafeCommitRoute,
+    paths: Vec<GitPath>,
+    deletions: Vec<GitPath>,
+    expected_parent: Option<Oid>,
+    expected_bytes: Vec<ExpectedBlob>,
+    index_authority: OperatorIndex,
+    guard_allowed: bool,
+    guard_reason: String,
+}
+
+impl SafeCommitPlanCore {
+    pub(crate) fn destination_ref(&self) -> &RefName {
+        &self.destination_ref
+    }
+
+    pub(crate) fn destination(&self) -> &DestinationState {
+        &self.destination
+    }
+
+    pub(crate) fn worktree_root(&self) -> &Path {
+        &self.worktree_root
+    }
+
+    pub(crate) fn route(&self) -> SafeCommitRoute {
+        self.route
+    }
+
+    pub(crate) fn paths(&self) -> &[GitPath] {
+        &self.paths
+    }
+
+    pub(crate) fn index_deletions(&self) -> &[GitPath] {
+        &self.deletions
+    }
+
+    pub(crate) fn expected_parent(&self) -> Option<&Oid> {
+        self.expected_parent.as_ref()
+    }
+
+    pub(crate) fn expected_bytes(&self) -> &[ExpectedBlob] {
+        &self.expected_bytes
+    }
+
+    pub(crate) fn index_authority(&self) -> &OperatorIndex {
+        &self.index_authority
+    }
+
+    pub(crate) fn guard_allowed(&self) -> bool {
+        self.guard_allowed
+    }
+
+    pub(crate) fn guard_reason(&self) -> &str {
+        &self.guard_reason
+    }
+
+    pub(crate) fn requested_paths(&self) -> Vec<GitPath> {
+        let mut all = self.paths.clone();
+        all.extend(self.deletions.iter().cloned());
+        all
+    }
+
+    /// The one execution view, for this exact payload.
+    pub(crate) fn execution<'a>(&'a self, message: &'a [u8]) -> SafeCommitExecution<'a> {
+        let (head, destination_tip) = match &self.destination {
+            DestinationState::Born { head, tip } => (Some(head), Some(tip)),
+            DestinationState::Unborn => (None, None),
+        };
+        SafeCommitExecution {
+            destination_ref: &self.destination_ref,
+            destination_label: &self.destination_label,
+            destination_match: self.destination_match,
+            worktree_root: &self.worktree_root,
+            head,
+            destination_tip,
+            route: self.route,
+            paths: &self.paths,
+            deletions: &self.deletions,
+            expected_parent: self.expected_parent.as_ref(),
+            expected_bytes: &self.expected_bytes,
+            index_authority: &self.index_authority,
+            message,
+        }
+    }
+}
+
 /// A successfully checked native target, without a message.
 ///
 /// Holds the observed HEAD and destination tip, the normalised path set, the
@@ -600,22 +843,33 @@ impl std::error::Error for SafeCommitPlanFailure {
 /// capability to run arbitrary git: the only way to reach a mutation is
 /// [`SafeCommitTargetPlan::prepare`], and applying can only produce the commit
 /// described here.
+///
+/// This is the **short-branch** view. Its `head()`/`destination_tip()` getters
+/// borrow a real object id, so it cannot represent an absent destination: the
+/// planner refuses an unborn short-branch destination with
+/// [`GitError::SafeCommitDestinationMissing`], exactly as before. The exact-ref
+/// route that *can* represent absence is
+/// [`SafeCommitPhysicalPlan`](crate::SafeCommitPhysicalPlan).
 #[derive(Debug, Clone)]
 pub struct SafeCommitTargetPlan {
+    core: SafeCommitPlanCore,
     destination: BranchName,
-    worktree_root: PathBuf,
-    head: Oid,
-    destination_tip: Oid,
-    route: SafeCommitRoute,
-    paths: Vec<GitPath>,
-    deletions: Vec<GitPath>,
-    expected_parent: Option<Oid>,
-    expected_bytes: Vec<ExpectedBlob>,
     guard: CommitGuardVerdict,
-    index_authority: OperatorIndex,
 }
 
 impl SafeCommitTargetPlan {
+    /// The legacy view is born-only: the short-branch planner resolves a real
+    /// destination tip before it can produce a plan, and the conversion below
+    /// destructures that pinned state. There is no fake or substitute object id.
+    fn born(&self) -> (&Oid, &Oid) {
+        match &self.core.destination {
+            DestinationState::Born { head, tip } => (head, tip),
+            DestinationState::Unborn => {
+                unreachable!("the short-branch planner never plans an unborn destination")
+            }
+        }
+    }
+
     /// The destination branch.
     pub fn destination(&self) -> &BranchName {
         &self.destination
@@ -623,42 +877,42 @@ impl SafeCommitTargetPlan {
 
     /// The checkout the commit lands in.
     pub fn worktree_root(&self) -> &Path {
-        &self.worktree_root
+        self.core.worktree_root()
     }
 
     /// The destination tip (`HEAD`) observed when the plan was prepared.
     pub fn head(&self) -> &Oid {
-        &self.head
+        self.born().0
     }
 
     /// The destination branch tip observed when the plan was prepared.
     pub fn destination_tip(&self) -> &Oid {
-        &self.destination_tip
+        self.born().1
     }
 
     /// The selected mutation route.
     pub fn route(&self) -> SafeCommitRoute {
-        self.route
+        self.core.route()
     }
 
     /// The normalised worktree paths to commit.
     pub fn paths(&self) -> &[GitPath] {
-        &self.paths
+        self.core.paths()
     }
 
     /// The normalised index-only removals.
     pub fn index_deletions(&self) -> &[GitPath] {
-        &self.deletions
+        self.core.index_deletions()
     }
 
     /// The pinned parent, when the pinned-parent route was selected.
     pub fn expected_parent(&self) -> Option<&Oid> {
-        self.expected_parent.as_ref()
+        self.core.expected_parent()
     }
 
     /// The normalised exact-bytes assertions.
     pub fn expected_bytes(&self) -> &[ExpectedBlob] {
-        &self.expected_bytes
+        self.core.expected_bytes()
     }
 
     /// The protection verdict recorded at plan time.
@@ -668,14 +922,12 @@ impl SafeCommitTargetPlan {
 
     /// The operator index authority recorded at plan time.
     pub fn index_authority(&self) -> &OperatorIndex {
-        &self.index_authority
+        self.core.index_authority()
     }
 
     /// Every path the commit is expected to carry (adds and removals).
     pub fn requested_paths(&self) -> Vec<GitPath> {
-        let mut all = self.paths.clone();
-        all.extend(self.deletions.iter().cloned());
-        all
+        self.core.requested_paths()
     }
 
     /// Attach an exact-byte message, producing the only applicable plan.
@@ -695,6 +947,11 @@ impl SafeCommitTargetPlan {
             target: self,
             message,
         })
+    }
+
+    /// The one execution view both plan types share, for this exact payload.
+    pub(crate) fn execution<'a>(&'a self, message: &'a [u8]) -> SafeCommitExecution<'a> {
+        self.core.execution(message)
     }
 }
 
@@ -878,52 +1135,35 @@ impl SafeCommitPlan {
 
     /// The one execution view both plan types share.
     pub(crate) fn execution(&self) -> SafeCommitExecution<'_> {
-        SafeCommitExecution {
-            destination: self.target.destination(),
-            worktree_root: self.target.worktree_root(),
-            head: self.target.head(),
-            destination_tip: self.target.destination_tip(),
-            route: self.target.route(),
-            paths: self.target.paths(),
-            deletions: self.target.index_deletions(),
-            expected_parent: self.target.expected_parent(),
-            expected_bytes: self.target.expected_bytes(),
-            index_authority: self.target.index_authority(),
-            message: self.message.as_bytes(),
-        }
+        self.target.execution(self.message.as_bytes())
     }
 }
 
 impl SafeCommitMessagePlan {
     /// The one execution view both plan types share.
     pub(crate) fn execution(&self) -> SafeCommitExecution<'_> {
-        SafeCommitExecution {
-            destination: self.target.destination(),
-            worktree_root: self.target.worktree_root(),
-            head: self.target.head(),
-            destination_tip: self.target.destination_tip(),
-            route: self.target.route(),
-            paths: self.target.paths(),
-            deletions: self.target.index_deletions(),
-            expected_parent: self.target.expected_parent(),
-            expected_bytes: self.target.expected_bytes(),
-            index_authority: self.target.index_authority(),
-            message: self.message.as_bytes(),
-        }
+        self.target.execution(self.message.as_bytes())
     }
 }
 
 /// The shared, read-only view one execution body consumes.
 ///
 /// Legacy [`SafeCommitPlan`] and exact-byte [`SafeCommitMessagePlan`] both
-/// produce this view, so the transaction, hooks, CAS advance, index
-/// reconciliation, and landed/unconfirmed evidence have exactly one
-/// implementation.
+/// produce this view, and so does the exact-ref
+/// [`SafeCommitPhysicalMessagePlan`](crate::SafeCommitPhysicalMessagePlan), so
+/// the transaction, hooks, CAS advance, index reconciliation, and
+/// landed/unconfirmed evidence have exactly one implementation.
+///
+/// `head`/`destination_tip` are `Option` because a real destination can be
+/// **unborn**. They are both `None` or both `Some`; the planner is the only
+/// constructor of that pairing.
 pub(crate) struct SafeCommitExecution<'a> {
-    destination: &'a BranchName,
+    destination_ref: &'a RefName,
+    destination_label: &'a str,
+    destination_match: DestinationMatch,
     worktree_root: &'a Path,
-    head: &'a Oid,
-    destination_tip: &'a Oid,
+    head: Option<&'a Oid>,
+    destination_tip: Option<&'a Oid>,
     route: SafeCommitRoute,
     paths: &'a [GitPath],
     deletions: &'a [GitPath],
@@ -934,20 +1174,36 @@ pub(crate) struct SafeCommitExecution<'a> {
 }
 
 impl SafeCommitExecution<'_> {
-    pub(crate) fn destination(&self) -> &BranchName {
-        self.destination
+    /// The exact fully-qualified ref the transaction compare-and-swaps.
+    pub(crate) fn destination_ref(&self) -> &RefName {
+        self.destination_ref
     }
 
-    pub(crate) fn worktree_root(&self) -> &Path {
-        self.worktree_root
+    /// The destination spelled the way the calling API names it: the short
+    /// branch for the legacy route, the full ref for the exact route.
+    pub(crate) fn destination_label(&self) -> &str {
+        self.destination_label
     }
 
-    pub(crate) fn head(&self) -> &Oid {
+    /// Which HEAD authority the apply-time re-check uses.
+    pub(crate) fn destination_match(&self) -> DestinationMatch {
+        self.destination_match
+    }
+
+    /// The destination commit pinned at plan time, or `None` when the
+    /// destination ref was genuinely absent (an unborn root commit).
+    pub(crate) fn head(&self) -> Option<&Oid> {
         self.head
     }
 
-    pub(crate) fn destination_tip(&self) -> &Oid {
+    /// The destination ref value pinned at plan time (`None` = absent).
+    pub(crate) fn destination_tip(&self) -> Option<&Oid> {
         self.destination_tip
+    }
+
+    /// Whether the pinned destination was absent.
+    pub(crate) fn is_unborn(&self) -> bool {
+        self.destination_tip.is_none()
     }
 
     pub(crate) fn route(&self) -> SafeCommitRoute {
@@ -976,6 +1232,10 @@ impl SafeCommitExecution<'_> {
 
     pub(crate) fn message_bytes(&self) -> &[u8] {
         self.message
+    }
+
+    pub(crate) fn worktree_root(&self) -> &Path {
+        self.worktree_root
     }
 
     pub(crate) fn requested_paths(&self) -> Vec<GitPath> {
@@ -1101,6 +1361,53 @@ impl SafeCommitOutcome {
     }
 }
 
+/// The one outcome core every route produces.
+///
+/// Legacy [`SafeCommitOutcome`] and the exact-ref
+/// [`SafeCommitPhysicalOutcome`](crate::SafeCommitPhysicalOutcome) are views over
+/// this value: the commit id, whether the destination was genuinely absent, the
+/// checkout, the commit's own changed-path set, and hook warnings. There is no
+/// second evidence writer.
+pub(crate) struct SafeCommitCoreOutcome {
+    pub(crate) commit: Oid,
+    pub(crate) was_unborn: bool,
+    pub(crate) worktree_root: PathBuf,
+    pub(crate) committed_paths: Vec<GitPath>,
+    pub(crate) warnings: Vec<String>,
+}
+
+impl SafeCommitCoreOutcome {
+    pub(crate) fn new(
+        commit: Oid,
+        was_unborn: bool,
+        worktree_root: PathBuf,
+        committed_paths: Vec<GitPath>,
+        warnings: Vec<String>,
+    ) -> Self {
+        Self {
+            commit,
+            was_unborn,
+            worktree_root,
+            committed_paths,
+            warnings,
+        }
+    }
+
+    /// The legacy born-only public view.
+    ///
+    /// The short-branch planner refuses an unborn destination, so this route
+    /// never carries one; the name is kept for symmetry with the physical view.
+    pub(crate) fn into_legacy(self, destination: BranchName) -> SafeCommitOutcome {
+        SafeCommitOutcome::new(
+            self.commit,
+            destination,
+            self.worktree_root,
+            self.committed_paths,
+            self.warnings,
+        )
+    }
+}
+
 /// Resolve a caller path to the repository-relative [`GitPath`] safe commit uses.
 ///
 /// * A relative path is resolved against `worktree_root`; `..`, a root, or a
@@ -1198,7 +1505,8 @@ impl GitRepository {
         })
     }
 
-    /// The one planner body both entry points call.
+    /// The legacy planner: the short-branch destination authority over the one
+    /// shared planner body.
     ///
     /// `message: Option<&CommitMessage>` keeps the legacy `Message` stage at its
     /// exact position and makes it unreachable from the message-free target
@@ -1208,6 +1516,38 @@ impl GitRepository {
         request: &SafeCommitTargetRequest,
         message: Option<&CommitMessage>,
     ) -> Result<SafeCommitTargetPlan, SafeCommitPlanFailure> {
+        let destination = request.destination.clone();
+        let view = SafeCommitRequestView::branch(&destination, request);
+        let core = self.plan_safe_commit_core(&view, message)?;
+        if matches!(core.destination, DestinationState::Unborn) {
+            unreachable!("the short-branch planner never plans an unborn destination")
+        }
+        let guard = CommitGuardVerdict {
+            allowed: core.guard_allowed(),
+            destination: destination.clone(),
+            reason: core.guard_reason().to_string(),
+        };
+        Ok(SafeCommitTargetPlan {
+            core,
+            destination,
+            guard,
+        })
+    }
+
+    /// The one planner body every entry point (short branch and exact ref) calls.
+    ///
+    /// Order is `Environment → Message → RequestShape → paths → destination →
+    /// expected parent → guard → operation`. The destination step is the only
+    /// kind-specific one: a short branch is compared with git's `--short` label
+    /// and must exist (the legacy contract, unchanged), while an exact ref is
+    /// compared with the full symbolic `HEAD` and may be genuinely absent.
+    ///
+    /// Nothing is written. Applying an applicable plan re-runs the state checks.
+    pub(crate) fn plan_safe_commit_core(
+        &self,
+        view: &SafeCommitRequestView<'_>,
+        message: Option<&CommitMessage>,
+    ) -> Result<SafeCommitPlanCore, SafeCommitPlanFailure> {
         let fail = SafeCommitPlanFailure::new;
         self.process()
             .ensure_unredirected_write()
@@ -1217,13 +1557,13 @@ impl GitRepository {
                 .validate()
                 .map_err(|error| fail(SafeCommitPreflightStage::Message, error))?;
         }
-        if request.paths.is_empty() && request.deletions.is_empty() {
+        if view.paths.is_empty() && view.deletions.is_empty() {
             return Err(fail(
                 SafeCommitPreflightStage::RequestShape,
                 GitError::SafeCommitEmptyChangeset,
             ));
         }
-        if !request.expected_bytes.is_empty() && request.expected_parent.is_none() {
+        if !view.expected_bytes.is_empty() && view.expected_parent.is_none() {
             return Err(fail(
                 SafeCommitPreflightStage::RequestShape,
                 GitError::SafeCommitInvalidRequest {
@@ -1233,9 +1573,9 @@ impl GitRepository {
         }
 
         let root = self.root();
-        let paths = normalize_paths(root, &request.paths)
+        let paths = normalize_paths(root, view.paths)
             .map_err(|error| fail(SafeCommitPreflightStage::PathResolution, error))?;
-        let deletions = normalize_paths(root, &request.deletions)
+        let deletions = normalize_paths(root, view.deletions)
             .map_err(|error| fail(SafeCommitPreflightStage::PathResolution, error))?;
         let conflicts: Vec<String> = deletions
             .iter()
@@ -1255,7 +1595,7 @@ impl GitRepository {
                 .map_err(|error| fail(SafeCommitPreflightStage::PathShape, error))?;
         }
         let expected_bytes = self
-            .normalize_expected_bytes(request, &paths)
+            .normalize_expected_bytes(view.expected_bytes, &paths)
             .map_err(|error| {
                 let stage = match &error {
                     GitError::SafeCommitInvalidRequest { .. } => {
@@ -1267,58 +1607,165 @@ impl GitRepository {
                 fail(stage, error)
             })?;
 
-        let destination = request.destination.clone();
-        let observed = self
-            .current_branch()
-            .map_err(|error| fail(SafeCommitPreflightStage::HeadAssertion, error))?;
-        if observed.as_deref() != Some(destination.as_str()) {
-            return Err(fail(
-                SafeCommitPreflightStage::HeadAssertion,
-                GitError::SafeCommitHeadMismatch {
-                    destination: destination.as_str().to_string(),
-                    observed_head: observed.unwrap_or_else(|| "<detached>".to_string()),
-                    worktree_root: root.to_path_buf(),
-                },
-            ));
-        }
-        let destination_tip = self
-            .read_branch_tip(&destination)
-            .map_err(|error| fail(SafeCommitPreflightStage::DestinationExistence, error))?
-            .ok_or_else(|| {
-                fail(
-                    SafeCommitPreflightStage::DestinationExistence,
-                    GitError::SafeCommitDestinationMissing {
-                        destination: destination.as_str().to_string(),
-                        worktree_root: root.to_path_buf(),
-                    },
+        let (destination_ref, destination_label, destination_match, destination) = match &view
+            .authority
+        {
+            DestinationAuthority::Branch(branch) => {
+                let observed = self
+                    .current_branch()
+                    .map_err(|error| fail(SafeCommitPreflightStage::HeadAssertion, error))?;
+                if observed.as_deref() != Some(branch.as_str()) {
+                    return Err(fail(
+                        SafeCommitPreflightStage::HeadAssertion,
+                        GitError::SafeCommitHeadMismatch {
+                            destination: branch.as_str().to_string(),
+                            observed_head: observed.unwrap_or_else(|| "<detached>".to_string()),
+                            worktree_root: root.to_path_buf(),
+                        },
+                    ));
+                }
+                let tip = self
+                    .read_branch_tip(branch)
+                    .map_err(|error| fail(SafeCommitPreflightStage::DestinationExistence, error))?
+                    .ok_or_else(|| {
+                        fail(
+                            SafeCommitPreflightStage::DestinationExistence,
+                            GitError::SafeCommitDestinationMissing {
+                                destination: branch.as_str().to_string(),
+                                worktree_root: root.to_path_buf(),
+                            },
+                        )
+                    })?;
+                let head_text = self
+                    .head_commit()
+                    .map_err(|error| fail(SafeCommitPreflightStage::DestinationExistence, error))?
+                    .ok_or_else(|| {
+                        fail(
+                            SafeCommitPreflightStage::DestinationExistence,
+                            GitError::SafeCommitDestinationMissing {
+                                destination: branch.as_str().to_string(),
+                                worktree_root: root.to_path_buf(),
+                            },
+                        )
+                    })?;
+                let head = Oid::parse(&head_text)
+                    .map_err(|error| fail(SafeCommitPreflightStage::DestinationExistence, error))?;
+                if head != tip {
+                    return Err(fail(
+                        SafeCommitPreflightStage::HeadTipConsistency,
+                        GitError::PlanStale {
+                            what: branch.as_ref_name().to_string(),
+                            detail: format!(
+                                "HEAD is {head} but the branch tip is {tip}; the checkout is inconsistent"
+                            ),
+                        },
+                    ));
+                }
+                (
+                    branch.as_ref_name(),
+                    branch.as_str().to_string(),
+                    DestinationMatch::ShortLabel,
+                    DestinationState::Born { head, tip },
                 )
-            })?;
-        let head_text = self
-            .head_commit()
-            .map_err(|error| fail(SafeCommitPreflightStage::DestinationExistence, error))?
-            .ok_or_else(|| {
-                fail(
-                    SafeCommitPreflightStage::DestinationExistence,
-                    GitError::SafeCommitDestinationMissing {
-                        destination: destination.as_str().to_string(),
-                        worktree_root: root.to_path_buf(),
-                    },
+            }
+            DestinationAuthority::ExactRef(reference) => {
+                let observed = self
+                    .symbolic_head_ref()
+                    .map_err(|error| fail(SafeCommitPreflightStage::HeadAssertion, error))?;
+                if observed.as_ref() != Some(reference) {
+                    return Err(fail(
+                        SafeCommitPreflightStage::HeadAssertion,
+                        GitError::SafeCommitHeadMismatch {
+                            destination: reference.as_str().to_string(),
+                            observed_head: observed
+                                .map(|observed| observed.as_str().to_string())
+                                .unwrap_or_else(|| "<detached>".to_string()),
+                            worktree_root: root.to_path_buf(),
+                        },
+                    ));
+                }
+                let state = match self
+                    .read_ref(reference)
+                    .map_err(|error| fail(SafeCommitPreflightStage::DestinationExistence, error))?
+                {
+                    Some(tip) => {
+                        if !self.commit_exists(&tip).map_err(|error| {
+                            fail(SafeCommitPreflightStage::DestinationExistence, error)
+                        })? {
+                            return Err(fail(
+                                SafeCommitPreflightStage::DestinationExistence,
+                                GitError::SafeCommitInvalidRequest {
+                                    detail: format!(
+                                        "destination ref {reference} names {tip}, which is not a commit object"
+                                    ),
+                                },
+                            ));
+                        }
+                        let head_text = self
+                            .head_commit()
+                            .map_err(|error| {
+                                fail(SafeCommitPreflightStage::DestinationExistence, error)
+                            })?
+                            .ok_or_else(|| {
+                                fail(
+                                    SafeCommitPreflightStage::DestinationExistence,
+                                    GitError::SafeCommitDestinationMissing {
+                                        destination: reference.as_str().to_string(),
+                                        worktree_root: root.to_path_buf(),
+                                    },
+                                )
+                            })?;
+                        let head = Oid::parse(&head_text).map_err(|error| {
+                            fail(SafeCommitPreflightStage::DestinationExistence, error)
+                        })?;
+                        if head != tip {
+                            return Err(fail(
+                                SafeCommitPreflightStage::HeadTipConsistency,
+                                GitError::PlanStale {
+                                    what: reference.to_string(),
+                                    detail: format!(
+                                        "HEAD is {head} but the ref tip is {tip}; the checkout is inconsistent"
+                                    ),
+                                },
+                            ));
+                        }
+                        DestinationState::Born { head, tip }
+                    }
+                    // An absent ref is an unborn destination only when
+                    // `HEAD` names no commit. A ref that exists but could
+                    // not be read, or a `HEAD` that resolves to a commit
+                    // while this ref is absent, is an inconsistency, never a
+                    // "root" commit over a replaced tip.
+                    None => {
+                        if self
+                            .head_commit()
+                            .map_err(|error| {
+                                fail(SafeCommitPreflightStage::DestinationExistence, error)
+                            })?
+                            .is_some()
+                        {
+                            return Err(fail(
+                                    SafeCommitPreflightStage::HeadTipConsistency,
+                                    GitError::PlanStale {
+                                        what: reference.to_string(),
+                                        detail: "HEAD resolves to a commit but the symbolic destination is absent; the checkout is inconsistent"
+                                            .to_string(),
+                                    },
+                                ));
+                        }
+                        DestinationState::Unborn
+                    }
+                };
+                (
+                    reference.clone(),
+                    reference.as_str().to_string(),
+                    DestinationMatch::ExactRef,
+                    state,
                 )
-            })?;
-        let head = Oid::parse(&head_text)
-            .map_err(|error| fail(SafeCommitPreflightStage::DestinationExistence, error))?;
-        if head != destination_tip {
-            return Err(fail(
-                SafeCommitPreflightStage::HeadTipConsistency,
-                GitError::PlanStale {
-                    what: destination.as_ref_name().to_string(),
-                    detail: format!(
-                        "HEAD is {head} but the branch tip is {destination_tip}; the checkout is inconsistent"
-                    ),
-                },
-            ));
-        }
-        if let Some(parent) = &request.expected_parent {
+            }
+        };
+
+        if let Some(parent) = view.expected_parent {
             if !self
                 .commit_exists(parent)
                 .map_err(|error| fail(SafeCommitPreflightStage::ExpectedParent, error))?
@@ -1330,25 +1777,52 @@ impl GitRepository {
                     },
                 ));
             }
-            if parent != &destination_tip {
+            let pinned = match &destination {
+                DestinationState::Born { tip, .. } => tip,
+                DestinationState::Unborn => {
+                    return Err(fail(
+                        SafeCommitPreflightStage::RequestShape,
+                        GitError::SafeCommitInvalidRequest {
+                            detail: "an expected parent requires a born destination".to_string(),
+                        },
+                    ));
+                }
+            };
+            if parent != pinned {
                 return Err(fail(
                     SafeCommitPreflightStage::ExpectedParent,
                     GitError::PlanStale {
-                        what: destination.as_ref_name().to_string(),
-                        detail: format!("expected parent {parent}, observed tip {destination_tip}"),
+                        what: destination_ref.to_string(),
+                        detail: format!("expected parent {parent}, observed tip {pinned}"),
                     },
                 ));
             }
         }
+        if !deletions.is_empty() && matches!(destination, DestinationState::Unborn) {
+            return Err(fail(
+                SafeCommitPreflightStage::RequestShape,
+                GitError::SafeCommitInvalidRequest {
+                    detail: "index-only removals require a born destination".to_string(),
+                },
+            ));
+        }
 
-        let guard = evaluate_commit_guard(&destination, &request.protected, request.capability);
-        if !guard.allowed() {
+        let (guard_allowed, guard_reason) = match &view.authority {
+            DestinationAuthority::Branch(branch) => {
+                let verdict = evaluate_commit_guard(branch, view.protected, view.capability);
+                (verdict.allowed(), verdict.reason().to_string())
+            }
+            DestinationAuthority::ExactRef(reference) => {
+                evaluate_exact_guard(reference, view.protected, view.capability)
+            }
+        };
+        if !guard_allowed {
             return Err(fail(
                 SafeCommitPreflightStage::Guard,
                 GitError::SafeCommitProtectedBranch {
-                    destination: destination.as_str().to_string(),
+                    destination: destination_label.clone(),
                     worktree_root: root.to_path_buf(),
-                    capability: request.capability.as_str(),
+                    capability: view.capability.as_str(),
                 },
             ));
         }
@@ -1356,23 +1830,25 @@ impl GitRepository {
         self.require_no_commit_operation()
             .map_err(|error| fail(SafeCommitPreflightStage::OperationInProgress, error))?;
 
-        let route = match (&request.expected_parent, deletions.is_empty()) {
+        let route = match (view.expected_parent, deletions.is_empty()) {
             (Some(_), _) => SafeCommitRoute::PinnedParent,
             (None, false) => SafeCommitRoute::IndexDeletions,
             (None, true) => SafeCommitRoute::Worktree,
         };
-        Ok(SafeCommitTargetPlan {
+        Ok(SafeCommitPlanCore {
+            destination_ref,
+            destination_label,
+            destination_match,
             destination,
             worktree_root: root.to_path_buf(),
-            head,
-            destination_tip,
             route,
             paths,
             deletions,
-            expected_parent: request.expected_parent.clone(),
+            expected_parent: view.expected_parent.cloned(),
             expected_bytes,
-            guard,
             index_authority: self.operator_index().clone(),
+            guard_allowed,
+            guard_reason,
         })
     }
 
@@ -1384,7 +1860,8 @@ impl GitRepository {
     /// resynchronisation or readback fails is [`GitError::SafeCommitLanded`],
     /// which names the commit and the repair action; no user state is reset.
     pub fn apply_safe_commit(&self, plan: &SafeCommitPlan) -> Result<SafeCommitOutcome, GitError> {
-        crate::safe_commit_transaction::execute(self, &plan.execution())
+        let outcome = crate::safe_commit_transaction::execute(self, &plan.execution())?;
+        Ok(outcome.into_legacy(plan.destination().clone()))
     }
 
     /// Execute a prepared exact-byte commit.
@@ -1397,7 +1874,8 @@ impl GitRepository {
         &self,
         plan: &SafeCommitMessagePlan,
     ) -> Result<SafeCommitOutcome, GitError> {
-        crate::safe_commit_transaction::execute(self, &plan.execution())
+        let outcome = crate::safe_commit_transaction::execute(self, &plan.execution())?;
+        Ok(outcome.into_legacy(plan.destination().clone()))
     }
     /// Plan and apply one safe commit.
     ///
@@ -1412,12 +1890,12 @@ impl GitRepository {
 
     fn normalize_expected_bytes(
         &self,
-        request: &SafeCommitTargetRequest,
+        expected: &[ExpectedBlob],
         paths: &[GitPath],
     ) -> Result<Vec<ExpectedBlob>, GitError> {
         let root = self.root();
-        let mut normalized: Vec<ExpectedBlob> = Vec::with_capacity(request.expected_bytes.len());
-        for expected in &request.expected_bytes {
+        let mut normalized: Vec<ExpectedBlob> = Vec::with_capacity(expected.len());
+        for expected in expected {
             let path = normalize_safe_commit_path(root, expected.path().to_path_buf())?;
             if !paths.contains(&path) {
                 return Err(GitError::SafeCommitInvalidRequest {

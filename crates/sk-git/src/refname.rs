@@ -66,24 +66,31 @@ impl std::str::FromStr for BranchName {
     }
 }
 
-/// A fully-qualified ref name (`refs/heads/main`, `refs/spec-kitty/lane-tip/x`).
+/// A fully-qualified ref name (`refs/heads/main`, `refs/x`,
+/// `refs/spec-kitty/lane-tip/x`).
+///
+/// "Fully qualified" means exactly what git means by it: the name starts with
+/// `refs/`. Git also permits a one-component namespace below `refs/`
+/// (`refs/x`), which `git check-ref-format refs/x` accepts. An earlier version
+/// of this adapter invented a `refs/<namespace>/<name>` minimum, which rejected
+/// that Git-legal shape; the invented rule was removed against an actual
+/// `git check-ref-format` control. Every structural, NUL, control-character,
+/// option and revspec rule below is unchanged, and there is still no invented
+/// total-length cap.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RefName(String);
 
 impl RefName {
     /// Validate a fully-qualified ref name.
+    ///
+    /// The answer is git's own structural rule set plus argv-safety: a `refs/`
+    /// prefix, no `..`, no `@{`, no empty path component, no component starting
+    /// with `.`, no `.lock` suffix, no space or `~^:?*[\\`, no control byte, and
+    /// no leading `-`. A one-level namespace (`refs/x`) is legal.
     pub fn parse(value: &str) -> Result<Self, GitError> {
         validate(value, "ref name")?;
         if !value.starts_with("refs/") {
             return Err(invalid("ref name", value, "must start with `refs/`"));
-        }
-        let slashes = value.bytes().filter(|byte| *byte == b'/').count();
-        if slashes < 2 {
-            return Err(invalid(
-                "ref name",
-                value,
-                "a fully-qualified ref needs at least `refs/<namespace>/<name>`",
-            ));
         }
         Ok(Self(value.to_string()))
     }
@@ -307,7 +314,7 @@ mod tests {
     }
 
     #[test]
-    fn fully_qualified_refs_need_the_refs_prefix_and_a_namespace() {
+    fn fully_qualified_refs_need_the_refs_prefix_only() {
         assert!(RefName::parse("refs/heads/main").unwrap().is_branch());
         assert_eq!(
             RefName::parse("refs/heads/feature/x")
@@ -317,12 +324,27 @@ mod tests {
                 .as_str(),
             "feature/x"
         );
-        for name in ["refs/main", "heads/main", "main"] {
+        for name in ["refs/", "heads/main", "main", "HEAD", "-"] {
             assert!(RefName::parse(name).is_err(), "{name:?}");
         }
-        // Only a leading `-` on the whole operand is an option hazard; a
-        // component beginning with `-` is legal and argv-safe.
-        assert!(RefName::parse("refs/heads/-x").is_ok());
+        // Git's own rule is "one or more `/` unless `--allow-onelevel`"; a
+        // one-component namespace below `refs/` is legal (`check-ref-format
+        // refs/x` succeeds), so the adapter must not invent a deeper minimum.
+        for name in ["refs/main", "refs/x", "refs/notheads/lane"] {
+            assert_eq!(RefName::parse(name).unwrap().as_str(), name);
+        }
+        // A `refs/heads/` ref whose suffix is not a representable short branch
+        // name is still a real, exact ref.
+        for name in ["refs/heads/HEAD", "refs/heads/-name", "refs/heads/-x"] {
+            let parsed = RefName::parse(name).unwrap_or_else(|error| panic!("{name}: {error}"));
+            assert_eq!(parsed.as_str(), name);
+            assert!(parsed.is_branch());
+        }
+        assert_eq!(
+            RefName::parse("refs/heads/HEAD").unwrap().short_branch(),
+            None,
+            "`HEAD` is not a `BranchName`; the exact ref still exists"
+        );
     }
 
     #[test]
