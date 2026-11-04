@@ -65,6 +65,7 @@ mod org_charter;
 mod plan;
 mod profile;
 mod query;
+mod role_capabilities;
 mod validate;
 mod yaml;
 
@@ -150,6 +151,9 @@ pub use query::{
     ActionDelivery, ResolvedContext, ResolvedRefs, action_channel_reachable, action_seed_urns,
     agent_profile_seed_urns, deliver_action_context, profile_channel_reachable,
     profile_channel_relations, resolve_context, resolve_transitive_refs, walk_edges,
+};
+pub use role_capabilities::{
+    ROLE_CAPABILITIES, RoleCapabilities, role_capabilities, role_default_verb,
 };
 pub use validate::{assert_valid, dangling_endpoints, duplicate_edge_triples, validate_graph};
 pub use yaml::{LockScope, PreparedWrite, WriteOutcome, YamlDocument, ensure_mapping, observe};

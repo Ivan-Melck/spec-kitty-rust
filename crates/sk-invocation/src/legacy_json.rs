@@ -56,12 +56,88 @@ const SOURCE_DEFAULT_INTEGER_DIGITS: usize = 4300;
 /// are kept verbatim. Equality is code-point equality, which is also Python
 /// `dict` key equality: a decoded surrogate pair (one astral scalar) equals the
 /// raw character, while `\uD800` and `\uD800\u0041` are distinct strings.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct PythonString(Vec<u32>);
+///
+/// This is the crate's single Python-string authority. It is also the public
+/// typed code-point path for router/profile data that a Python `str` may carry
+/// (NUL, non-printable text, lone surrogates): no wrapper, lossy conversion or
+/// second string type is introduced beside it. The field stays private and the
+/// public constructors validate `0..=U+10FFFF` (surrogates included, because
+/// they are valid CPython code units). `Display` is an escaped *diagnostic*
+/// rendering, never an authoritative wire form; [`PythonString::codepoints`]
+/// and [`PythonString::repr`] carry the exact data.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PythonString(Vec<u32>);
+
+/// A code unit that cannot be a Python string code point (`> U+10FFFF`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InvalidCodepoint {
+    code: u32,
+}
+
+impl InvalidCodepoint {
+    /// The rejected value.
+    pub fn code(self) -> u32 {
+        self.code
+    }
+}
+
+impl std::fmt::Display for InvalidCodepoint {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "U+{:X} is not a Python string code point (maximum U+10FFFF)",
+            self.code
+        )
+    }
+}
+
+impl std::error::Error for InvalidCodepoint {}
+
+impl std::fmt::Display for PythonString {
+    /// Escaped diagnostic rendering (non-scalar code units always escape).
+    ///
+    /// Not a wire form: use [`PythonString::codepoints`] for exact data.
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut units = String::with_capacity(self.0.len());
+        for &code in &self.0 {
+            match char::from_u32(code) {
+                Some(character) => units.push(character),
+                None => units.push_str(&format!("\\u{code:04x}")),
+            }
+        }
+        formatter.write_str(&units)
+    }
+}
 
 impl PythonString {
+    /// A validated code-point string from explicit code units.
+    ///
+    /// Every unit must be `0..=U+10FFFF`; surrogate units are accepted because a
+    /// CPython `str` may hold them. This is the typed codepoint path the router
+    /// uses for request text, ids, hints, keywords and error fields.
+    pub fn from_codepoints(codepoints: &[u32]) -> Result<Self, InvalidCodepoint> {
+        let mut units = Vec::with_capacity(codepoints.len());
+        for &code in codepoints {
+            if code > 0x10ffff {
+                return Err(InvalidCodepoint { code });
+            }
+            units.push(code);
+        }
+        Ok(Self(units))
+    }
+
+    /// Take already-validated code units (internal fast path).
+    pub(crate) fn from_units(units: Vec<u32>) -> Self {
+        debug_assert!(units.iter().all(|&code| code <= 0x10ffff));
+        Self(units)
+    }
+
     /// A code-point string from Rust text (each scalar kept verbatim).
-    pub(crate) fn from_scalars(text: &str) -> Self {
+    ///
+    /// Infallible: every Unicode scalar is a valid Python string code point.
+    /// Use [`PythonString::from_codepoints`] for the exact typed path that also
+    /// accepts surrogate code units.
+    pub fn from_scalars(text: &str) -> Self {
         let mut string = Self::default();
         string.push_scalars(text);
         string
@@ -84,21 +160,41 @@ impl PythonString {
     }
 
     /// The exact code units, in order.
-    pub(crate) fn codepoints(&self) -> &[u32] {
+    pub fn codepoints(&self) -> &[u32] {
         &self.0
     }
 
-    fn is_empty(&self) -> bool {
+    /// Whether this string is empty (`str` of length 0).
+    pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    /// CPython `repr()` through the one canonical formatter.
+    ///
+    /// Shared with the Op writer path, so an `available` list or a diagnostic
+    /// field escapes exactly like the reference instead of inventing a second
+    /// quoting rule.
+    pub fn repr(&self) -> String {
+        python_repr_codepoints(&self.0)
+    }
+
+    /// The text when every code unit is a Unicode scalar.
+    ///
+    /// `Err` names the first surrogate unit, so a caller that needs a Rust
+    /// `String` never silently drops or replaces authored code points.
+    pub fn to_scalar_string(&self) -> Result<String, u32> {
+        let mut out = String::with_capacity(self.0.len());
+        for &code in &self.0 {
+            match char::from_u32(code) {
+                Some(character) => out.push(character),
+                None => return Err(code),
+            }
+        }
+        Ok(out)
     }
 
     fn eq_str(&self, key: &str) -> bool {
         self.0.len() == key.chars().count() && self.0.iter().copied().eq(key.chars().map(u32::from))
-    }
-
-    /// CPython `repr()` through the one canonical formatter.
-    fn repr(&self) -> String {
-        python_repr_codepoints(&self.0)
     }
 
     /// The text when every code unit is a Unicode scalar.

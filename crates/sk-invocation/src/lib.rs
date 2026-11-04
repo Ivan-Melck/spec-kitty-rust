@@ -10,9 +10,11 @@
 //! best-effort per-record / closure-spine commit.
 //!
 //! This crate is deliberately unwired: no dispatcher calls it, the executor /
-//! catalog / router / governance / glossary / StepContract surfaces are not
-//! implemented here, and no capability is claimed. [`OpCommitService`] composes
-//! the accepted skip probes, canonical protection policies, and the real
+//! catalog / governance / glossary / StepContract surfaces are not implemented
+//! here, and no capability is claimed. The I/O-free [`ActionRouter`] ports the
+//! reference router over a **caller-supplied** profile snapshot (no catalogue,
+//! activation ledger, language scope or file read); [`OpCommitService`] composes the accepted
+//! skip probes, canonical protection policies, and the real
 //! `sk-git` byte-commit capability (message-free target plan, late exact-byte
 //! payload, one apply); it does not implement profile dispatch or CLI wiring.
 //! Its only effectful authorities are the `sk-kernel`
@@ -46,6 +48,11 @@
 //! (`os_locale`), never from a locale-name suffix guess; undecidable native
 //! facts are truthful capability failures, not source refusals.
 
+// Reuse the integration harness from in-crate oracle tests without publishing
+// private implementation modules merely for test access.
+#[cfg(test)]
+extern crate self as sk_invocation;
+
 mod error;
 mod legacy_json;
 mod modes;
@@ -59,12 +66,18 @@ mod python_json;
 mod python_os_encoding;
 mod python_unicode;
 mod record;
+mod router;
+#[cfg(test)]
+mod router_oracle_tests;
+mod router_unicode;
+mod router_unicode_data;
 mod writer;
 
 pub use error::{
     InvocationError, InvocationIdError, LegacyRecordError, RecordParseError, RecordValidationError,
     UnknownEntryCommand,
 };
+pub use legacy_json::{InvalidCodepoint, PythonString};
 pub use modes::{
     ENTRY_COMMAND_MODES, ModeOfWork, RecordedMode, classify_mode_of_work, derive_mode,
     mode_permits_evidence,
@@ -88,6 +101,11 @@ pub use python_json::python_repr;
 pub use record::{
     ClosedBy, InvocationId, OpCompletedEvent, OpCompletedFields, OpEvent, OpOutcome,
     OpStartedEvent, OpStartedFields, parse_op_event,
+};
+pub use router::{
+    ActionRouter, CanonicalVerbMatch, RoutableProfile, RouterAlternative, RouterConfidence,
+    RouterDecision, RouterError, RouterErrorCode, STOP_WORDS, canonical_verb,
+    canonical_verb_entries, normalize_tokens,
 };
 pub use writer::{
     CorrelationLink, EVENTS_DIR, INDEX_PATH, IndexWarning, InvocationWriter, OP_CLOSURES_FILENAME,

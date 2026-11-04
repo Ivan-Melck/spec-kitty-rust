@@ -8,7 +8,31 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Pinned post-hook file transport — after `ee60eb5f3`
+## Pure ActionRouter / canonical role defaults — after `1514cf029`
+
+I/O-free caller-snapshot routing preserves Source empty/hint precedence, two-tier
+selection, stable priorities/full alternatives, raw keyword order, exact codepoint
+IDs/requests/errors including NUL/surrogates. Eight role-capability rows now have
+one sk-doctrine home (one LOCAL dependency edge, no new external package). Word/
+lower/FinalSigma facts are pinned CPython3.11.15/UCD14, not Rust Unicode/casefold.
+54 real Source registry cases and all1114112 code points/composed sequences pass;
+coor adds an independent direct suffix context for every point. Effective
+Cased&&!Ignorable4253 and allIgnorable2602 are NOT disjoint Unicode properties:
+actualCased4453 includes200 ignorable points. Facts stay private; five oracle tests
+move into the crate, so no test-only public module or extra suite remains.
+
+Current **2472/0/19helpers/194suites**, Git444+invocation268+doctrine178 scoped
+890/0/14/45. Strict workspace Clippy/fullfmt/invocation+doctrine docs/all-target
+offline/both release CLIs+optimizedinvocation/exact53/generator--check/11Python
+controls/targetedRuff green. Completion599/PERF27/pending/accounting valid0of16
+unchanged. Current12 hashes/chronology/limits `reviews/action-router-disposition.md`,
+evidence `/tmp/sk-router-integration.d6ZqNS/command-log-index.tsv`. New-feature
+Sigma bugs not pre-existing1514 regressions; compiler/fixture/style/setup fails
+not business reds. Coordinator verified, independent review pending. Router is
+NOT catalogue/executor/governance/StepContract/CLI or a protected-main/workflow/
+performance fix; DoctrineP5/P6/P7 and Sourceargv gaps remain required.
+
+## Historical pinned post-hook file transport — after `ee60eb5f3`
 
 Source pinned `commit-tree -F` consumes the actual hook-written file: large body,
 empty message and symlink target are allowed. Native redundant cleanup/capped/
