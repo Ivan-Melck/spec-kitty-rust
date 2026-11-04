@@ -28,9 +28,13 @@ controls/targetedRuff green. Completion599/PERF27/pending/accounting valid0of16
 unchanged. Current12 hashes/chronology/limits `reviews/action-router-disposition.md`,
 evidence `/tmp/sk-router-integration.d6ZqNS/command-log-index.tsv`. New-feature
 Sigma bugs not pre-existing1514 regressions; compiler/fixture/style/setup fails
-not business reds. Coordinator verified, independent review pending. Router is
-NOT catalogue/executor/governance/StepContract/CLI or a protected-main/workflow/
-performance fix; DoctrineP5/P6/P7 and Sourceargv gaps remain required.
+not business reds. Independent NARROW PASS at6b1 now verifies446 scoped/strict/exact53/fail-closed/
+generator11/all12hashes/exact17files and46 own Source-first real-registry/public
+native API pairs (full fields/order/errors). No blocking finding or code-change
+request; doc-only closeout leaves all source bytes identical. Parent aggregate/
+release/completion are citation-only for the reviewer. Router is NOT catalogue/
+executor/governance/StepContract/CLI or a protected-main/workflow/performance fix;
+DoctrineP5/P6/P7 and Sourceargv gaps remain required.
 
 ## Historical pinned post-hook file transport — after `ee60eb5f3`
 

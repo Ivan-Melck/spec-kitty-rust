@@ -1,9 +1,36 @@
 # Pure ActionRouter / canonical role defaults — coordinator integration
 
 Follow-up to published `1514cf029eb9e8ffe0da8709b9ef381119b49cbd`.
-**Coordinator-verified new library slice; independent review pending.** Not a
-catalogue/executor/CLI/StepContract/workflow or performance approval.
+**Independent NARROW PASS at `6b1c8fae738a09a580e79309bcdec8978563130d`.**
+Not a catalogue/executor/CLI/StepContract/workflow or performance approval.
 Provisional `/tmp/sk-router-integration-plan.md` preceded integration probes.
+
+## Independent review
+
+Final `/tmp/sk-rust-action-router-review.md`, sha256
+`fed04220e31f2256615b2e5e1ab00e7551e586929dbd86eb9024225da7192296`.
+Original provisional under
+`/tmp/sk-router-6b1-renata-20261104T145151Z/provisional/`, sha256
+`3035d81e599cc21b7806f8c59040352b6eb11ae7a1fd7639e4b2ac23785a5991`,
+original mtime14:51:48.814709967 preserved. Evidence root
+`/tmp/sk-router-6b1-renata-20261104T145151Z`, manifest `EVIDENCE.md` sha256
+`227df53439e8a7dbe0d6a24f546ef23931571a761bd25d83c5d8745512e42fb5`.
+
+Reviewer reproduced446/0/3 helpers/15 suites (invocation268/doctrine178), strict
+scoped Clippy/fmt/docs/lockedoffline/exact53 and missing/drift/foreign fail-closed,
+generator--check/11 controls/targetedRuff, all12bindings/exact17files/clean fixed
+subject. Own46 Source-FIRST real ProfileRegistry/public-native-API pairs compare
+ALL typed fields/order/errors, including keyword/collaboration case/order,
+first-role/token/ties/alternatives, custom roles, controls/NUL/Cs/astral and
+repr sorting, Sigma overlap/long contexts/İ/UCD14 categories. All46 equal; no
+blocking finding or code-change request. Setup/fixture first failures are not
+product reds. No new implementation review was fabricated for this docs-only
+closeout; all12 source/test/manifest bytes remain identical to the review.
+
+Display is diagnostic, not wire/log-safe; snapshots are caller-projected valid
+Source profiles. No new hardening policy for out-of-contract projections. Parent
+aggregate2472/release/completion/performance are citations, NOT reviewer gates.
+No broader approval or inventory promotion follows.
 
 ## Actual implemented authority
 
