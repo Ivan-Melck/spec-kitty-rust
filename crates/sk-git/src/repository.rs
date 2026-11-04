@@ -247,7 +247,8 @@ impl GitRepository {
     /// For a captured selector the final component is preserved as spelled (a
     /// symlinked index path is not resolved). Without a selector this is the
     /// checkout's own `<git-dir>/index`, resolved lazily because it needs a git
-    /// probe.
+    /// probe. This is the spelling git receives; it is not the lock name — see
+    /// [`GitRepository::operator_index_lock_path`].
     pub fn operator_index_path(&self) -> Result<PathBuf, GitError> {
         match self.index.explicit_path() {
             Some(path) => Ok(path.to_path_buf()),
@@ -255,20 +256,24 @@ impl GitRepository {
         }
     }
 
-    /// The lock file git uses for this handle's operator index.
+    /// The lock file git itself uses for this handle's operator index.
     ///
-    /// This is the index authority's own `.lock`, not always
-    /// `<git-dir>/index.lock`, so a custom index is locked and checked where
-    /// git locks it.
+    /// Git's lock setup chases a symlinked final path component and creates
+    /// `<resolved target>.lock`, both for a captured `GIT_INDEX_FILE` and for a
+    /// `.git/index` that is itself a symlink; locking `<spelled>.lock` would not
+    /// exclude git for those spellings. This is the canonical endpoint Native
+    /// operator-index lock checks and artifact acquisition use. Operator Git
+    /// commands retain the raw selector and resolve their own endpoint.
+    ///
+    /// The endpoint is derived when it is observed, never frozen when the
+    /// handle opened: a symlink may legally be retargeted between a plan and its
+    /// apply, and the plan's index authority is the captured spelling, not a
+    /// resolved path. The spelled candidate remains available on
+    /// [`OperatorIndex::explicit_lock_path`].
     pub fn operator_index_lock_path(&self) -> Result<PathBuf, GitError> {
-        match self.index.explicit_lock_path() {
-            Some(path) => Ok(path.to_path_buf()),
-            None => {
-                let mut lock = self.operator_index_path()?.into_os_string();
-                lock.push(".lock");
-                Ok(PathBuf::from(lock))
-            }
-        }
+        Ok(crate::index_authority::lock_path_for(
+            &crate::index_authority::resolve_final_symlink(&self.operator_index_path()?),
+        ))
     }
 
     /// The per-worktree `COMMIT_EDITMSG` path, resolved by git itself.

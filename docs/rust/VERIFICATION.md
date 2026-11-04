@@ -8,7 +8,35 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Artifact independent review / acquisition follow-up — after `5afb1b018`
+## Canonical captured-index lock endpoint — after `27e350dcb`
+
+Real Git2.43 locks `<resolved-index-target>.lock`, not the final symlink's
+spelled alias. One resolver now feeds the existing authoritative repository
+lock getter at observation/apply time; raw captured GIT_INDEX_FILE and public
+spelled getters stay stable. Five readlink attempts/stop-on-error/final-only
+chase measured, no invented hardening or Unsupported refusal. Source-first
+external helper positives precede actual Native pre-fix hook-write/foreign-lock
+publication reds. Permanent owner regressions were Native controls; coordinator
+adds a live Source-FIRST relative/absolute pair with identical full objects,
+artifact bytes and correct captured requested/unrelated/default-index footprint.
+
+**2395/0/17helpers/193suites**, Git393+Op245 included; scoped638/0/12/39.
+Strict workspace Clippy/fmt/Git+Op docs/all-target lockedoffline, both release
+CLIs+optimizedOp/exact53 green. Completion599/PERF27/pending/accountingvalid0of16.
+Current4bindings/gatelogs/chronology `crates/sk-git/INDEX-LOCK-ENDPOINT-INTEGRATION-REPORT.md`
+and `/tmp/sk-index-lock-integration.wI8Ac2/command-log-index.tsv`.
+First aggregate chain timed out mid-Op without receipt; no processes remained,
+fresh standalone/final-exact aggregates completed. Logs retained, partial1354
+not a green count. Owner provisional07:45:40 follows orientation07:44:49, not
+“before any probe”; historical report qualified, original copy preserved.
+
+No transaction/CAS/Op runtime/Kernel/Workspace/CLI/Source/manifests/pins/corpus
+change. Fresh endpoint review pending. Hook-retarget/post-CAS/check-unlink/F1
+rare identity-I/O/platform/message/full-phase gaps remain required. Whole-index
+pre-image recovery and new Unix/symlink refusals were not authorized as the
+staging bridge (`reviews/source-staging-bridge-assessment.md`).
+
+## Artifact independent review / acquisition follow-up — historical after `5afb1b018`
 
 Independent narrow PASS WITH FINDINGS at5afb reproduces Git373/Op245/scoped
 618/0/12helpers39suites, strict/docs/offline/exact53/12bindings/164SBOM. Own

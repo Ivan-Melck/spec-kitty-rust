@@ -863,6 +863,125 @@ fn captured_custom_index_keeps_default_index_bytes_source_then_native() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn a_symlinked_captured_index_excludes_hook_writes_source_then_native() {
+    use std::os::unix::fs::symlink;
+    for absolute_target in [false, true] {
+        let sandbox = tempfile::tempdir().unwrap();
+        let io = Io::create(sandbox.path());
+        let source = fixture(&io, false);
+        let native = fixture(&io, false);
+        for side in [&source, &native] {
+            fs::write(side.worktree.join("unrelated.cfg"), b"staged\n").unwrap();
+            git(&side.io, &side.worktree, &["add", "--", "unrelated.cfg"]);
+            fs::write(side.worktree.join("unrelated.cfg"), b"staged\nunstaged\n").unwrap();
+            let real = side.worktree.join("operator-real");
+            fs::copy(git_dir(side).join("index"), &real).unwrap();
+            let target = if absolute_target {
+                real
+            } else {
+                PathBuf::from("operator-real")
+            };
+            symlink(target, side.worktree.join("operator-link")).unwrap();
+            install(
+                side,
+                "pre-commit",
+                r#"d=$(git rev-parse --absolute-git-dir) || exit 8
+printf 'hook write\n' > hook-added.txt
+before=$(git hash-object --no-filters operator-real) || exit 9
+if test -f operator-real.lock; then held=yes; else held=no; fi
+GIT_INDEX_FILE=operator-link git add --force -- hook-added.txt > "$d/operator-attempt-output" 2>&1
+status=$?
+after=$(git hash-object --no-filters operator-real) || exit 10
+printf 'held=%s\nexit=%s\nbefore=%s\nafter=%s\n' "$held" "$status" "$before" "$after" > "$d/operator-attempt""#,
+            );
+        }
+        let source_default = read_git_file(&source, "index");
+        let native_default = read_git_file(&native, "index");
+        let source_result =
+            run_source_with_index(&source, "work", MESSAGE, Some(Path::new("operator-link")));
+        assert!(
+            source_ok(&source_result),
+            "Source must commit first: {source_result}"
+        );
+        let assert_observation = |side: &Fixture| {
+            let observation = git_dir_text(side, "operator-attempt");
+            let field = |key: &str| {
+                observation
+                    .lines()
+                    .find_map(|line| line.strip_prefix(key))
+                    .expect("hook records every ownership field")
+            };
+            assert_eq!(field("held="), "yes", "{observation}");
+            assert_eq!(field("exit="), "128", "{observation}");
+            assert_eq!(
+                field("before="),
+                field("after="),
+                "hook must not change the captured index"
+            );
+            assert!(
+                fs::symlink_metadata(side.worktree.join("operator-link"))
+                    .unwrap()
+                    .file_type()
+                    .is_symlink()
+            );
+            assert!(!side.worktree.join("operator-real.lock").exists());
+            assert!(!side.worktree.join("operator-link.lock").exists());
+            for (path, expected) in [
+                ("unrelated.cfg", b"staged\n".as_slice()),
+                (REQUESTED, b"{\"k\":2}\n".as_slice()),
+            ] {
+                let mut command = Command::new("git");
+                command
+                    .current_dir(&side.worktree)
+                    .env_clear()
+                    .env(
+                        "PATH",
+                        std::env::var_os("PATH").unwrap_or_else(|| "/usr/bin:/bin".into()),
+                    )
+                    .env("GIT_INDEX_FILE", "operator-link")
+                    .args(["show", &format!(":{path}")]);
+                side.io.apply(&mut command);
+                let output = command.output().unwrap();
+                assert!(
+                    output.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                assert_eq!(output.stdout, expected, "the captured index's {path}");
+            }
+            assert_eq!(
+                fs::read(side.worktree.join("unrelated.cfg")).unwrap(),
+                b"staged\nunstaged\n"
+            );
+        };
+        assert_observation(&source); // a Native assertion cannot hide a Source failure
+        let native_result =
+            run_native_with_index(&native, "work", MESSAGE, Some(Path::new("operator-link")));
+        assert!(result_ok(&native_result), "{native_result}");
+        assert_observation(&native);
+        assert_eq!(read_git_file(&source, "index"), source_default);
+        assert_eq!(read_git_file(&native, "index"), native_default);
+        assert_eq!(
+            git(
+                &source.io,
+                &source.worktree,
+                &["cat-file", "commit", "HEAD"]
+            ),
+            git(
+                &native.io,
+                &native.worktree,
+                &["cat-file", "commit", "HEAD"]
+            )
+        );
+        assert_eq!(
+            fs::read(artifact_absolute(&source)).unwrap(),
+            fs::read(artifact_absolute(&native)).unwrap()
+        );
+    }
+}
+
 #[test]
 fn losing_the_owned_index_lock_never_publishes_under_a_foreign_replacement() {
     for phase in ["pre-commit", "prepare-commit-msg", "commit-msg"] {
