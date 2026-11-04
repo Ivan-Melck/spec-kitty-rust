@@ -1,8 +1,18 @@
 # Upstream reconciliation: current fork, older rewrite baseline
 
 Fork REMOTE `origin/main` and upstream remote `main` both resolve to
-`4d9c95313f7a355cbb2179ca61ab6045d7c7529b` (fork fast-forwarded and both remotes
-rechecked). Total historical gap: **706 commits**. Latest one afterde5f4dc5f
+`15ab392163b82741638d45eed20036216cc6c260` (fork fast-forwarded and both remotes
+rechecked). Total historical gap: **718 commits**. Latest12 after4d9c95313
+change77files(+1368/-3). Four source files(+24/-3): compiler moves a function-local
+ActiveCharterService import before its inert annotation (reading-order change),
+events resolves the same default Enum member by registry name rather than value,
+identity backfill states tracked.unavailable's refusal invariant as an assertion,
+and tracked_meta_notice documents that invariant. New-code shape guard was added
+then retired in this tail; final diff is mainly Mission/Op/lifecycle/evidence/docs
+records. Source normal-path equivalence stated by upstream is not Native adoption.
+No dependency/pack/service/toolchain pins; all source/fixtures/oracle unchanged on
+rewrite. Evidence `/tmp/sk-artifact-review-followup.Y2A3QW/upstream-tail-refresh.aofWGp.log`
+and `upstream-tail-source-and-pins.yhDh5B.log`. Preceding one afterde5f4dc5f
 changes only docs/development/docs-retrieval-index.yaml (+2 lines); no source or
 pin change. Evidence `/tmp/sk-commit-artifact-integration.96Bf02/upstream-tail-refresh.wiAVFZ.log`.
 Local main remains stale/unchanged; active Source/oracle baseline is not adopted

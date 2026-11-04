@@ -696,7 +696,6 @@ impl MessageCleanup {
 /// same identity this process created and no replacement has taken the path.
 struct OperatorIndexLock {
     path: PathBuf,
-    file: File,
     // Keep the identity handle open: Windows file identifiers can be reused
     // after the last handle closes. No fabricated zero IDs or mtime heuristics.
     identity: same_file::Handle,
@@ -724,16 +723,16 @@ impl OperatorIndexLock {
                     }
                 }
             })?;
-        let identity = file
-            .try_clone()
-            .and_then(same_file::Handle::from_file)
+        // Transfer the already-open descriptor instead of duplicating it after
+        // create_new: EMFILE must not turn successful creation into a leaked
+        // lock. The handle also supplies the writable File for its whole life.
+        let identity = same_file::Handle::from_file(file)
             .map_err(|source| GitError::SafeCommitIndexLockUnavailable {
                 path: path.clone(),
-                detail: format!("capture the created lock identity: {source}"),
+                detail: format!("created the lock, but its identity could not be captured: {source}; a possible leftover at this path is not safe to unlink by name alone"),
             })?;
         Ok(Self {
             path,
-            file,
             identity,
             pid: std::process::id(),
         })
@@ -760,9 +759,10 @@ impl OperatorIndexLock {
 
     fn write_body(&mut self, bytes: &[u8]) -> Result<(), GitError> {
         self.ensure_owned()?;
-        self.file
+        self.identity
+            .as_file_mut()
             .write_all(bytes)
-            .and_then(|_| self.file.flush())
+            .and_then(|_| self.identity.as_file_mut().flush())
             .map_err(|source| GitError::SafeCommitIndexLockUnavailable {
                 path: self.path.clone(),
                 detail: source.to_string(),
@@ -1524,6 +1524,85 @@ fn commit_is_signed(process: &GitProcess) -> Result<bool, GitError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn acquiring_the_lock_needs_no_duplicate_descriptor() {
+        const CHILD: &str = "SK_INDEX_LOCK_DESCRIPTOR_CHILD";
+        if let Some(path) = std::env::var_os(CHILD) {
+            assert_eq!(
+                std::env::current_dir().unwrap(),
+                PathBuf::from(std::env::var_os("HOME").unwrap())
+            );
+            let mut fillers = Vec::new();
+            loop {
+                match File::open("/dev/null") {
+                    Ok(file) => fillers.push(file),
+                    Err(error) => {
+                        assert_eq!(
+                            error.raw_os_error(),
+                            Some(24),
+                            "bounded child reaches EMFILE"
+                        );
+                        break;
+                    }
+                }
+            }
+            drop(
+                fillers
+                    .pop()
+                    .expect("leave exactly one descriptor for create_new"),
+            );
+            let path = PathBuf::from(path);
+            let result = OperatorIndexLock::acquire(path.clone());
+            drop(fillers); // permit the normal path-identity check during Drop
+            let lock = result.expect("identity must use the created descriptor, not dup it");
+            lock.ensure_owned().unwrap();
+            drop(lock);
+            assert!(!path.exists(), "the acquired lock is released normally");
+            return;
+        }
+        let sandbox = tempfile::tempdir().unwrap();
+        let home = sandbox.path().join("home");
+        fs::create_dir_all(&home).unwrap();
+        let mut child = std::process::Command::new("prlimit");
+        child
+            .args(["--nofile=64:64", "--"])
+            .arg(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "safe_commit_transaction::tests::acquiring_the_lock_needs_no_duplicate_descriptor",
+                "--nocapture",
+            ])
+            .current_dir(&home)
+            .env_clear()
+            .env(
+                "PATH",
+                std::env::var_os("PATH").unwrap_or_else(|| "/usr/bin:/bin".into()),
+            )
+            .env("HOME", &home)
+            .env(CHILD, sandbox.path().join("index.lock"));
+        for variable in [
+            "TMPDIR",
+            "XDG_CONFIG_HOME",
+            "XDG_CACHE_HOME",
+            "XDG_DATA_HOME",
+            "XDG_STATE_HOME",
+        ] {
+            let directory = sandbox.path().join(variable);
+            fs::create_dir_all(&directory).unwrap();
+            child.env(variable, directory);
+        }
+        let result = child
+            .output()
+            .expect("Linux FD regression requires prlimit");
+        assert!(
+            result.status.success(),
+            "FD regression child: {} {}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
 
     #[test]
     fn owned_index_lock_identity_survives_our_body_write() {

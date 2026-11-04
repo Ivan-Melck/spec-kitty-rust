@@ -1,11 +1,11 @@
 //! Source-first controls for the ordinary-worktree `COMMIT_EDITMSG` artifact.
 //!
-//! Every case builds two identical fixtures: the live pinned Python
-//! `safe_commit` runs first on one, then the native `GitRepository::safe_commit`
-//! runs on the other in its own child process with a temporary CWD and all
-//! isolated roots. The source side is asserted before the native side, so a
-//! native refusal is a red against an observed source success, never against a
-//! frozen expectation.
+//! Source-comparison cases build two identical fixtures: live pinned Python
+//! `safe_commit` runs first, then native `GitRepository::safe_commit` runs in
+//! its own child with a temporary CWD and isolated roots. The source side is
+//! asserted first, so native refusal cannot mask an unobserved source result.
+//! Separate native ownership-contract controls are positive fault injections,
+//! not Source comparisons or invented Source business reds.
 //!
 //! The corpus in `fixtures/safe_commit/` is unchanged: this file is a live
 //! acceptance layer for facts (argv spelling, artifact timing, object
@@ -346,6 +346,16 @@ fn run_native_with_index(
     message: &str,
     custom_index: Option<&Path>,
 ) -> String {
+    run_native_using(fixture, destination, message, custom_index, None)
+}
+
+fn run_native_using(
+    fixture: &Fixture,
+    destination: &str,
+    message: &str,
+    custom_index: Option<&Path>,
+    program: Option<&Path>,
+) -> String {
     let out = fixture
         .repo_root
         .parent()
@@ -375,6 +385,9 @@ fn run_native_with_index(
         .arg(message)
         .arg(REQUESTED)
         .arg(&out);
+    if let Some(program) = program {
+        command.arg(program);
+    }
     let output = command.output().expect("run native helper");
     assert!(
         output.status.success(),
@@ -420,11 +433,35 @@ fn artifact_native_helper() {
     let message = rest[2];
     let requested = GitPath::from_git_bytes(rest[3].as_bytes()).expect("path");
     let out = PathBuf::from(rest[4]);
-    let repository = GitRepository::open(&worktree).expect("open fixture");
+    let options = sk_git::GitOptions {
+        program: rest
+            .get(5)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| "git".into()),
+        ..Default::default()
+    };
+    let repository = GitRepository::open_with_options(&worktree, &options).expect("open fixture");
     let request = SafeCommitRequest::new(destination, message, [requested]);
     let report = match repository.safe_commit(&request) {
         Ok(outcome) => format!("result=ok\ncommit={}\n", outcome.commit()),
-        Err(error) => format!("result=error\nerror={error:?}\n"),
+        Err(error) => {
+            let extra = match &error {
+                sk_git::GitError::SafeCommitAdvanceUnconfirmed {
+                    candidate,
+                    observed_tip,
+                    ..
+                } => format!(
+                    "candidate={}\nobserved_tip={}\n",
+                    candidate,
+                    observed_tip
+                        .as_ref()
+                        .map(|tip| tip.as_str())
+                        .unwrap_or("<unreadable>")
+                ),
+                _ => String::new(),
+            };
+            format!("result=error\nerror={error:?}\n{extra}")
+        }
     };
     fs::write(out, report).unwrap();
 }
@@ -828,7 +865,7 @@ fn captured_custom_index_keeps_default_index_bytes_source_then_native() {
 
 #[test]
 fn losing_the_owned_index_lock_never_publishes_under_a_foreign_replacement() {
-    for phase in ["pre-commit", "commit-msg"] {
+    for phase in ["pre-commit", "prepare-commit-msg", "commit-msg"] {
         let sandbox = tempfile::tempdir().unwrap();
         let native = fixture(&Io::create(sandbox.path()), false);
         let before = git_line(&native.io, &native.worktree, &["rev-parse", "HEAD"]);
@@ -860,6 +897,80 @@ fn losing_the_owned_index_lock_never_publishes_under_a_foreign_replacement() {
             );
         }
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn post_object_lock_loss_retains_the_real_candidate_without_publishing() {
+    let sandbox = tempfile::tempdir().unwrap();
+    let native = fixture(&Io::create(sandbox.path()), false);
+    let before = git_line(&native.io, &native.worktree, &["rev-parse", "HEAD"]);
+    let wrapper = native.worktree.join("git-post-object-wrapper.sh");
+    fs::write(&wrapper, "#!/bin/sh\nreal=$(command -v git) || exit 8\nfor a in \"$@\"; do\n if [ \"$a\" = commit-tree ]; then\n  \"$real\" \"$@\"; result=$?\n  if [ \"$result\" = 0 ]; then\n   d=$(\"$real\" rev-parse --absolute-git-dir) || exit 9\n   mv \"$d/index.lock\" \"$d/attempt-owned-lock\" || exit 10\n   printf 'post-object foreign\\n' > \"$d/index.lock\"\n  fi\n  exit \"$result\"\n fi\ndone\nexec \"$real\" \"$@\"\n").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let result = run_native_using(&native, "work", MESSAGE, None, Some(&wrapper));
+    assert!(result.contains("SafeCommitAdvanceUnconfirmed"), "{result}");
+    assert!(result.contains("do not assume nothing happened"));
+    let candidate = result
+        .lines()
+        .find_map(|line| line.strip_prefix("candidate="))
+        .expect("actual candidate from typed backend error");
+    assert_eq!(
+        git(&native.io, &native.worktree, &["cat-file", "-t", candidate]),
+        b"commit\n"
+    );
+    assert_eq!(
+        git_line(&native.io, &native.worktree, &["rev-parse", "HEAD"]),
+        before
+    );
+    assert!(
+        result
+            .lines()
+            .any(|line| line == format!("observed_tip={before}"))
+    );
+    assert_eq!(
+        fs::read(git_dir(&native).join("index.lock")).unwrap(),
+        b"post-object foreign\n"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlink_replacement_is_not_owned_or_removed() {
+    let sandbox = tempfile::tempdir().unwrap();
+    let native = fixture(&Io::create(sandbox.path()), false);
+    let before = git_line(&native.io, &native.worktree, &["rev-parse", "HEAD"]);
+    let foreign = git_dir(&native).join("foreign-lock-target");
+    fs::write(&foreign, b"preserve foreign target\n").unwrap();
+    // A hook replaces the name, not the held file. Neither link nor target
+    // becomes ours, regardless of the target's contents or mode.
+    install(
+        &native,
+        "prepare-commit-msg",
+        "d=$(git rev-parse --absolute-git-dir) || exit 7\nmv \"$d/index.lock\" \"$d/attempt-owned-lock\" || exit 8\nln -s foreign-lock-target \"$d/index.lock\" || exit 9",
+    );
+    let result = run_native(&native, "work", MESSAGE);
+    assert!(!result_ok(&result), "{result}");
+    assert_eq!(
+        git_line(&native.io, &native.worktree, &["rev-parse", "HEAD"]),
+        before
+    );
+    assert_eq!(
+        fs::read_link(git_dir(&native).join("index.lock")).unwrap(),
+        PathBuf::from("foreign-lock-target")
+    );
+    assert_eq!(fs::read(foreign).unwrap(), b"preserve foreign target\n");
+    // Keep the platform-specific symlink exercise explicit; no Windows proof.
+    assert!(
+        std::fs::symlink_metadata(git_dir(&native).join("index.lock"))
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
 }
 
 #[test]

@@ -1,5 +1,11 @@
 # COMMIT_EDITMSG / ordinary hook artifact — implementation report
 
+Review/follow-up: `docs/rust/reviews/commit-artifact-disposition.md` now records
+narrow independent approval at5afb and current2378/Git376 gates. F2 correction:
+the05:54:08 Source-first business red is `red-git-primary.1TJv6T.log`;
+`red-git-primary.lFET3v.log` is the05:54:01 harness NotFound. Historical text below
+is retained, not a current filename/count/chronology authority.
+
 **Historical owner delivery snapshot.** Current integration/bindings/gates are
 in `COMMIT-ARTIFACT-INTEGRATION-REPORT.md`. Coordinator found a real ownership-
 loss publication red, added phase fences/portable same-file identity and explicit

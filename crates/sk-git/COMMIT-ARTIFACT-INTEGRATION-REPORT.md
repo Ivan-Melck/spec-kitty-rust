@@ -1,6 +1,13 @@
 # Ordinary commit artifact — coordinator integration
 
-Status: **coordinator verified; fresh independent review pending**. Base
+**Historical `5afb1b018` integration snapshot.** Independent review now gives
+NARROW PASS WITH FINDINGS. Current follow-up bindings/gates (Git376/Op245,
+workspace2378) and F1 partial mitigation/F2 corrected citation/F3 required
+staging phase/F4 added controls are in
+`docs/rust/reviews/commit-artifact-disposition.md`. The12 hashes/counts below
+remain the reviewed5afb snapshot, not silently updated hashes.
+
+Status at integration: **coordinator verified; fresh independent review pending**. Base
 `ea7174dbf9cebe37b83956c725f077770a26b80f`; Source/oracle remains
 `9aed3a8012cb5eb22c0128b14d525039f95fea7a`. Provisional coordinator plan
 `/tmp/sk-commit-artifact-integration.md` preceded integration. Owner
@@ -65,7 +72,9 @@ parent checked actual tree/processes before resuming the SAME implementation.
 No production edit/build was then live. Its first compiled red had earlier
 compiler/harness/missing-ignored-helper failures, correctly retained, not business
 reds. Git-level Source-first R1 business red at05:54:08Z:
-`/tmp/sk-commit-artifact-ea717/red-git-primary.lFET3v.log`. Actual Op R1 test was
+`/tmp/sk-commit-artifact-ea717/red-git-primary.1TJv6T.log`. Review F2 corrected
+this filename: previously cited `lFET3v.log` is the05:54:01 harness NotFound,
+not the05:54:08 business red; both original logs remain. Actual Op R1 test was
 added AFTER the fix: consumer-positive proof, not a separately captured Op red.
 
 Exact original report-write tool event is05:48:53.922Z; wrapped repository probe

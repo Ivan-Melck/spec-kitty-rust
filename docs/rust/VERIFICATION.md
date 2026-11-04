@@ -8,7 +8,37 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Ordinary COMMIT_EDITMSG / exact hook argv — after `ea7174dbf`
+## Artifact independent review / acquisition follow-up — after `5afb1b018`
+
+Independent narrow PASS WITH FINDINGS at5afb reproduces Git373/Op245/scoped
+618/0/12helpers39suites, strict/docs/offline/exact53/12bindings/164SBOM. Own
+Source-first probes confirm unchanged timing, cleanup, missing index and
+Source-landed sweep/touch extra paths. Deterministic post-object ownership loss
+retains real candidate/observed old tip/foreign bytes without moving HEAD.
+
+Coordinator removes post-create descriptor duplication (held identity handle
+also writes), adds bounded Linux FD-child and prepare/symlink/post-object
+regressions, corrects red citation to05:54:08 `red-git-primary.1TJv6T.log`
+(previous`lFET3v` was05:54:01 harness NotFound). Positive FD control added AFTER
+inspection-driven fix, not original red-first evidence. Rare identity/fstat
+failure after creation can still leave an unconfirmed lock: explicit typed
+creation/path warning, no unsafe guessed cleanup; remains required. Corrupt-index
+capture/restore error-phase gap remains next-stage work, not waived.
+
+Current **2378/0/17helpers/193suites**, Git376/Op245 included; strict workspace
+Clippy/fmt/Git+Opdocs/offline/both release CLIs+optimizedOp/exact53 green.
+Completion599/PERF27/pending/accountingvalid/0of16. Bindings/disposition/evidence
+`reviews/commit-artifact-disposition.md` and
+`/tmp/sk-artifact-review-followup.Y2A3QW/command-log-index.tsv`. No manifest,
+lock/SBOM/Op-runtime/Kernel/Workspace/CLI/Source/encoder/parser/corpus delta.
+Small follow-up coordinator-tested, not a fresh independent verdict.
+
+Remote mains now15ab39216/latest12(+1368/-3,77files) include compiler-import
+reading order/events Enum default-name lookup/tracked-meta invariant+docs and
+Mission/Op records, no pins. Localmainunchanged/baseline9aed unchanged, historic
+gap718. AllSourceStage7/R2R3R4/full-platform/workflow/performance gaps persist.
+
+## Ordinary COMMIT_EDITMSG / exact hook argv — historical after `ea7174dbf`
 
 Worktree caller routes now use Source's per-worktree artifact: OLD/absent at
 pre-commit, cleaned new file after pre-commit, exact relative/linked Git spelling
