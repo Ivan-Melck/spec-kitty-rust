@@ -48,6 +48,18 @@ use as an operational guard, not a fixed JSON-format or caller-ceiling claim.
 Default4300 integer conversion respects existing PYTHONINTMAXSTRDIGITS startup
 configuration (not a new Spec Kitty knob); floats are not integer-digit-limited.
 
+## Shared Python-string ownership (H1a)
+
+The single PythonString/InvalidCodepoint type, inherent repr method, canonical
+formatter and existing CPython3.11.15/UCD14 printability table belong in Kernel.
+Invocation retains its public names/methods through exact re-exports; no wrapper,
+second nominal type, formatter or dependency cycle. Checked owned/append seams
+preserve the type's valid range including surrogates. The primitive never pairs
+surrogates; legacy JSON pairing remains a reader rule, not a universal YAML rule.
+No manifest/lock/dependency/pin change. See `reviews/shared-python-string-disposition.md`.
+This foundation does not approve the colliding NUL-shadow transport, retype the
+profile API, introduce graph refusals, or fix the Source-valid loader data loss.
+
 ## Portable ordinary-commit lock identity
 
 The ordinary COMMIT_EDITMSG transaction uses Git's existing captured-index lock

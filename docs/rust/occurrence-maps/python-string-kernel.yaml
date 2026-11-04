@@ -36,12 +36,15 @@ exceptions:
   - path: crates/sk-invocation/src/router.rs
     action: manual_review
     reason: Only minimal checked owned-constructor use if needed across the crate boundary; routing semantics and typed fields unchanged.
+  - path: crates/sk-kernel/src/git_topology.rs
+    action: manual_review
+    reason: Coordinator-only single private intra-doc link correction unblocks strict Kernel rustdoc; all non-doc bytes unchanged, no topology policy change.
   - path: crates/sk-invocation/src/op_commit.rs
     action: manual_review
     reason: Only minimal import/checked exact-string append seam if relocation requires it; no encoding, policy, message, staging or publication behavior change.
   - path: scripts/rust/generate_python_repr_unicode.py
     action: manual_review
-    reason: Output destination/doc path follows the facts move; exact53/version/UCD/count/no-overwrite behavior and table numeric bytes unchanged.
+    reason: Output destination/doc path follows the facts move; exact53/version/UCD/count and existing write/check behavior plus table bytes unchanged. Coordinator also folds four formatter hunks, verified AST-identical apart from destination/doc path.
   - path: scripts/rust/tests/test_generate_python_repr_unicode.py
     action: manual_review
     reason: Only necessary source-path bindings follow relocation; no fixture values or required assertions removed.

@@ -15,8 +15,16 @@
 //! other code point below `U+0020` and every code point at or above `U+007F`
 //! is written as `\uXXXX` (lowercase hex), and a supplementary-plane code
 //! point becomes a UTF-16 surrogate pair (`\ud83d\ude00`).
+//!
+//! The canonical CPython `repr()` formatter now lives with the Python-string
+//! primitive in `sk-kernel`; this module re-exports it under the same callable
+//! names so every existing `sk_invocation` path and Op writer behaviour is
+//! unchanged. There is exactly one formatter and one printability table.
 
-use crate::python_unicode;
+pub use sk_kernel::python_repr::python_repr;
+
+#[cfg(test)]
+use sk_kernel::python_repr::python_repr_codepoints;
 
 /// An ordered JSON object rendered the way Python's `json.dumps` renders a dict.
 #[derive(Clone, Debug, Default)]
@@ -99,77 +107,6 @@ fn push_ascii_escape(target: &mut String, character: char) {
     let high = 0xd800 + (adjusted >> 10);
     let low = 0xdc00 + (adjusted & 0x3ff);
     target.push_str(&format!("\\u{high:04x}\\u{low:04x}"));
-}
-
-/// CPython `repr()` for a string, used by operator-facing refusal messages.
-///
-/// This is the `&str` wrapper over the one canonical formatter authority,
-/// the private `python_repr_codepoints` primitive. A `&str` can only hold Unicode scalars, so the
-/// wrapper is used for text that already decoded strictly; the legacy Op reader
-/// passes Python code points (including lone surrogate units) to the same
-/// primitive.
-pub fn python_repr(value: &str) -> String {
-    let codepoints: Vec<u32> = value.chars().map(u32::from).collect();
-    python_repr_codepoints(&codepoints)
-}
-
-/// CPython `repr()` for a sequence of Python string code points.
-///
-/// This is the single `repr` formatting authority in the crate. CPython keeps
-/// printable characters verbatim, writes `\t \n \r` in their short forms,
-/// escapes the chosen quote and `\\`, and writes every other non-printable code
-/// point as `\xNN` below `U+0100`, `\uNNNN` below `U+10000`, otherwise
-/// `\UNNNNNNNN` (lowercase hex, like `unicode_repr`).
-///
-/// Printability is the verified [`crate::python_unicode`] `str.isprintable()`
-/// table, not Rust's `char::is_control()` (which is `Cc` only). A value
-/// containing a single quote but no double quote is double-quoted, exactly like
-/// CPython. Lone surrogate code units are non-printable, so they always escape
-/// and the rendered text is always valid UTF-8.
-pub(crate) fn python_repr_codepoints(codepoints: &[u32]) -> String {
-    let single_quote = u32::from(b'\'');
-    let quote = if codepoints.contains(&single_quote) && !codepoints.contains(&u32::from(b'"')) {
-        u32::from(b'"')
-    } else {
-        single_quote
-    };
-    let mut out = String::with_capacity(codepoints.len() + 2);
-    out.push(char::from_u32(quote).expect("the repr quote is ASCII"));
-    for &code in codepoints {
-        match code {
-            0x5c => out.push_str("\\\\"),
-            0x09 => out.push_str("\\t"),
-            0x0a => out.push_str("\\n"),
-            0x0d => out.push_str("\\r"),
-            code if code == quote => {
-                out.push('\\');
-                out.push(char::from_u32(code).expect("the repr quote is ASCII"));
-            }
-            code if (0x20..0x7f).contains(&code) => {
-                out.push(char::from_u32(code).expect("ASCII printable code point"));
-            }
-            code => push_repr_escape(&mut out, code),
-        }
-    }
-    out.push(char::from_u32(quote).expect("the repr quote is ASCII"));
-    out
-}
-
-/// One non-ASCII/non-printable `repr` escape (`\xNN`, `\uNNNN`, `\UNNNNNNNN`).
-fn push_repr_escape(target: &mut String, code: u32) {
-    if python_unicode::is_printable(code)
-        && let Some(character) = char::from_u32(code)
-    {
-        target.push(character);
-        return;
-    }
-    if code < 0x100 {
-        target.push_str(&format!("\\x{code:02x}"));
-    } else if code < 0x10000 {
-        target.push_str(&format!("\\u{code:04x}"));
-    } else {
-        target.push_str(&format!("\\U{code:08x}"));
-    }
 }
 
 /// CPython `repr()` for an arbitrary JSON value, used in parse-refusal messages.

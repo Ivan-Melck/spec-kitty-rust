@@ -354,7 +354,7 @@ impl RouterError {
         let mut units: Vec<u32> = self.code.as_str().chars().map(u32::from).collect();
         units.extend(": ".chars().map(u32::from));
         units.extend_from_slice(self.suggestion.codepoints());
-        PythonString::from_units(units)
+        PythonString::from_units(units).expect("derived Python code units are in range")
     }
 }
 
@@ -600,7 +600,8 @@ fn decision(
         profile_id: profiles[candidate.profile].profile_id.clone(),
         action: candidate.action,
         confidence: candidate.confidence,
-        match_reason: PythonString::from_units(match_reason),
+        match_reason: PythonString::from_units(match_reason)
+            .expect("derived Python code units are in range"),
         alternatives: candidates
             .iter()
             .enumerate()
@@ -618,7 +619,7 @@ pub fn normalize_tokens(request_text: &PythonString) -> Vec<PythonString> {
         if is_stop_word(run) {
             continue;
         }
-        tokens.push(PythonString::from_units(run.to_vec()));
+        tokens.push(PythonString::from_units(run.to_vec()).expect("split code units are in range"));
     }
     tokens
 }
@@ -678,7 +679,7 @@ fn profile_not_found(
         RouterErrorCode::ProfileNotFound,
         request_text.clone(),
         Vec::new(),
-        PythonString::from_units(units),
+        PythonString::from_units(units).expect("derived Python code units are in range"),
     )
 }
 
@@ -686,7 +687,7 @@ fn reason_explicit_hint(hint: &PythonString) -> PythonString {
     let mut units: Vec<u32> = "explicit profile_hint '".chars().map(u32::from).collect();
     units.extend_from_slice(hint.codepoints());
     units.push(u32::from(b'\''));
-    PythonString::from_units(units)
+    PythonString::from_units(units).expect("derived Python code units are in range")
 }
 
 fn reason_canonical_verb(matched: &CanonicalVerbMatch, role: &PythonString) -> PythonString {
@@ -695,14 +696,14 @@ fn reason_canonical_verb(matched: &CanonicalVerbMatch, role: &PythonString) -> P
     units.extend("' matched ".chars().map(u32::from));
     units.extend_from_slice(role.codepoints());
     units.extend(" canonical verb".chars().map(u32::from));
-    PythonString::from_units(units)
+    PythonString::from_units(units).expect("derived Python code units are in range")
 }
 
 fn reason_domain_keyword(keyword: &PythonString) -> PythonString {
     let mut units: Vec<u32> = "domain keyword '".chars().map(u32::from).collect();
     units.extend_from_slice(keyword.codepoints());
     units.extend("' matched".chars().map(u32::from));
-    PythonString::from_units(units)
+    PythonString::from_units(units).expect("derived Python code units are in range")
 }
 
 /// Code-point equality between Rust text and a Python string.

@@ -23,7 +23,7 @@
 //!
 //! `git_common_dir` follows Git's *lenient* discovery: an incomplete `.git`
 //! directory is ignored and the walk continues, exactly as `git rev-parse`
-//! does. The interim event-log lock uses [`strict_git_common_dir`], which
+//! does. The interim event-log lock uses `strict_git_common_dir`, which
 //! instead refuses a marker that claims HEAD but is not a valid repository.
 //! That is a deliberate, documented safety divergence: it keeps a lock from
 //! silently moving to a different authority, while the parity probes above

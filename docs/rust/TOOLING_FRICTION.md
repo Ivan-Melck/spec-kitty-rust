@@ -1,9 +1,12 @@
 ---
 type: explanation
-updated: 2026-11-03
+updated: 2026-11-04
 audience: software-engineer
 ---
 # Rust rewrite tooling notes
+
+- H1a integration's first aggregate reached the outer300s limit without an exit receipt; one process/artifact inspection found no survivor. A fresh900s-bounded whole-command run passed2485/0/19helpers196suites. Partial output is retained, not counted as success. Scoped docs exposed an existing Kernel private intra-doc link; coordinator fixed the comment, not the gate. Changed-generator Ruff format failed on existing style, reproduced against HEAD; four formatter hunks are AST-identical apart from the authorized destination/doc path. Owner combined test totals were right but per-crate splits were wrong; actual log headings give Kernel208/Invocation272. Current evidence: `/tmp/sk-h1a-integration.ISflPp/command-log-index.tsv`.
+- The installed bulk-edit skill references `docs/api/bulk-edit-gate.md` relative to its skill directory, but that bundled path is absent. The repository's canonical `docs/api/bulk-edit-gate.md` and Source `validate_against_schema` remain available; no substitute schema or runtime gate bypass was introduced. This is a documentation-packaging gap, not a Rust behavior failure.
 
 - Subagent model selection required the exact provider-qualified catalog id, `tokenfactory/deepseek-v4.1-flash-1017`; no alternate model was substituted. Async completion notifications, rather than task polling, drove integration.
 - Rust was absent from the VM. Rustup installed the minimal toolchain; the repository now pins 1.99.1 with formatter and Clippy components. The declared compiler floor matches the tested release line.

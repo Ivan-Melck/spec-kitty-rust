@@ -28,8 +28,8 @@
 //! strings are preserved as code points rather than Rust `String`, so lone and
 //! non-paired `\uD800`-style surrogate escapes parse exactly like CPython and
 //! nested `repr` renders through the one canonical formatter (whose
-//! printability table is the verified CPython 3.11.15 `str.isprintable()` data in
-//! [`crate::python_unicode`]). A used *top-level* string keeps its surrogate code
+//! printability table is the verified CPython 3.11.15 `str.isprintable()` data
+//! owned by `sk-kernel`). A used *top-level* string keeps its surrogate code
 //! points too; encoding the composed message through the application-owned
 //! filesystem encoder is the caller's one late step, so nothing here replaces or
 //! drops a code unit. Integer conversion follows the reference interpreter's
@@ -42,178 +42,18 @@
 //! mutations and the small acceptance band below this native budget remain
 //! explicit compatibility differences.
 
-use crate::python_json::{python_float_repr, python_repr_codepoints};
+use crate::python_json::python_float_repr;
 
 // Verified against the pinned CPython 3.11.15 defaults. In particular the
 // recursion budget is operational, not a claim about a JSON wire-format depth.
 const SOURCE_DEFAULT_RECURSION_BUDGET: usize = 1000;
 const SOURCE_DEFAULT_INTEGER_DIGITS: usize = 4300;
 
-/// A decoded Python `str`: an exact sequence of code points.
-///
-/// Rust `String` cannot hold a lone surrogate code unit, but CPython `str` can
-/// (and `json.loads` produces them from `\uD800`-style escapes), so the units
-/// are kept verbatim. Equality is code-point equality, which is also Python
-/// `dict` key equality: a decoded surrogate pair (one astral scalar) equals the
-/// raw character, while `\uD800` and `\uD800\u0041` are distinct strings.
-///
-/// This is the crate's single Python-string authority. It is also the public
-/// typed code-point path for router/profile data that a Python `str` may carry
-/// (NUL, non-printable text, lone surrogates): no wrapper, lossy conversion or
-/// second string type is introduced beside it. The field stays private and the
-/// public constructors validate `0..=U+10FFFF` (surrogates included, because
-/// they are valid CPython code units). `Display` is an escaped *diagnostic*
-/// rendering, never an authoritative wire form; [`PythonString::codepoints`]
-/// and [`PythonString::repr`] carry the exact data.
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PythonString(Vec<u32>);
-
-/// A code unit that cannot be a Python string code point (`> U+10FFFF`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct InvalidCodepoint {
-    code: u32,
-}
-
-impl InvalidCodepoint {
-    /// The rejected value.
-    pub fn code(self) -> u32 {
-        self.code
-    }
-}
-
-impl std::fmt::Display for InvalidCodepoint {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "U+{:X} is not a Python string code point (maximum U+10FFFF)",
-            self.code
-        )
-    }
-}
-
-impl std::error::Error for InvalidCodepoint {}
-
-impl std::fmt::Display for PythonString {
-    /// Escaped diagnostic rendering (non-scalar code units always escape).
-    ///
-    /// Not a wire form: use [`PythonString::codepoints`] for exact data.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut units = String::with_capacity(self.0.len());
-        for &code in &self.0 {
-            match char::from_u32(code) {
-                Some(character) => units.push(character),
-                None => units.push_str(&format!("\\u{code:04x}")),
-            }
-        }
-        formatter.write_str(&units)
-    }
-}
-
-impl PythonString {
-    /// A validated code-point string from explicit code units.
-    ///
-    /// Every unit must be `0..=U+10FFFF`; surrogate units are accepted because a
-    /// CPython `str` may hold them. This is the typed codepoint path the router
-    /// uses for request text, ids, hints, keywords and error fields.
-    pub fn from_codepoints(codepoints: &[u32]) -> Result<Self, InvalidCodepoint> {
-        let mut units = Vec::with_capacity(codepoints.len());
-        for &code in codepoints {
-            if code > 0x10ffff {
-                return Err(InvalidCodepoint { code });
-            }
-            units.push(code);
-        }
-        Ok(Self(units))
-    }
-
-    /// Take already-validated code units (internal fast path).
-    pub(crate) fn from_units(units: Vec<u32>) -> Self {
-        debug_assert!(units.iter().all(|&code| code <= 0x10ffff));
-        Self(units)
-    }
-
-    /// A code-point string from Rust text (each scalar kept verbatim).
-    ///
-    /// Infallible: every Unicode scalar is a valid Python string code point.
-    /// Use [`PythonString::from_codepoints`] for the exact typed path that also
-    /// accepts surrogate code units.
-    pub fn from_scalars(text: &str) -> Self {
-        let mut string = Self::default();
-        string.push_scalars(text);
-        string
-    }
-
-    /// Append the code points of ASCII/Unicode text.
-    pub(crate) fn push_scalars(&mut self, text: &str) {
-        self.0.extend(text.chars().map(u32::from));
-    }
-
-    /// Append one Unicode scalar code point.
-    fn push_scalar(&mut self, code: u32) {
-        debug_assert!(char::from_u32(code).is_some(), "{code:#06x} is a scalar");
-        self.0.push(code);
-    }
-
-    /// Append one code unit, including a lone surrogate.
-    fn push_code_unit(&mut self, code: u32) {
-        self.0.push(code);
-    }
-
-    /// The exact code units, in order.
-    pub fn codepoints(&self) -> &[u32] {
-        &self.0
-    }
-
-    /// Whether this string is empty (`str` of length 0).
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// CPython `repr()` through the one canonical formatter.
-    ///
-    /// Shared with the Op writer path, so an `available` list or a diagnostic
-    /// field escapes exactly like the reference instead of inventing a second
-    /// quoting rule.
-    pub fn repr(&self) -> String {
-        python_repr_codepoints(&self.0)
-    }
-
-    /// The text when every code unit is a Unicode scalar.
-    ///
-    /// `Err` names the first surrogate unit, so a caller that needs a Rust
-    /// `String` never silently drops or replaces authored code points.
-    pub fn to_scalar_string(&self) -> Result<String, u32> {
-        let mut out = String::with_capacity(self.0.len());
-        for &code in &self.0 {
-            match char::from_u32(code) {
-                Some(character) => out.push(character),
-                None => return Err(code),
-            }
-        }
-        Ok(out)
-    }
-
-    fn eq_str(&self, key: &str) -> bool {
-        self.0.len() == key.chars().count() && self.0.iter().copied().eq(key.chars().map(u32::from))
-    }
-
-    /// The text when every code unit is a Unicode scalar.
-    ///
-    /// `Err` names the first surrogate unit. Test-only inspection: the Op
-    /// commit path encodes the exact code points through the application-owned
-    /// filesystem encoder ([`crate::python_os_encoding`]) instead.
-    #[cfg(test)]
-    fn to_utf8(&self) -> Result<String, u32> {
-        let mut out = String::with_capacity(self.0.len());
-        for &code in &self.0 {
-            match char::from_u32(code) {
-                Some(character) => out.push(character),
-                None => return Err(code),
-            }
-        }
-        Ok(out)
-    }
-}
+// The canonical Python-string authority now lives in `sk-kernel`; this module
+// re-exports the EXACT same type and error (not a wrapper or a second nominal
+// type). Existing `sk_invocation` paths, methods and traits are retained;
+// kernel and invocation aliases have the same `TypeId` within each build.
+pub use sk_kernel::{InvalidCodepoint, PythonString};
 
 /// Python `str(value)` before UTF-8 encoding.
 ///
@@ -237,7 +77,7 @@ impl PythonText {
     /// table exists.
     pub(crate) fn append_to(&self, out: &mut PythonString) {
         match self {
-            Self::Verbatim(text) => out.0.extend_from_slice(&text.0),
+            Self::Verbatim(text) => out.append(text),
             Self::Rendered(text) => out.push_scalars(text),
         }
     }
@@ -246,10 +86,23 @@ impl PythonText {
     #[cfg(test)]
     pub(crate) fn to_utf8(&self) -> Result<String, u32> {
         match self {
-            Self::Verbatim(text) => text.to_utf8(),
+            Self::Verbatim(text) => units_to_utf8(text.codepoints()),
             Self::Rendered(text) => Ok(text.clone()),
         }
     }
+}
+
+/// Test-only strict UTF-8 projection; the Op path uses the filesystem encoder.
+#[cfg(test)]
+fn units_to_utf8(units: &[u32]) -> Result<String, u32> {
+    let mut out = String::with_capacity(units.len());
+    for &code in units {
+        match char::from_u32(code) {
+            Some(character) => out.push(character),
+            None => return Err(code),
+        }
+    }
+    Ok(out)
 }
 
 /// One decoded `json.loads` value.
@@ -285,7 +138,7 @@ impl LegacyObject {
     pub(crate) fn get(&self, key: &str) -> Option<&LegacyValue> {
         self.entries
             .iter()
-            .find_map(|(name, value)| name.eq_str(key).then_some(value))
+            .find_map(|(name, value)| code_units_eq_str(name.codepoints(), key).then_some(value))
     }
 
     fn is_empty(&self) -> bool {
@@ -299,6 +152,11 @@ impl LegacyObject {
             self.entries.push((key, value));
         }
     }
+}
+
+/// Code-point equality between a Python string and Rust text.
+fn code_units_eq_str(units: &[u32], key: &str) -> bool {
+    units.len() == key.chars().count() && units.iter().copied().eq(key.chars().map(u32::from))
 }
 
 /// Decode the first row as a Python `dict`, or `None` for the invalid cases.
@@ -388,6 +246,11 @@ fn python_repr_value(value: &LegacyValue) -> String {
             format!("{{{}}}", rendered.join(", "))
         }
     }
+}
+
+/// Checked append of one decoded parser unit; parser input is always in range.
+fn push_unit(out: &mut PythonString, code: u32) -> Result<(), ()> {
+    out.push_codepoint(code).map_err(|_| ())
 }
 
 /// A recursive-descent reader for the CPython `json.loads` lexical grammar.
@@ -551,14 +414,14 @@ impl Reader<'_> {
 
     fn escape(&mut self, out: &mut PythonString) -> Result<(), ()> {
         match self.bump().ok_or(())? {
-            b'"' => out.push_scalar(0x22),
-            b'\\' => out.push_scalar(0x5c),
-            b'/' => out.push_scalar(0x2f),
-            b'b' => out.push_scalar(0x08),
-            b'f' => out.push_scalar(0x0c),
-            b'n' => out.push_scalar(0x0a),
-            b'r' => out.push_scalar(0x0d),
-            b't' => out.push_scalar(0x09),
+            b'"' => push_unit(out, 0x22)?,
+            b'\\' => push_unit(out, 0x5c)?,
+            b'/' => push_unit(out, 0x2f)?,
+            b'b' => push_unit(out, 0x08)?,
+            b'f' => push_unit(out, 0x0c)?,
+            b'n' => push_unit(out, 0x0a)?,
+            b'r' => push_unit(out, 0x0d)?,
+            b't' => push_unit(out, 0x09)?,
             b'u' => self.unicode_escape(out)?,
             _ => return Err(()),
         }
@@ -576,22 +439,18 @@ impl Reader<'_> {
     /// left to right (`"\uD800\uD800\uDC00"` is `[U+D800, U+10000]`).
     fn unicode_escape(&mut self, out: &mut PythonString) -> Result<(), ()> {
         let first = self.hex4()?;
-        if (0xd800..=0xdbff).contains(&first) {
-            if self.bytes.get(self.index..self.index + 2) == Some(&b"\\u"[..]) {
-                let second = self.peek_hex4(self.index + 2).ok_or(())?;
-                if (0xdc00..=0xdfff).contains(&second) {
-                    self.index += 6;
-                    let combined = 0x1_0000 + ((first - 0xd800) << 10) + (second - 0xdc00);
-                    out.push_scalar(combined);
-                    return Ok(());
-                }
+        if (0xd800..=0xdbff).contains(&first)
+            && self.bytes.get(self.index..self.index + 2) == Some(&b"\\u"[..])
+        {
+            let second = self.peek_hex4(self.index + 2).ok_or(())?;
+            if (0xdc00..=0xdfff).contains(&second) {
+                self.index += 6;
+                let combined = 0x1_0000 + ((first - 0xd800) << 10) + (second - 0xdc00);
+                push_unit(out, combined)?;
+                return Ok(());
             }
-            out.push_code_unit(first);
-        } else if (0xdc00..=0xdfff).contains(&first) {
-            out.push_code_unit(first);
-        } else {
-            out.push_scalar(first);
         }
+        push_unit(out, first)?;
         Ok(())
     }
 

@@ -3,13 +3,15 @@
 //! This crate is the kernel floor of the Rust workspace: it owns validated
 //! identifier types, bounded and guarded reads, project-root discovery,
 //! contained path resolution, no-op-stable atomic writes, the canonical clock
-//! and digest helpers, the cross-process file lock, and the locked event-log
-//! append protocol. It deliberately has no dependency on any other Spec Kitty
+//! and digest helpers, the cross-process file lock, the locked event-log
+//! append protocol, and the canonical Python `str` code-point plus `repr`
+//! primitives. It deliberately has no dependency on any other Spec Kitty
 //! crate and forbids `unsafe` through the workspace lint.
 
 mod atomic;
 mod bounded;
 pub mod clock;
+mod codepoint;
 mod containment;
 pub mod content_digest;
 mod discovery;
@@ -24,6 +26,8 @@ pub mod locks;
 pub mod no_follow;
 pub mod pack_tiers;
 pub mod paths;
+pub mod python_repr;
+mod python_unicode;
 pub mod reference_path;
 pub mod user_dirs;
 
@@ -32,6 +36,7 @@ pub use atomic::{
     substantively_equal_projected,
 };
 pub use bounded::read_bounded;
+pub use codepoint::{InvalidCodepoint, PythonString};
 pub use containment::resolve_within;
 pub use discovery::discover_project_root;
 pub use error::KernelError;
@@ -53,5 +58,6 @@ pub use paths::{
     resolve_built_in_pack_root, resolve_built_in_pack_root_from, resolve_installed_sibling,
     to_posix,
 };
+pub use python_repr::{python_repr, python_repr_codepoints};
 pub use reference_path::{ReferencePathError, resolve_reference_path};
 pub use user_dirs::{user_cache_dir, user_state_dir};

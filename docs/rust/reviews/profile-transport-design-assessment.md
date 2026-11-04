@@ -96,7 +96,11 @@ no runtime Bulk Edit Gate pass is claimed. First validator invocation used repo
 CWD; it is administrative schema checking, not accepted Source behavior proof;
 repeat uses asserted isolated roots. Original log retained.
 
-Only the H1a primitive relocation is next authorized. No catalogue, reader,
+At this design checkpoint, only the H1a primitive relocation was next authorized.
+It is subsequently implemented and coordinator-verified, with independent review
+pending: [current H1a disposition](shared-python-string-disposition.md). The
+following pre-implementation counts and unchanged-production statement are
+historical. This does not approve or fix the transport POC. No catalogue, reader,
 profile API retype, graph, activation, global serde, Source, corpus or pin edit.
 Production behavior/data remain unchanged so far; current router NARROW PASS,
 2472 coordinator tests,599/PERF27/0-of-16 and full workflow/platform/performance

@@ -8,7 +8,33 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Pure ActionRouter / canonical role defaults — after `1514cf029`
+## Shared PythonString / repr primitive — after `a1802cda6`
+
+One canonical PythonString/InvalidCodepoint plus inherent repr, formatter and
+byte-identical701-range table now live in Kernel; Invocation retains the same
+public aliases/methods. Checked append/owned seams preserve exact NUL/surrogate/
+astral data. Primitive never pairs; legacy JSON reader's pairing is unchanged.
+Seven new Kernel/six alias tests; two existing table unit tests relocated.
+
+Current **2485/0/19helpers/196suites**, Kernel208+Invocation272+Doctrine178 scoped
+658/0/4/39; Git444 unchanged. Owner combined totals are valid; reported per-crate
+splits corrected from actual log headings, original report preserved. Two
+unwrapped orientation probes precede its provisional despite the report's claim;
+activity/original bytes retained and qualified, not reconstructed. Parent gates
+independently bind the actual source. Strict
+workspace Clippy/fullfmt/Kernel+Invocation+Doctrine docs/all-targetoffline/both
+release CLIs+optimizedInvocation/exact53/repr generator6/router generator11/
+targetedRuff+Pythonformat pass. Kernel private-doc link fixed comment-only;
+generator formatter cleanup AST-identical apart from destination/doc path.
+Initial300s aggregate timeout has no receipt; one inspection/no survivors and
+fresh complete run pass. Completion599/PERF27/pending/valid0of16 unchanged.
+Current bindings/receipts/chronology `reviews/shared-python-string-disposition.md`,
+evidence `/tmp/sk-h1a-integration.ISflPp/command-log-index.tsv`. Coordinator
+verified, independent review pending. Profile-loader Source27/Native26 loss and
+colliding NUL-shadow POC remain unfixed/unapproved; no catalogue/executor/graph/
+workflow/platform or performance acceptance follows.
+
+## Historical pure ActionRouter / canonical role defaults — after `1514cf029`
 
 I/O-free caller-snapshot routing preserves Source empty/hint precedence, two-tier
 selection, stable priorities/full alternatives, raw keyword order, exact codepoint
@@ -21,7 +47,7 @@ Cased&&!Ignorable4253 and allIgnorable2602 are NOT disjoint Unicode properties:
 actualCased4453 includes200 ignorable points. Facts stay private; five oracle tests
 move into the crate, so no test-only public module or extra suite remains.
 
-Current **2472/0/19helpers/194suites**, Git444+invocation268+doctrine178 scoped
+Historical **2472/0/19helpers/194suites**, Git444+invocation268+doctrine178 scoped
 890/0/14/45. Strict workspace Clippy/fullfmt/invocation+doctrine docs/all-target
 offline/both release CLIs+optimizedinvocation/exact53/generator--check/11Python
 controls/targetedRuff green. Completion599/PERF27/pending/accounting valid0of16
