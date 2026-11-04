@@ -1,6 +1,10 @@
 # Source-ordered staging / requested recovery — coordinator integration
 
-**Coordinator verified; fresh independent review pending.** Base/published parent
+**Historicalf4d verified snapshot; independent review now narrowly PASS WITH
+FINDINGS.** Current two binding overrides/timestamp-boundary correction/tests/
+gates (Git429/Op246/workspace2432) are in
+`docs/rust/reviews/source-staging-disposition.md`. This report's11 bindings and
+counts remain the reviewedf4d snapshot, not silently current values. Base/published parent
 `fb19c5c52d92c21d71e55610cc3448b5edc1b544`; Source/oracle remains
 `9aed3a8012cb5eb22c0128b14d525039f95fea7a`. No Source/pin/dependency/corpus rebind.
 The two owner reports are historical delivery snapshots, not current bindings.

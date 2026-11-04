@@ -624,6 +624,15 @@ if kind == "surrogate":
     message = "subject" + chr(0xD800)
 elif kind == "nul":
     message = "subject" + chr(0) + "tail"
+elif kind == "equal_index_timestamp":
+    # Source accepts os.PathLike arguments at Popen's argv conversion boundary.
+    # This is a public helper/supplier probe, not the Op str-message surface.
+    class BoundaryMessage:
+        def __fspath__(self):
+            stamp = (Path(worktree) / paths[0]).stat().st_mtime_ns
+            os.utime(Path(worktree) / ".git/index", ns=(stamp, stamp))
+            return "subject"
+    message = BoundaryMessage()
 try:
     safe_commit(
         repo_root=Path(repo_root),
@@ -782,20 +791,29 @@ fn stage_native_helper() {
         }
     };
     let report = match message_kind {
-        "ok" => match repository.apply_safe_physical_commit_with_message(&plan, || {
-            Ok::<CommitMessage, std::io::Error>(CommitMessage::from_text(MESSAGE))
-        }) {
-            Ok(outcome) => format!("result=ok\ncommit={}\n", outcome.commit()),
-            Err(SafeCommitLateMessage::MessageNotProduced(error)) => {
-                format!("result=error\nerror=MessageNotProduced\n{error}\n")
+        "ok" | "equal_index_timestamp" => {
+            match repository.apply_safe_physical_commit_with_message(&plan, || {
+                if message_kind == "equal_index_timestamp" {
+                    let stamp = fs::metadata(worktree.join(rest[4]))?.modified()?;
+                    let file = fs::OpenOptions::new()
+                        .write(true)
+                        .open(worktree.join(".git/index"))?;
+                    file.set_times(fs::FileTimes::new().set_modified(stamp))?;
+                }
+                Ok::<CommitMessage, std::io::Error>(CommitMessage::from_text(MESSAGE))
+            }) {
+                Ok(outcome) => format!("result=ok\ncommit={}\n", outcome.commit()),
+                Err(SafeCommitLateMessage::MessageNotProduced(error)) => {
+                    format!("result=error\nerror=MessageNotProduced\n{error}\n")
+                }
+                Err(SafeCommitLateMessage::MessageRejected(error)) => {
+                    format!("result=error\nerror=MessageRejected\n{error}\n")
+                }
+                Err(SafeCommitLateMessage::Commit(error)) => {
+                    format!("result=error\nerror=Commit\ndebug={error:?}\n{error}\n")
+                }
             }
-            Err(SafeCommitLateMessage::MessageRejected(error)) => {
-                format!("result=error\nerror=MessageRejected\n{error}\n")
-            }
-            Err(SafeCommitLateMessage::Commit(error)) => {
-                format!("result=error\nerror=Commit\ndebug={error:?}\n{error}\n")
-            }
-        },
+        }
         "surrogate" => {
             match repository.apply_safe_physical_commit_with_message(&plan, || {
                 Err::<CommitMessage, std::io::Error>(std::io::Error::new(
@@ -1147,29 +1165,13 @@ fn readonly_message_artifact_restores_requested_staging_source_then_native() {
         fs::set_permissions(&path, fs::Permissions::from_mode(0o444)).unwrap();
     }
     let paths = vec![REQUESTED];
-    eprintln!(
-        "DBG before source p.cfg={:?}",
-        fs::read(source.worktree.join(PARTIAL)).unwrap()
-    );
     let report = run_source(&source, "ok", &paths, "work");
-    eprintln!(
-        "DBG after source p.cfg={:?}",
-        fs::read(source.worktree.join(PARTIAL)).unwrap()
-    );
-    eprintln!(
-        "DBG before native p.cfg={:?}",
-        fs::read(native.worktree.join(PARTIAL)).unwrap()
-    );
     assert!(
         !source_ok(&report),
         "the reference cannot write the artifact"
     );
     assert_eq!(source_error_class(&report), "RuntimeError");
     let native_report = run_native(&native, "ok", &paths, "work");
-    eprintln!(
-        "DBG after native p.cfg={:?}",
-        fs::read(native.worktree.join(PARTIAL)).unwrap()
-    );
     assert!(!native_report.starts_with("result=ok"));
     assert_eq!(
         State::read(&native),
@@ -1376,6 +1378,55 @@ fn recovery_rejection_keeps_the_original_failure_source_then_native() {
 }
 
 #[test]
+fn foreign_index_bytes_survive_requested_patch_recovery_source_then_native() {
+    let (source, native) = twins(Shape::PLAIN);
+    for side in [&source, &native] {
+        side.write(REQUESTED, b"pre-existing requested stage\n");
+        side.git(&["add", "--force", "--", REQUESTED]);
+        side.write(REQUESTED, b"current requested worktree\n");
+        side.install_rejecting_hook(
+            "pre-commit",
+            r#"d=$(git rev-parse --absolute-git-dir) || exit 8
+printf 'FOREIGN INDEX BYTES' > "$d/index""#,
+        );
+    }
+    let source_head = source.git(&["rev-parse", "HEAD"]);
+    let native_head = native.git(&["rev-parse", "HEAD"]);
+    let source_report = run_source(&source, "ok", &[REQUESTED], "work");
+    assert_eq!(
+        source_error_class(&source_report),
+        "SafeCommitRecoveryFailed",
+        "{source_report}"
+    );
+    assert_eq!(
+        fs::read(source.index_file()).unwrap(),
+        b"FOREIGN INDEX BYTES"
+    );
+    assert_eq!(source.git(&["rev-parse", "HEAD"]), source_head);
+    let native_report = run_native(&native, "ok", &[REQUESTED], "work");
+    assert!(
+        native_report.contains("SafeCommitRecoveryFailed"),
+        "{native_report}"
+    );
+    assert!(
+        native_report.contains("original_failure"),
+        "retain the original failure: {native_report}"
+    );
+    assert_eq!(
+        fs::read(native.index_file()).unwrap(),
+        b"FOREIGN INDEX BYTES"
+    );
+    assert_eq!(native.git(&["rev-parse", "HEAD"]), native_head);
+    for side in [&source, &native] {
+        assert!(!side.worktree.join(".git/index.lock").exists());
+        assert_eq!(
+            fs::read(side.worktree.join(REQUESTED)).unwrap(),
+            b"current requested worktree\n"
+        );
+    }
+}
+
+#[test]
 fn a_foreign_index_lock_is_never_taken_or_removed() {
     // Native ownership control: the reference has no equivalent refusal class
     // (its `git add` fails and its own restore also fails), so this asserts the
@@ -1487,6 +1538,46 @@ fn shared_repository_index_permissions_match_after_encoding_failure() {
         assert_eq!(
             observed, expected,
             "core.sharedRepository={shared}: Source staged index mode must be preserved before the same encoding refusal"
+        );
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn shared_repository_lock_mode_matrix_source_then_native() {
+    for shared in ["umask", "group", "all", "0660", "0666", "<bare>"] {
+        let (source, native) = twins(Shape::PLAIN);
+        for side in [&source, &native] {
+            if shared == "<bare>" {
+                let config = side.worktree.join(".git/config");
+                let mut bytes = fs::read(&config).unwrap();
+                bytes.extend_from_slice(b"\n[core]\nsharedRepository\n");
+                fs::write(config, bytes).unwrap();
+            } else {
+                side.git(&["config", "core.sharedRepository", shared]);
+            }
+            side.install_hook(
+                "pre-commit",
+                r#"d=$(git rev-parse --absolute-git-dir) || exit 8
+stat -c %a "$d/index.lock" > "$d/shared-lock-mode" || exit 9"#,
+            );
+        }
+        let source_report = run_source(&source, "ok", &[REQUESTED], "work");
+        assert!(source_ok(&source_report), "{shared}: {source_report}");
+        let expected = fs::read(source.worktree.join(".git/shared-lock-mode")).unwrap();
+        let native_report = run_native(&native, "ok", &[REQUESTED], "work");
+        assert!(
+            native_report.starts_with("result=ok"),
+            "{shared}: {native_report}"
+        );
+        assert_eq!(
+            fs::read(native.worktree.join(".git/shared-lock-mode")).unwrap(),
+            expected,
+            "{shared}: hook-visible lock permissions"
+        );
+        assert_eq!(
+            native.git(&["cat-file", "commit", "HEAD"]),
+            source.git(&["cat-file", "commit", "HEAD"])
         );
     }
 }
@@ -1629,6 +1720,44 @@ fn install_counting_filter(fixture: &Fixture, counter: &Path, stateful: bool) {
     fixture.write(".gitattributes", format!("{REQUESTED} filter=counter\n"));
 }
 
+#[test]
+fn equal_index_and_entry_timestamps_preserve_source_raciness() {
+    let (source, native) = twins(Shape::PLAIN);
+    let source_counter = source
+        .repo_root
+        .parent()
+        .unwrap()
+        .join("source-filter-count");
+    let native_counter = native
+        .repo_root
+        .parent()
+        .unwrap()
+        .join("native-filter-count");
+    for (side, counter) in [(&source, &source_counter), (&native, &native_counter)] {
+        install_counting_filter(side, counter, true);
+        side.git(&["add", "--force", "--", REQUESTED]);
+        side.write(REQUESTED, b"{\"k\":4}\n");
+        set_mtime(side, REQUESTED, 978_307_200);
+        fs::write(counter, b"0").unwrap();
+    }
+    let source_report = run_source(&source, "equal_index_timestamp", &[REQUESTED], "work");
+    assert!(
+        source_ok(&source_report),
+        "actual Source argv-boundary control: {source_report}"
+    );
+    let expected = source.git(&["cat-file", "commit", "HEAD"]);
+    let source_count = counter_value(&source_counter);
+    let native_report = run_native(&native, "equal_index_timestamp", &[REQUESTED], "work");
+    assert!(native_report.starts_with("result=ok"), "{native_report}");
+    assert_eq!(
+        native.git(&["cat-file", "commit", "HEAD"]),
+        expected,
+        "the copied index must retain the source index timestamp at the equal-second/equal-nanosecond racy boundary; source passes={source_count}, native passes={}",
+        counter_value(&native_counter)
+    );
+    assert_eq!(State::read(&native), State::read(&source));
+}
+
 fn counter_value(path: &Path) -> u32 {
     fs::read_to_string(path)
         .ok()
@@ -1768,10 +1897,6 @@ fn a_stateful_clean_filter_preserves_source_object_and_index() {
             );
             let native_count = counter_value(&native_counter);
             let native_log = filter_log(&native_counter);
-            eprintln!(
-                "MEASURED {label} #{repeat}: source={source_count} native={native_count} native_adds={}",
-                stage_add_passes(&native_log)
-            );
             assert_eq!(
                 native_count, source_count,
                 "{label} #{repeat}: the same source algorithm and timestamps must drive the same filter passes\nsource log:\n{source_log}\nnative log:\n{native_log}"

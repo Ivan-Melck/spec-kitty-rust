@@ -1144,11 +1144,37 @@ fn copy_current_operator_index(
     process: &GitProcess,
     index: &ScopedIndex,
 ) -> Result<(), GitError> {
-    match fs::read(operator) {
-        Ok(bytes) => fs::write(index.path(), bytes).map_err(|source| GitError::Io {
-            context: "copy the operator index for the safe-commit stage",
-            source,
-        }),
+    match File::open(operator) {
+        Ok(mut file) => {
+            // Git reads both the entries and the index file timestamp. Replacing
+            // the latter with the private copy's creation time changes the
+            // equal-second/nanosecond racily-clean decision and filter output.
+            let modified = file
+                .metadata()
+                .and_then(|metadata| metadata.modified())
+                .map_err(|source| GitError::Io {
+                    context: "stat the operator index snapshot",
+                    source,
+                })?;
+            let mut bytes = Vec::new();
+            file.read_to_end(&mut bytes)
+                .map_err(|source| GitError::Io {
+                    context: "read the operator index snapshot",
+                    source,
+                })?;
+            fs::write(index.path(), bytes).map_err(|source| GitError::Io {
+                context: "copy the operator index for the safe-commit stage",
+                source,
+            })?;
+            OpenOptions::new()
+                .write(true)
+                .open(index.path())
+                .and_then(|copy| copy.set_times(fs::FileTimes::new().set_modified(modified)))
+                .map_err(|source| GitError::Io {
+                    context: "retain the operator index snapshot timestamp",
+                    source,
+                })
+        }
         Err(source) if source.kind() == std::io::ErrorKind::NotFound => {
             IndexTarget::Scoped(index).checked(process, &["read-tree", "--empty"])?;
             Ok(())

@@ -8,7 +8,29 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Actual Source-ordered staging / requested recovery — after `fb19c5c52`
+## Source staging independent review / timestamp follow-up — after `f4d662f7c`
+
+Independent narrow PASS WITH FINDINGS: Git426/Op246=672/0/13helpers40suites,
+strict scoped/docs/fmt/offline/exact53/all11bindings; own Source/Native foreign
+index recovery preserves bytes/HEAD/no lock. Not whole transaction/platform.
+Coordinator Source-FIRST equal-index/entry timestamp case produces3 Source vs2
+Native filter passes/different trees, then fixes the private copy to retain the
+observed source index mtime. Uses accepted Source os.PathLike argv callback /
+Native supplier, not a claim of Op string callback behavior. Full object/state
+pair now green. Foreign-body recovery and six-value Linux lock mode matrix
+(also child0077) permanently Source-first; DBG/MEASURED prints removed.
+
+Current **2432/0/18helpers/194suites**, Git429/Op246 scoped675/0/13/40. Strict
+workspace Clippy/fmt/Git+Opdocs/lockedoffline/both release CLIs+optimizedOp/
+exact53 green; completion599/PERF27/pending/accountingvalid0of16 unchanged.
+Disposition/current2hash overrides `reviews/source-staging-disposition.md`,
+evidence `/tmp/sk-source-stage-followup.DBNJMk/command-log-index.tsv`. Small
+findings coordinator-fixed, not a fresh independent verdict. Index equality is
+semantic entries/blob/mode/stage/refs/worktree/full objects, NOT raw stat/TREE/
+refresh equivalence. Prepared-message/one-shot footprint and broad process/
+causality/foreign/IO/platform/window/full-workflow/performance gaps remain.
+
+## Actual Source-ordered staging / requested recovery — historical after `fb19c5c52`
 
 Ordinary transaction now captures the requested binary patch, unstages staged
 requested paths against CURRENT HEAD, stages/publishes each path to the real
