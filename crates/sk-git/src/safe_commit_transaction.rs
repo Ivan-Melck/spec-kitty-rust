@@ -689,7 +689,8 @@ impl MessageCleanup {
 
 /// The operator index's own create-new lock, with owned-identity cleanup.
 ///
-/// The file is git's canonical `<captured index>.lock`, not an advisory lock.
+/// The file is Git's resolved final index endpoint plus `.lock`, obtained from
+/// the repository's canonical lock getter, not an advisory or spelled-alias lock.
 /// It is created only for the ordinary worktree route, after the transaction's
 /// state checks and before any hook or artifact write, and held through the
 /// ref compare-and-swap/readback. Cleanup removes the file only when it is the

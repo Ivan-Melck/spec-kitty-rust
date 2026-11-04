@@ -147,8 +147,10 @@ impl OperatorIndex {
     /// The spelled lock candidate `<index spelling>.lock`, or `None` for the
     /// default index.
     ///
-    /// This is what a path check would name if the final component were never a
-    /// symlink. Git resolves a symlinked final component and locks
+    /// Do not use this candidate to check or acquire the operator index lock.
+    /// It is retained for callers recording the captured spelling, not as a
+    /// second lock authority. This is what a path check would name if the final
+    /// component were never a symlink. Git resolves a symlinked final component and locks
     /// `<resolved target>.lock`, so the authoritative endpoint is derived at
     /// observation time by [`GitRepository::operator_index_lock_path`](crate::GitRepository::operator_index_lock_path)
     /// through this module's single final-component resolver. The value here is

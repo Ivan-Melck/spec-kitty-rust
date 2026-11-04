@@ -31,7 +31,11 @@ not a green count. Owner provisional07:45:40 follows orientation07:44:49, not
 “before any probe”; historical report qualified, original copy preserved.
 
 No transaction/CAS/Op runtime/Kernel/Workspace/CLI/Source/manifests/pins/corpus
-change. Fresh endpoint review pending. Hook-retarget/post-CAS/check-unlink/F1
+change. Independent endpoint review narrowly passes638 scoped and own Source/Git/strace
+controls; missing/drift/foreign-oracle controls fail closed. Comment-only stale
+lock/accessor warnings corrected; non-comment bytes remain34c-identical,
+strict docs/fmt/exact53 rerun green. Current binding overrides/disposition
+`reviews/index-lock-endpoint-disposition.md`. Hook-retarget/post-CAS/check-unlink/F1
 rare identity-I/O/platform/message/full-phase gaps remain required. Whole-index
 pre-image recovery and new Unix/symlink refusals were not authorized as the
 staging bridge (`reviews/source-staging-bridge-assessment.md`).

@@ -1,6 +1,9 @@
 # Captured operator-index lock endpoint — coordinator integration
 
-**Verified checkpoint; fresh independent review pending.** Base
+**Historical34c verified snapshot; independent review now NARROW PASS WITH
+FINDINGS.** Current comment-only binding overrides/finding disposition are in
+`docs/rust/reviews/index-lock-endpoint-disposition.md`; executable bytes remain
+identical. The4 hashes/counts below remain the reviewed34c snapshot. Base
 `27e350dcbff372c89c2d15e666a6c6137a061db6`; Source/oracle unchanged at
 `9aed3a8012cb5eb22c0128b14d525039f95fea7a`. Owner report is a historical
 392-Git/3-binding snapshot; this integration has **393 Git / 245 Op / 4 bindings**.
