@@ -610,6 +610,7 @@ fn python() -> PathBuf {
 const SOURCE_DRIVER: &str = r#"
 import os, sys
 from pathlib import Path
+import subprocess
 from specify_cli.git.commit_helpers import safe_commit
 
 home = os.environ["HOME"]
@@ -639,6 +640,11 @@ elif kind == "equal_index_timestamp":
             os.utime(Path(worktree) / ".git/index", ns=(stamp, stamp))
             return "subject"
     message = BoundaryMessage()
+options = {}
+if kind.startswith("pinned:"):
+    options["expected_parent_sha"] = subprocess.check_output(
+        ["git", "-C", worktree, "rev-parse", "HEAD"], text=True
+    ).strip()
 try:
     safe_commit(
         repo_root=Path(repo_root),
@@ -646,6 +652,7 @@ try:
         destination_ref=destination,
         message=message,
         paths=paths,
+        **options,
     )
 except Exception as exc:
     print("result=error")
@@ -2059,13 +2066,27 @@ fn one_shot_native_helper() {
                 "empty" => String::new(),
                 "nul" => "subject\u{0}tail".to_string(),
                 "ok" => MESSAGE.to_string(),
+                pinned if pinned.starts_with("pinned:") => MESSAGE.to_string(),
                 long if long.starts_with("long:") => {
                     "x".repeat(long[5..].parse().expect("message byte count"))
                 }
                 other => panic!("unknown message kind {other}"),
             };
-            let request =
-                SafeCommitRequest::new(BranchName::parse(short).expect("branch"), message, paths);
+            let branch = BranchName::parse(short).expect("branch");
+            let parent = if message_kind.starts_with("pinned:") {
+                Some(
+                    repository
+                        .read_ref(&branch.as_ref_name())
+                        .unwrap()
+                        .expect("pinned parent"),
+                )
+            } else {
+                None
+            };
+            let mut request = SafeCommitRequest::new(branch, message, paths);
+            if let Some(parent) = parent {
+                request = request.with_expected_parent(parent);
+            }
             match repository.safe_commit(&request) {
                 Ok(outcome) => format!("result=ok\ncommit={}\n", outcome.commit()),
                 Err(error) => format!(
@@ -2569,6 +2590,101 @@ fn one_shot_empty_rejected_precommit_restores_pre_staged_requested_source_first(
             "{facade}: recovery footprint"
         );
     }
+}
+
+fn compare_pinned_hook_file_source_first(kind: &str, hook: &str, expected_body: &[u8]) {
+    let (source, native) = twins(Shape::with_unrelated_partial());
+    for fixture in [&source, &native] {
+        fs::write(
+            fixture.worktree.join("body.message"),
+            b"authored file message\n",
+        )
+        .unwrap();
+        fixture.install_hook("commit-msg", hook);
+    }
+    let paths = paths_for(Shape::with_unrelated_partial());
+    let before = State::read(&source);
+    let report = run_source(&source, kind, &paths, "work");
+    assert!(source_ok(&report), "Source pinned file: {report}");
+    let source_fp = footprint(&source);
+    assert_ne!(source_fp.state.head, before.head);
+    assert_eq!(
+        source_fp.artifact, b"seed\n",
+        "Source's real artifact is untouched"
+    );
+    let source_object = git(
+        &source.io,
+        &source.worktree,
+        &["cat-file", "commit", "HEAD"],
+    );
+    let body_start = source_object.windows(2).position(|w| w == b"\n\n").unwrap() + 2;
+    assert_eq!(
+        &source_object[body_start..],
+        expected_body,
+        "Source file body"
+    );
+    let reflog_paths = [".git/logs/HEAD", ".git/logs/refs/heads/work"];
+    let source_reflogs: Vec<_> = reflog_paths
+        .iter()
+        .map(|p| fs::read(source.worktree.join(p)).unwrap())
+        .collect();
+    for log in &source_reflogs {
+        assert!(
+            log.ends_with(b"\tsubject\n"),
+            "pinned reflog is the original message"
+        );
+    }
+
+    let native_report = run_native_one_shot(&native, "legacy", kind, &paths, "work");
+    assert!(
+        native_report.starts_with("result=ok"),
+        "Native pinned file: {native_report}"
+    );
+    assert_eq!(
+        footprint(&native),
+        source_fp,
+        "pinned full semantic footprint"
+    );
+    assert_eq!(
+        git(
+            &native.io,
+            &native.worktree,
+            &["cat-file", "commit", "HEAD"]
+        ),
+        source_object,
+        "pinned full object"
+    );
+    for (path, expected) in reflog_paths.iter().zip(source_reflogs) {
+        assert_eq!(
+            fs::read(native.worktree.join(path)).unwrap(),
+            expected,
+            "pinned raw {path}"
+        );
+    }
+}
+
+#[test]
+fn pinned_hook_expanded_file_is_not_an_argv_or_64k_body_source_first() {
+    let body = vec![b'x'; 163_840];
+    compare_pinned_hook_file_source_first(
+        "pinned:large",
+        "head -c 163840 /dev/zero | tr '\\000' 'x' > \"$1\"",
+        &body,
+    );
+}
+
+#[test]
+fn pinned_hook_can_leave_an_empty_file_source_first() {
+    compare_pinned_hook_file_source_first("pinned:empty", ": > \"$1\"", b"");
+}
+
+#[test]
+fn pinned_hook_file_symlink_is_read_by_git_source_first() {
+    compare_pinned_hook_file_source_first(
+        "pinned:symlink",
+        "ln -sf \"$PWD/body.message\" \"$1\"",
+        b"authored file message\n",
+    );
 }
 
 #[test]

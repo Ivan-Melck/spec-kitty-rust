@@ -1,5 +1,10 @@
 # One-shot review: inclusive payload boundary and complete reflogs
 
+> Historical ee60 checkpoint below. Current pinned post-hook file transport and
+> two overrides: [pinned-file-transport-disposition.md](pinned-file-transport-disposition.md).
+> The ordinary/delete argv proposal remains unapproved; see
+> [source-argv-design-assessment.md](source-argv-design-assessment.md).
+
 ## Independent verdict at `21254a41ed55bf4518b532f092ce1c6ec8c1b157`
 
 **NARROW PASS WITH FINDINGS**, ordinary one-shot ordering on exercised fixtures,

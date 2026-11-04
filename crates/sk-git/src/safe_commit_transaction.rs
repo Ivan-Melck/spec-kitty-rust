@@ -631,7 +631,9 @@ where
                 )?,
             );
         } else {
-            cleanup.apply(process, target, &message_path)?;
+            if !isolate_hooks {
+                cleanup.apply(process, target, &message_path)?;
+            }
             record_hook_warnings(
                 warnings,
                 "prepare-commit-msg",
@@ -661,11 +663,18 @@ where
         }
         // The object body is cleanup(artifact readback), but the artifact itself is
         // never rewritten: hook edits (including whitespace) stay in the file.
-        let final_message = if worktree_route {
-            let raw = read_commit_artifact(&message_path)?;
-            cleanup.render(process, target, &raw)?
+        let final_message = if isolate_hooks {
+            // Source's pinned route passes the hook-written file directly to
+            // commit-tree -F: no ordinary cleanup, body cap or empty-message
+            // refusal, and Git itself follows a hook-replaced symlink.
+            None
         } else {
-            cleanup.apply(process, target, &message_path)?
+            Some(if worktree_route {
+                let raw = read_commit_artifact(&message_path)?;
+                cleanup.render(process, target, &raw)?
+            } else {
+                cleanup.apply(process, target, &message_path)?
+            })
         };
 
         let tree = match intended_tree {
@@ -701,7 +710,7 @@ where
             });
         }
 
-        if final_message.is_empty() {
+        if final_message.as_deref().is_some_and(<[u8]>::is_empty) {
             return Err(GitError::SafeCommitCommitFailed {
                 destination: plan.destination_label().to_owned(),
                 status: None,
@@ -715,7 +724,9 @@ where
         // already-cleaned bytes to the one `commit-tree` authority. The observable
         // artifact is not used as cleanup scratch space.
         let object_input = if worktree_route {
-            Some(write_object_input(&final_message)?)
+            Some(write_object_input(
+                final_message.as_deref().expect("an ordinary object body"),
+            )?)
         } else {
             None
         };
@@ -748,7 +759,9 @@ where
             } else {
                 b"commit (initial): ".to_vec()
             };
-            message.extend_from_slice(first_line_bytes(&final_message));
+            message.extend_from_slice(first_line_bytes(
+                final_message.as_deref().expect("a non-pinned object body"),
+            ));
             message
         };
         // One compare-and-swap through the canonical ref transaction: a born
@@ -886,9 +899,9 @@ impl MessageCleanup {
         }
     }
 
-    /// Clean a private message file in place (the pinned and index-deletion
-    /// routes). The ordinary route uses [`Self::render`] because its artifact
-    /// must keep the hook-written bytes.
+    /// Clean an index-deletion message file in place. The ordinary route uses
+    /// [`Self::render`] because its artifact must keep the hook-written bytes;
+    /// the pinned route passes its file directly to Git without cleanup.
     fn apply(
         self,
         process: &GitProcess,

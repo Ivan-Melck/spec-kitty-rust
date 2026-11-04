@@ -8,7 +8,29 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## One-shot review / inclusive boundary / complete reflogs — after `21254a41e`
+## Pinned post-hook file transport — after `ee60eb5f3`
+
+Source pinned `commit-tree -F` consumes the actual hook-written file: large body,
+empty message and symlink target are allowed. Native redundant cleanup/capped/
+no-follow reads and ordinary empty-message rejection now removed for this route
+ONLY; same actual candidate/CAS/expected-parent/bytes/signing/index repair.
+Read-only construction/initial payload validation and ordinary/delete unchanged.
+Source-FIRST3/3 business reds at13:25 precede code; first large-case Source LF
+assumption was a harness first-fail (actual-F keeps no LF). Full objects/raw
+original-message reflogs/artifact/index/worktree pairs now pass.
+
+Current **2447/0/19helpers/194suites**, Git444+Op246 scoped690/0/14/40; strict
+workspace Clippy/fmt/Git+Opdocs/all-targetoffline/both release CLIs+optimizedOp/
+exact53 green; completion599/PERF27/pending/accounting valid0of16. Current two
+hashes/receipts/limits `reviews/pinned-file-transport-disposition.md`, evidence
+`/tmp/sk-source-argv-assessment.2FDb0X/command-log-index.tsv`. Coordinator fix,
+not a new independent verdict. Proposed A3′ publication NOT approved; actual
+POC precomputes/writes objects and substitutes hooks/argv/config without full
+Source guarantees (`reviews/source-argv-design-assessment.md`). Source-valid
+initial65537/ordinary-delete body/reflog/argv/process/platform/workflow/performance
+remain required; no cap increase or disclosure establishes closure.
+
+## Historical one-shot review / inclusive boundary / complete reflogs — after `21254a41e`
 
 Independent narrow PASS WITH FINDINGS at21254 reproduces684 scoped/strict/docs/
 fmt/offline/exact53/fail-closed/six hashes/exact12files and own Source-first
