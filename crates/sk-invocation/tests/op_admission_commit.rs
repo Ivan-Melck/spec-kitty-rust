@@ -2235,7 +2235,7 @@ fn legacy_used_unencodable_surrogate_fields_refuse_truthfully() {
         assert!(!outcome.committed(), "{invocation_id}: {outcome:?}");
         let refusal = outcome.refusal().expect("a truthful native refusal");
         assert!(
-            refusal.contains("not representable as UTF-8"),
+            refusal.contains("not encodable"),
             "{invocation_id}: truthful encoding refusal, got {refusal:?}"
         );
         assert!(
@@ -2252,13 +2252,15 @@ fn legacy_used_unencodable_surrogate_fields_refuse_truthfully() {
 }
 
 /// Measured capability boundary, not a claim: POSIX argv uses `surrogateescape`,
-/// so the source really commits a *used* `\udc80..\udcff` and git stores the
-/// corresponding `U+0080..U+00FF` bytes. The native commit-message seam is
-/// UTF-8-only (`sk_git::SafeCommitRequest` takes `String`), so native refuses
-/// truthfully and preserves the durable row; closing this needs an explicit Git
-/// byte-message seam extension.
+/// The measured capability gap is closed through the existing service: a *used*
+/// `\udc80..\udcff` reaches Git as the single raw byte (POSIX
+/// `surrogateescape`), so the native commit carries the same pre-conversion
+/// payload as the source's argv boundary. The complete byte-object matrix
+/// (UTF-8/ASCII startup contexts, agent/doctor, precedence) lives in
+/// `op_byte_message.rs`; this keeps the historical subject-level control on the
+/// existing entry point.
 #[test]
-fn legacy_used_low_surrogate_surrogateescape_boundary_is_measured() {
+fn legacy_used_low_surrogate_surrogateescape_boundary_commits() {
     let fixture = Fixture::with_positive_primary();
     fixture.checkout_new("topic");
     let source = Fixture::with_positive_primary();
@@ -2269,20 +2271,19 @@ fn legacy_used_low_surrogate_surrogateescape_boundary_is_measured() {
             "01ARZ3NDEKTSV4RRFFQ69G5FCR",
             r#"{"profile_id":"\udc80","action":"a"}"#,
             b"op(\xc2\x80): a [01ARZ3ND]\n".as_slice(),
-            "U+DC80",
+            b"op(\xc2\x80): a [01ARZ3ND]\n".as_slice(),
         ),
         (
             "01ARZ3NDEKTSV4RRFFQ69G5FCS",
             r#"{"profile_id":"\udcff","action":"a"}"#,
             b"op(\xc3\xbf): a [01ARZ3ND]\n".as_slice(),
-            "U+DCFF",
+            b"op(\xc3\xbf): a [01ARZ3ND]\n".as_slice(),
         ),
     ];
-    for (invocation_id, body, source_subject, code) in cases {
+    for (invocation_id, body, source_subject, native_body) in cases {
         let line = format!("{body}\n");
         fixture.write_record_line(invocation_id, &line);
         source.write_record_line(invocation_id, &line);
-        let before = fixture.snapshot();
         let source_head = source.head();
         let reference = oracle_commit(&source.root, &source.root, invocation_id, "agent", None);
         assert_eq!(
@@ -2293,22 +2294,23 @@ fn legacy_used_low_surrogate_surrogateescape_boundary_is_measured() {
         assert_eq!(
             source.git_ok(&["log", "-1", "--format=%s"]),
             source_subject,
-            "{invocation_id}: measured source subject bytes"
+            "{invocation_id}: measured source subject after Git's conversion"
         );
 
         let mut service = fixture.service();
         let outcome = service.commit_op_record(&id(invocation_id), OpClosedBy::Agent);
-        assert!(!outcome.committed(), "{invocation_id}: {outcome:?}");
-        let refusal = outcome.refusal().expect("a truthful native refusal");
-        assert!(
-            refusal.contains("not representable as UTF-8") && refusal.contains(code),
-            "{invocation_id}: disclosed seam boundary, got {refusal:?}"
+        assert!(outcome.committed(), "{invocation_id}: {outcome:?}");
+        assert_eq!(outcome.refusal(), None);
+        let object = fixture.git_ok(&["cat-file", "commit", "HEAD"]);
+        let split = object
+            .windows(2)
+            .position(|window| window == b"\n\n")
+            .expect("a commit object separates headers and body");
+        assert_eq!(
+            &object[split + 2..],
+            native_body,
+            "{invocation_id}: the commit object body is identical on both sides"
         );
-        assert!(
-            !refusal.contains("Invalid invocation record"),
-            "{invocation_id}: the row is valid; got {refusal:?}"
-        );
-        assert_eq!(fixture.snapshot(), before);
         assert_eq!(fixture.record_bytes(invocation_id), line.as_bytes());
     }
 }
@@ -2598,12 +2600,12 @@ fn legacy_nonascii_policy_detail_has_matching_code_without_false_text_parity() {
     // establishes code/read-only semantics, NOT reason-text equivalence.
 }
 
-/// Decision-order control: the reference only fails on a used surrogate when it
-/// encodes the message at the commit step, so an earlier skip or protected-
-/// branch decision still wins. Native defers its encoding refusal past skip,
-/// but its UTF-8-only seam precedes the canonical protection guard. This test
-/// records that measured residual, not identical decision precedence or error
-/// classification; the source's staged-index-on-error also remains open.
+/// Decision-order control: the reference only fails on a used, unencodable
+/// surrogate when it encodes the message at the commit step, so an earlier skip
+/// or protected-branch decision still wins. The native service defers its
+/// encoding refusal past skip and past the canonical protection guard, so both
+/// sides keep the same precedence for these cases. The source's
+/// staged-index-on-error footprint still differs and is not claimed here.
 #[test]
 fn legacy_used_surrogate_keeps_source_decision_order() {
     let line = format!("{}\n", r#"{"profile_id":"\ud800","action":"a"}"#);
@@ -2629,10 +2631,9 @@ fn legacy_used_surrogate_keeps_source_decision_order() {
     assert!(!fixture.subject().contains("op("), "no commit landed");
 
     // (b) A protected current branch: the source's `safe_commit` refuses on
-    // protection before it ever encodes the message, while the native message
-    // must already be UTF-8 *before* `safe_commit` runs. That precedence is the
-    // disclosed UTF-8-only-seam residual: both refuse, nothing lands, but the
-    // native refusal is the encoding one.
+    // protection before it ever encodes the message, and the native service
+    // now plans the message-free target (the canonical guard) before it
+    // encodes the payload. Both refuse on protection, nothing lands.
     let fixture = Fixture::with_positive_primary();
     protect(&fixture.root, "[main]");
     let source = Fixture::with_positive_primary();
@@ -2654,8 +2655,12 @@ fn legacy_used_surrogate_keeps_source_decision_order() {
     assert_eq!(fixture.head(), head, "nothing landed");
     let refusal = outcome.refusal().expect("a native refusal");
     assert!(
-        refusal.contains("not representable as UTF-8"),
-        "the encoding refusal precedes native safe_commit: {refusal:?}"
+        refusal.contains("protected branch"),
+        "the canonical guard precedes payload encoding: {refusal:?}"
+    );
+    assert!(
+        !refusal.contains("not encodable"),
+        "the encoding refusal did not mask the guard: {refusal:?}"
     );
     assert_eq!(fixture.record_bytes(RECORD), line.as_bytes());
 }

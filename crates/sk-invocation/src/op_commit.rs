@@ -4,17 +4,37 @@
 //! Source: `specify_cli/invocation/executor.py` (`_read_started_event`,
 //! `_commit_op_record`, `_op_commit_kwargs`, `_op_commit_skip_reason`). This is
 //! the REAL commit composition over the accepted native skip probes, the
-//! canonical `ProtectionPolicy` inputs, and `GitRepository::safe_commit`; it is
-//! not an executor, dispatcher, or CLI adapter.
+//! canonical `ProtectionPolicy` inputs, and the canonical native commit
+//! capability: one message-free `SafeCommitTargetRequest` plan (the guard),
+//! then the late exact-byte payload (`SafeCommitTargetPlan::prepare`), then one
+//! `apply_safe_message_commit`. It is not an executor, dispatcher, or CLI
+//! adapter.
+//!
+//! # Byte-message bridge
+//!
+//! The source composes the message as a Python `str` and encodes it only when
+//! `subprocess` builds the `git commit -m` argv, using the interpreter's
+//! startup filesystem encoding with `surrogateescape` (so `\udc80..\udcff`
+//! reach Git as the single bytes `0x80..0xff`). This module keeps the decoded
+//! Python code points through composition and resolves the service's captured
+//! startup context once ([`crate::python_os_encoding`]); the encoding happens
+//! **after** the native target plan (paths, HEAD/tip, protection guard,
+//! operation marker) and immediately before the payload guard. Supported normal
+//! branches now reach protection before encoding; native progress is not proof
+//! of source path semantics, J/P policy reachability or its later staging step.
+//! The payload is
+//! passed as exact `sk_git::CommitMessage` bytes; Git owns `i18n.commitEncoding`
+//! and any object-body conversion, and nothing here re-encodes a message.
 //!
 //! # What is committed
 //!
 //! An agent close commits **only** its per-record file
 //! (`kitty-ops/<ULID>.jsonl`). A doctor-sweep close commits **only** the
 //! append-only closure spine (`kitty-ops/op-closures.jsonl`); a pre-existing
-//! archive record is never modified, staged, or committed. The path is passed
-//! to `safe_commit`, so unrelated staged content, hooks, signing configuration,
-//! and the operator's captured index keep their accepted `sk-git` behavior.
+//! archive record is never modified, staged, or committed. The exact path is
+//! passed to the canonical target plan, so unrelated staged content, hooks,
+//! signing configuration, and the operator's captured index keep their accepted
+//! `sk-git` behavior.
 //!
 //! # Started-record read
 //!
@@ -33,9 +53,10 @@
 //! (`1e400` is `inf`, `1e-400` is a falsy signed zero). `str(value or
 //! "unknown")` therefore composes the same commit message the reference
 //! composes for those legacy rows. Matching subjects remove the demonstrated
-//! message difference, but cross-side commit-object identity also requires equal
-//! author/committer metadata, timestamps and every other header. These tests
-//! establish real native OIDs and source subjects, not blanket OID equality.
+//! message difference; the byte-message tests additionally bind equal
+//! author/committer metadata, dates and every other header, so their actual
+//! OIDs and complete commit objects are compared. That is exercised-row
+//! evidence, not a blanket OID-equality claim.
 //! The whole first line is still validated;
 //! truncated, trailing-junk and non-object rows stay invalid.
 //!
@@ -64,16 +85,22 @@
 //! * Raw `NaN`/`Infinity` JSON is accepted by Python and by this reader, with
 //!   the same commit decision and subject for the exercised rows. Python code
 //!   points (including lone surrogates) and nested `repr` use the verified
-//!   CPython printability authority. Used top-level surrogates can still fail
-//!   the native UTF-8-only Git-message seam even where source surrogateescape
-//!   commits; protection/encoding precedence and source index-on-error differ.
-//!   Caller-dependent source recursion limits also remain an input boundary.
-//!   The reader now follows the default 4300-digit integer ceiling and uses the
+//!   CPython printability authority. A used top-level low surrogate
+//!   `\udc80..\udcff` commits through the late filesystem encoder exactly like
+//!   the source's `surrogateescape` boundary; every other used surrogate is
+//!   truthfully unencodable (never `Invalid invocation record`). A
+//!   source-valid startup context this adapter does not implement (for example
+//!   a non-UTF-8, non-ASCII locale charset) is a truthful native capability
+//!   failure, and the non-Unix wide-argv representation remains unverified.
+//!   The source stages the record before its argv encoding fails while the
+//!   native plan precedes staging, so the index-on-error footprint still
+//!   differs; this bridge does not claim otherwise.
+//!   The reader follows the default 4300-digit integer ceiling and uses the
 //!   source interpreter's default 1000-frame recursion budget as a native
 //!   operational guard against process loss, not an exact JSON-format/call-stack
 //!   acceptance claim. The existing PYTHONINTMAXSTRDIGITS startup setting is
-//!   honored; customized recursion settings/runtime Python limit mutations are
-//!   not emulated.
+//!   honored; customized recursion settings/runtime Python limit mutations and
+//!   caller-dependent source recursion limits are not emulated.
 //! * With a whitespace-suffixed current ref and an existing stripped-name
 //!   shadow ref, the source may commit on the checked-out ref while the native
 //!   canonical HEAD assertion refuses. Shadow+protected/invalid-config can also
@@ -87,18 +114,19 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use sk_git::{
-    BranchName, CommitGuardCapability, GitError, GitOptions, GitPath, GitRepository,
-    ProtectedBranches, SafeCommitRequest,
+    BranchName, CommitGuardCapability, CommitMessage, GitError, GitOptions, GitPath, GitRepository,
+    ProtectedBranches, SafeCommitOutcome, SafeCommitTargetRequest,
 };
 use sk_workspace::{ProtectionPolicy, WorkspaceError};
 use thiserror::Error;
 
-use crate::legacy_json::{self, LegacyObject, PythonText};
+use crate::legacy_json::{self, LegacyObject, PythonString, PythonText};
 use crate::op_commit_policy::{
     OpCommitProbeError, PrimaryTracking, op_commit_skip_reason, probe_primary_tracking,
     strip_git_stdout,
 };
 use crate::op_custody::is_worktree_of;
+use crate::python_os_encoding::{OsEncodeError, OsEncodingContext};
 use crate::record::InvocationId;
 use crate::writer::{EVENTS_DIR, InvocationWriter, OP_CLOSURES_FILENAME};
 
@@ -110,9 +138,6 @@ pub const OP_GIT_PROBE_TIMEOUT: Duration = Duration::from_secs(30);
 /// It is the same path-form as the record the command is about to write, so
 /// ignore/path/protection decisions are judged exactly like the real commit.
 pub const ADMISSION_PROBE_RECORD: &str = "kitty-ops/00000000000000000000000000.jsonl";
-
-/// The source's admission-probe commit message.
-pub(crate) const ADMISSION_PROBE_MESSAGE: &str = "op(admission probe)";
 
 /// The reference's literal outcome when the record root is not a work tree.
 const NOT_A_WORKTREE: &str = "not a git worktree";
@@ -280,20 +305,23 @@ pub(crate) enum StartedReadError {
     },
 }
 
-/// The one request builder shared by admission and the real commit.
+/// The one message-free request builder shared by admission and the real
+/// commit.
 ///
 /// `protected` is the **project-root OR record-checkout** decision projected
 /// onto the destination branch. Passing the destination only when the union
 /// protects it keeps the guard's canonical decision exact without re-parsing
 /// irrelevant protected names (an unrelated malformed name must not turn into
-/// a new configuration refusal).
-pub(crate) fn build_safe_commit_request(
+/// a new configuration refusal). The builder carries exactly the facts both
+/// call sites must agree on — destination, the one requested path, and the
+/// protection union — and no payload, so neither caller can judge a different
+/// commit than the other and no placeholder message reaches the backend.
+pub(crate) fn build_safe_commit_target(
     destination: &BranchName,
-    message: &str,
     path: &GitPath,
     protected: ProtectedBranches,
-) -> SafeCommitRequest {
-    SafeCommitRequest::new(destination.clone(), message, [path.clone()])
+) -> SafeCommitTargetRequest {
+    SafeCommitTargetRequest::new(destination.clone(), [path.clone()])
         .with_protection(protected, CommitGuardCapability::Standard)
 }
 
@@ -317,6 +345,7 @@ pub struct OpCommitService {
     project_root: PathBuf,
     writer: InvocationWriter,
     pub(crate) binding: RepositoryBinding,
+    os_encoding: OsEncodingContext,
     primary_tracking: Option<PrimaryTracking>,
     last_op_commit: Option<OpCommitOutcome>,
     hatch: HatchOverride,
@@ -350,6 +379,9 @@ impl OpCommitService {
             project_root: project_root.into(),
             writer,
             binding,
+            // Captured once, like the reference interpreter's startup decision;
+            // only the close path reads it, after the target preflight.
+            os_encoding: OsEncodingContext::from_environment(),
             primary_tracking: None,
             last_op_commit: None,
             hatch: HatchOverride::Environment,
@@ -587,77 +619,58 @@ impl OpCommitService {
             Ok(destination) => destination,
             Err(error) => return OpCommitOutcome::new_refused(error.to_string()),
         };
-        let message = match message {
-            Ok(message) => message,
-            Err(code) => return OpCommitOutcome::new_refused(message_encoding_refusal(code)),
-        };
-        let request = build_safe_commit_request(&destination, &message, &path, protected);
         let repository = self
             .open_repository()
             .expect("a branch was read from an open repository");
-        match repository.safe_commit(&request) {
-            Ok(outcome) => OpCommitOutcome::new_committed(OpCommitEvidence::Committed {
-                commit: outcome.commit().clone(),
-                destination: outcome.destination().clone(),
-                committed_paths: outcome.committed_paths().to_vec(),
-                warnings: outcome.warnings().to_vec(),
-            }),
-            Err(GitError::SafeCommitProtectedBranch { destination, .. }) => {
-                OpCommitOutcome::new_refused(
-                    crate::op_custody::OpWriteRefusal::protected_branch(&destination).reason,
-                )
-            }
+        // Canonical target preflight first: the protection guard (and the
+        // path/HEAD/tip/operation checks) decides before the payload exists, so
+        // a supported protected destination refuses before message encoding.
+        // This does not establish source path semantics or stage-before-encode
+        // failure footprints (source stages before building the git argv).
+        let target_request = build_safe_commit_target(&destination, &path, protected);
+        let target_plan = match repository.plan_safe_commit_target(&target_request) {
+            Ok(plan) => plan,
+            Err(failure) => return commit_error_outcome(failure.into_error()),
+        };
+        // Late OS encoding of the exact Python code points, then the existing
+        // native payload guard (empty/oversized/NUL) through the only plan a
+        // byte commit accepts.
+        let payload = match self.os_encoding.encode(message.codepoints()) {
+            Ok(payload) => payload,
             Err(error) => {
-                let evidence = match &error {
-                    GitError::SafeCommitLanded { recovery, .. } => {
-                        Some(OpCommitEvidence::SafeCommitLanded {
-                            commit: recovery.commit().clone(),
-                            affected_paths: recovery.affected_paths().to_vec(),
-                        })
-                    }
-                    GitError::SafeCommitAdvanceUnconfirmed {
-                        candidate,
-                        destination,
-                        observed_tip,
-                        detail,
-                    } => Some(OpCommitEvidence::AdvanceUnconfirmed {
-                        candidate: candidate.clone(),
-                        destination: destination.clone(),
-                        observed_tip: observed_tip.clone(),
-                        detail: detail.clone(),
-                    }),
-                    _ => None,
-                };
-                let mut outcome = OpCommitOutcome::new_refused(error.to_string());
-                outcome.evidence = evidence;
-                outcome
+                return OpCommitOutcome::new_refused(message_encoding_refusal(
+                    &error,
+                    &self.os_encoding.label(),
+                ));
             }
-        }
+        };
+        let message_plan = match target_plan.prepare(CommitMessage::from_bytes(payload)) {
+            Ok(plan) => plan,
+            Err(failure) => return commit_error_outcome(failure.into_error()),
+        };
+        commit_outcome(repository.apply_safe_message_commit(&message_plan))
     }
 
-    /// The exact repository-relative path and commit message for this close.
+    /// The exact repository-relative path and commit message code points.
     ///
     /// The profile/action text is Python `str(value)`, which may still contain
-    /// surrogate code units from a used top-level string, so the *message*
-    /// stays a fallible UTF-8 encoding. The caller acts on that error after the
-    /// skip and branch decisions. A protected-branch refusal is decided inside
-    /// the reference's `safe_commit` before it materialises the message; the
-    /// UTF-8-only native seam cannot defer that far, which is a disclosed
-    /// residual (see `UNICODE-STRING-REMEDIATION-REPORT.md`).
+    /// surrogate code units from a used top-level string: composition keeps
+    /// those code points and never encodes per field. The caller encodes the
+    /// whole message **after** the native target plan. This fixes measured
+    /// guard-before-encoding cases, not source path/J-P reachability or its
+    /// staging-before-encoding failure footprint.
     fn commit_target(
         &self,
         invocation_id: &InvocationId,
         closed_by: OpClosedBy,
         profile: &PythonText,
         action: &PythonText,
-    ) -> Result<(PathBuf, Result<String, u32>), String> {
-        let profile = profile.to_utf8();
-        let action = action.to_utf8();
+    ) -> Result<(PathBuf, PythonString), String> {
         let first_eight: String = invocation_id.as_str().chars().take(8).collect();
         match closed_by {
             OpClosedBy::DoctorSweep => Ok((
                 Path::new(EVENTS_DIR).join(OP_CLOSURES_FILENAME),
-                op_message(profile, action, &first_eight, " (doctor sweep)"),
+                op_message_codepoints(profile, action, &first_eight, " (doctor sweep)"),
             )),
             OpClosedBy::Agent => {
                 let path = self
@@ -669,9 +682,60 @@ impl OpCommitService {
                 })?;
                 Ok((
                     relative.to_path_buf(),
-                    op_message(profile, action, &first_eight, ""),
+                    op_message_codepoints(profile, action, &first_eight, ""),
                 ))
             }
+        }
+    }
+}
+
+/// Map one backend outcome to the source-visible Op outcome.
+///
+/// The evidence vocabulary, destination naming and best-effort semantics are
+/// unchanged; only the entry point that produced the error moved from the
+/// legacy plan/apply pair to the exact-byte plan.
+fn commit_outcome(result: Result<SafeCommitOutcome, GitError>) -> OpCommitOutcome {
+    match result {
+        Ok(outcome) => OpCommitOutcome::new_committed(OpCommitEvidence::Committed {
+            commit: outcome.commit().clone(),
+            destination: outcome.destination().clone(),
+            committed_paths: outcome.committed_paths().to_vec(),
+            warnings: outcome.warnings().to_vec(),
+        }),
+        Err(error) => commit_error_outcome(error),
+    }
+}
+
+/// Map one backend error to the source-visible Op outcome.
+fn commit_error_outcome(error: GitError) -> OpCommitOutcome {
+    match error {
+        GitError::SafeCommitProtectedBranch { destination, .. } => OpCommitOutcome::new_refused(
+            crate::op_custody::OpWriteRefusal::protected_branch(&destination).reason,
+        ),
+        error => {
+            let evidence = match &error {
+                GitError::SafeCommitLanded { recovery, .. } => {
+                    Some(OpCommitEvidence::SafeCommitLanded {
+                        commit: recovery.commit().clone(),
+                        affected_paths: recovery.affected_paths().to_vec(),
+                    })
+                }
+                GitError::SafeCommitAdvanceUnconfirmed {
+                    candidate,
+                    destination,
+                    observed_tip,
+                    detail,
+                } => Some(OpCommitEvidence::AdvanceUnconfirmed {
+                    candidate: candidate.clone(),
+                    destination: destination.clone(),
+                    observed_tip: observed_tip.clone(),
+                    detail: detail.clone(),
+                }),
+                _ => None,
+            };
+            let mut outcome = OpCommitOutcome::new_refused(error.to_string());
+            outcome.evidence = evidence;
+            outcome
         }
     }
 }
@@ -682,34 +746,45 @@ fn probe_failed(error: &OpCommitProbeError) -> String {
 
 /// `op(<profile>): <action> [<short id>]<suffix>` as Python `str` composition.
 ///
-/// Each field is the fallible native UTF-8 encoding of its Python text; the
-/// first non-scalar code unit wins here. This is not the source's later POSIX
-/// surrogateescape boundary, which accepts some low surrogates and follows the
-/// protection/path checks. Those precedence/capability differences remain open.
-fn op_message(
-    profile: Result<String, u32>,
-    action: Result<String, u32>,
+/// The whole message stays a sequence of Python code points, exactly like the
+/// reference f-string: a verbatim field contributes its code units (including a
+/// lone surrogate), a rendered field contributes its canonical `repr`, and no
+/// field is encoded on its own. Encoding is the caller's one late step.
+fn op_message_codepoints(
+    profile: &PythonText,
+    action: &PythonText,
     first_eight: &str,
     suffix: &str,
-) -> Result<String, u32> {
-    Ok(format!(
-        "op({}): {} [{first_eight}]{suffix}",
-        profile?, action?
-    ))
+) -> PythonString {
+    let mut message = PythonString::from_scalars("op(");
+    profile.append_to(&mut message);
+    message.push_scalars("): ");
+    action.append_to(&mut message);
+    message.push_scalars(" [");
+    message.push_scalars(first_eight);
+    message.push_scalars("]");
+    message.push_scalars(suffix);
+    message
 }
 
-/// A used string whose Python code points cannot cross the UTF-8 message seam.
+/// A used string the captured filesystem encoding cannot represent.
 ///
-/// The reference builds the same Python `str` and only fails at its own encoding
-/// boundary (POSIX argv uses `surrogateescape`, so `\udc80..\udcff` can even
-/// land); the native message seam is UTF-8-only (`sk_git::SafeCommitRequest`
-/// takes `String`/`&str`). The truthful native answer is an encoding refusal that
-/// names the code point — never `Invalid invocation record` (the row is valid),
-/// never an invented Python exception, and never a replacement character.
-fn message_encoding_refusal(code: u32) -> String {
-    format!(
-        "Op commit message is not representable as UTF-8 (code point U+{code:04X}); the native commit-message seam only accepts UTF-8"
-    )
+/// The reference builds the same Python `str` and fails at its own argv
+/// encoding boundary with `UnicodeEncodeError`. The native answer is the same
+/// decision with a truthful native wording: it names the measured context and
+/// the first failing code point. It is never `Invalid invocation record` (the
+/// row is valid), never an invented Python exception, and never a replacement
+/// character; a source-valid context this adapter does not implement is
+/// reported as that limitation instead of a fabricated refusal.
+fn message_encoding_refusal(error: &OsEncodeError, context: &str) -> String {
+    match error {
+        OsEncodeError::Unencodable { code, position } => format!(
+            "Op commit message is not encodable by the source's filesystem encoding ({context}): code point U+{code:04X} at index {position}"
+        ),
+        OsEncodeError::UnsupportedContext { detail } => format!(
+            "Op commit message cannot be encoded: this native adapter does not implement the source-valid filesystem-encoding context ({detail})"
+        ),
+    }
 }
 
 /// Decompose a repository-relative path into the exact `GitPath` bytes.
@@ -777,12 +852,12 @@ fn python_first_line(text: &str) -> Option<&str> {
 ///
 /// Absent/null/empty/false/zero/empty collections are `unknown`; strings are
 /// verbatim Python code points (a lone surrogate is preserved, not rejected, and
-/// encoding it is [`OpCommitService::commit_target`]'s fallible step); integers
-/// stay exact; floats use CPython `repr` including `nan`, `inf` and `-inf`;
-/// collections use the shared Python `repr` formatter in the order `json.loads`
-/// produced (Python dict insertion order, last duplicate value in the first
-/// position). Nonfinite and ordered maps come from the private
-/// [`crate::legacy_json`] tree, not `serde_json::Value`.
+/// is encoded only by [`OpCommitService::commit_op_record`]'s late filesystem
+/// encoder); integers stay exact; floats use CPython `repr` including `nan`,
+/// `inf` and `-inf`; collections use the shared Python `repr` formatter in the
+/// order `json.loads` produced (Python dict insertion order, last duplicate
+/// value in the first position). Nonfinite and ordered maps come from the
+/// private [`crate::legacy_json`] tree, not `serde_json::Value`.
 pub(crate) fn started_field(started: &LegacyObject, key: &str) -> PythonText {
     match started.get(key) {
         Some(value) if !legacy_json::is_falsy(value) => legacy_json::python_str(value),

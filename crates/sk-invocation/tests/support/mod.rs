@@ -47,8 +47,27 @@ pub fn python() -> PathBuf {
                 python.display()
             );
             let scratch = tempfile::tempdir().expect("isolated oracle verification CWD");
+            let sandbox = scratch.path();
+            for directory in ["home", "cache", "config", "data", "state", "tmp"] {
+                std::fs::create_dir_all(sandbox.join(directory))
+                    .expect("create isolated verifier root");
+            }
             let result = Command::new(&python)
-                .current_dir(scratch.path())
+                .current_dir(sandbox)
+                .env("HOME", sandbox.join("home"))
+                .env("XDG_CACHE_HOME", sandbox.join("cache"))
+                .env("XDG_CONFIG_HOME", sandbox.join("config"))
+                .env("XDG_DATA_HOME", sandbox.join("data"))
+                .env("XDG_STATE_HOME", sandbox.join("state"))
+                .env("TMPDIR", sandbox.join("tmp"))
+                // The closure check reads `uv.lock`/metadata as text; run the
+                // verifier itself in a UTF-8 startup context so the locale of
+                // the behaviour under test never turns a pinned, unmodified
+                // oracle into a false failure. The product probe below still
+                // inherits the caller's locale/PYTHONUTF8 context.
+                .env("PYTHONUTF8", "1")
+                .env("LC_ALL", "C.UTF-8")
+                .env_remove("PYTHONCOERCECLOCALE")
                 .arg(root.join("scripts/rust/verify_oracle.py"))
                 .arg("--root")
                 .arg(&root)
@@ -66,13 +85,29 @@ pub fn python() -> PathBuf {
 }
 
 /// Run a Python snippet against the pinned source tree with optional stdin.
+///
+/// The probe runs in its own temporary CWD with its own `HOME`, every `XDG_*`
+/// root and `TMPDIR`, so no operator configuration or scratch state leaks into
+/// the reference behaviour it measures. The caller's locale/`PYTHONUTF8`
+/// environment is inherited deliberately: it is part of the startup context
+/// under test.
 pub fn run_python(script: &str, stdin: Option<&str>) -> String {
     let root = repository_root();
     let scratch = tempfile::tempdir().expect("isolated Python probe CWD");
+    let sandbox = scratch.path();
+    for directory in ["home", "cache", "config", "data", "state", "tmp"] {
+        std::fs::create_dir_all(sandbox.join(directory)).expect("create isolated probe root");
+    }
     let mut child = Command::new(python())
         .arg("-c")
         .arg(script)
-        .current_dir(scratch.path())
+        .current_dir(sandbox)
+        .env("HOME", sandbox.join("home"))
+        .env("XDG_CACHE_HOME", sandbox.join("cache"))
+        .env("XDG_CONFIG_HOME", sandbox.join("config"))
+        .env("XDG_DATA_HOME", sandbox.join("data"))
+        .env("XDG_STATE_HOME", sandbox.join("state"))
+        .env("TMPDIR", sandbox.join("tmp"))
         .env("PYTHONPATH", root.join("src"))
         .env("SPEC_KITTY_PACKS_ROOT", root.join("packs"))
         .env("PYTHONDONTWRITEBYTECODE", "1")

@@ -30,8 +30,9 @@
 //! nested `repr` renders through the one canonical formatter (whose
 //! printability table is the verified CPython 3.11.15 `str.isprintable()` data in
 //! [`crate::python_unicode`]). A used *top-level* string keeps its surrogate code
-//! points too; converting it to the UTF-8 commit message is the caller's
-//! fallible step. Integer conversion follows the reference interpreter's
+//! points too; encoding the composed message through the application-owned
+//! filesystem encoder is the caller's one late step, so nothing here replaces or
+//! drops a code unit. Integer conversion follows the reference interpreter's
 //! default 4300-digit ceiling (or its existing `PYTHONINTMAXSTRDIGITS` startup
 //! setting, including zero for unlimited). A native operational budget of 1000 value frames
 //! (the reference's default recursion budget) prevents process stack loss on
@@ -59,7 +60,15 @@ const SOURCE_DEFAULT_INTEGER_DIGITS: usize = 4300;
 pub(crate) struct PythonString(Vec<u32>);
 
 impl PythonString {
-    fn push_scalars(&mut self, text: &str) {
+    /// A code-point string from Rust text (each scalar kept verbatim).
+    pub(crate) fn from_scalars(text: &str) -> Self {
+        let mut string = Self::default();
+        string.push_scalars(text);
+        string
+    }
+
+    /// Append the code points of ASCII/Unicode text.
+    pub(crate) fn push_scalars(&mut self, text: &str) {
         self.0.extend(text.chars().map(u32::from));
     }
 
@@ -72,6 +81,11 @@ impl PythonString {
     /// Append one code unit, including a lone surrogate.
     fn push_code_unit(&mut self, code: u32) {
         self.0.push(code);
+    }
+
+    /// The exact code units, in order.
+    pub(crate) fn codepoints(&self) -> &[u32] {
+        &self.0
     }
 
     fn is_empty(&self) -> bool {
@@ -89,8 +103,10 @@ impl PythonString {
 
     /// The text when every code unit is a Unicode scalar.
     ///
-    /// `Err` names the first surrogate unit. This is the only place a Python
-    /// string can hit a UTF-8-only boundary; nothing here replaces or drops it.
+    /// `Err` names the first surrogate unit. Test-only inspection: the Op
+    /// commit path encodes the exact code points through the application-owned
+    /// filesystem encoder ([`crate::python_os_encoding`]) instead.
+    #[cfg(test)]
     fn to_utf8(&self) -> Result<String, u32> {
         let mut out = String::with_capacity(self.0.len());
         for &code in &self.0 {
@@ -116,7 +132,22 @@ pub(crate) enum PythonText {
 }
 
 impl PythonText {
+    /// Append this field's exact code points to a Python-string composition.
+    ///
+    /// A verbatim string keeps its code units (including lone surrogates); a
+    /// rendered value appends its canonical `repr` (non-printables escaped,
+    /// printable scalars verbatim). This is the one place Op message
+    /// composition appends a field, so no second formatter or code point
+    /// table exists.
+    pub(crate) fn append_to(&self, out: &mut PythonString) {
+        match self {
+            Self::Verbatim(text) => out.0.extend_from_slice(&text.0),
+            Self::Rendered(text) => out.push_scalars(text),
+        }
+    }
+
     /// Encode for a UTF-8-only consumer, or name the first surrogate unit.
+    #[cfg(test)]
     pub(crate) fn to_utf8(&self) -> Result<String, u32> {
         match self {
             Self::Verbatim(text) => text.to_utf8(),

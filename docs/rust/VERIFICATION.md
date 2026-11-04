@@ -8,6 +8,31 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
+## Real Op byte bridge / actual locale facts — after `a6a2c0cf1`
+
+Codepoints→message-free native target→late filesystem encode→validatedexactbytes→
+onecanonicalGitapply nowcommitsSourceDC80..DCFF, retainsrecord/spine/archive/index/
+candidate/OIDevidence. Healthyprotectedbranchguardprecedesencoding. Firstowner195
+inUNPUBLISHEDdirtytree guessedlocalename/suffix: coorSourceactual0/4reds uncovered
+3false-refusals(includingASCIIen_US)and1REALfalsecommitwhereSourceASCIIrefusesé.
+NotpublisheduntilnativeactualglibcLC_CTYPEfacts/alias/LOCPATH/coercion/strictLatin1
+fixes4cases. Remediation219 isunpublishedintermediate, notparentpublishedbaseline.
+
+CooradditionalnontextcoercionflagSourcecommit/nativefalse-refusal fixedbyrawbyte0
+comparisononlywhenneeded. FirsttwoattemptsE0425harnesswronghelpernameNOTbusinessreds;
+actualownerpredicatebaseline reproducedAFTERinitialfixnoticed, thenreapplied. Exact
+chronology/logs/current9bindings/limits in
+`crates/sk-invocation/OP-BYTE-BRIDGE-INTEGRATION-REPORT.md`; nofalseoriginalred-firstclaim.
+
+CurrentOp220/0/2helpers10suites/doctests, stableworkspace2309/0/14helpers189suites,
+strictworkspacealltargetClippy/fullfmt/bothreleaseCLIs+optimizedOplib pass; exact53/
+completion599/PERF27/pending/valid/0of16 unchanged. Allunique logs indexed
+`/tmp/sk-op-byte-coordinator.JH8uPD/command-log-index.tsv`; original4redretained.
+Remotesde5f4dc705gap unchanged. Verifiedcheckpointcommitted+PUSHEDdraft; fresh
+independentOp/locale review pending. Sourcepath/J-P/F4/unborn/exactrefs/stage7before
+encode8/indexfailurefootprint/archives/othercodec/nontextlocale/platform/CLI/workflow/
+StepContract/fullrewrite/perf remainREQUIRED, notwaivedbytypednativecapabilityfailure.
+
 ## Git byte review / findings — after `d792fe11e`
 
 Independent NARROWPASSWITHFINDINGS reproduces11bindings/Git331/strictscoped/exact53;

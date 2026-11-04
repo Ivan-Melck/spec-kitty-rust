@@ -10,14 +10,18 @@
 //!    that tracks no Op records, an unresolved primary, or an undecidable
 //!    probe means the repository keeps its records locally; that admits.
 //! 3. Only a branch that would actually be committed is preflighted, with the
-//!    same `SafeCommitRequest` builder the real commit uses: project-root OR
-//!    record-checkout `ProtectionPolicy`, `STANDARD` capability, the current
-//!    record branch, and the exact ULID-shaped sentinel path.
-//! 4. `GitRepository::plan_safe_commit` is the canonical read-only preflight.
-//!    `SafeCommitProtectedBranch` becomes [`OP_WRITE_PROTECTED_BRANCH`]; an
-//!    unreadable/malformed protection configuration becomes
-//!    [`OP_WRITE_PROTECTION_CONFIG_INVALID`]; every other preflight failure
-//!    admits, exactly as the source logs and returns `None`.
+//!    same message-free `SafeCommitTargetRequest` builder the real commit uses:
+//!    project-root OR record-checkout `ProtectionPolicy`, `STANDARD`
+//!    capability, the current record branch, and the exact ULID-shaped sentinel
+//!    path. The preflight never inspects the payload (the reference's
+//!    `preflight_commit` does not either), so no synthetic placeholder message
+//!    is handed to the backend.
+//! 4. `GitRepository::plan_safe_commit_target` is the canonical read-only
+//!    preflight. `SafeCommitProtectedBranch` becomes
+//!    [`OP_WRITE_PROTECTED_BRANCH`]; an unreadable/malformed protection
+//!    configuration becomes [`OP_WRITE_PROTECTION_CONFIG_INVALID`]; every other
+//!    preflight failure admits in this bridge. Known J/P and source path-policy
+//!    reachability differences remain; native progress is not a source proof.
 //!
 //! The plan is read-only: no `kitty-ops/` directory, index file, record,
 //! reference, or worktree is created or changed by admission. A protection
@@ -35,12 +39,12 @@
 
 use std::path::Path;
 
-use sk_git::{BranchName, GitError, GitPath};
+use sk_git::{BranchName, GitError, GitPath, ProtectedBranches};
 use thiserror::Error;
 
 use crate::op_commit::{
-    ADMISSION_PROBE_MESSAGE, ADMISSION_PROBE_RECORD, OpCommitService, ProtectionRead,
-    build_safe_commit_request, git_path_from_relative,
+    ADMISSION_PROBE_RECORD, OpCommitService, ProtectionRead, build_safe_commit_target,
+    git_path_from_relative,
 };
 use crate::op_custody::{OpWriteAction, OpWriteRefusal, OpWriteRefused};
 
@@ -119,25 +123,23 @@ impl OpCommitService {
             Ok(protected) => protected,
             Err(ProtectionRead::InvalidConfig(reason)) => {
                 // The source reads protection at step 6c, after its HEAD,
-                // destination and path checks. Re-run the same read-only plan
-                // with an empty set: only a request the source would have
-                // reached step 6c with earns the configuration refusal.
-                let probe = build_safe_commit_request(
-                    &destination,
-                    ADMISSION_PROBE_MESSAGE,
-                    &sentinel,
-                    sk_git::ProtectedBranches::default(),
-                );
-                let reached = match repository.plan_safe_commit(&probe) {
+                // destination and path checks. Re-run the same read-only target
+                // plan with an empty set. This retains the earlier heuristic,
+                // not a source-path proof: J/P and environmental failures still
+                // need source-grounded reachability (see remaining F4 work).
+                let probe =
+                    build_safe_commit_target(&destination, &sentinel, ProtectedBranches::default());
+                let reached = match repository.plan_safe_commit_target(&probe) {
                     Ok(_) => true,
-                    // These are the adapter checks after the guard; the source
-                    // preflight has no equivalent and would already be reading
-                    // the protection configuration.
-                    Err(
+                    // OperationInProgress is after the native guard, but the
+                    // environment refusal is before it. Preserve the existing
+                    // decision here without falsely claiming both prove source
+                    // guard reachability; that heuristic remains required work.
+                    Err(failure) => matches!(
+                        failure.error(),
                         GitError::OperationInProgress { .. }
-                        | GitError::RepositoryEnvironmentRefused { .. },
-                    ) => true,
-                    Err(_) => false,
+                            | GitError::RepositoryEnvironmentRefused { .. }
+                    ),
                 };
                 return if reached {
                     Ok(Some(OpWriteRefusal::protection_config_invalid(reason)))
@@ -152,16 +154,17 @@ impl OpCommitService {
                 return Err(OpAdmissionError::Repository(error));
             }
         };
-        let request =
-            build_safe_commit_request(&destination, ADMISSION_PROBE_MESSAGE, &sentinel, protected);
-        match repository.plan_safe_commit(&request) {
+        let target = build_safe_commit_target(&destination, &sentinel, protected);
+        match repository.plan_safe_commit_target(&target) {
             Ok(_) => Ok(None),
-            Err(GitError::SafeCommitProtectedBranch { destination, .. }) => {
-                Ok(Some(OpWriteRefusal::protected_branch(&destination)))
-            }
-            // Any other preflight failure is the source's "could not judge the
-            // commit" branch: admitted, and observable after the write.
-            Err(_) => Ok(None),
+            Err(failure) => match failure.error() {
+                GitError::SafeCommitProtectedBranch { destination, .. } => {
+                    Ok(Some(OpWriteRefusal::protected_branch(destination)))
+                }
+                // Any other preflight failure is the source's "could not judge
+                // the commit" branch: admitted, and observable after the write.
+                _ => Ok(None),
+            },
         }
     }
 
