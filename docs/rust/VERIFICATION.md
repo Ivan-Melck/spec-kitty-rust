@@ -8,6 +8,28 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
+## Independent J/H/P review / path follow-up — after `fc61898c9`
+
+Narrow PASS for exercised Op-reachable slice: independent 13 bindings, Git343/
+Op233, strict scoped gates/exact53 and live Source identities/admission/commit
+controls. F1 relative directory `sub/../dir` raises Source ValueError before the
+index-command catch, not a safe directory refusal; corrected through a genuine
+live-Source/public-native 0/1 red. One new paired test also checks missing tails,
+absolute/dot/separator/root/outside shapes. F2 corrected the coordinator's source
+reading: executor passes **relative** record/spine paths; native now preserves
+that input. Absolute API controls are not executor-shape proof. F3 comments the
+load-bearing `.git/x` disambiguator. Small fixes tested, not a fresh verdict.
+
+Stable workspace **2334/0/14helpers/191suites**, Git344/Op233, strict all-target
+Clippy/full fmt/both release CLIs/optimized Op/exact53 green. Completion standalone
+expected exit1: 599/PERF27/pending/valid/0of16. Earlier chain timeout occurred only
+after all Cargo/strict/release/oracle gates passed; incomplete completion attempt
+retained, no live processes confirmed before retry. Current bindings/evidence/
+limits: `reviews/op-jp-target-disposition.md`, unique root
+`/tmp/sk-jp-review-followup.OQxeQO/command-log-index.tsv`. No whole-program or
+performance promotion; root/exact-ref publication and Source failure footprints
+remain required.
+
 ## Source-ordered J/H/P adjudication / born publication — after `33a9102d8`
 
 One per-call source shape→roots→H==J→Jrefexists→SOURCEpath→Jpolicy/pureguard,
@@ -16,9 +38,11 @@ supportedborn Source/native fullobject/OID/reflog/path/Ptip/Jseed matches. D1mis
 vsdirectoryguardorder, P-onlyprotectionquirk and Source tagmismatch preserved. Unborn
 SourceROOT0parents vsnativehonestnoPlan/evidence/Pabsent; root/exact-ref backendNEXT.
 
-CoorSourcepath0/2actualpublicAPIreds fixed: absoluteleafloop +missing/..; Op nowuses
-actualwriterpathspelling, canonicalKernel resolution/leafprobe and sealednormalized
-stagingpath. Exactrev-parsepredicate(noOIDparse/enumeration); one fullHEADobservation
+CoorSourcepath0/2actualpublicAPIreds fixed: absoluteleafloop +missing/..; these are
+absolute library inputs, NOT the executor's relative record/spine shape. The
+initial Op absolute projection was based on a wrong source reading, corrected in
+the follow-up below; absolute API controls still cover canonicalKernel
+resolution/leafprobe and sealednormalized stagingpath. Exactrev-parsepredicate(noOIDparse/enumeration); one fullHEADobservation
 separatescompletednonzero fromsuccessfuldecode/validation, strictoldRefNameAPIunchanged.
 Sourcelegalnonheads refs/x withrealrootx disambiguator commits; fixed falseSourceHEAD
 mismatch(H==Jsame) toNativeCannotPublish, NOTpublicationparity. Firstshort-labelfixture
@@ -31,7 +55,9 @@ completion599/PERF27/pending/valid/0of16 unchanged. Unique logs
 `/tmp/sk-jp-integration.dpvKNJ/command-log-index.tsv`; current13bindings/preciseSource
 scope `crates/sk-invocation/JP-TARGET-INTEGRATION-REPORT.md`. Owner232/338historical,
 6pathcontrolsrealGitnot6Sourcepairs; actualSource3controlscoor. Published+PUSHEDdraft,
-freshindependentJP/pathreviewpending; unimplementedrequiredgapsnotwaived.
+independent JP/path review subsequently passed the exercised Op slice, with
+relative-directory classification and path-shape wording findings corrected in
+`reviews/op-jp-target-disposition.md`; unimplemented required gaps not waived.
 
 ## Op byte/locale review and Latin-9/alias follow-up — after `a522ebbd2`
 

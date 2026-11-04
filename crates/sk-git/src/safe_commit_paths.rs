@@ -16,8 +16,10 @@
 //! index gitlink probe (`index_entry_mode`), so the two projections cannot
 //! drift in the facts they read. They deliberately keep different *policies*:
 //! the source leaves a relative path lexically untouched, treats an unstattable
-//! path as "not a directory", and folds a failed gitlink probe into the
-//! directory refusal; the native planner keeps its stricter typed errors. The
+//! path as "not a directory", and folds a failed gitlink command into the
+//! directory refusal. Source GitPath parsing occurs before that command catch;
+//! an invalid directory probe propagates instead. The native planner keeps its
+//! stricter typed errors. The
 //! Op layer must not relabel a native-only refusal as a source refusal.
 //!
 //! Everything here is read-only: `symlink_metadata`, `metadata`, and the
@@ -326,8 +328,9 @@ pub enum SourcePathRefusal {
         /// The original refusal value.
         error: GitError,
     },
-    /// The reference would raise a non-`SafeCommitError` while normalising an
-    /// absolute path; that is an undecidable probe, not an admission.
+    /// The reference would raise a non-`SafeCommitError` while normalising a
+    /// path or parsing its directory-index probe (for example ValueError on a
+    /// relative '..'). This propagates, rather than admitting the write.
     Unreadable {
         /// The original probe/IO value.
         error: GitError,
@@ -370,8 +373,9 @@ impl SourceCommitPath {
 /// the final component) and passes an outside-worktree result as-is; a relative
 /// path is left lexically untouched. Its 6a test uses the first path part, and
 /// its 6b test treats a symlink, a non-directory, a missing entry, and an
-/// unstattable entry as non-directories, folds a failed gitlink probe into a
-/// directory refusal, and only refuses a real directory that is not a gitlink.
+/// unstattable entry as non-directories, folds a failed gitlink command into a
+/// directory refusal, and only safely refuses a real directory that is not a
+/// gitlink. Invalid Source GitPath probe syntax propagates before the command.
 ///
 /// Read-only: no index, record, ref, or worktree is created or changed.
 pub fn source_preflight_path(
@@ -401,15 +405,15 @@ pub fn plan_source_commit_path(
     }
     let candidate = root.join(&normalized);
     if let PathEntry::Directory = observe_entry(&candidate) {
-        let gitlink = source_probe_path(&normalized, path)
-            .map(|probe| {
-                index_entry_mode(repository, &probe)
-                    .ok()
-                    .flatten()
-                    .as_deref()
-                    == Some("160000")
-            })
-            .unwrap_or(false);
+        // Source GitPath.parse runs BEFORE the GitCommandError catch. An
+        // invalid probe spelling propagates ValueError, not a safe-commit
+        // directory refusal; only a failed Git index command folds to false.
+        let probe = source_probe_path(&normalized)?;
+        let gitlink = index_entry_mode(repository, &probe)
+            .ok()
+            .flatten()
+            .as_deref()
+            == Some("160000");
         if !gitlink {
             return Err(SourcePathRefusal::Source {
                 error: GitError::SafeCommitDirectoryArgument {
@@ -431,14 +435,25 @@ pub fn plan_source_commit_path(
 /// path. A loop is the source's typed path refusal.
 fn source_normalize_path(root: &Path, path: &GitPath) -> Result<PathBuf, SourcePathRefusal> {
     let supplied = path.to_path_buf();
-    if !supplied.is_absolute() {
-        return Ok(supplied);
-    }
-    let resolved = source_resolve_commit_path(root, &supplied)?;
-    Ok(resolved
-        .strip_prefix(root)
-        .map(Path::to_path_buf)
-        .unwrap_or(supplied))
+    let normalized = if !supplied.is_absolute() {
+        // Python Path construction removes '.' and redundant separators even
+        // though preflight deliberately does not resolve relative symlinks/.. .
+        supplied
+            .components()
+            .filter(|component| !matches!(component, Component::CurDir))
+            .collect::<PathBuf>()
+    } else {
+        let resolved = source_resolve_commit_path(root, &supplied)?;
+        resolved
+            .strip_prefix(root)
+            .map(Path::to_path_buf)
+            .unwrap_or(supplied)
+    };
+    Ok(if normalized.as_os_str().is_empty() {
+        PathBuf::from(".")
+    } else {
+        normalized
+    })
 }
 
 /// Source kernel `resolve_commit_path`: use the shared Python-compatible
@@ -485,11 +500,25 @@ fn source_resolve_commit_path(root: &Path, supplied: &Path) -> Result<PathBuf, S
 }
 
 /// The index pathspec the source would probe for the gitlink exemption.
-fn source_probe_path(normalized: &Path, original: &GitPath) -> Option<GitPath> {
-    if normalized.is_absolute() {
-        return Some(original.clone());
+fn source_probe_path(normalized: &Path) -> Result<GitPath, SourcePathRefusal> {
+    let bytes =
+        path_to_git_bytes(normalized).map_err(|error| SourcePathRefusal::Unreadable { error })?;
+    let body = bytes.strip_suffix(b"/").unwrap_or(&bytes);
+    // This is the source kernel.git.paths.GitPath probe contract, NOT the raw
+    // native GitPath container. It is checked only when probing a directory.
+    if bytes.starts_with(b"/")
+        || (!body.is_empty()
+            && body
+                .split(|byte| *byte == b'/')
+                .any(|part| matches!(part, b"" | b"." | b"..")))
+    {
+        return Err(SourcePathRefusal::Unreadable {
+            error: GitError::InvalidPlan {
+                detail: format!(
+                    "source GitPath.parse rejects the non-normalized directory probe {normalized:?}"
+                ),
+            },
+        });
     }
-    path_to_git_bytes(normalized)
-        .ok()
-        .and_then(|bytes| GitPath::from_git_bytes(&bytes).ok())
+    GitPath::from_git_bytes(body).map_err(|error| SourcePathRefusal::Unreadable { error })
 }

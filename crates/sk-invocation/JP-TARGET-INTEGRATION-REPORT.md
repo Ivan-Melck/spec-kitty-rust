@@ -1,6 +1,13 @@
 # Source-ordered J/H/P target — coordinator integration
 
-Status: coordinator tested; **fresh independent review pending**. Provisional
+**Historical `fc61898c9` integration snapshot.** Independent review subsequently
+passed the exercised Op slice (576 scoped tests), with F1–F3 follow-ups. Its source
+correction is important: `_op_commit_kwargs` passes **relative** record/spine
+paths. The absolute-writer-path interpretation in the corrections below was incorrect; those
+three absolute controls cover the public library shape, not the executor shape.
+Current corrections/bindings: `docs/rust/reviews/op-jp-target-disposition.md`.
+
+Status at original integration: coordinator tested; fresh review then pending. Provisional
 `/tmp/sk-jp-target-integration.md` preceded integration fixes. Published base
 33a9102d8f23b35a91cdb9d3cdd6bc4149d9d9b8/source-oracle9aed3a8012cb5eb22c0128b14d525039f95fea7a.
 Owner `JP-TARGET-REPORT.md` is historical pre-integration snapshot, not current

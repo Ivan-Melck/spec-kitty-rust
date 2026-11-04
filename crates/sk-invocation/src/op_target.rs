@@ -48,9 +48,7 @@ use sk_git::{
 };
 use sk_workspace::WorkspaceError;
 
-use crate::op_commit::{
-    OpCommitService, ProtectionRead, build_safe_commit_target, git_path_from_relative,
-};
+use crate::op_commit::{OpCommitService, ProtectionRead, build_safe_commit_target};
 use crate::op_commit_policy::strip_git_stdout;
 
 /// The source-judged destination `J`.
@@ -294,15 +292,10 @@ impl OpCommitService {
         // 6a/6b. The source's own path proof, from the shared canonical
         // observation authority. A native-only path refusal is NOT relabelled
         // as this.
-        // The source hands preflight the writer's record-root/path spelling,
-        // normally absolute. Passing only the relative staging path would skip
-        // its parent resolution and absolute-leaf loop checks.
-        let source_path = match git_path_from_relative(&self.record_root().join(path.to_path_buf()))
-        {
-            Ok(path) => path,
-            Err(error) => return OpTargetVerdict::Repository(error),
-        };
-        let source_path = match plan_source_commit_path(repository, &source_path) {
+        // executor._op_commit_kwargs passes the relative record/spine path.
+        // Preserve that exact input; the absolute API projection is a different
+        // source shape, not a reason to resolve an Op symlink alias eagerly.
+        let source_path = match plan_source_commit_path(repository, path) {
             Ok(path) => path,
             Err(SourcePathRefusal::Source { error }) => {
                 return OpTargetVerdict::SourcePathRefuses(error);

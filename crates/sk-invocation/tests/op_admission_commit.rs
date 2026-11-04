@@ -3219,6 +3219,8 @@ fn source_allowed_non_branch_symbolic_target_is_not_invented_as_a_head_mismatch(
         fixture.git_ok(&["branch", "refs/x"]);
         fixture.git_ok(&["update-ref", "refs/x", &fixture.head()]);
         fixture.git_ok(&["symbolic-ref", "HEAD", "refs/x"]);
+        // Load-bearing disambiguator: this real root ref makes --short print
+        // refs/x rather than x, so Source J == H for the non-heads target.
         fs::write(fixture.root.join(".git/x"), format!("{}\n", fixture.head())).unwrap();
         let short = fixture.git_ok(&["symbolic-ref", "--short", "HEAD"]);
         assert_eq!(String::from_utf8(short).unwrap().trim(), "refs/x");

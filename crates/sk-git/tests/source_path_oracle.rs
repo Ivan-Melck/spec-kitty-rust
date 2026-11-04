@@ -150,6 +150,63 @@ fn absolute_symlink_parent_uses_the_source_normalized_staging_path_and_policy() 
 }
 
 #[test]
+fn relative_directory_probe_value_error_is_not_a_safe_commit_refusal() {
+    let (scratch, root, repository) = fixture();
+    fs::create_dir_all(root.join("sub")).unwrap();
+    fs::create_dir_all(root.join("dir")).unwrap();
+    let relative = Path::new("sub/../dir");
+    assert_eq!(source_result(scratch.path(), &root, relative), "ValueError");
+    assert!(
+        matches!(
+            source_preflight_path(&repository, &raw(relative)),
+            Err(sk_git::SourcePathRefusal::Unreadable { .. })
+        ),
+        "Source GitPath.parse propagates a non-SafeCommit ValueError before probing the directory"
+    );
+    let missing = Path::new("sub/../missing");
+    assert_eq!(source_result(scratch.path(), &root, missing), "pass");
+    assert!(source_preflight_path(&repository, &raw(missing)).is_ok());
+    for spelling in ["./dir", "dir//", "sub/../dir"] {
+        let absolute = root.join(spelling);
+        assert_eq!(
+            source_result(scratch.path(), &root, &absolute),
+            "SafeCommitDirectoryArgument"
+        );
+        assert!(matches!(
+            source_preflight_path(&repository, &raw(&absolute)),
+            Err(sk_git::SourcePathRefusal::Source { .. })
+        ));
+    }
+    for spelling in ["./dir", "dir//"] {
+        assert_eq!(
+            source_result(scratch.path(), &root, Path::new(spelling)),
+            "SafeCommitDirectoryArgument"
+        );
+        assert!(matches!(
+            source_preflight_path(&repository, &raw(Path::new(spelling))),
+            Err(sk_git::SourcePathRefusal::Source { .. })
+        ));
+    }
+    for spelling in [".", ""] {
+        assert_eq!(
+            source_result(scratch.path(), &root, Path::new(spelling)),
+            "ValueError"
+        );
+        assert!(matches!(
+            source_preflight_path(&repository, &raw(Path::new(spelling))),
+            Err(sk_git::SourcePathRefusal::Unreadable { .. })
+        ));
+    }
+    let outside = scratch.path().join("outside-dir");
+    fs::create_dir_all(&outside).unwrap();
+    assert_eq!(source_result(scratch.path(), &root, &outside), "ValueError");
+    assert!(matches!(
+        source_preflight_path(&repository, &raw(&outside)),
+        Err(sk_git::SourcePathRefusal::Unreadable { .. })
+    ));
+}
+
+#[test]
 fn absolute_missing_parent_then_dotdot_resolves_like_the_actual_source() {
     let (scratch, root, repository) = fixture();
     let path = root.join("missing/../record.jsonl");

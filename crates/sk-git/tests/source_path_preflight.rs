@@ -109,14 +109,15 @@ fn a_real_directory_refuses_but_lexical_relative_paths_are_kept() {
         "{error:?}"
     );
 
-    // The reference does not normalise a relative path: `sub/../dir` is kept
-    // lexically and still names the directory, so 6b refuses it.
+    // The relative '..' survives Path construction. Once stat finds a real
+    // directory, Source GitPath.parse rejects this probe BEFORE the index
+    // command catch: it is ValueError, not a SafeCommit directory refusal.
     fs::create_dir_all(fixture.root.join("sub")).unwrap();
     fs::create_dir_all(fixture.root.join("dir")).unwrap();
     let error = source_preflight_path(&repository, &fixture.path(b"sub/../dir"))
-        .expect_err("the lexical relative path reaches the directory rule");
+        .expect_err("the lexical relative path fails source probe parsing");
     assert!(
-        matches!(error, SourcePathRefusal::Source { .. }),
+        matches!(error, SourcePathRefusal::Unreadable { .. }),
         "{error:?}"
     );
 }
