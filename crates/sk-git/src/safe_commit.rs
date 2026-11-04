@@ -972,6 +972,12 @@ impl SafeCommitTargetPlan {
     pub(crate) fn execution<'a>(&'a self, message: &'a [u8]) -> SafeCommitExecution<'a> {
         self.core.execution(message)
     }
+
+    /// The same view for the ordinary route that obtains its message at the
+    /// reference argv boundary, after the requested paths are staged.
+    pub(crate) fn execution_late(&self) -> SafeCommitExecution<'_> {
+        self.core.execution_late()
+    }
 }
 
 /// A target plan plus the exact message bytes it will commit.
@@ -1163,6 +1169,31 @@ impl SafeCommitMessagePlan {
     pub(crate) fn execution(&self) -> SafeCommitExecution<'_> {
         self.target.execution(self.message.as_bytes())
     }
+}
+
+/// Run the ordinary route with a message that is produced at the reference
+/// argv boundary.
+///
+/// This is the shared execution seam for the existing one-shot facades: the
+/// plan was built message-free, the real operator index is staged first, and
+/// only then is the payload validated and used. A supplier cannot fail for these
+/// callers, so the infallible outcome is flattened without losing the original
+/// [`GitError`] (including a landed/unconfirmed candidate).
+pub(crate) fn execute_source_message(
+    repository: &GitRepository,
+    execution: &SafeCommitExecution<'_>,
+    message: CommitMessage,
+) -> Result<SafeCommitCoreOutcome, GitError> {
+    crate::safe_commit_transaction::execute_late(repository, execution, || {
+        Ok::<CommitMessage, std::convert::Infallible>(message)
+    })
+    .map_err(|failure| match failure {
+        crate::safe_commit_transaction::TransactionFailure::MessageNotProduced(never) => {
+            match never {}
+        }
+        crate::safe_commit_transaction::TransactionFailure::MessageRejected(error)
+        | crate::safe_commit_transaction::TransactionFailure::Commit(error) => error,
+    })
 }
 
 /// The shared, read-only view one execution body consumes.
@@ -1905,13 +1936,35 @@ impl GitRepository {
     }
     /// Plan and apply one safe commit.
     ///
-    /// This is the single-call convenience form. Callers that need a real
-    /// preflight (for example to validate before writing a scaffold) call
-    /// [`GitRepository::plan_safe_commit`] and
-    /// [`GitRepository::apply_safe_commit`] separately.
+    /// This is the single-call convenience form over the same planner and the
+    /// same transaction body. The ordinary worktree route plans message-free and
+    /// produces the payload at the reference argv boundary, after the requested
+    /// paths are staged. NUL retains that stage without running hooks; empty
+    /// argv reaches hooks and the message artifact. Hooks can supply a message;
+    /// a completed commit failure restores requested staging. Pinned-parent and
+    /// index-deletion routes keep their prepared message file and existing
+    /// validation priority.
+    ///
+    /// Callers that need a real read-only preflight (for example to validate
+    /// before writing a scaffold) call [`GitRepository::plan_safe_commit`] and
+    /// [`GitRepository::apply_safe_commit`] separately; those keep the Native
+    /// payload-validated construction contract.
     pub fn safe_commit(&self, request: &SafeCommitRequest) -> Result<SafeCommitOutcome, GitError> {
-        let plan = self.plan_safe_commit(request)?;
-        self.apply_safe_commit(&plan)
+        let ordinary_worktree =
+            request.target.expected_parent.is_none() && request.target.index_deletions().is_empty();
+        if !ordinary_worktree {
+            let plan = self.plan_safe_commit(request)?;
+            return self.apply_safe_commit(&plan);
+        }
+        let target = self
+            .plan_safe_commit_target(&request.target)
+            .map_err(SafeCommitPlanFailure::into_error)?;
+        let outcome = execute_source_message(
+            self,
+            &target.execution_late(),
+            CommitMessage::from_text(&request.message),
+        )?;
+        Ok(outcome.into_legacy(target.destination().clone()))
     }
 
     fn normalize_expected_bytes(

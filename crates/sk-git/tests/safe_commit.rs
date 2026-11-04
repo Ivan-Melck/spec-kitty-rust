@@ -542,16 +542,82 @@ fn refuses_an_empty_path_set() {
 }
 
 #[test]
-fn refuses_an_empty_message_before_mutation() {
+fn an_empty_message_stages_then_restores_before_the_empty_commit_failure() {
     let repo = Repo::lane();
     repo.write("alpha.txt", "alpha\n");
     let before = repo.stage_snapshot();
+    // The reference passes an empty message as a valid `-m` argv value, so its
+    // hooks run after the requested stage; only the commit itself refuses it.
+    let hooks = repo.path.join(".git/hooks");
+    fs::create_dir_all(&hooks).unwrap();
+    let hook = hooks.join("pre-commit");
+    fs::write(&hook, "#!/bin/sh\nprintf 'ran\\n' > .git/pre-commit-ran\n").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
     let error = repo
         .open()
         .safe_commit(&repo.request("", &["alpha.txt"]))
         .unwrap_err();
-    assert!(matches!(error, GitError::SafeCommitInvalidRequest { .. }));
-    assert_eq!(repo.stage_snapshot(), before);
+    assert!(
+        matches!(error, GitError::SafeCommitCommitFailed { .. }),
+        "an empty message is a completed commit failure, not a pre-stage payload refusal: {error:?}"
+    );
+    assert!(
+        repo.path.join(".git/pre-commit-ran").exists(),
+        "the requested stage and hooks happen before the empty-commit failure"
+    );
+    assert_eq!(
+        repo.stage_snapshot(),
+        before,
+        "the requested-only stage is restored after the completed failure"
+    );
+    assert_eq!(
+        fs::read(repo.path.join(".git/COMMIT_EDITMSG")).unwrap(),
+        b"",
+        "the reference writes the empty message artifact"
+    );
+}
+
+#[test]
+fn one_shot_shape_and_guard_precede_the_message_payload() {
+    let repo = Repo::lane();
+    let before = repo.stage_snapshot();
+
+    // An empty path set is a request-shape refusal, not a message refusal: the
+    // ordinary route plans message-free and shapes first.
+    let error = repo
+        .open()
+        .safe_commit(&SafeCommitRequest::new(repo.destination(), "has\0nul", []))
+        .unwrap_err();
+    assert!(
+        matches!(error, GitError::SafeCommitEmptyChangeset),
+        "the empty path set keeps its shape priority: {error:?}"
+    );
+
+    // A protected destination without the capability is refused before the
+    // staged footprint, even with a NUL payload. The protected set names the
+    // real short branch the reference also accepts.
+    repo.write("alpha.txt", "alpha\n");
+    let request =
+        SafeCommitRequest::new(repo.destination(), "has\0nul", [repo.path_of("alpha.txt")])
+            .with_protection(
+                ProtectedBranches::parse([LANE]).unwrap(),
+                CommitGuardCapability::Standard,
+            );
+    let error = repo.open().safe_commit(&request).unwrap_err();
+    assert!(
+        matches!(error, GitError::SafeCommitProtectedBranch { .. }),
+        "the guard keeps its pre-stage priority: {error:?}"
+    );
+    assert_eq!(
+        repo.stage_snapshot(),
+        before,
+        "a refused shape or guard never stages the requested path"
+    );
 }
 
 #[test]

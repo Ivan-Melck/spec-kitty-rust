@@ -1,5 +1,11 @@
 # Source staging/recovery: independent review and follow-up
 
+> Historical `1a7a62f45` timestamp/coverage follow-up below. The later existing
+> one-shot execution-facade correction (F1), current gates and six bindings are
+> in [one-shot-source-disposition.md](one-shot-source-disposition.md). Explicit
+> read-only construction contracts remain unchanged; this original review is
+> not a new verdict on either follow-up.
+
 ## Independent review at `f4d662f7c18f018c28f7830a56ad94ba2f09b51d`
 
 **NARROW PASS WITH FINDINGS**, exercised ordinary Op staging/late-message/

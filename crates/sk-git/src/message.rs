@@ -114,7 +114,10 @@ impl CommitMessage {
     ///
     /// The rules and their exact error values are the legacy ones: empty, more
     /// than [`MAX_COMMIT_MESSAGE_LEN`](crate::MAX_COMMIT_MESSAGE_LEN) bytes, or
-    /// containing NUL.
+    /// containing NUL. The reference's argv boundary accepts an empty message
+    /// (the commit itself classifies it); the crate-private argv validator is
+    /// the execution-time rule set. This is the prepared-construction contract
+    /// and is unchanged.
     pub fn validate(&self) -> Result<(), GitError> {
         validate_message_bytes(&self.bytes)
     }
@@ -146,22 +149,74 @@ impl fmt::Debug for CommitMessage {
 
 /// The single byte-level message validation authority.
 pub(crate) fn validate_message_bytes(bytes: &[u8]) -> Result<(), GitError> {
+    match message_defect(bytes) {
+        None => Ok(()),
+        Some(defect) => Err(defect.into_error()),
+    }
+}
+
+/// Why a payload would be refused, as a typed reason rather than error text.
+///
+/// This is the one inspection every message entry point shares; the public
+/// errors below are the exact legacy values, so a caller can tell *which* rule
+/// refused the payload without parsing a `Display` string.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MessageDefect {
+    /// No bytes at all.
+    Empty,
+    /// More than [`MAX_COMMIT_MESSAGE_LEN`] bytes.
+    TooLong,
+    /// The bytes contain a NUL.
+    Nul,
+}
+
+impl MessageDefect {
+    fn into_error(self) -> GitError {
+        match self {
+            Self::Empty => GitError::SafeCommitInvalidRequest {
+                detail: "a safe commit needs a non-empty message".to_string(),
+            },
+            Self::TooLong => GitError::SafeCommitInvalidRequest {
+                detail: format!(
+                    "the commit message exceeds the {MAX_COMMIT_MESSAGE_LEN}-byte limit"
+                ),
+            },
+            Self::Nul => GitError::SafeCommitInvalidRequest {
+                detail: "the commit message must not contain NUL".to_string(),
+            },
+        }
+    }
+}
+
+/// The one byte-level rule set, in the legacy order (empty, length, NUL).
+fn message_defect(bytes: &[u8]) -> Option<MessageDefect> {
     if bytes.is_empty() {
-        return Err(GitError::SafeCommitInvalidRequest {
-            detail: "a safe commit needs a non-empty message".to_string(),
-        });
+        return Some(MessageDefect::Empty);
     }
     if bytes.len() > MAX_COMMIT_MESSAGE_LEN {
-        return Err(GitError::SafeCommitInvalidRequest {
-            detail: format!("the commit message exceeds the {MAX_COMMIT_MESSAGE_LEN}-byte limit"),
-        });
+        return Some(MessageDefect::TooLong);
     }
     if bytes.contains(&0) {
-        return Err(GitError::SafeCommitInvalidRequest {
-            detail: "the commit message must not contain NUL".to_string(),
-        });
+        return Some(MessageDefect::Nul);
     }
-    Ok(())
+    None
+}
+
+/// Validate a payload at the reference implementation's argv boundary.
+///
+/// The reference stages the requested paths first and then passes the message
+/// as one `-m` argv element. An **empty** message is a valid argv value: the
+/// reference runs its hooks and message artifact; hooks may supply a message,
+/// otherwise the commit aborts with an ordinary empty-message failure. It is
+/// accepted here and classified by the commit itself. A NUL is refused here
+/// (argv cannot carry it), after the stage
+/// and before any hook or artifact. The byte-length bound is the crate's own
+/// Native budget, not the kernel's `E2BIG` and not a reference-parity claim.
+pub(crate) fn validate_argv_message_bytes(bytes: &[u8]) -> Result<(), GitError> {
+    match message_defect(bytes) {
+        None | Some(MessageDefect::Empty) => Ok(()),
+        Some(defect) => Err(defect.into_error()),
+    }
 }
 
 #[cfg(test)]
@@ -211,6 +266,22 @@ mod tests {
         ));
         assert!(matches!(
             CommitMessage::from_bytes(vec![b'x'; MAX_COMMIT_MESSAGE_LEN + 1]).validate(),
+            Err(GitError::SafeCommitInvalidRequest { detail })
+                if detail == format!("the commit message exceeds the {MAX_COMMIT_MESSAGE_LEN}-byte limit")
+        ));
+    }
+
+    #[test]
+    fn argv_validation_defers_empty_but_refuses_nul_and_overlong() {
+        assert!(validate_argv_message_bytes(b"").is_ok());
+        assert!(validate_argv_message_bytes(b"ok").is_ok());
+        assert!(matches!(
+            validate_argv_message_bytes(b"a\0b"),
+            Err(GitError::SafeCommitInvalidRequest { detail })
+                if detail == "the commit message must not contain NUL"
+        ));
+        assert!(matches!(
+            validate_argv_message_bytes(&vec![b'x'; MAX_COMMIT_MESSAGE_LEN + 1]),
             Err(GitError::SafeCommitInvalidRequest { detail })
                 if detail == format!("the commit message exceeds the {MAX_COMMIT_MESSAGE_LEN}-byte limit")
         ));

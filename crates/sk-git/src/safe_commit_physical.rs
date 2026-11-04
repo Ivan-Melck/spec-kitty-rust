@@ -557,9 +557,15 @@ impl GitRepository {
 
     /// Plan and apply one exact-ref safe commit with an exact-byte message.
     ///
-    /// The single-call convenience form. Callers that need a real preflight call
-    /// [`GitRepository::plan_safe_physical_commit`] and
-    /// [`GitRepository::apply_safe_physical_commit`] separately.
+    /// The single-call convenience form over the same planner and the same
+    /// transaction body. It plans message-free and produces the payload at the
+    /// reference argv boundary, after the requested paths are staged. NUL keeps
+    /// that stage without hooks; empty argv reaches hooks/artifact, where hooks
+    /// can supply a message. A completed commit failure restores requested staging.
+    /// Callers needing a read-only preflight
+    /// call [`GitRepository::plan_safe_physical_commit`] and
+    /// [`GitRepository::apply_safe_physical_commit`] separately; those keep the
+    /// Native payload-validated construction contract.
     pub fn safe_physical_commit(
         &self,
         request: &SafeCommitPhysicalRequest,
@@ -567,9 +573,12 @@ impl GitRepository {
     ) -> Result<SafeCommitPhysicalOutcome, GitError> {
         let plan = self
             .plan_safe_physical_commit(request)
-            .map_err(SafeCommitPlanFailure::into_error)?
-            .prepare(message)
             .map_err(SafeCommitPlanFailure::into_error)?;
-        self.apply_safe_physical_commit(&plan)
+        let outcome =
+            crate::safe_commit::execute_source_message(self, &plan.execution_late(), message)?;
+        Ok(SafeCommitPhysicalOutcome::from_core(
+            outcome,
+            plan.destination_ref().clone(),
+        ))
     }
 }

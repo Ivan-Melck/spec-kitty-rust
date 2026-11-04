@@ -8,7 +8,31 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Source staging independent review / timestamp follow-up — after `f4d662f7c`
+## Existing one-shot Source ordering — after `1a7a62f45`
+
+Ordinary UTF8/physical-byte one-shot facades now stage through the same canonical
+core before payload handling; no new public API or second planner/writer. NUL
+retains staging before hooks/artifact. Empty argv reaches hooks/artifact: an
+unchanged empty message fails and restores requested staging, while a message
+hook can rescue it and commit. Both rescue controls compare complete objects,
+raw HEAD/destination reflogs and full footprint. Explicit read-only plan/prepare
+contracts and pinned/index-deletion validation priority remain unchanged.
+
+Owner's six Source-first business reds precede production edits. Coordinator
+moves four exact Source-class checks before Native too and adds rescue coverage;
+those additions are inspection-driven positives, not invented original reds.
+Current **2441/0/19helpers/194suites**, Git438+Op246 scoped684/0/14/40. Strict
+workspace Clippy/fmt/docs/all-target offline/both release CLIs+optimizedOp/
+exact53 green. Chained timeout during Clippy had no receipt; one process check
+found no surviving build and fresh standalone/final gates pass. Completion still
+599/PERF27/pending/accounting valid0of16. Six current hashes, logs, historical
+qualifications and limits: `reviews/one-shot-source-disposition.md`, evidence
+`/tmp/sk-one-shot-source-integration.mHlRUO/command-log-index.tsv`.
+Coordinator verified, fresh independent review pending. Native64KiB is NOT
+SourceE2BIG; raw stat/TREE/refresh, all payload/process/platform/workflow and
+measured performance remain required. No earlier review is rebound to this code.
+
+## Historical Source staging review / timestamp follow-up — after `f4d662f7c`
 
 Independent narrow PASS WITH FINDINGS: Git426/Op246=672/0/13helpers40suites,
 strict scoped/docs/fmt/offline/exact53/all11bindings; own Source/Native foreign

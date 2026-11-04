@@ -502,8 +502,11 @@ where
                     Ok(message) => message,
                     Err(error) => return Err(TransactionFailure::MessageNotProduced(error)),
                 };
-                message
-                    .validate()
+                // The reference crosses its `-m` argv boundary here: an empty
+                // payload is valid argv and is classified later by the commit
+                // itself (hooks and artifact have already run by then), while a
+                // NUL is refused after the stage and before any hook.
+                crate::message::validate_argv_message_bytes(message.as_bytes())
                     .map_err(TransactionFailure::MessageRejected)?;
                 #[cfg(not(unix))]
                 if std::str::from_utf8(message.as_bytes()).is_err() {

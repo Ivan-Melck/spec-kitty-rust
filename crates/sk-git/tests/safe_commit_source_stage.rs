@@ -26,8 +26,8 @@ use std::process::{Command, Output};
 use std::sync::OnceLock;
 
 use sk_git::{
-    CommitMessage, GitPath, GitRepository, RefName, SafeCommitLateMessage,
-    SafeCommitPhysicalRequest,
+    BranchName, CommitMessage, GitError, GitPath, GitRepository, RefName, SafeCommitLateMessage,
+    SafeCommitPhysicalRequest, SafeCommitRequest,
 };
 use tempfile::TempDir;
 
@@ -624,6 +624,8 @@ if kind == "surrogate":
     message = "subject" + chr(0xD800)
 elif kind == "nul":
     message = "subject" + chr(0) + "tail"
+elif kind == "empty":
+    message = ""
 elif kind == "equal_index_timestamp":
     # Source accepts os.PathLike arguments at Popen's argv conversion boundary.
     # This is a public helper/supplier probe, not the Op str-message surface.
@@ -1932,4 +1934,524 @@ fn a_stateful_clean_filter_preserves_source_object_and_index() {
             );
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Existing one-shot execution facades: Source stage before the argv payload
+// ---------------------------------------------------------------------------
+//
+// `GitRepository::safe_commit` and `GitRepository::safe_physical_commit` are
+// execution facades, not read-only construction APIs. The reference stages the
+// requested paths first and only then reaches its `-m` argv boundary, so a NUL
+// payload or an empty payload must not be refused before that stage. The
+// explicit `plan`/`prepare` two-step APIs keep their Native payload-validated
+// construction contract and are deliberately not compared here.
+
+/// Hooks that record which reference boundary the call actually reached and the
+/// message artifact they observed. Both sides run the identical script.
+fn install_one_shot_observation_hooks(fixture: &Fixture) {
+    fixture.install_hook(
+        "pre-commit",
+        "printf 'pre-commit\\n' >> hook-observed.txt\nprintf 'pre-artifact=%s\\n' \"$(cat \"$(git rev-parse --git-path COMMIT_EDITMSG)\" 2>/dev/null | od -An -c | tr -d '\\n')\" >> hook-observed.txt",
+    );
+    fixture.install_hook(
+        "prepare-commit-msg",
+        "printf 'prepare-commit-msg\\n' >> hook-observed.txt\nprintf 'artifact=%s\\n' \"$(cat \"$1\" 2>/dev/null | od -An -c | tr -d '\\n')\" >> hook-observed.txt",
+    );
+}
+
+/// The Git-observable result one side leaves behind, including the message
+/// artifact Git itself observes and the hooks that actually ran.
+#[derive(Debug, PartialEq, Eq)]
+struct Footprint {
+    state: State,
+    artifact: Vec<u8>,
+    hook: Option<Vec<u8>>,
+}
+
+fn footprint(fixture: &Fixture) -> Footprint {
+    let spelling = git_line(
+        &fixture.io,
+        &fixture.worktree,
+        &["rev-parse", "--git-path", "COMMIT_EDITMSG"],
+    );
+    let path = PathBuf::from(&spelling);
+    let path = if path.is_absolute() {
+        path
+    } else {
+        fixture.worktree.join(path)
+    };
+    Footprint {
+        state: State::read(fixture),
+        artifact: fs::read(&path).unwrap_or_default(),
+        hook: fs::read(fixture.worktree.join("hook-observed.txt")).ok(),
+    }
+}
+
+fn one_shot_error_class(error: &GitError) -> &'static str {
+    match error {
+        GitError::SafeCommitCommitFailed { .. } => "SafeCommitCommitFailed",
+        GitError::SafeCommitStageFailed { .. } => "SafeCommitStageFailed",
+        GitError::SafeCommitInvalidRequest { .. } => "SafeCommitInvalidRequest",
+        GitError::SafeCommitNothingToCommit { .. } => "SafeCommitNothingToCommit",
+        GitError::SafeCommitProtectedBranch { .. } => "SafeCommitProtectedBranch",
+        GitError::SafeCommitDirectoryArgument { .. } => "SafeCommitDirectoryArgument",
+        GitError::SafeCommitPathPolicy { .. } => "SafeCommitPathPolicy",
+        GitError::SafeCommitPathOutsideWorktree { .. } => "SafeCommitPathOutsideWorktree",
+        other => panic!("unmapped one-shot error class: {other:?}"),
+    }
+}
+
+/// The one-shot facade subprocess helper, with the same real temporary CWD and
+/// isolated roots as the two-step helper.
+#[test]
+#[ignore = "subprocess helper for the one-shot facade source-first matrix"]
+fn one_shot_native_helper() {
+    let home = PathBuf::from(std::env::var_os("HOME").expect("isolated HOME"));
+    assert_eq!(
+        std::env::current_dir().unwrap(),
+        home,
+        "native one-shot probe needs an actual temporary CWD, not just env_clear"
+    );
+    for name in [
+        "TMPDIR",
+        "XDG_CONFIG_HOME",
+        "XDG_CACHE_HOME",
+        "XDG_DATA_HOME",
+        "XDG_STATE_HOME",
+    ] {
+        let value = PathBuf::from(std::env::var_os(name).expect(name));
+        assert_eq!(
+            value.parent(),
+            home.parent(),
+            "{name} must be isolated beside HOME"
+        );
+    }
+    let args: Vec<String> = std::env::args().collect();
+    let rest: Vec<&str> = args
+        .iter()
+        .skip_while(|arg| arg.as_str() != "--")
+        .skip(1)
+        .map(String::as_str)
+        .collect();
+    let worktree = PathBuf::from(rest[0]);
+    let destination = rest[1];
+    let facade = rest[2];
+    let message_kind = rest[3];
+    let count: usize = rest[4].parse().expect("path count");
+    let paths: Vec<GitPath> = rest[5..5 + count]
+        .iter()
+        .map(|path| GitPath::from_git_bytes(path.as_bytes()).expect("path"))
+        .collect();
+    let out = PathBuf::from(rest[5 + count]);
+    let repository = GitRepository::open(&worktree).expect("open fixture");
+    let report = match facade {
+        "legacy" => {
+            let short = destination
+                .strip_prefix("refs/heads/")
+                .expect("a short branch spelling");
+            let message = match message_kind {
+                "empty" => String::new(),
+                "nul" => "subject\u{0}tail".to_string(),
+                "ok" => MESSAGE.to_string(),
+                other => panic!("unknown message kind {other}"),
+            };
+            let request =
+                SafeCommitRequest::new(BranchName::parse(short).expect("branch"), message, paths);
+            match repository.safe_commit(&request) {
+                Ok(outcome) => format!("result=ok\ncommit={}\n", outcome.commit()),
+                Err(error) => format!(
+                    "result=error\nerror={}\ndebug={error:?}\n{error}\n",
+                    one_shot_error_class(&error)
+                ),
+            }
+        }
+        "physical" => {
+            let request = SafeCommitPhysicalRequest::new(
+                RefName::parse(destination).expect("full destination ref"),
+                paths,
+            );
+            let message = match message_kind {
+                "empty" => CommitMessage::from_text(""),
+                "nul" => CommitMessage::from_bytes(b"subject\0tail".to_vec()),
+                "ok" => CommitMessage::from_text(MESSAGE),
+                other => panic!("unknown message kind {other}"),
+            };
+            match repository.safe_physical_commit(&request, message) {
+                Ok(outcome) => format!("result=ok\ncommit={}\n", outcome.commit()),
+                Err(error) => format!(
+                    "result=error\nerror={}\ndebug={error:?}\n{error}\n",
+                    one_shot_error_class(&error)
+                ),
+            }
+        }
+        other => panic!("unknown facade {other}"),
+    };
+    fs::write(out, report).unwrap();
+}
+
+/// Run one existing one-shot execution facade in its own child process.
+fn run_native_one_shot(
+    fixture: &Fixture,
+    facade: &str,
+    message_kind: &str,
+    paths: &[&str],
+    destination: &str,
+) -> String {
+    let out = fixture
+        .repo_root
+        .parent()
+        .unwrap()
+        .join("native-one-shot-result.txt");
+    let exe = std::env::current_exe().expect("current test executable");
+    let mut command = Command::new(exe);
+    command.current_dir(&fixture.io.home).env_clear();
+    command.env(
+        "PATH",
+        std::env::var_os("PATH").unwrap_or_else(|| "/usr/bin:/bin".into()),
+    );
+    fixture.io.apply(&mut command);
+    if let Some(index) = &fixture.index_link {
+        command.env("GIT_INDEX_FILE", index);
+    }
+    command
+        .args([
+            "--ignored",
+            "--exact",
+            "one_shot_native_helper",
+            "--nocapture",
+            "--",
+        ])
+        .arg(&fixture.worktree)
+        .arg(format!("refs/heads/{destination}"))
+        .arg(facade)
+        .arg(message_kind)
+        .arg(paths.len().to_string())
+        .args(paths)
+        .arg(&out);
+    let output = command.output().expect("run native one-shot helper");
+    assert!(
+        output.status.success(),
+        "native one-shot helper failed: {} {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fs::read_to_string(out).expect("native one-shot result file")
+}
+
+/// What the reference result must show before the native facade is allowed to
+/// run: the artifact bytes, whether hooks ran, and whether the requested stage
+/// was restored to its pre-call state.
+struct SourceExpectation {
+    error_class: &'static str,
+    artifact: &'static [u8],
+    hook: Option<&'static [&'static str]>,
+    restores_requested: bool,
+}
+
+fn compare_one_shot(
+    label: &str,
+    shape: Shape,
+    facade: &str,
+    message_kind: &str,
+    expected: SourceExpectation,
+) -> (String, Footprint, State) {
+    let (source, native) = twins(shape);
+    install_one_shot_observation_hooks(&source);
+    install_one_shot_observation_hooks(&native);
+    let paths = paths_for(shape);
+    let destination = if shape.linked { "work-lane" } else { "work" };
+
+    let source_before = State::read(&source);
+    let report = run_source(&source, message_kind, &paths, destination);
+    let source_fp = footprint(&source);
+    assert!(
+        !source_ok(&report),
+        "{label}: the reference must refuse: {report}"
+    );
+    assert_eq!(
+        source_error_class(&report),
+        expected.error_class,
+        "{label}: reference failure class before native execution: {report}"
+    );
+    assert_eq!(
+        source_fp.state.head, source_before.head,
+        "{label}: the reference never advances HEAD on a refusal"
+    );
+    assert_eq!(
+        source_fp.artifact, expected.artifact,
+        "{label}: reference COMMIT_EDITMSG bytes"
+    );
+    match expected.hook {
+        Some(markers) => {
+            let hook = source_fp
+                .hook
+                .as_deref()
+                .unwrap_or_else(|| panic!("{label}: the reference hook did not run"));
+            for marker in markers {
+                assert!(
+                    hook.windows(marker.len())
+                        .any(|window| window == marker.as_bytes()),
+                    "{label}: reference hook log misses {marker:?}: {}",
+                    String::from_utf8_lossy(hook)
+                );
+            }
+        }
+        None => assert_eq!(
+            source_fp.hook, None,
+            "{label}: the reference must reach no hook before this refusal"
+        ),
+    }
+    assert_eq!(
+        source_fp.state.staged_entry(REQUESTED) == source_before.staged_entry(REQUESTED),
+        expected.restores_requested,
+        "{label}: reference requested-path stage classification"
+    );
+    for name in [UNRELATED, PARTIAL] {
+        assert_eq!(
+            source_fp.state.files.get(name),
+            source_before.files.get(name),
+            "{label}: the reference leaves {name} raw bytes alone"
+        );
+    }
+
+    let native_report = run_native_one_shot(&native, facade, message_kind, &paths, destination);
+    let native_fp = footprint(&native);
+    assert!(
+        !native_report.starts_with("result=ok"),
+        "{label}: native must refuse: {native_report}"
+    );
+    let native_class = native_class(&native_report);
+    assert_eq!(
+        native_fp, source_fp,
+        "{label}: the one-shot facade must leave the same index, HEAD, refs, artifact, hooks and raw files\nsource: {source_fp:#?}\nnative: {native_fp:#?}\nsource report: {report}\nnative report: {native_report}"
+    );
+    (native_class, source_fp, source_before)
+}
+
+#[test]
+fn one_shot_legacy_empty_message_stages_then_restores_source_first() {
+    let (native_class, ..) = compare_one_shot(
+        "legacy empty one-shot",
+        Shape::with_unrelated_partial(),
+        "legacy",
+        "empty",
+        SourceExpectation {
+            error_class: "RuntimeError",
+            artifact: b"",
+            hook: Some(&[
+                "pre-commit",
+                "pre-artifact=",
+                "prepare-commit-msg",
+                "artifact=",
+            ]),
+            restores_requested: true,
+        },
+    );
+    assert_eq!(
+        native_class, "SafeCommitCommitFailed",
+        "the one-shot reaches the real empty-commit failure, not a pre-stage payload refusal"
+    );
+}
+
+#[test]
+fn one_shot_legacy_utf8_nul_keeps_the_requested_stage_source_first() {
+    let (native_class, ..) = compare_one_shot(
+        "legacy nul one-shot",
+        Shape::with_unrelated_partial(),
+        "legacy",
+        "nul",
+        SourceExpectation {
+            error_class: "ValueError",
+            artifact: b"seed\n",
+            hook: None,
+            restores_requested: false,
+        },
+    );
+    assert_eq!(
+        native_class, "SafeCommitInvalidRequest",
+        "the NUL is refused at the payload authority, after the stage and before any hook"
+    );
+}
+
+#[test]
+fn one_shot_physical_empty_message_stages_then_restores_source_first() {
+    let (native_class, ..) = compare_one_shot(
+        "physical empty one-shot",
+        Shape::with_unrelated_partial(),
+        "physical",
+        "empty",
+        SourceExpectation {
+            error_class: "RuntimeError",
+            artifact: b"",
+            hook: Some(&[
+                "pre-commit",
+                "pre-artifact=",
+                "prepare-commit-msg",
+                "artifact=",
+            ]),
+            restores_requested: true,
+        },
+    );
+    assert_eq!(native_class, "SafeCommitCommitFailed");
+}
+
+#[test]
+fn one_shot_physical_byte_nul_keeps_the_requested_stage_source_first() {
+    let (native_class, ..) = compare_one_shot(
+        "physical byte nul one-shot",
+        Shape::with_unrelated_partial(),
+        "physical",
+        "nul",
+        SourceExpectation {
+            error_class: "ValueError",
+            artifact: b"seed\n",
+            hook: None,
+            restores_requested: false,
+        },
+    );
+    assert_eq!(native_class, "SafeCommitInvalidRequest");
+}
+
+#[test]
+fn one_shot_missing_second_path_precedes_the_payload_source_first() {
+    for message_kind in ["nul", "empty"] {
+        let (source, native) = twins(Shape::second());
+        fs::remove_file(source.worktree.join(SECOND)).unwrap();
+        fs::remove_file(native.worktree.join(SECOND)).unwrap();
+        install_one_shot_observation_hooks(&source);
+        install_one_shot_observation_hooks(&native);
+        let paths = vec![REQUESTED, SECOND];
+        let source_before = State::read(&source);
+        let report = run_source(&source, message_kind, &paths, "work");
+        let source_fp = footprint(&source);
+        assert!(!source_ok(&report), "{message_kind}: {report}");
+        assert_eq!(
+            source_error_class(&report),
+            "RuntimeError",
+            "{message_kind}: the reference fails while staging, before its argv boundary: {report}"
+        );
+        assert_eq!(
+            source_fp.artifact, b"seed\n",
+            "{message_kind}: no message artifact is written on the stage failure"
+        );
+        assert_eq!(
+            source_fp.hook, None,
+            "{message_kind}: no hook runs on the stage failure"
+        );
+        assert_eq!(
+            source_fp.state.staged_entry(REQUESTED),
+            source_before.staged_entry(REQUESTED),
+            "{message_kind}: the reference restores the requested-only stage"
+        );
+
+        let native_report = run_native_one_shot(&native, "legacy", message_kind, &paths, "work");
+        let native_fp = footprint(&native);
+        assert!(!native_report.starts_with("result=ok"), "{native_report}");
+        assert_eq!(
+            native_class(&native_report),
+            "SafeCommitStageFailed",
+            "{message_kind}: the one-shot must reach the real stage before the payload: {native_report}"
+        );
+        assert_eq!(
+            native_fp, source_fp,
+            "{message_kind}: the stage failure and recovery match the reference\nsource report: {report}\nnative report: {native_report}"
+        );
+    }
+}
+
+#[test]
+fn one_shot_empty_argv_can_be_rescued_by_a_message_hook_source_first() {
+    for facade in ["legacy", "physical"] {
+        let (source, native) = twins(Shape::with_unrelated_partial());
+        for fixture in [&source, &native] {
+            install_one_shot_observation_hooks(fixture);
+            fixture.install_hook(
+                "prepare-commit-msg",
+                "printf 'rescued subject\\n' > \"$1\"\nprintf 'rescued\\n' >> hook-observed.txt",
+            );
+        }
+        let before = State::read(&source);
+        let paths = paths_for(Shape::with_unrelated_partial());
+        let report = run_source(&source, "empty", &paths, "work");
+        assert!(source_ok(&report), "{facade}: {report}");
+        let source_fp = footprint(&source);
+        assert_ne!(source_fp.state.head, before.head);
+        assert_eq!(source_fp.artifact, b"rescued subject\n");
+        let source_object = git(
+            &source.io,
+            &source.worktree,
+            &["cat-file", "commit", "HEAD"],
+        );
+        assert!(source_object.ends_with(b"\n\nrescued subject\n"));
+        let reflog_paths = [".git/logs/HEAD", ".git/logs/refs/heads/work"];
+        let source_reflogs: Vec<_> = reflog_paths
+            .iter()
+            .map(|path| fs::read(source.worktree.join(path)).expect("source reflog"))
+            .collect();
+        for bytes in &source_reflogs {
+            assert!(bytes.ends_with(b"\tcommit: rescued subject\n"));
+        }
+
+        let native_report = run_native_one_shot(&native, facade, "empty", &paths, "work");
+        assert!(
+            native_report.starts_with("result=ok"),
+            "{facade}: a hook can rescue empty argv: {native_report}"
+        );
+        assert_eq!(
+            footprint(&native),
+            source_fp,
+            "{facade}: complete footprint"
+        );
+        assert_eq!(
+            git(
+                &native.io,
+                &native.worktree,
+                &["cat-file", "commit", "HEAD"]
+            ),
+            source_object,
+            "{facade}: complete commit object"
+        );
+        for (path, expected) in reflog_paths.iter().zip(source_reflogs) {
+            assert_eq!(
+                fs::read(native.worktree.join(path)).expect("native reflog"),
+                expected,
+                "{facade}: raw {path} bytes"
+            );
+        }
+    }
+}
+
+#[test]
+fn one_shot_path_shape_refusal_precedes_the_payload_source_first() {
+    let (source, native) = twins(Shape::PLAIN);
+    fs::create_dir_all(source.worktree.join("dir-arg")).unwrap();
+    fs::create_dir_all(native.worktree.join("dir-arg")).unwrap();
+    let paths = vec!["dir-arg"];
+    let source_before = State::read(&source);
+    let report = run_source(&source, "nul", &paths, "work");
+    assert!(!source_ok(&report), "{report}");
+    assert_eq!(
+        source_error_class(&report),
+        "SafeCommitDirectoryArgument",
+        "the reference refuses the directory before staging or the payload: {report}"
+    );
+    assert_eq!(
+        State::read(&source),
+        source_before,
+        "a refused path shape never mutates the index"
+    );
+
+    let native_report = run_native_one_shot(&native, "legacy", "nul", &paths, "work");
+    assert!(!native_report.starts_with("result=ok"), "{native_report}");
+    assert_eq!(
+        native_class(&native_report),
+        "SafeCommitDirectoryArgument",
+        "the message-free planner keeps the path-shape priority: {native_report}"
+    );
+    assert_eq!(
+        State::read(&native),
+        source_before,
+        "the one-shot never stages past a refused path shape"
+    );
 }
