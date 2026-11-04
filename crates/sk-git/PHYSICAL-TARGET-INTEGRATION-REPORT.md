@@ -1,6 +1,8 @@
 # Canonical physical/unborn Git backend — coordinator integration
 
-Status: **coordinator verified; fresh independent review pending**. Provisional
+Status: **coordinator verified; subsequently independently accepted narrowly**
+at published `abd0b5450` (all seven code/test bindings unchanged). Findings and
+limits: `docs/rust/reviews/git-physical-target-disposition.md`. Provisional
 `/tmp/sk-physical-backend-integration.md` preceded inspection/fixes. Published base
 `102f3b81b5f5a76505ef8b2a6f0f5a077d102819`; Source/oracle remains
 `9aed3a8012cb5eb22c0128b14d525039f95fea7a` (CPython3.11.15 / 53 requirements).
@@ -107,7 +109,7 @@ bb6f6428cc341f103351abd23651f059ca68fc1063682e2e3aaa863b9d441ff1  crates/sk-git/
 
 ## Required next
 
-Fresh independent review of this Git slice; then real Op consumer wiring,
+Independent review passed the exercised Git slice; next real Op consumer wiring,
 without changing Source J/H/P/order/policy/tag/P-only quirks or inventing a
 BranchName for non-heads evidence. Current Op still truthfully reports
 `SourceAllowedButNativeCannotPublish` for unborn/exact/non-heads shapes. Native

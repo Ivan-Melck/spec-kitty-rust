@@ -8,7 +8,7 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Exact physical/unborn Git backend — after `102f3b81b`
+## Exact physical/unborn Git backend — published `abd0b5450`, base `102f3b81b`
 
 One shared planner/transaction now accepts exact validated RefName and observes
 born/unborn state. Dynamic empty index/tree, commit-tree without -p, existing
@@ -27,8 +27,13 @@ workspace2347/0/15helpers/192suites, strict full Clippy/fmt/both release CLIs/
 optimized Op/offline/exact53 green; completion599/PERF27/pending/valid/0of16.
 Evidence `/tmp/sk-physical-integration.86WO9L/command-log-index.tsv`; current
 7bindings/limits `crates/sk-git/PHYSICAL-TARGET-INTEGRATION-REPORT.md`.
-Fresh independent backend review pending; actual Op consumer still lacks this
-publication wiring. No Op/CLI/workflow/platform/performance acceptance implied.
+Independent backend review NARROW PASS WITH FINDINGS reproduces357Git/233Op,
+all7bindings/scopedstrict/exact53 and additional live Source/Git controls. Raw
+index comparison remains semantic across copies; captured default raw bytes are
+asserted unchanged locally. D/F candidate uncertainty remains preserved; Source
+COMMIT_EDITMSG/hook arguments and noncommit error-phase gaps are not waived.
+Disposition `reviews/git-physical-target-disposition.md`. Actual Op consumer
+still lacks publication wiring; no Op/CLI/workflow/platform/performance acceptance.
 
 ## Independent J/H/P review / path follow-up — after `fc61898c9`
 
