@@ -8,6 +8,25 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
+## Independent actual Op publication review — `437b3a8a6`
+
+NARROW PASS WITH FINDINGS; independent244Op/357Git, scopedstrict/docs/offline/
+exact53 and sixOp+sevenGit bindings. Independent SOURCE-FIRST eight-row matrix
+proves full publication/state for rootNBSP/refs-x/-name/P-only quirk and matching
+refusals for tag/HEAD/no-shadow/protectedJ. RootCAS candidate and admission-order
+controls pass. Reviewer index has36 rows (body34 is prosecount discrepancy), not
+an added test-count claim. Original Native-first red chronology remains qualified,
+not retroactively Source-first. Legacy root-fact accessor None and unreachable
+protection-name asymmetry remain explicit, no invented behavior repair.
+
+Only SourceJguard/native-plan module wording clarified; runtime source tokens
+identical437b, strictOpdocs/fmtcheck green. Current comment hash/evidence/limits
+`reviews/op-physical-publication-disposition.md`; original6binding integration
+report historical437b, other12code/testbindings unchanged. Wholeworkspace2358/
+release/completion599 evidence remains437b coordinator gates, not newly rerun for
+comments. Actual Source hook/message-file/staging/rollback grounding is NEXT,
+not a waiver of COMMIT_EDITMSG/hookargv/index-error/phase or full-rewrite gates.
+
 ## Actual Op root/exact/non-heads publication — after `3fabdf29f`
 
 Existing OpCommitService now uses accepted exact physical Git plan/prepare/apply
@@ -30,7 +49,8 @@ Completion599/PERF27/pending/valid/0of16 unchanged. Current sixbindings/source
 scope/gates `/tmp/sk-op-physical-integration.UedJO9/command-log-index.tsv` and
 `crates/sk-invocation/OP-PHYSICAL-PUBLICATION-INTEGRATION-REPORT.md`; all seven
 accepted Git bindings frozen. Owner report historical/comment-test hashes differ.
-Fresh independent Op review pending; COMMIT_EDITMSG/hook argv, phase/index-error/
+Independent review later narrowly accepted the exercised service; see section
+above. COMMIT_EDITMSG/hook argv, phase/index-error/
 NUL/locale/platform/full executor/CLI/StepContract/performance remain required.
 
 ## Exact physical/unborn Git backend — published `abd0b5450`, base `102f3b81b`

@@ -1,6 +1,12 @@
 # Op physical/root publication — coordinator integration
 
-Status: **coordinator verified; fresh independent review pending**. Provisional
+**Historical 437b integration/gate/hash snapshot.** Independent review later
+accepted the exercised service wiring narrowly (244Op/357Git/13bindings and
+Source-first controls). Current disposition and one module-COMMENT hash override:
+`docs/rust/reviews/op-physical-publication-disposition.md`. Runtime code and other
+twelve code/test bindings unchanged. Original counts/commands below are retained.
+
+Status at integration: **coordinator verified; fresh review then pending**. Provisional
 `/tmp/sk-op-physical-integration.md` preceded integration. Published base
 `3fabdf29f96d789658e5220246aa853e5f850e39`; Source/oracle
 `9aed3a8012cb5eb22c0128b14d525039f95fea7a` unchanged. Owner

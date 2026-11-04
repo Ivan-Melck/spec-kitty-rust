@@ -5,8 +5,9 @@
 //! `_commit_op_record`, `_op_commit_kwargs`, `_op_commit_skip_reason`). This is
 //! the REAL commit composition over the accepted native skip probes, the
 //! canonical `ProtectionPolicy` inputs, and the canonical native commit
-//! capability: one message-free exact-ref `SafeCommitPhysicalRequest` plan (the
-//! guard), then the late exact-byte payload (`SafeCommitPhysicalPlan::prepare`),
+//! capability: the Source-judged J guard first, then one message-free exact-ref
+//! `SafeCommitPhysicalRequest` publication plan and the late exact-byte payload
+//! (`SafeCommitPhysicalPlan::prepare`),
 //! then one `apply_safe_physical_commit`. Ordinary born branches, genuinely
 //! unborn destinations and non-heads exact refs share that one publisher. It is
 //! not an executor, dispatcher, or CLI adapter.
