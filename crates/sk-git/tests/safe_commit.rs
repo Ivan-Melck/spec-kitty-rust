@@ -1496,13 +1496,8 @@ fn message_hooks_observe_cleanup_and_their_rewrites_are_committed() {
 #[test]
 fn reconciliation_uses_the_landed_commit_even_when_head_advances_again() {
     use std::os::unix::fs::PermissionsExt;
-    for pinned in [false, true] {
-        let repo = Repo::lane();
-        repo.write("a.txt", "competitor\n");
-        repo.git(&["add", "a.txt"]);
-        let tree = repo.git(&["write-tree"]).trim().to_owned();
-        repo.git(&["reset", "--quiet", "HEAD", "--", "a.txt"]);
-        repo.write("a.txt", "ours\n");
+
+    let interpose = |repo: &Repo, tree: &str| {
         let wrapper = repo._temp.path().join("git-interpose.sh");
         fs::write(&wrapper, format!("#!/bin/sh\nif test \"$1\" = --literal-pathspecs && test \"$2\" = reset && ! test -e .git/interposed; then\n touch .git/interposed\n parent=$(git rev-parse HEAD) || exit\n competitor=$(echo competitor | git commit-tree {tree} -p \"$parent\") || exit\n git update-ref refs/heads/{LANE} \"$competitor\" \"$parent\" || exit\nfi\nexec git \"$@\"\n")).unwrap();
         fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o755)).unwrap();
@@ -1510,20 +1505,68 @@ fn reconciliation_uses_the_landed_commit_even_when_head_advances_again() {
             program: wrapper,
             ..Default::default()
         };
-        let git = GitRepository::open_with_options(&repo.path, &options).unwrap();
-        let mut request = repo.request("ours", &["a.txt"]);
-        if pinned {
-            request = request.with_expected_parent(sk_git::Oid::parse(&repo.head()).unwrap());
-        }
-        let outcome = git.safe_commit(&request).unwrap();
-        assert_ne!(repo.head(), outcome.commit().as_str());
-        assert_eq!(repo.git(&["show", ":a.txt"]), "ours\n");
-        assert_eq!(repo.git(&["show", "HEAD:a.txt"]), "competitor\n");
-        assert_eq!(
-            repo.git(&["show", &format!("{}:a.txt", outcome.commit())]),
-            "ours\n"
-        );
-    }
+        GitRepository::open_with_options(&repo.path, &options).unwrap()
+    };
+
+    // Ordinary route: the reference reconciles only hook-swept *extra* paths
+    // after landing (Source `_assert_committed_paths_requested`). Make the
+    // pre-commit hook sweep `other.txt` into the commit, and interpose on the
+    // extra-path reset to advance the branch again first. The reconciliation
+    // must still use the landed sha, not re-read the new HEAD.
+    let repo = Repo::lane();
+    repo.write("a.txt", "competitor\n");
+    repo.git(&["add", "a.txt"]);
+    let competitor_tree = repo.git(&["write-tree"]).trim().to_owned();
+    repo.git(&["reset", "--quiet", "HEAD", "--", "a.txt"]);
+    repo.write("a.txt", "ours\n");
+    repo.write("other.txt", "swept\n");
+    repo.install_hook("pre-commit", "#!/bin/sh\ngit add -u\nexit 0\n");
+    let git = interpose(&repo, &competitor_tree);
+    let error = git
+        .safe_commit(&repo.request("ours", &["a.txt"]))
+        .unwrap_err();
+    let recovery = assert_landed(&error, SafeCommitLandedKind::UnrequestedPaths);
+    let landed = recovery.commit().as_str().to_owned();
+    assert_eq!(repo.git(&["show", &format!("{landed}:a.txt")]), "ours\n");
+    assert_eq!(
+        repo.git(&["show", &format!("{landed}:other.txt")]),
+        "swept\n"
+    );
+    assert_eq!(recovery.affected_paths(), &[repo.path_of("other.txt")]);
+    assert_ne!(
+        repo.head(),
+        landed,
+        "the interposed reset ran after HEAD advanced again"
+    );
+    assert_eq!(repo.git(&["show", "HEAD:a.txt"]), "competitor\n");
+    // The extra entry follows the LANDED commit, not the newer HEAD.
+    assert_eq!(
+        repo.git(&["show", ":other.txt"]),
+        "swept\n",
+        "the extra path is resynchronised to the landed sha even though HEAD moved"
+    );
+    assert_eq!(repo.git(&["show", ":a.txt"]), "ours\n");
+
+    // Pinned route keeps its own requested-path reconciliation contract; the
+    // same interposition proves that reset also uses the pinned landed sha.
+    let repo = Repo::lane();
+    repo.write("a.txt", "competitor\n");
+    repo.git(&["add", "a.txt"]);
+    let tree = repo.git(&["write-tree"]).trim().to_owned();
+    repo.git(&["reset", "--quiet", "HEAD", "--", "a.txt"]);
+    repo.write("a.txt", "ours\n");
+    let git = interpose(&repo, &tree);
+    let request = repo
+        .request("ours", &["a.txt"])
+        .with_expected_parent(sk_git::Oid::parse(&repo.head()).unwrap());
+    let outcome = git.safe_commit(&request).unwrap();
+    assert_ne!(repo.head(), outcome.commit().as_str());
+    assert_eq!(repo.git(&["show", ":a.txt"]), "ours\n");
+    assert_eq!(repo.git(&["show", "HEAD:a.txt"]), "competitor\n");
+    assert_eq!(
+        repo.git(&["show", &format!("{}:a.txt", outcome.commit())]),
+        "ours\n"
+    );
 }
 
 #[test]

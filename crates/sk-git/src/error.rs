@@ -590,6 +590,50 @@ pub enum GitError {
         detail: String,
     },
 
+    /// The requested paths' pre-call staged state could not be captured.
+    ///
+    /// `git diff --cached --binary` for exactly the requested paths is the
+    /// pre-mutation gate: without it a later failure cannot restore what the
+    /// caller had staged, so nothing is staged and the operator index is left
+    /// exactly as found (a corrupt present index is this class, not a staging
+    /// failure).
+    #[error(
+        "refusing to mutate the index in {worktree_root}: the requested paths' pre-existing staged state could not be captured ({detail})"
+    )]
+    SafeCommitPatchCaptureFailed {
+        /// The checkout whose index was read.
+        worktree_root: PathBuf,
+        /// Git's diagnostic.
+        detail: String,
+    },
+
+    /// The staged operator index body could not be published atomically.
+    #[error("safe commit could not publish the staged operator index at {path}: {detail}")]
+    SafeCommitIndexPublishFailed {
+        /// The resolved physical index endpoint.
+        path: PathBuf,
+        /// The filesystem diagnostic.
+        detail: String,
+    },
+
+    /// A failed commit could not restore the requested paths' staging.
+    ///
+    /// The original failure is preserved verbatim. Nothing is claimed about the
+    /// current index beyond `detail`: a rejected `git apply --cached` is a
+    /// recovery failure, never a success because some earlier body could have
+    /// been published instead.
+    #[error(
+        "safe commit could not restore the requested-path staging in {worktree_root} after ({original_failure}): {detail}"
+    )]
+    SafeCommitRecoveryFailed {
+        /// The checkout whose index could not be restored.
+        worktree_root: PathBuf,
+        /// The restore diagnostic.
+        detail: String,
+        /// The failure this restore was compensating for.
+        original_failure: String,
+    },
+
     /// The operator index's own lock already exists and is not ours.
     ///
     /// This mirrors `git commit`'s refusal when another writer holds the

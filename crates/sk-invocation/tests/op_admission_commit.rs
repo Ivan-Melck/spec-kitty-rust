@@ -2281,7 +2281,23 @@ fn legacy_used_unencodable_surrogate_fields_refuse_truthfully() {
             reference["committed"], false,
             "{invocation_id}: the pinned source refuses a used high/low surrogate"
         );
+        assert!(
+            reference["refusal"]
+                .as_str()
+                .is_some_and(|reason| reason.contains("UnicodeEncodeError")),
+            "{invocation_id}: the source's argv boundary raises: {reference:?}"
+        );
         assert_eq!(source.head(), source_head);
+        // SOURCE FIRST: the reference mutates the real index (staging the
+        // requested record) before its uncaught encoding failure, so the
+        // footprint is a staged add, not an untracked file.
+        assert!(
+            source
+                .status()
+                .contains(&format!("A  kitty-ops/{invocation_id}.jsonl")),
+            "{invocation_id}: the source stages the record before encoding, got {:?}",
+            source.status()
+        );
         assert_eq!(source.record_bytes(invocation_id), line.as_bytes());
 
         let mut service = fixture.service();
@@ -2300,9 +2316,86 @@ fn legacy_used_unencodable_surrogate_fields_refuse_truthfully() {
             !refusal.contains("Invalid invocation record"),
             "{invocation_id}: the record is valid; got {refusal:?}"
         );
-        assert_eq!(fixture.snapshot(), before);
+        // The ordered native route has the same footprint as the source: the
+        // same staged entries, the same unchanged HEAD, the same record bytes.
+        assert_eq!(
+            fixture.head(),
+            String::from_utf8(before.head.clone())
+                .expect("HEAD is UTF-8")
+                .trim()
+                .to_owned(),
+            "{invocation_id}: nothing landed"
+        );
+        assert_eq!(
+            fixture.status(),
+            source.status(),
+            "{invocation_id}: identical staged status"
+        );
+        assert_eq!(
+            fixture.stage(),
+            source.stage(),
+            "{invocation_id}: identical staged index entries"
+        );
         assert_eq!(fixture.record_bytes(invocation_id), line.as_bytes());
     }
+}
+
+/// The reference's staging failure precedes its message's argv boundary.
+///
+/// A doctor-sweep close commits the closure spine; with no spine on disk the
+/// `git add` fails. Because the reference stages *before* it encodes the
+/// composed message, its own refusal is the staging failure — a used surrogate
+/// in the record never reaches the encoder. Asserted source first, then the same
+/// ordering through the native service.
+#[test]
+fn missing_spine_stage_failure_precedes_the_message_boundary() {
+    let fixture = Fixture::with_positive_primary();
+    fixture.checkout_new("topic");
+    let source = Fixture::with_positive_primary();
+    source.checkout_new("topic");
+    let line = "{\"profile_id\":\"\\ud800\",\"action\":\"a\"}\n";
+    fixture.write_record_line(ARCHIVE, line);
+    source.write_record_line(ARCHIVE, line);
+    let before = fixture.snapshot();
+    let source_before = source.snapshot();
+
+    let reference = oracle_commit(&source.root, &source.root, ARCHIVE, "doctor_sweep", None);
+    assert_eq!(
+        reference["committed"], false,
+        "the reference cannot stage a missing spine: {reference:?}"
+    );
+    let source_refusal = reference["refusal"].as_str().unwrap_or_default();
+    assert!(
+        source_refusal.contains("failed to stage"),
+        "the reference reports the staging failure, not an encoding one: {source_refusal}"
+    );
+    assert!(
+        !source_refusal.contains("surrogates not allowed"),
+        "the reference never encoded the message: {source_refusal}"
+    );
+    assert_eq!(
+        source.snapshot(),
+        source_before,
+        "the failed stage restores the requested-only patch"
+    );
+
+    let mut service = fixture.service();
+    let outcome = service.commit_op_record(&id(ARCHIVE), OpClosedBy::DoctorSweep);
+    assert!(!outcome.committed(), "{outcome:?}");
+    let refusal = outcome.refusal().expect("a truthful native refusal");
+    assert!(
+        refusal.contains("could not stage"),
+        "the native route fails at staging, like the reference: {refusal}"
+    );
+    assert!(
+        !refusal.contains("not encodable") && !refusal.contains("must not contain NUL"),
+        "the message boundary is never reached: {refusal}"
+    );
+    assert_eq!(
+        fixture.snapshot(),
+        before,
+        "the same restored footprint as the reference"
+    );
 }
 
 /// Measured capability boundary, not a claim: POSIX argv uses `surrogateescape`,
@@ -2629,8 +2722,16 @@ fn legacy_used_nul_refuses_without_rewriting_the_record() {
         source.git_ok(&["diff", "--cached", "--name-only"]),
         path.as_bytes()
     );
-    // Native/source index equality is an OPEN footprint contract, not a
-    // passing acceptance claim. Do not pin the wrong footprint as desired.
+    assert_eq!(
+        fixture.git_ok(&["diff", "--cached", "--name-only"]),
+        path.as_bytes(),
+        "the real service stages before the same NUL refusal"
+    );
+    assert_eq!(
+        fixture.git_ok(&["ls-files", "--stage", "-z"]),
+        source.git_ok(&["ls-files", "--stage", "-z"]),
+        "Source-first NUL refusal preserves identical staged entries"
+    );
 }
 
 #[test]

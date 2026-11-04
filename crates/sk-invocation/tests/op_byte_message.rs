@@ -1359,14 +1359,20 @@ fn forced_ascii_context_matches_source_bytes_and_refusals() {
         );
         assert_eq!(native.head(), head, "nothing landed");
         assert_eq!(native.record_bytes(invocation_id), record);
-        // Measured footprint difference, NOT waived: the source stages the
-        // record before its encoding failure; the native plan precedes staging.
+        // The source stages the requested record into the real index before its
+        // uncaught encoding failure. The ordered native route obtains the
+        // payload at the same argv boundary, so it must leave the same
+        // footprint instead of refusing before staging.
         assert_eq!(
             source.staged(),
             format!("kitty-ops/{invocation_id}.jsonl\n"),
             "{invocation_id}: source stage-before-encoding footprint"
         );
-        assert_eq!(native.staged(), "", "{invocation_id}: native adds nothing");
+        assert_eq!(
+            native.staged(),
+            source.staged(),
+            "{invocation_id}: the native route stages before the same refusal"
+        );
     }
 }
 

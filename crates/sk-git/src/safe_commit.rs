@@ -26,14 +26,19 @@
 //! unconfirmed advance after hooks is [`GitError::SafeCommitAdvanceUnconfirmed`],
 //! carrying the candidate and observed tip, never overwriting the other writer. Because the private index starts
 //! from `HEAD` — never from the operator's index — unrelated staged content
-//! cannot enter the commit even transiently, and the real index is not written
-//! until the commit exists. A hook that stages extra tracked files is visible in
-//! the commit; the commit's own changed-path set is read back and compared with
-//! the request, and such extras are reported as [`GitError::SafeCommitLanded`]
-//! with [`crate::SafeCommitLandedKind::UnrequestedPaths`] after their index
-//! entries are resynchronised to the immutable landed commit. A residue after reconciling the
-//! requested paths is a [`crate::SafeCommitLandedKind::IndexResidue`] error,
-//! never a silent success.
+//! cannot enter the commit even transiently. The ordinary route does stage the
+//! requested paths in the real index first, exactly like the reference's
+//! `git add` plus `commit --only` prepare step, and leaves that preparation in
+//! place after landing; a stateful clean filter can therefore leave a requested
+//! path staged as a different pass than the committed blob. A hook that stages
+//! extra tracked files is visible in the commit; the commit's own changed-path
+//! set is read back and compared with the request, and such extras are reported
+//! as [`GitError::SafeCommitLanded`] with
+//! [`crate::SafeCommitLandedKind::UnrequestedPaths`] after their index entries
+//! are resynchronised to the immutable landed commit. The requested-path residue
+//! check remains on the pinned-parent and index-deletion routes
+//! ([`crate::SafeCommitLandedKind::IndexResidue`]); the ordinary route never
+//! invents a clean index the reference does not have.
 //!
 //! [`SafeCommitRoute::IndexDeletions`] is the same transaction plus index-only
 //! removals (the equivalent of `git rm --cached` for a migration), so the file
@@ -814,6 +819,20 @@ impl SafeCommitPlanCore {
 
     /// The one execution view, for this exact payload.
     pub(crate) fn execution<'a>(&'a self, message: &'a [u8]) -> SafeCommitExecution<'a> {
+        self.execution_with(Some(message))
+    }
+
+    /// The same view for a route that obtains its message later.
+    ///
+    /// `None` is not "an empty message": it records that the payload is
+    /// produced at the reference implementation's argv boundary, after the
+    /// operator index has been staged. Only the ordinary worktree route accepts
+    /// it (see [`crate::safe_commit_transaction`]).
+    pub(crate) fn execution_late(&self) -> SafeCommitExecution<'_> {
+        self.execution_with(None)
+    }
+
+    fn execution_with<'a>(&'a self, message: Option<&'a [u8]>) -> SafeCommitExecution<'a> {
         let (head, destination_tip) = match &self.destination {
             DestinationState::Born { head, tip } => (Some(head), Some(tip)),
             DestinationState::Unborn => (None, None),
@@ -1170,7 +1189,10 @@ pub(crate) struct SafeCommitExecution<'a> {
     expected_parent: Option<&'a Oid>,
     expected_bytes: &'a [ExpectedBlob],
     index_authority: &'a OperatorIndex,
-    message: &'a [u8],
+    /// `Some` when the payload was prepared by the planner; `None` when the
+    /// ordinary route obtains it at the reference argv boundary, after the
+    /// operator index has been staged.
+    message: Option<&'a [u8]>,
 }
 
 impl SafeCommitExecution<'_> {
@@ -1230,7 +1252,11 @@ impl SafeCommitExecution<'_> {
         self.index_authority
     }
 
-    pub(crate) fn message_bytes(&self) -> &[u8] {
+    /// This plan's prepared payload, or `None` for a late-message execution.
+    ///
+    /// `None` never means an empty message: an empty payload is `Some(&[])` and
+    /// is refused by the payload authority, not here.
+    pub(crate) fn prepared_message(&self) -> Option<&[u8]> {
         self.message
     }
 

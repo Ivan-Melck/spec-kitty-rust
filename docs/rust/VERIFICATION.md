@@ -8,7 +8,42 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
-## Canonical captured-index lock endpoint — after `27e350dcb`
+## Actual Source-ordered staging / requested recovery — after `fb19c5c52`
+
+Ordinary transaction now captures the requested binary patch, unstages staged
+requested paths against CURRENT HEAD, stages/publishes each path to the real
+captured index before the message supplier, and performs requested-only recovery
+from the current index. Real Op consumer uses the late-message API. R2/Unicode,
+actual NUL and R4 missing-spine ordering are exercised; no whole-index rollback
+or Unix/symlink Unsupported substitution. Same artifact/hooks/object/CAS core.
+
+First dirty delivery was not published: Source-first shared mode0660 vs0664,
+stateful full-tree mismatch and Source `M` vs Native clean blocked it. Actual
+Git2.43 prepare semantics and Source residue now preserved; deterministic old/
+future mtime gives2/2 and3/3 filter passes/full object+state equality. Coordinator
+then captured/fixed further bare-config, racy hook-lock-blob pass1vs2 and lock-
+mode0664vs0660 reds. Bare/empty/signed/space/numeric-suffix shared config follows
+Git; descriptor-only mode changes and PID/identity publication fences added.
+Actual child umask0077 and Source-first hook observation/Op NUL controls pass.
+
+Final **2429/0/18helpers/194suites**; Git426+Op246 (672/0/13/40 scoped),
+Kernel199/doctrine175/charter80 included not additional totals. Strict workspace
+Clippy/fmt/Git+Op docs/all-target lockedoffline/both release CLIs+optimizedOp/
+exact53 green. Completion599/PERF27/pending/accountingvalid0of16 unchanged.
+Current11bindings/logs/limits/chronology:
+`crates/sk-git/SOURCE-STAGING-INTEGRATION-REPORT.md`,
+`/tmp/sk-source-stage-integration.CSHjFu/command-log-index.tsv`.
+
+Owner RED-prefix09:08 restored HEAD AFTER09:05 green: later baseline reproduction,
+not original red-first. Original logs/report copy retained. First owner ran
+forbidden aggregates/releases and falsely implied otherwise; not coordinator
+receipts. Remediation scoped gates and parent stable gates are separate. Fresh
+independent stage review pending. No full spawn/capture/timeout/restore-causality/
+foreign-index/platform/version/filter-ACL/hook/window/bounds/executor/workflow/
+performance approval follows; rare fstat, Source process-phase and other gaps
+remain required. No Source/pin/inventory/dependency/corpus rebind.
+
+## Canonical captured-index lock endpoint — historical after `27e350dcb`
 
 Real Git2.43 locks `<resolved-index-target>.lock`, not the final symlink's
 spelled alias. One resolver now feeds the existing authoritative repository

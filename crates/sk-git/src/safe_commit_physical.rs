@@ -273,6 +273,66 @@ impl SafeCommitPhysicalPlan {
             message,
         })
     }
+
+    /// The execution view for a message produced at the reference's argv boundary.
+    pub(crate) fn execution_late(&self) -> SafeCommitExecution<'_> {
+        self.core.execution_late()
+    }
+}
+
+/// Why a late-message commit did not return a landed outcome.
+///
+/// `MessageNotProduced` reports a supplier failure at the late payload boundary.
+/// `MessageRejected` reports Native validation there: NUL matches a Source argv
+/// refusal, but the Native size bound is not proof of Source E2BIG. Both leave
+/// the requested stage in place, before hooks or artifact writing. `Commit`
+/// covers backend guards and execution/recovery failures; inspect the typed
+/// cause and state rather than inferring no mutation or no land from an error.
+#[derive(Debug)]
+pub enum SafeCommitLateMessage<E> {
+    /// The supplier could not produce the payload (for example an unencodable
+    /// code point at OS-argv encoding time).
+    MessageNotProduced(E),
+    /// The produced payload was refused by the one message authority (NUL or
+    /// over-long).
+    MessageRejected(GitError),
+    /// The transaction's typed failure.
+    Commit(GitError),
+}
+
+impl<E: std::fmt::Display> std::fmt::Display for SafeCommitLateMessage<E> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MessageNotProduced(error) => std::fmt::Display::fmt(error, formatter),
+            Self::MessageRejected(error) | Self::Commit(error) => {
+                std::fmt::Display::fmt(error, formatter)
+            }
+        }
+    }
+}
+
+impl<E: std::error::Error + 'static> std::error::Error for SafeCommitLateMessage<E> {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(match self {
+            Self::MessageNotProduced(error) => error,
+            Self::MessageRejected(error) | Self::Commit(error) => error,
+        })
+    }
+}
+
+#[cfg(test)]
+mod late_message_error_tests {
+    use super::SafeCommitLateMessage;
+    use std::error::Error;
+
+    #[test]
+    fn the_public_late_failure_preserves_its_standard_error_cause() {
+        let failure =
+            SafeCommitLateMessage::MessageNotProduced(std::io::Error::other("encoding failed"));
+        let boxed: Box<dyn Error> = Box::new(failure);
+        assert_eq!(boxed.to_string(), "encoding failed");
+        assert_eq!(boxed.source().unwrap().to_string(), "encoding failed");
+    }
 }
 
 /// An exact-ref target plan plus the exact message bytes it will commit.
@@ -447,6 +507,48 @@ impl GitRepository {
         plan: &SafeCommitPhysicalMessagePlan,
     ) -> Result<SafeCommitPhysicalOutcome, GitError> {
         let outcome = crate::safe_commit_transaction::execute(self, &plan.execution())?;
+        Ok(SafeCommitPhysicalOutcome::from_core(
+            outcome,
+            plan.destination_ref().clone(),
+        ))
+    }
+
+    /// Execute a prepared exact-ref commit whose message is produced late.
+    ///
+    /// `supply` is called at the reference implementation's `-m` argv boundary:
+    /// **after** the requested paths have been staged into the real operator
+    /// index and **before** any hook or message artifact. A supplier error — or a
+    /// payload the message authority refuses — therefore leaves that stage in
+    /// place, exactly like the reference's uncaught encoding failure, and is
+    /// reported as [`SafeCommitLateMessage::MessageNotProduced`] /
+    /// [`SafeCommitLateMessage::MessageRejected`]. Everything else — the captured
+    /// operator selector, the bounded git program, the single commit-tree writer,
+    /// the ref compare-and-swap, uncertainty evidence and the post-landing index
+    /// reconciliation — is the same one body as the prepared route.
+    ///
+    /// The plan is borrowed, not consumed, and no repository handle is stored in
+    /// it: the caller passes the same captured `GitRepository` it planned with.
+    pub fn apply_safe_physical_commit_with_message<E, F>(
+        &self,
+        plan: &SafeCommitPhysicalPlan,
+        supply: F,
+    ) -> Result<SafeCommitPhysicalOutcome, SafeCommitLateMessage<E>>
+    where
+        F: FnOnce() -> Result<CommitMessage, E>,
+    {
+        let outcome =
+            crate::safe_commit_transaction::execute_late(self, &plan.execution_late(), supply)
+                .map_err(|failure| match failure {
+                    crate::safe_commit_transaction::TransactionFailure::MessageNotProduced(
+                        error,
+                    ) => SafeCommitLateMessage::MessageNotProduced(error),
+                    crate::safe_commit_transaction::TransactionFailure::MessageRejected(error) => {
+                        SafeCommitLateMessage::MessageRejected(error)
+                    }
+                    crate::safe_commit_transaction::TransactionFailure::Commit(error) => {
+                        SafeCommitLateMessage::Commit(error)
+                    }
+                })?;
         Ok(SafeCommitPhysicalOutcome::from_core(
             outcome,
             plan.destination_ref().clone(),

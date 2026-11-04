@@ -54,13 +54,19 @@
 //!   pinned ref; a parent-set match is checked but is not creation proof), and a
 //!   post-hook state that does not match the plan is
 //!   [`GitError::MergeConclusionUnconfirmed`], never an unrelated HEAD.
-//! * **Path-scoped commits.** A safe commit builds its tree in a private index
-//!   seeded from a pinned parent, stages only the requested paths, runs the
-//!   repository's hooks, creates a commit object against that parent, and
-//!   advances the branch with a compare-and-swap. Unrelated staged, partially
-//!   staged, unstaged, and untracked content is never read, moved, stashed, or
-//!   restored; the real index is reconciled for the requested paths only after
-//!   the commit exists.
+//! * **Path-scoped commits.** A safe commit builds its candidate tree in a
+//!   private index seeded from a pinned parent, stages only the requested paths,
+//!   runs the repository's hooks, creates a commit object against that parent,
+//!   and advances the branch with a compare-and-swap. The ordinary worktree
+//!   route also reproduces the reference implementation's own staging order on
+//!   the real operator index: the requested paths' pre-call staged state is
+//!   captured as a requested-only binary patch, the paths are unstaged against
+//!   the current `HEAD` and re-staged one by one (published under the operator
+//!   index lock) *before* the message payload is produced, and a completed
+//!   non-landing failure replays exactly that patch from the current index.
+//!   Entries outside the requested paths — fully staged, partially staged,
+//!   unstaged, untracked — are never rewritten, moved, stashed, or discarded;
+//!   the landed commit's own entries are reconciled afterwards.
 //! * **Exact refs, including a genuinely absent destination.** The exact-ref
 //!   family ([`SafeCommitPhysicalRequest`]) names the fully-qualified ref `HEAD`
 //!   symbolically points at — `refs/x`, `refs/heads/HEAD`, `refs/heads/-name`, a
@@ -227,8 +233,8 @@ pub use safe_commit_paths::{
     SourceCommitPath, SourcePathRefusal, plan_source_commit_path, source_preflight_path,
 };
 pub use safe_commit_physical::{
-    SafeCommitPhysicalGuardVerdict, SafeCommitPhysicalMessagePlan, SafeCommitPhysicalOutcome,
-    SafeCommitPhysicalPlan, SafeCommitPhysicalRequest,
+    SafeCommitLateMessage, SafeCommitPhysicalGuardVerdict, SafeCommitPhysicalMessagePlan,
+    SafeCommitPhysicalOutcome, SafeCommitPhysicalPlan, SafeCommitPhysicalRequest,
 };
 pub use sparse::{
     MAX_SPARSE_PATTERN_FILE_BYTES, SPARSE_CHECKOUT_MIN_VERSION, SparseCheckoutMode,

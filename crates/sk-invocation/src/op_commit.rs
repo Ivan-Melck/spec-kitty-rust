@@ -125,7 +125,8 @@ use std::time::Duration;
 
 use sk_git::{
     BranchName, CommitGuardCapability, CommitMessage, GitError, GitOptions, GitPath, GitRepository,
-    ProtectedBranches, RefName, SafeCommitPhysicalOutcome, SafeCommitPhysicalRequest,
+    ProtectedBranches, RefName, SafeCommitLateMessage, SafeCommitPhysicalOutcome,
+    SafeCommitPhysicalRequest,
 };
 use sk_workspace::{ProtectionPolicy, WorkspaceError};
 use thiserror::Error;
@@ -671,30 +672,29 @@ impl OpCommitService {
             }
             OpTargetVerdict::Ready { target, plan } => {
                 let plan = *plan;
-                // Late OS encoding of the exact Python code points, then the
-                // existing native payload guard through the only plan a byte
-                // commit accepts. The plan's destination is the exact physical
-                // ref `P`, never the judged name.
-                let payload = match self.os_encoding.encode(message.codepoints()) {
-                    Ok(payload) => payload,
-                    Err(error) => {
-                        return OpCommitOutcome::new_refused(message_encoding_refusal(
-                            &error,
-                            &self.os_encoding.label(),
-                        ));
-                    }
-                };
-                let message_plan = match plan.prepare(CommitMessage::from_bytes(payload)) {
-                    Ok(plan) => plan,
-                    Err(failure) => return commit_error_outcome(failure.into_error()),
-                };
                 let repository = self
                     .open_repository()
                     .expect("a resolved target names an open repository");
-                commit_outcome_for(
-                    repository.apply_safe_physical_commit(&message_plan),
-                    target.judged().as_str(),
-                )
+                // The reference's own order: the requested paths are staged into
+                // the real operator index first, and only then does the composed
+                // message cross the OS-argv boundary. One body, one publisher,
+                // one commit; the payload is borrowed from this service's codec
+                // and the plan holds no repository handle of its own.
+                let outcome = repository.apply_safe_physical_commit_with_message(&plan, || {
+                    let payload = self.os_encoding.encode(message.codepoints())?;
+                    Ok(CommitMessage::from_bytes(payload))
+                });
+                match outcome {
+                    Ok(outcome) => commit_outcome_for(Ok(outcome), target.judged().as_str()),
+                    Err(SafeCommitLateMessage::MessageNotProduced(error)) => {
+                        OpCommitOutcome::new_refused(message_encoding_refusal(
+                            &error,
+                            &self.os_encoding.label(),
+                        ))
+                    }
+                    Err(SafeCommitLateMessage::MessageRejected(error))
+                    | Err(SafeCommitLateMessage::Commit(error)) => commit_error_outcome(error),
+                }
             }
         }
     }

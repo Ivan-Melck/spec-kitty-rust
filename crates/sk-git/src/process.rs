@@ -370,7 +370,10 @@ impl GitProcess {
     }
 
     /// Run git against one private index file with a bounded stdin payload.
-    pub(crate) fn checked_with_stdin_index_scoped<S: AsRef<OsStr>>(
+    ///
+    /// Raw outcome, whatever the code: the caller decides whether a non-zero
+    /// status is a typed refusal (recovery replay) or an ordinary failure.
+    pub(crate) fn run_with_stdin_index_scoped<S: AsRef<OsStr>>(
         &self,
         args: &[S],
         stdin: &[u8],
@@ -381,14 +384,24 @@ impl GitProcess {
                 limit: MAX_STDIN_BYTES,
             });
         }
-        let output = self.run_profiled(
+        self.run_profiled(
             args,
             Some(stdin),
             EnvProfile::ScopedIndex {
                 index: index.path().to_path_buf(),
             },
             MAX_OUTPUT_BYTES,
-        )?;
+        )
+    }
+
+    /// Run git against one private index file with a bounded stdin payload.
+    pub(crate) fn checked_with_stdin_index_scoped<S: AsRef<OsStr>>(
+        &self,
+        args: &[S],
+        stdin: &[u8],
+        index: &ScopedIndex,
+    ) -> Result<CommandOutput, GitError> {
+        let output = self.run_with_stdin_index_scoped(args, stdin, index)?;
         if output.status.success() {
             Ok(output)
         } else {
