@@ -1,0 +1,68 @@
+# Pre-edit structural-relocation classification, not a terminology change.
+# No active host Mission is being advanced by this rewrite. This schema-valid
+# map records the guardrail; it is not a fabricated mission/meta or gate pass.
+# Inventory: /tmp/sk-profile-transport-assessment.fjBja7/primitive-occurrence-inventory.KV37eP.log
+# Coordinator approval: H1a only; public names, methods, errors and wire stay.
+target:
+  term: crates/sk-invocation/src/python_unicode.rs
+  replacement: crates/sk-kernel/src/python_unicode.rs
+  operation: rename
+categories:
+  code_symbols: {action: manual_review}
+  import_paths: {action: manual_review}
+  filesystem_paths: {action: manual_review}
+  serialized_keys: {action: do_not_change}
+  cli_commands: {action: do_not_change}
+  user_facing_strings: {action: manual_review}
+  tests_fixtures: {action: manual_review}
+  logs_telemetry: {action: do_not_change}
+moves:
+  - from: [crates/sk-invocation/src/python_unicode.rs]
+    to: crates/sk-kernel/src/python_unicode.rs
+    reason: Move the ONE unchanged 701-range CPython printability authority with the canonical repr primitive.
+exceptions:
+  - path: crates/sk-invocation/src/legacy_json.rs
+    action: manual_review
+    reason: Relocate the type/InvalidCodepoint implementation only; re-export identical public names. Parser grammar, integers, recursion, JSON pair semantics and errors must remain unchanged.
+  - path: crates/sk-invocation/src/python_json.rs
+    action: manual_review
+    reason: Relocate only repr formatter/helpers; keep exact old callable aliases and Op JSON writer semantics, no second formatter.
+  - path: crates/sk-invocation/src/lib.rs
+    action: manual_review
+    reason: Preserve sk_invocation public exports and remove only the old private facts owner.
+  - path: crates/sk-kernel/src/lib.rs
+    action: manual_review
+    reason: Export the one canonical codepoint/repr primitive, with no new policy or dependencies.
+  - path: crates/sk-invocation/src/router.rs
+    action: manual_review
+    reason: Only minimal checked owned-constructor use if needed across the crate boundary; routing semantics and typed fields unchanged.
+  - path: crates/sk-invocation/src/op_commit.rs
+    action: manual_review
+    reason: Only minimal import/checked exact-string append seam if relocation requires it; no encoding, policy, message, staging or publication behavior change.
+  - path: scripts/rust/generate_python_repr_unicode.py
+    action: manual_review
+    reason: Output destination/doc path follows the facts move; exact53/version/UCD/count/no-overwrite behavior and table numeric bytes unchanged.
+  - path: scripts/rust/tests/test_generate_python_repr_unicode.py
+    action: manual_review
+    reason: Only necessary source-path bindings follow relocation; no fixture values or required assertions removed.
+  - path: crates/sk-invocation/UNICODE-STRING-REMEDIATION-REPORT.md
+    action: do_not_change
+    reason: Historical authored paths/hashes are evidence, not current imports.
+  - path: crates/sk-invocation/UNICODE-STRING-INTEGRATION-REPORT.md
+    action: do_not_change
+    reason: Historical authored paths/hashes must never be silently rebound.
+  - path: crates/sk-invocation/ROUTER-REPORT.md
+    action: do_not_change
+    reason: Historical delivery snapshot; new current disposition carries new bindings.
+  - path: crates/sk-invocation/OP-BYTE-BRIDGE-REPORT.md
+    action: do_not_change
+    reason: Historical capability report, not an import to migrate.
+  - path: docs/rust/reviews/**
+    action: manual_review
+    reason: Update current disposition only; retain all earlier review subjects and immutable historical bindings.
+  - path: crates/sk-invocation/tests/op_admission_commit.rs
+    action: do_not_change
+    reason: Existing public python_repr exhaustive scalar/evidence checks must pass unchanged through the retained alias.
+  - path: crates/sk-invocation/src/router_oracle_tests.rs
+    action: do_not_change
+    reason: Existing reviewed full codepoint/router oracle must pass unchanged through the retained public PythonString alias.
