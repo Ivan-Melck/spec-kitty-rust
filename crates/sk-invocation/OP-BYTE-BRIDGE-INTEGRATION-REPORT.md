@@ -1,6 +1,8 @@
 # Real Op byte-message bridge — coordinator integration
 
-Status: coordinator verified; **fresh independent review pending**. This is a
+Status: historical a522 coordinator snapshot. Independent review now NARROW PASS
+WITH FINDINGS; Source-grounded Latin-9/alias follow-up and current bindings:
+`docs/rust/reviews/op-byte-locale-disposition.md`. This is a
 bounded library correction, not whole-Op/CLI/locale/platform/workflow/performance
 acceptance. Provisional `/tmp/sk-op-byte-integration.md` preceded integration.
 Published basea6a2c0cf100c178a936b2d3c2974b1f22658a53b; fixed source/oracle

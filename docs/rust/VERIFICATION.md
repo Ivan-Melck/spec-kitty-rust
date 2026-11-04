@@ -8,6 +8,28 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
+## Op byte/locale review and Latin-9/alias follow-up — after `a522ebbd2`
+
+IndependentNARROWPASSWITHFINDINGS:220tests/9bindings/scopedstrict/exact53; own16pairs
+11equalrealobjects/reflogs/HEAD/state,3decisionequalrefusals,2knownfalseRefusalsISO15/
+nontextLCALL, no newfalsecommit. ValidISO15gapcorrectedthrougholdOpserviceSource red0/1;
+strict8replacementmapping rejectsdisplacedLatin1scalars. Full1,114,112codepoint
+Sourceos.fsencode/nativeencoder comparison:384successmappingsidentical/allothersrefuse,
+notwholeOpapproval. LiveOpnormalé/all8replacements+lowescape equalfullobjects/reflogs;
+8displacedscalarrefusalschecked. F2unreadablealiasopenSKIPmatchesactualglibc2.39Csource,
+notnewgenericrefusal; nonUTF8filebyteparserpreservesASCIIentries, Cwhitespace/NUL/399-
+byte fgetswindow. F3singleexpansionmatches_find_locale/_expand_alias, not8levelrecursion.
+Aliasunit0/2reds areprivate/source-code-groundedNOTliveSourcebusinessreds. SourceC
+fetched/versionmatched/evidenceretained, nohostfilemutation orruntimeC/Python.
+
+Op224/0/2helpers10suites;workspace2313/0/14helpers189suites/doctests; strictworkspace
+alltargetClippy/fullfmt/bothCLIs+optimizedOplib pass. Exact53/completion599/PERF27/
+pending/valid/0of16 unchanged. Current3bindings/disposition/limits
+`reviews/op-byte-locale-disposition.md`; unique logs
+`/tmp/sk-op-byte-review-followup.Y4LalO/command-log-index.tsv`. Othera522hashesunchanged;
+historicalreview/reportsretained. Smallfollowuptestednotfreshverdict; coorcommits+PUSHES,
+PRdraft; nextactualsource-orderedJ/P/admission/publicationwork. Noscopelimitswaived.
+
 ## Real Op byte bridge / actual locale facts — after `a6a2c0cf1`
 
 Codepoints→message-free native target→late filesystem encode→validatedexactbytes→

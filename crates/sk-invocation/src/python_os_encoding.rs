@@ -26,9 +26,9 @@
 //! Implemented filesystem charsets:
 //!
 //! * UTF-8 and ASCII, with `surrogateescape`.
-//! * ISO-8859-1, strictly (no Git-body re-interpretation): a scalar in
-//!   `0x00..=0xFF` becomes its single byte, `\udc80..\udcff` stay raw bytes,
-//!   and a higher scalar is truthfully unencodable.
+//! * Strict ISO-8859-1 and ISO-8859-15 (Latin-9), selected only from actual
+//!   codeset data. Latin-9 has eight scalar replacements, not a Latin-1 fallback.
+//!   Escaped bytes stay raw; unrepresentable scalars are refused truthfully.
 //! * A bounded list of real legacy charsets that are ASCII-transparent (for
 //!   example EUC-JP): an all-ASCII/escaped message stays publishable because
 //!   its bytes are the same there, while a non-ASCII scalar is an honest
@@ -56,6 +56,8 @@ enum FilesystemCodec {
     Ascii,
     /// ISO-8859-1 with `surrogateescape` (CPython `latin-1`).
     Latin1,
+    /// ISO-8859-15 (Latin-9), including its eight replacements for Latin-1.
+    Latin9,
     /// A real legacy charset whose ASCII bytes are identity-mapped.
     ///
     /// Only ASCII scalars and escaped bytes are implemented; a non-ASCII
@@ -112,6 +114,7 @@ impl OsEncodingContext {
             Ok(FilesystemCodec::Utf8) => "utf-8, surrogateescape".to_owned(),
             Ok(FilesystemCodec::Ascii) => "ascii, surrogateescape".to_owned(),
             Ok(FilesystemCodec::Latin1) => "iso-8859-1, surrogateescape".to_owned(),
+            Ok(FilesystemCodec::Latin9) => "iso-8859-15, surrogateescape".to_owned(),
             Ok(FilesystemCodec::AsciiTransparent { codeset }) => {
                 format!("{codeset}, ASCII and escaped bytes only")
             }
@@ -156,6 +159,10 @@ impl FilesystemCodec {
                 (FilesystemCodec::Latin1, Some(character)) if code <= 0xFF => {
                     bytes.push(character as u8);
                 }
+                (FilesystemCodec::Latin9, Some(_)) => match latin9_byte(code) {
+                    Some(byte) => bytes.push(byte),
+                    None => return Err(OsEncodeError::Unencodable { code, position }),
+                },
                 (FilesystemCodec::AsciiTransparent { .. }, Some(_)) if code < 0x80 => {
                     bytes.push(code as u8);
                 }
@@ -172,6 +179,25 @@ impl FilesystemCodec {
             }
         }
         Ok(bytes)
+    }
+}
+
+/// Strict ISO-8859-15: the eight replaced Latin-1 scalars are unencodable,
+/// while the replacement scalars map to their actual single bytes. Git still
+/// owns any subsequent interpretation of the resulting payload.
+fn latin9_byte(code: u32) -> Option<u8> {
+    match code {
+        0x20ac => Some(0xa4),
+        0x0160 => Some(0xa6),
+        0x0161 => Some(0xa8),
+        0x017d => Some(0xb4),
+        0x017e => Some(0xb8),
+        0x0152 => Some(0xbc),
+        0x0153 => Some(0xbd),
+        0x0178 => Some(0xbe),
+        0x00a4 | 0x00a6 | 0x00a8 | 0x00b4 | 0x00b8 | 0x00bc | 0x00bd | 0x00be => None,
+        0..=0xff => Some(code as u8),
+        _ => None,
     }
 }
 
@@ -263,6 +289,7 @@ fn classify_codeset(codeset: &str) -> Result<FilesystemCodec, String> {
         Some("utf-8") => Ok(FilesystemCodec::Utf8),
         Some("ascii") => Ok(FilesystemCodec::Ascii),
         Some("iso-8859-1") => Ok(FilesystemCodec::Latin1),
+        Some("iso-8859-15") => Ok(FilesystemCodec::Latin9),
         Some(other) if other.starts_with("iso-8859-") => Ok(FilesystemCodec::AsciiTransparent {
             codeset: codeset.to_owned(),
         }),
@@ -569,6 +596,36 @@ mod tests {
             })
         );
         assert_eq!(latin1.label(), "iso-8859-1, surrogateescape");
+    }
+
+    #[test]
+    fn latin9_preserves_every_byte_and_rejects_displaced_latin1_scalars() {
+        let codec = FilesystemCodec::Latin9;
+        for byte in 0u8..=255 {
+            let code = match byte {
+                0xa4 => 0x20ac,
+                0xa6 => 0x0160,
+                0xa8 => 0x0161,
+                0xb4 => 0x017d,
+                0xb8 => 0x017e,
+                0xbc => 0x0152,
+                0xbd => 0x0153,
+                0xbe => 0x0178,
+                _ => u32::from(byte),
+            };
+            assert_eq!(codec.encode(&[code]), Ok(vec![byte]));
+        }
+        for code in [
+            0x00a4, 0x00a6, 0x00a8, 0x00b4, 0x00b8, 0x00bc, 0x00bd, 0x00be, 0x0100, 0xd800, 0xdc7f,
+        ] {
+            assert_eq!(
+                codec.encode(&[code]),
+                Err(OsEncodeError::Unencodable { code, position: 0 })
+            );
+        }
+        for code in 0xdc80..=0xdcff {
+            assert_eq!(codec.encode(&[code]), Ok(vec![(code - 0xdc00) as u8]));
+        }
     }
 
     #[test]

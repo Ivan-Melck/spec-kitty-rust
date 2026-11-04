@@ -932,6 +932,72 @@ fn locpath_fixture_resolves_real_ctype_files_like_the_source() {
 }
 
 #[test]
+fn latin15_locale_matches_the_source_for_non_ascii_payloads() {
+    const NAME: &str = "latin15_locale_matches_the_source_for_non_ascii_payloads";
+    if !child(
+        NAME,
+        "SK_OP_BYTE_LATIN15_CHILD",
+        &[("LC_ALL", "de_DE@euro"), ("PYTHONUTF8", "0")],
+    ) {
+        return;
+    }
+    let codec = source_filesystem_encoding();
+    println!("{NAME}: source filesystem encoding = {codec}");
+    for (invocation_id, profile) in [
+        ("01ARZ3NDEKTSV4RRFFQ69G5FE0", r#""\u00e9""#),
+        (
+            "01ARZ3NDEKTSV4RRFFQ69G5FE1",
+            r#""\u20ac\u0160\u0161\u017d\u017e\u0152\u0153\u0178\udca4""#,
+        ),
+    ] {
+        let native = Fixture::with_positive_primary();
+        native.checkout_new("topic");
+        let source = Fixture::with_positive_primary();
+        source.checkout_new("topic");
+        let line = started_line(invocation_id, profile, r#""a""#);
+        let record = write_pair(&native, &source, invocation_id, &line);
+        let committed = commit_pair(&native, &source, invocation_id);
+        if codec == "iso8859-15" {
+            assert!(
+                committed,
+                "the source's actual Latin-15 codec publishes these scalars"
+            );
+            if invocation_id.ends_with("FE1") {
+                assert_eq!(
+                    native.reflog_message("topic"),
+                    b"commit: op(\xa4\xa6\xa8\xb4\xb8\xbc\xbd\xbe\xa4): a [01ARZ3ND]"
+                );
+            }
+        }
+        assert_eq!(native.record_bytes(invocation_id), record);
+    }
+    // The eight displaced Latin-1 scalars are not representable in Latin-15.
+    for (index, scalar) in [
+        0x00a4, 0x00a6, 0x00a8, 0x00b4, 0x00b8, 0x00bc, 0x00bd, 0x00be,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let invocation_id = format!("01ARZ3NDEKTSV4RRFFQ69G5FE{}", index + 2);
+        let native = Fixture::with_positive_primary();
+        native.checkout_new("topic");
+        let source = Fixture::with_positive_primary();
+        source.checkout_new("topic");
+        let profile = format!("\"\\u{scalar:04x}\"");
+        write_pair(
+            &native,
+            &source,
+            &invocation_id,
+            &started_line(&invocation_id, &profile, r#""a""#),
+        );
+        let committed = commit_pair(&native, &source, &invocation_id);
+        if codec == "iso8859-15" {
+            assert!(!committed);
+        }
+    }
+}
+
+#[test]
 fn locale_alias_resolves_to_the_installed_codeset() {
     const NAME: &str = "locale_alias_resolves_to_the_installed_codeset";
     if !child(

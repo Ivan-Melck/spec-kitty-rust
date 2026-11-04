@@ -17,10 +17,15 @@
 //!
 //! The fact is deliberately three-valued beyond "resolved": a locale that is
 //! genuinely absent is [`LocaleFact::Unavailable`] (libc stays in the C
-//! locale), while unreadable data, an unsupported file format, a locale
+//! locale), while unreadable LC_CTYPE data, an unsupported file format, a locale
 //! archive, a path-shaped locale name, or a codeset relation this module
 //! cannot decide is [`LocaleFact::Uncertain`]. Uncertainty is never converted
 //! into a C-locale guess; the encoder refuses it as a native capability gap.
+//!
+//! Alias files are byte-tokenized with a single expansion. As glibc does,
+//! files that cannot be opened are skipped, not converted into global refusals;
+//! unrelated non-UTF-8 bytes do not discard valid entries. A matching non-text
+//! target remains a native capability uncertainty, not a source refusal.
 //!
 //! No locale data is written, no environment variable is mutated, no libc
 //! symbol is called, and no Python process is executed. `locale-archive`
@@ -154,8 +159,6 @@ mod glibc {
     const MAX_STRINGS: u32 = 100_000;
     /// A codeset name is short; never read the whole locale file for it.
     const MAX_CODESET_BYTES: u64 = 128;
-    /// Alias expansion is bounded so a cyclic alias file cannot loop.
-    const MAX_ALIAS_DEPTH: usize = 8;
 
     /// What the lookup of one candidate locale directory found.
     enum Lookup {
@@ -187,7 +190,10 @@ mod glibc {
             return LocaleFact::C;
         };
         let directories = alias_directories();
-        let expanded = expand_alias_in(&directories, requested);
+        let expanded = match expand_alias_in(&directories, requested) {
+            Ok(expanded) => expanded,
+            Err(detail) => return LocaleFact::Uncertain { detail },
+        };
         let name = expanded.as_deref().unwrap_or(requested);
         if name == "C" || name == "POSIX" {
             return LocaleFact::C;
@@ -441,35 +447,42 @@ mod glibc {
         ALIAS_DIRS.iter().map(PathBuf::from).collect()
     }
 
-    /// `locale.alias` expansion, bounded like libc's repeated lookup.
-    fn expand_alias_in(directories: &[PathBuf], name: &str) -> Option<String> {
-        let mut current = name.to_owned();
-        for _ in 0..MAX_ALIAS_DEPTH {
-            match alias_lookup_in(directories, &current) {
-                Some(next) if next != current => current = next,
-                _ => break,
-            }
-        }
-        (current != name).then_some(current)
+    /// One alias expansion, as glibc 2.39 `_nl_find_locale` calls
+    /// `_nl_expand_alias`: the returned value is not recursively re-expanded.
+    fn expand_alias_in(directories: &[PathBuf], name: &str) -> Result<Option<String>, String> {
+        alias_lookup_in(directories, name)
+            .map(|value| value.into_string().map_err(|_| {
+                "the matching locale alias has a non-text target this adapter cannot resolve".to_owned()
+            }))
+            .transpose()
+            .map(|value| value.filter(|value| value != name))
     }
 
-    fn alias_lookup_in(directories: &[PathBuf], name: &str) -> Option<String> {
+    fn alias_lookup_in(directories: &[PathBuf], name: &str) -> Option<OsString> {
+        use std::os::unix::ffi::OsStringExt;
         for directory in directories {
             let path = directory.join("locale.alias");
-            let Ok(contents) = fs::read_to_string(&path) else {
+            // glibc read_alias_file skips a file it cannot open; this is not
+            // evidence for a fabricated source refusal. It parses byte tokens,
+            // so an unrelated non-UTF-8 line must not discard valid aliases.
+            let Ok(contents) = fs::read(&path) else {
                 continue;
             };
-            for line in contents.lines() {
-                let line = line.trim();
-                if line.is_empty() || line.starts_with('#') {
+            for line in contents.split(|byte| *byte == b'\n') {
+                // glibc uses fgets(char[400]) then discards the rest of a long
+                // physical line. NUL terminates the C string being tokenized.
+                let line = &line[..line.len().min(399)];
+                let line = line.split(|byte| *byte == 0).next().unwrap_or_default();
+                let mut fields = line
+                    .split(|byte| matches!(*byte, b' ' | b'\t'..=b'\r'))
+                    .filter(|field| !field.is_empty());
+                let Some(alias) = fields.next() else { continue };
+                if alias.starts_with(b"#") {
                     continue;
                 }
-                let mut fields = line.split_whitespace();
-                let (Some(alias), Some(value)) = (fields.next(), fields.next()) else {
-                    continue;
-                };
-                if alias.eq_ignore_ascii_case(name) {
-                    return Some(value.to_owned());
+                let Some(value) = fields.next() else { continue };
+                if alias.eq_ignore_ascii_case(name.as_bytes()) {
+                    return Some(OsString::from_vec(value.to_vec()));
                 }
             }
         }
@@ -635,7 +648,7 @@ mod glibc {
         }
 
         #[test]
-        fn alias_file_expansion_is_bounded_and_case_insensitive() {
+        fn alias_file_expansion_is_single_and_case_insensitive() {
             let directory = tempfile::tempdir().expect("alias fixture");
             fs::write(
                 directory.path().join("locale.alias"),
@@ -645,20 +658,64 @@ mod glibc {
             let directories = vec![directory.path().to_path_buf()];
             assert_eq!(
                 alias_lookup_in(&directories, "GERMAN"),
-                Some("de_DE.ISO-8859-1".to_owned())
+                Some(OsString::from("de_DE.ISO-8859-1"))
             );
             assert_eq!(
                 expand_alias_in(&directories, "german"),
-                Some("de_DE.ISO-8859-1".to_owned())
+                Ok(Some("de_DE.ISO-8859-1".to_owned()))
             );
-            // Chained aliases expand repeatedly, and a self-alias terminates
-            // immediately instead of looping.
+            // glibc 2.39 _nl_find_locale calls _nl_expand_alias once; a
+            // returned alias value is not recursively expanded.
             assert_eq!(
                 expand_alias_in(&directories, "chain1"),
-                Some("chain3".to_owned())
+                Ok(Some("chain2".to_owned()))
             );
-            assert_eq!(expand_alias_in(&directories, "self"), None);
+            assert_eq!(expand_alias_in(&directories, "self"), Ok(None));
             assert_eq!(alias_lookup_in(&directories, "unknown"), None);
+        }
+
+        #[test]
+        fn a_non_utf8_alias_file_keeps_its_unrelated_ascii_entries() {
+            let directory = tempfile::tempdir().unwrap();
+            fs::write(
+                directory.path().join("locale.alias"),
+                b"# \xff comment\nignored\xff value\nvalid\x0bde_DE.ISO-8859-1\n",
+            )
+            .unwrap();
+            assert_eq!(
+                alias_lookup_in(&[directory.path().to_path_buf()], "valid"),
+                Some(OsString::from("de_DE.ISO-8859-1"))
+            );
+        }
+
+        #[test]
+        fn alias_bytes_keep_c_string_and_fgets_boundaries_without_inventing_refusals() {
+            let directory = tempfile::tempdir().unwrap();
+            let path = directory.path().join("locale.alias");
+            let directories = [directory.path().to_path_buf()];
+            let mut bytes = b"nul value\0 ignored\nraw target\xff\nlong ".to_vec();
+            bytes.extend_from_slice(&vec![b'x'; 500]);
+            bytes.extend_from_slice(b"\nnext usable\n");
+            fs::write(&path, bytes).unwrap();
+            assert_eq!(
+                alias_lookup_in(&directories, "nul"),
+                Some(OsString::from("value"))
+            );
+            assert!(expand_alias_in(&directories, "raw").is_err());
+            assert_eq!(
+                alias_lookup_in(&directories, "long").unwrap().len(),
+                399 - b"long ".len()
+            );
+            assert_eq!(
+                alias_lookup_in(&directories, "next"),
+                Some(OsString::from("usable"))
+            );
+            fs::remove_file(path).unwrap();
+            assert_eq!(
+                alias_lookup_in(&directories, "next"),
+                None,
+                "glibc skips files it cannot open"
+            );
         }
 
         #[test]
