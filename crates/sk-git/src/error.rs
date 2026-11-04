@@ -590,6 +590,40 @@ pub enum GitError {
         detail: String,
     },
 
+    /// The operator index's own lock already exists and is not ours.
+    ///
+    /// This mirrors `git commit`'s refusal when another writer holds the
+    /// canonical index lock. The foreign file is never removed or retried.
+    #[error("safe commit cannot lock the operator index at {path}: {detail}")]
+    SafeCommitIndexLocked {
+        /// The captured index lock path.
+        path: PathBuf,
+        /// What was observed and why it is not ours.
+        detail: String,
+    },
+
+    /// The operator index lock could not be created or populated.
+    #[error("safe commit could not create the operator index lock at {path}: {detail}")]
+    SafeCommitIndexLockUnavailable {
+        /// The captured index lock path.
+        path: PathBuf,
+        /// The filesystem or Git diagnostic.
+        detail: String,
+    },
+
+    /// The per-worktree `COMMIT_EDITMSG` could not be written.
+    ///
+    /// The authored artifact is never deleted, renamed over, or replaced with
+    /// an atomic temp file: git's own follow-symlink/truncate behaviour is the
+    /// contract.
+    #[error("safe commit could not write the commit message artifact at {path}: {detail}")]
+    SafeCommitMessageFileUnwritable {
+        /// The resolved artifact path.
+        path: PathBuf,
+        /// The filesystem diagnostic.
+        detail: String,
+    },
+
     /// Candidate creation succeeded, but ref advancement could not be confirmed.
     /// Hooks or another writer may have changed history; inspect before retrying.
     #[error(

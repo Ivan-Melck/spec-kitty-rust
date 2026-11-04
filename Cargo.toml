@@ -21,6 +21,7 @@ toml_edit = "0.25"
 pep440_rs = "0.7"
 sha2 = "0.10"
 fs2 = "0.4"
+same-file = "=1.0.6"
 tempfile = "3"
 clap = { version = "4", features = ["derive"] }
 proptest = "1"

@@ -56,8 +56,9 @@
 //! found; the private index is a temporary file removed on drop.
 
 use std::ffi::{OsStr, OsString};
-use std::io::Write;
-use std::path::Path;
+use std::fs::{self, File, OpenOptions};
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 
@@ -329,11 +330,41 @@ fn create_commit(
         }
     }
 
+    let worktree_route = plan.route() == SafeCommitRoute::Worktree;
     let index = ScopedIndex::in_git_dir(repository.git_dirs()?.git_dir())?;
     let target = IndexTarget::Scoped(&index);
-    let message_file = write_message_file(plan.message_bytes(), isolate_hooks)?;
-    let message_path = message_file.path().to_path_buf();
     let cleanup = MessageCleanup::resolve(process, isolate_hooks)?;
+
+    // The ordinary route holds git's own lock for the captured operator index
+    // while it writes the shared COMMIT_EDITMSG and runs the hooks. The lock
+    // body is a valid prospective index (requested blobs plus whatever the
+    // operator had staged), exactly the file git's own `commit --only` exposes
+    // to hooks. It is built in a private copy and never mutates the operator
+    // index.
+    let mut artifact_lock: Option<OperatorIndexLock> = None;
+    let commit_message = if worktree_route {
+        let message_path = repository.commit_message_path()?;
+        let mut lock = OperatorIndexLock::acquire(repository.operator_index_lock_path()?)?;
+        let body = prospective_operator_index(repository, process, &index, plan)?;
+        lock.write_body(&body)?;
+        artifact_lock = Some(lock);
+        Some(message_path)
+    } else {
+        None
+    };
+    let message_file = if worktree_route {
+        None
+    } else {
+        Some(write_message_file(plan.message_bytes(), isolate_hooks)?)
+    };
+    let message_path = match &commit_message {
+        Some(path) => path.absolute().to_path_buf(),
+        None => message_file
+            .as_ref()
+            .expect("a non-worktree route writes a private message file")
+            .path()
+            .to_path_buf(),
+    };
 
     // The baseline is the parent's tree, or git's own canonical empty tree for
     // a root commit, so the initially-empty and no-op checks below are the same
@@ -352,6 +383,17 @@ fn create_commit(
         "pre-commit",
         run_commit_hook(process, target, "pre-commit", &[], !isolate_hooks)?,
     );
+    if let Some(lock) = &artifact_lock {
+        lock.ensure_owned()?;
+    }
+    // The ordinary route writes the cleaned message only after pre-commit
+    // succeeded: pre-commit sees the stale or absent artifact, prepare and
+    // commit-msg see the new one. The write still happens for an unchanged
+    // changeset, before the no-op refusal (source probe evidence).
+    if worktree_route {
+        let initial = cleanup.render(process, target, plan.message_bytes())?;
+        write_commit_artifact(&message_path, &message_with_trailing_newline(initial))?;
+    }
     // git commit --only runs pre-commit even for an initially empty
     // changeset, but a formatter cannot turn that snapshot into a commit.
     if initially_empty {
@@ -360,31 +402,69 @@ fn create_commit(
             detail: "the requested snapshot matched HEAD before the pre-commit hook".to_owned(),
         });
     }
-    cleanup.apply(process, target, &message_path)?;
-    record_hook_warnings(
-        warnings,
-        "prepare-commit-msg",
-        run_commit_hook(
-            process,
-            target,
+    if let Some(message) = &commit_message {
+        record_hook_warnings(
+            warnings,
             "prepare-commit-msg",
-            &[message_path.as_os_str(), OsStr::new("message")],
-            !isolate_hooks,
-        )?,
-    );
-    record_hook_warnings(
-        warnings,
-        "commit-msg",
-        run_commit_hook(
-            process,
-            target,
+            run_commit_hook(
+                process,
+                target,
+                "prepare-commit-msg",
+                &[message.spelling(), OsStr::new("message")],
+                !isolate_hooks,
+            )?,
+        );
+        if let Some(lock) = &artifact_lock {
+            lock.ensure_owned()?;
+        }
+        record_hook_warnings(
+            warnings,
             "commit-msg",
-            &[message_path.as_os_str()],
-            !isolate_hooks,
-        )?,
-    );
+            run_commit_hook(
+                process,
+                target,
+                "commit-msg",
+                &[message.spelling()],
+                !isolate_hooks,
+            )?,
+        );
+    } else {
+        cleanup.apply(process, target, &message_path)?;
+        record_hook_warnings(
+            warnings,
+            "prepare-commit-msg",
+            run_commit_hook(
+                process,
+                target,
+                "prepare-commit-msg",
+                &[message_path.as_os_str(), OsStr::new("message")],
+                !isolate_hooks,
+            )?,
+        );
+        record_hook_warnings(
+            warnings,
+            "commit-msg",
+            run_commit_hook(
+                process,
+                target,
+                "commit-msg",
+                &[message_path.as_os_str()],
+                !isolate_hooks,
+            )?,
+        );
+    }
 
-    let final_message = cleanup.apply(process, target, &message_path)?;
+    if let Some(lock) = &artifact_lock {
+        lock.ensure_owned()?;
+    }
+    // The object body is cleanup(artifact readback), but the artifact itself is
+    // never rewritten: hook edits (including whitespace) stay in the file.
+    let final_message = if worktree_route {
+        let raw = read_commit_artifact(&message_path)?;
+        cleanup.render(process, target, &raw)?
+    } else {
+        cleanup.apply(process, target, &message_path)?
+    };
 
     let tree = match intended_tree {
         Some(intended) => {
@@ -426,12 +506,27 @@ fn create_commit(
             detail: "Aborting commit due to empty commit message".to_owned(),
         });
     }
+    if let Some(lock) = &artifact_lock {
+        lock.ensure_owned()?;
+    }
+    // A private object-input file, created only after the hooks, carries the
+    // already-cleaned bytes to the one `commit-tree` authority. The observable
+    // artifact is not used as cleanup scratch space.
+    let object_input = if worktree_route {
+        Some(write_object_input(&final_message)?)
+    } else {
+        None
+    };
+    let object_path = match &object_input {
+        Some(file) => file.path(),
+        None => message_path.as_path(),
+    };
     let (new_sha, commit_warnings) = create_commit_object(
         process,
         target,
         &tree,
         parent,
-        &message_path,
+        object_path,
         isolate_hooks,
         plan,
     )?;
@@ -465,8 +560,15 @@ fn create_commit(
         ),
         None => RefChange::create(plan.destination_ref().clone(), new_sha.clone()),
     };
-    let advance = repository
-        .plan_ref_transaction_bytes(&reflog_message_bytes(&audit_message), vec![change])
+    // Once an object exists, ownership loss must take the same candidate/
+    // readback uncertainty path as any other unconfirmed publication failure.
+    let advance = artifact_lock
+        .as_ref()
+        .map_or(Ok(()), OperatorIndexLock::ensure_owned)
+        .and_then(|()| {
+            repository
+                .plan_ref_transaction_bytes(&reflog_message_bytes(&audit_message), vec![change])
+        })
         .and_then(|transaction| repository.apply_ref_transaction_raw(&transaction));
     if let Err(error) = advance {
         let observed = repository.read_ref(plan.destination_ref());
@@ -503,6 +605,11 @@ fn create_commit(
         }
     }
 
+    // The owned lock covers hooks, object creation and the compare-and-swap
+    // readback conclusion. It is released before the existing post-landing
+    // index reconciliation, which needs the operator index's own lock.
+    drop(artifact_lock.take());
+
     Ok(new_sha)
 }
 
@@ -534,6 +641,27 @@ impl MessageCleanup {
         }
     }
 
+    /// Clean `raw` according to this policy without writing it anywhere.
+    fn render(
+        self,
+        process: &GitProcess,
+        target: IndexTarget<'_>,
+        raw: &[u8],
+    ) -> Result<Vec<u8>, GitError> {
+        match self {
+            Self::Verbatim => Ok(raw.to_vec()),
+            Self::Whitespace => Ok(target
+                .checked_with_stdin(process, &["stripspace"], raw)?
+                .stdout),
+            Self::StripComments => Ok(target
+                .checked_with_stdin(process, &["stripspace", "--strip-comments"], raw)?
+                .stdout),
+        }
+    }
+
+    /// Clean a private message file in place (the pinned and index-deletion
+    /// routes). The ordinary route uses [`Self::render`] because its artifact
+    /// must keep the hook-written bytes.
     fn apply(
         self,
         process: &GitProcess,
@@ -547,25 +675,244 @@ impl MessageCleanup {
         .map_err(|error| GitError::SafeCommitInvalidRequest {
             detail: format!("read commit message: {error}"),
         })?;
-        let cleaned = match self {
-            Self::Verbatim => return Ok(raw),
-            Self::Whitespace => {
-                target
-                    .checked_with_stdin(process, &["stripspace"], &raw)?
-                    .stdout
-            }
-            Self::StripComments => {
-                target
-                    .checked_with_stdin(process, &["stripspace", "--strip-comments"], &raw)?
-                    .stdout
-            }
-        };
-        std::fs::write(path, &cleaned).map_err(|source| GitError::Io {
+        if matches!(self, Self::Verbatim) {
+            return Ok(raw);
+        }
+        let cleaned = self.render(process, target, &raw)?;
+        fs::write(path, &cleaned).map_err(|source| GitError::Io {
             context: "clean the safe-commit message",
             source,
         })?;
         Ok(cleaned)
     }
+}
+
+/// The operator index's own create-new lock, with owned-identity cleanup.
+///
+/// The file is git's canonical `<captured index>.lock`, not an advisory lock.
+/// It is created only for the ordinary worktree route, after the transaction's
+/// state checks and before any hook or artifact write, and held through the
+/// ref compare-and-swap/readback. Cleanup removes the file only when it is the
+/// same identity this process created and no replacement has taken the path.
+struct OperatorIndexLock {
+    path: PathBuf,
+    file: File,
+    // Keep the identity handle open: Windows file identifiers can be reused
+    // after the last handle closes. No fabricated zero IDs or mtime heuristics.
+    identity: same_file::Handle,
+    pid: u32,
+}
+
+impl OperatorIndexLock {
+    fn acquire(path: PathBuf) -> Result<Self, GitError> {
+        let file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .map_err(|source| {
+                if source.kind() == std::io::ErrorKind::AlreadyExists {
+                    GitError::SafeCommitIndexLocked {
+                        path: path.clone(),
+                        detail:
+                            "the operator index lock already exists; it is not ours and is left untouched"
+                                .to_string(),
+                    }
+                } else {
+                    GitError::SafeCommitIndexLockUnavailable {
+                        path: path.clone(),
+                        detail: source.to_string(),
+                    }
+                }
+            })?;
+        let identity = file
+            .try_clone()
+            .and_then(same_file::Handle::from_file)
+            .map_err(|source| GitError::SafeCommitIndexLockUnavailable {
+                path: path.clone(),
+                detail: format!("capture the created lock identity: {source}"),
+            })?;
+        Ok(Self {
+            path,
+            file,
+            identity,
+            pid: std::process::id(),
+        })
+    }
+
+    fn owns_path(&self) -> bool {
+        self.pid == std::process::id()
+            && fs::symlink_metadata(&self.path)
+                .is_ok_and(|metadata| metadata.is_file() && !metadata.file_type().is_symlink())
+            && same_file::Handle::from_path(&self.path)
+                .is_ok_and(|observed| observed == self.identity)
+    }
+
+    fn ensure_owned(&self) -> Result<(), GitError> {
+        if self.owns_path() {
+            Ok(())
+        } else {
+            Err(GitError::SafeCommitIndexLockUnavailable {
+                path: self.path.clone(),
+                detail: "the captured operator-index lock no longer names this attempt's owned file; preserve the foreign state and do not assume nothing changed".to_string(),
+            })
+        }
+    }
+
+    fn write_body(&mut self, bytes: &[u8]) -> Result<(), GitError> {
+        self.ensure_owned()?;
+        self.file
+            .write_all(bytes)
+            .and_then(|_| self.file.flush())
+            .map_err(|source| GitError::SafeCommitIndexLockUnavailable {
+                path: self.path.clone(),
+                detail: source.to_string(),
+            })
+    }
+}
+
+impl Drop for OperatorIndexLock {
+    fn drop(&mut self) {
+        if self.owns_path() {
+            let _ = fs::remove_file(&self.path);
+        }
+        // Missing, unreadable, symlinked or replaced path: never unlink a file
+        // on the strength of a name, size/mtime guess or another process's PID.
+    }
+}
+
+/// Build the prospective operator index body in a private copy.
+///
+/// The operator's index is read and copied, never mutated. The requested paths
+/// are staged into the copy with the same literal-pathspec `add --force` helper
+/// the candidate tree uses, so unrelated staged entries survive and the lock
+/// observable by hooks is a real DIRC index rather than an empty semaphore.
+fn prospective_operator_index(
+    repository: &GitRepository,
+    process: &GitProcess,
+    index: &ScopedIndex,
+    plan: &SafeCommitExecution<'_>,
+) -> Result<Vec<u8>, GitError> {
+    let operator = repository.operator_index_path()?;
+    match fs::read(&operator) {
+        Ok(bytes) => fs::write(index.path(), bytes).map_err(|source| GitError::Io {
+            context: "copy the operator index for the safe-commit lock",
+            source,
+        })?,
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => {
+            IndexTarget::Scoped(index).checked(process, &["read-tree", "--empty"])?;
+        }
+        Err(source) => {
+            return Err(GitError::Io {
+                context: "read the operator index for the safe-commit lock",
+                source,
+            });
+        }
+    }
+    // The source unstages the requested paths before re-adding them, so a
+    // folded rename pair has an independently addressable index entry. This
+    // runs only on the private copy; the operator's index is never touched.
+    let target = IndexTarget::Scoped(index);
+    if plan.head().is_some() {
+        let mut args = base(["restore", "--staged"]);
+        push_paths(&mut args, plan.paths());
+        // Best-effort exactly like the source: a path with no staged change is
+        // not an error for this preparatory step.
+        let _ = target.run(process, &args);
+    } else {
+        let mut args = base(["rm", "--cached", "--ignore-unmatch", "-q"]);
+        push_paths(&mut args, plan.paths());
+        // The source also treats a failed unborn unstage as best effort and
+        // lets the following `add --force` replace the entry.
+        let _ = target.run(process, &args);
+    }
+    stage_paths(process, target, plan.paths())
+        .map_err(|(path, detail)| GitError::SafeCommitStageFailed { path, detail })?;
+    fs::read(index.path()).map_err(|source| GitError::Io {
+        context: "read the prospective operator index body",
+        source,
+    })
+}
+
+/// Write the ordinary route's message artifact exactly where git's own path
+/// spelling points.
+///
+/// `OpenOptions` follows a symlink and truncates the target, so an authored
+/// link is preserved, a dangling link is created through, a read-only target
+/// fails, and a directory fails. No atomic rename or no-follow policy is
+/// layered on top of git's own behaviour.
+fn write_commit_artifact(path: &Path, bytes: &[u8]) -> Result<(), GitError> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(path)
+        .map_err(|source| GitError::SafeCommitMessageFileUnwritable {
+            path: path.to_path_buf(),
+            detail: source.to_string(),
+        })?;
+    file.write_all(bytes)
+        .and_then(|_| file.flush())
+        .map_err(|source| GitError::SafeCommitMessageFileUnwritable {
+            path: path.to_path_buf(),
+            detail: source.to_string(),
+        })
+}
+
+/// Read the artifact back, following symlinks as git does.
+fn read_commit_artifact(path: &Path) -> Result<Vec<u8>, GitError> {
+    let limit = crate::safe_commit::MAX_COMMIT_MESSAGE_LEN as u64 + 1;
+    let file = File::open(path).map_err(|source| GitError::SafeCommitInvalidRequest {
+        detail: format!("read commit message: {source}"),
+    })?;
+    let metadata = file
+        .metadata()
+        .map_err(|source| GitError::SafeCommitInvalidRequest {
+            detail: format!("read commit message: {source}"),
+        })?;
+    if !metadata.is_file() {
+        return Err(GitError::SafeCommitInvalidRequest {
+            detail: "read commit message: the artifact is not a regular file".to_string(),
+        });
+    }
+    let mut bytes = Vec::new();
+    file.take(limit).read_to_end(&mut bytes).map_err(|source| {
+        GitError::SafeCommitInvalidRequest {
+            detail: format!("read commit message: {source}"),
+        }
+    })?;
+    if bytes.len() as u64 > limit - 1 {
+        return Err(GitError::SafeCommitInvalidRequest {
+            detail: format!(
+                "the commit message exceeds the {}-byte limit",
+                crate::safe_commit::MAX_COMMIT_MESSAGE_LEN
+            ),
+        });
+    }
+    Ok(bytes)
+}
+
+/// Give a non-empty authored message the single trailing line feed git's
+/// cleanup writes. An empty (whitespace-only) message stays zero bytes.
+fn message_with_trailing_newline(mut bytes: Vec<u8>) -> Vec<u8> {
+    if !bytes.is_empty() && !bytes.ends_with(b"\n") {
+        bytes.push(b'\n');
+    }
+    bytes
+}
+
+/// A private file holding the already-cleaned object body for `commit-tree`.
+fn write_object_input(bytes: &[u8]) -> Result<NamedTempFile, GitError> {
+    let mut file = NamedTempFile::new().map_err(|source| GitError::Io {
+        context: "create the safe-commit object-input file",
+        source,
+    })?;
+    file.write_all(bytes)
+        .and_then(|_| file.flush())
+        .map_err(|source| GitError::Io {
+            context: "write the safe-commit object-input file",
+            source,
+        })?;
+    Ok(file)
 }
 
 fn write_message_file(message: &[u8], pinned: bool) -> Result<NamedTempFile, GitError> {
@@ -1177,6 +1524,57 @@ fn commit_is_signed(process: &GitProcess) -> Result<bool, GitError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn owned_index_lock_identity_survives_our_body_write() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("index.lock");
+        let mut lock = OperatorIndexLock::acquire(path.clone()).unwrap();
+        lock.write_body(b"owned identity test body").unwrap();
+        lock.ensure_owned().unwrap();
+        drop(lock);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn an_existing_foreign_lock_is_never_owned_or_removed() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("index.lock");
+        fs::write(&path, b"foreign").unwrap();
+        assert!(matches!(
+            OperatorIndexLock::acquire(path.clone()),
+            Err(GitError::SafeCommitIndexLocked { .. })
+        ));
+        assert_eq!(fs::read(path).unwrap(), b"foreign");
+    }
+
+    #[test]
+    fn an_inherited_pid_cannot_release_the_owners_index_lock() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("index.lock");
+        let mut lock = OperatorIndexLock::acquire(path.clone()).unwrap();
+        lock.write_body(b"owner").unwrap();
+        // Deterministic ownership-fence control, NOT a real-fork certification.
+        lock.pid = std::process::id().wrapping_add(1);
+        assert!(lock.ensure_owned().is_err());
+        drop(lock);
+        assert_eq!(fs::read(path).unwrap(), b"owner");
+    }
+
+    #[test]
+    fn same_contents_and_size_cannot_identify_a_replacement_as_ours() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("index.lock");
+        let original = temp.path().join("original-lock");
+        let mut lock = OperatorIndexLock::acquire(path.clone()).unwrap();
+        lock.write_body(b"same bytes").unwrap();
+        fs::rename(&path, &original).unwrap();
+        fs::write(&path, b"same bytes").unwrap();
+        assert!(lock.ensure_owned().is_err());
+        drop(lock);
+        assert_eq!(fs::read(path).unwrap(), b"same bytes");
+        assert_eq!(fs::read(original).unwrap(), b"same bytes");
+    }
 
     #[test]
     fn the_first_line_mirrors_str_lines_for_utf8() {

@@ -3147,6 +3147,11 @@ fn shadow_branch_unborn_unprotected_root_publication_matches_the_source() {
         "the complete root commit object is identical"
     );
     assert_eq!(
+        fs::read(native.root.join(".git/COMMIT_EDITMSG")).unwrap(),
+        fs::read(source.root.join(".git/COMMIT_EDITMSG")).unwrap(),
+        "the actual root service leaves the same Source message artifact"
+    );
+    assert_eq!(
         reflog_message(&native, NBSP_PHYSICAL),
         reflog_message(&source, NBSP_PHYSICAL),
         "the physical root reflog payload is identical"

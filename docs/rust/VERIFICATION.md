@@ -8,6 +8,41 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
+## Ordinary COMMIT_EDITMSG / exact hook argv — after `ea7174dbf`
+
+Worktree caller routes now use Source's per-worktree artifact: OLD/absent at
+pre-commit, cleaned new file after pre-commit, exact relative/linked Git spelling
+to hooks, artifact keeps hook edits while object bytes are separately cleaned.
+Owned captured-index lock has prospective DIRC requested+unrelated entries,
+held through CAS; no real operator-stage/patch-restore bridge yet. Existing
+PinnedParent/IndexDeletions routes and32case corpus unchanged. Actual Op Source-
+first consumer test and root artifact control pass. Owner primary R1 red is
+Source-first; Op consumer test was added after fix, not another pre-fix red.
+
+Coordinator ownership-invariant red: replacing the lock still published and
+failed resync; phase fences now prevent pre-object publication and preserve
+candidate/readback uncertainty after object creation. Four guard positives plus
+runtime regression. Pinned Rust source proves owner Windows IDs were unstable;
+coordinator adds exact safe same-file1.0.6/locked winapi-util0.1.11 (existing
+windows-sys unchanged), no unstable calls/fakezero/mtime identity. ADR and full
+164-row lock SBOM/checksum/freshness/license/no-script/OSV evidence documented;
+no real Windows target/certification claimed.
+
+Finalworkspace2375/0/17helpers193suites; Git373/Op245/Kernel199/doctrine175/
+charter80 included. Strict Clippy/fmt/Git+Op docs/offline/both release CLIs and
+optimized Op/exact53 green. Initial completed aggregate's chained Clippy timed
+out without receipt; no live processes found, fresh standalone/final gates pass.
+Completion599/PERF27/pending/accountingvalid0of16 unchanged. Current12bindings/
+precise chronology/scope `/tmp/sk-commit-artifact-integration.96Bf02/command-log-index.tsv`
+and `crates/sk-git/COMMIT-ARTIFACT-INTEGRATION-REPORT.md`. Owner report historical:
+11artifactpasses+helper, not12passes; actual provisionalwrite before repo probes
+but literalminute/inaccurateall-probes claim qualified with tool timestamps.
+
+Remote mains now4d9c95313 (latest1docsindex+2lines/noSourcepins); localmain
+staleunchanged, baseline9aed unchanged/706historicsemanticgap. Fresh independent
+artifact review pending; R2R3R4/highsurrogate/NUL/missingSPINE/operator-stage/
+restore/phase/concurrency/platform/fullprogram/performance all stay REQUIRED.
+
 ## Independent actual Op publication review — `437b3a8a6`
 
 NARROW PASS WITH FINDINGS; independent244Op/357Git, scopedstrict/docs/offline/

@@ -6,6 +6,7 @@
 //! pathspecs, revisions, or remote names, so the adapter cannot be turned into
 //! a write or network surface.
 
+use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -40,6 +41,40 @@ pub struct GitRepository {
     process: GitProcess,
     options: GitOptions,
     index: OperatorIndex,
+}
+
+/// The per-worktree commit-message artifact path, exactly as git spells it.
+///
+/// `spelling` is the raw `git rev-parse --git-path COMMIT_EDITMSG` output with
+/// only the line terminator removed. That is the value git itself passes to
+/// the commit-message hooks: `.git/COMMIT_EDITMSG` in a normal checkout and an
+/// absolute per-worktree gitdir path in a linked worktree. `absolute` is the
+/// same path resolved against this handle's work-tree root, for filesystem
+/// access.
+///
+/// The fields are private and the getters are read-only, so a caller cannot
+/// substitute a guessed spelling after the git probe.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommitMessagePath {
+    spelling: OsString,
+    absolute: PathBuf,
+}
+
+impl CommitMessagePath {
+    /// The path exactly as git spells it and as hooks must receive it.
+    pub fn spelling(&self) -> &OsStr {
+        &self.spelling
+    }
+
+    /// The same path resolved for filesystem access.
+    pub fn absolute(&self) -> &Path {
+        &self.absolute
+    }
+
+    /// A lossy rendering for diagnostics only; never parses back to a path.
+    pub fn display_lossy(&self) -> String {
+        self.absolute.to_string_lossy().into_owned()
+    }
 }
 
 impl GitRepository {
@@ -234,6 +269,32 @@ impl GitRepository {
                 Ok(PathBuf::from(lock))
             }
         }
+    }
+
+    /// The per-worktree `COMMIT_EDITMSG` path, resolved by git itself.
+    ///
+    /// The spelling is preserved as git printed it (relative for a normal
+    /// checkout, absolute for a linked worktree) because that exact value is
+    /// the commit-message hooks' `argv[1]`. No assumption is made that the
+    /// path is `<git-dir>/COMMIT_EDITMSG`, UTF-8, or the common git directory.
+    pub fn commit_message_path(&self) -> Result<CommitMessagePath, GitError> {
+        let output = self
+            .process
+            .checked(&["rev-parse", "--git-path", "COMMIT_EDITMSG"])?;
+        let raw = strip_line_feed(&output.stdout);
+        if raw.is_empty() {
+            return Err(GitError::InvalidOutput {
+                detail: "git rev-parse --git-path printed an empty COMMIT_EDITMSG path".to_string(),
+            });
+        }
+        let spelling = os_string_from_git_bytes(raw, "COMMIT_EDITMSG path")?;
+        let path = Path::new(&spelling);
+        let absolute = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            self.root.join(path)
+        };
+        Ok(CommitMessagePath { spelling, absolute })
     }
 
     /// The `git symbolic-ref --short HEAD` label, or `None` for a detached

@@ -66,7 +66,8 @@ fn transient(error: &GitError) -> bool {
         // rebuild/re-plan after a competing writer; the library never retries.
         GitError::OperationInProgress { .. }
         | GitError::PlanStale { .. }
-        | GitError::SafeCommitAdvanceUnconfirmed { .. } => true,
+        | GitError::SafeCommitAdvanceUnconfirmed { .. }
+        | GitError::SafeCommitIndexLocked { .. } => true,
         GitError::SafeCommitStageFailed { detail, .. }
         | GitError::SafeCommitCommitFailed { detail, .. } => detail.contains("index.lock"),
         _ => false,

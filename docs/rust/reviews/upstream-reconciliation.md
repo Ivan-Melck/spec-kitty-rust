@@ -1,8 +1,12 @@
 # Upstream reconciliation: current fork, older rewrite baseline
 
 Fork REMOTE `origin/main` and upstream remote `main` both resolve to
-`de5f4dc5f374170226a5331129c80927946e5d64` (fork fast-forwarded and both remotes
-rechecked). Total gap: **705 commits**. Newest10 afterba53b7aa6 changes36 files
+`4d9c95313f7a355cbb2179ca61ab6045d7c7529b` (fork fast-forwarded and both remotes
+rechecked). Total historical gap: **706 commits**. Latest one afterde5f4dc5f
+changes only docs/development/docs-retrieval-index.yaml (+2 lines); no source or
+pin change. Evidence `/tmp/sk-commit-artifact-integration.96Bf02/upstream-tail-refresh.wiAVFZ.log`.
+Local main remains stale/unchanged; active Source/oracle baseline is not adopted
+from this remote sync. The preceding10 afterba53b7aa6 changes36 files
 (+1898/-73); production tracer_append.py and retrospective/tracer_writer.py
 (+101/-33) add owned-checkout tracer routing and preserve mission protection for
 owned aliases. Tests/docs/Mission records also change. No dependency/pack/service/

@@ -215,7 +215,7 @@ pub use remote::{
     RemoteHeadTarget, RemoteHeads, RemoteName,
 };
 pub use repo_state::{GitDirs, InProgressOperation, MERGE_TREE_WRITE_TREE_MIN_VERSION};
-pub use repository::GitRepository;
+pub use repository::{CommitMessagePath, GitRepository};
 pub use safe_commit::{
     CommitGuardCapability, CommitGuardVerdict, ExpectedBlob, MAX_COMMIT_MESSAGE_LEN,
     SafeCommitMessagePlan, SafeCommitOutcome, SafeCommitPlan, SafeCommitPlanFailure,

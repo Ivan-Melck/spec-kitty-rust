@@ -1,6 +1,6 @@
 ---
 type: explanation
-updated: 2026-11-02
+updated: 2026-11-04
 audience: software-engineer
 ---
 # Rust rewrite decisions
@@ -47,6 +47,26 @@ The pinned interpreter's default1000 recursion budget bounds native reader stack
 use as an operational guard, not a fixed JSON-format or caller-ceiling claim.
 Default4300 integer conversion respects existing PYTHONINTMAXSTRDIGITS startup
 configuration (not a new Spec Kitty knob); floats are not integer-digit-limited.
+
+## Portable ordinary-commit lock identity
+
+The ordinary COMMIT_EDITMSG transaction uses Git's existing captured-index lock
+path, not a new advisory-lock namespace. Keep an open file identity and validate
+it across hooks and before publication; path/size/mtime or fabricated zero IDs
+are not ownership. If an object already exists when ownership is lost, retain
+candidate/ref/readback evidence rather than returning an ordinary no-candidate
+error. No shared-message write follows detected pre-commit ownership loss.
+
+Coordinator-approved dependency addition: `same-file = "=1.0.6"` (MIT choice),
+with locked Windows-only `winapi-util 0.1.11`; existing windows-sys0.61.2 remains.
+The owner's Windows std identity calls are still unstable (`windows_by_handle`)
+in the PINNED Rust commit58cf8f9c3, so retaining them would introduce a Windows
+compile regression. Existing fs2 supplies advisory locking, not file identity;
+a small safe cross-platform API avoids workspace unsafe/FFI or guessed identity.
+This explicitly extends the owner's no-dependency scope under coordinator
+manifest/lock ownership. It does NOT repin Python/Source/packs or certify Windows
+runtime/filesystems. Registry/checksum/freshness/no-build-script/incident-query
+and lock-inventory evidence: `dependencies/README.md`.
 
 ## Delivery and verification
 

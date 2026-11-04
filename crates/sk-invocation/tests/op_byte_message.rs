@@ -333,6 +333,35 @@ impl Fixture {
             .expect("a reflog line carries a message");
         last[tab + 1..].to_vec()
     }
+
+    fn git_path(&self, name: &str) -> PathBuf {
+        let raw = self.git_ok(&["rev-parse", "--git-path", name]);
+        let spelling = PathBuf::from(String::from_utf8_lossy(&raw).trim_end_matches('\n'));
+        if spelling.is_absolute() {
+            spelling
+        } else {
+            self.root.join(spelling)
+        }
+    }
+
+    fn artifact_bytes(&self) -> Vec<u8> {
+        fs::read(self.git_path("COMMIT_EDITMSG")).expect("read COMMIT_EDITMSG")
+    }
+
+    fn hook_log(&self, name: &str) -> Vec<u8> {
+        fs::read(self.git_path(name)).unwrap_or_default()
+    }
+
+    fn install_hook(&self, name: &str, body: &str) {
+        let path = self.git_path("hooks").join(name);
+        fs::create_dir_all(path.parent().unwrap()).expect("create hooks directory");
+        fs::write(&path, format!("#!/bin/sh\n{body}\nexit 0\n")).expect("write hook");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).expect("chmod hook");
+        }
+    }
 }
 
 fn id(raw: &str) -> InvocationId {
@@ -1669,4 +1698,66 @@ fn iso8859_1_commit_encoding_keeps_the_preconversion_payload() {
         );
     }
     assert_eq!(native.record_bytes(invocation_id), record);
+}
+
+/// R1: a source-valid prepare-commit-msg hook reads
+/// `$(git rev-parse --git-path COMMIT_EDITMSG)` and requires the pending
+/// message. The source side runs first through the real executor; the native
+/// side is the real `OpCommitService`.
+#[test]
+fn prepare_commit_msg_reads_the_actual_commit_editmsg_source_then_native() {
+    const NAME: &str = "prepare_commit_msg_reads_the_actual_commit_editmsg_source_then_native";
+    if !child(NAME, "SK_OP_COMMIT_ARTIFACT_R1_CHILD", UTF8_MODE_ZERO) {
+        return;
+    }
+    let invocation_id = "01ARZ3NDEKTSV4RRFFQ69G5FD1";
+    let native = Fixture::with_positive_primary();
+    native.checkout_new("topic");
+    let source = Fixture::with_positive_primary();
+    source.checkout_new("topic");
+    let line = started_line(invocation_id, r#""implementer-ivan""#, r#""implement""#);
+    write_pair(&native, &source, invocation_id, &line);
+
+    let short = &invocation_id[..8];
+    let hook = format!(
+        r#"d=$(git rev-parse --absolute-git-dir) || exit 1
+p=$(git rev-parse --git-path COMMIT_EDITMSG) || exit 1
+printf '%s' "$p" > "$d/prepare-artifact-spelling"
+if [ -f "$p" ]; then cat "$p" > "$d/prepare-artifact-content"; else printf 'ABSENT' > "$d/prepare-artifact-content"; fi
+grep -q '{short}' "$p" || exit 1"#
+    );
+    native.install_hook("prepare-commit-msg", &hook);
+    source.install_hook("prepare-commit-msg", &hook);
+
+    assert!(
+        commit_pair(&native, &source, invocation_id),
+        "{invocation_id}: the source commits this hook-valid row"
+    );
+    let source_artifact = source.artifact_bytes();
+    assert!(
+        String::from_utf8_lossy(&source_artifact).contains(short),
+        "the source hook saw the actual artifact"
+    );
+    assert_eq!(
+        native.artifact_bytes(),
+        source_artifact,
+        "{invocation_id}: both sides leave the same hook-visible artifact"
+    );
+    let source_spelling =
+        String::from_utf8_lossy(&source.hook_log("prepare-artifact-spelling")).into_owned();
+    let native_spelling =
+        String::from_utf8_lossy(&native.hook_log("prepare-artifact-spelling")).into_owned();
+    assert_eq!(
+        native_spelling, source_spelling,
+        "{invocation_id}: the hook argv path is git's own spelling on both sides"
+    );
+    assert_eq!(
+        native.hook_log("prepare-artifact-content"),
+        source.hook_log("prepare-artifact-content"),
+        "{invocation_id}: prepare-commit-msg sees the same new artifact bytes"
+    );
+    assert_eq!(
+        native.artifact_bytes(),
+        native.hook_log("prepare-artifact-content")
+    );
 }

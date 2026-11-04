@@ -998,12 +998,16 @@ fn a_hook_that_sweeps_tracked_files_is_reported_as_landed_with_extras() {
 }
 
 #[test]
-fn a_commit_that_lands_but_cannot_resync_the_index_says_so_and_keeps_the_state() {
+fn a_commit_that_sweeps_an_extra_path_reports_unrequested_paths_and_keeps_no_foreign_lock() {
     let repo = Repo::lane();
-    // A hook sweeps an extra tracked file into the commit and, after git's own
-    // lock is gone, leaves a foreign index lock behind. The post-landing resync
-    // of the extra path then cannot run: the commit must be reported as landed,
-    // and the foreign lock must not be deleted.
+    // The ordinary route now holds git's own operator-index lock through the
+    // commit, exactly as the source's `git commit --only` does. A pre-commit
+    // `touch .git/index.lock` therefore touches our own lock rather than
+    // creating a foreign one; the source removes that lock at the end of the
+    // commit. The swept extra path is still discovered after landing and
+    // resynchronised, so the landed refusal is UnrequestedPaths. The
+    // IndexResyncFailed branch remains covered by the index-deletion route
+    // below, which does not take the operator lock.
     repo.install_hook(
         "pre-commit",
         "#!/bin/sh\ngit add -u\ntouch .git/index.lock\nexit 0\n",
@@ -1016,25 +1020,15 @@ fn a_commit_that_lands_but_cannot_resync_the_index_says_so_and_keeps_the_state()
         .safe_commit(&repo.request("sweep locked", &["spec.md"]))
         .unwrap_err();
 
-    let recovery = assert_landed(&error, SafeCommitLandedKind::IndexResyncFailed);
+    let recovery = assert_landed(&error, SafeCommitLandedKind::UnrequestedPaths);
     assert!(
-        repo.path.join(".git/index.lock").exists(),
-        "foreign lock preserved"
+        !repo.path.join(".git/index.lock").exists(),
+        "the owned lock is released, and the hook did not create a foreign one"
     );
     assert_eq!(recovery.commit().as_str(), repo.head());
-    assert_eq!(recovery.affected_paths(), &[repo.path_of("spec.md")]);
+    assert_eq!(recovery.affected_paths(), &[repo.path_of("other.txt")]);
     // The commit still carries the swept path; it is the index that needs repair.
     assert_eq!(repo.commit_paths(), vec!["other.txt", "spec.md"]);
-    let mut argv: Vec<String> = recovery
-        .repair_argv(std::ffi::OsStr::new("git"))
-        .iter()
-        .map(|arg| arg.to_string_lossy().into_owned())
-        .collect();
-    assert_eq!(argv.remove(0), "git");
-    assert_eq!(argv[0], "--literal-pathspecs");
-    assert_eq!(argv[1], "reset");
-    assert_eq!(argv[3], recovery.commit().as_str());
-    assert!(argv.contains(&"spec.md".to_string()));
 }
 
 #[test]
