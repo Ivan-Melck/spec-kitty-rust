@@ -5,10 +5,11 @@
 //! `_commit_op_record`, `_op_commit_kwargs`, `_op_commit_skip_reason`). This is
 //! the REAL commit composition over the accepted native skip probes, the
 //! canonical `ProtectionPolicy` inputs, and the canonical native commit
-//! capability: one message-free `SafeCommitTargetRequest` plan (the guard),
-//! then the late exact-byte payload (`SafeCommitTargetPlan::prepare`), then one
-//! `apply_safe_message_commit`. It is not an executor, dispatcher, or CLI
-//! adapter.
+//! capability: one message-free exact-ref `SafeCommitPhysicalRequest` plan (the
+//! guard), then the late exact-byte payload (`SafeCommitPhysicalPlan::prepare`),
+//! then one `apply_safe_physical_commit`. Ordinary born branches, genuinely
+//! unborn destinations and non-heads exact refs share that one publisher. It is
+//! not an executor, dispatcher, or CLI adapter.
 //!
 //! # Byte-message bridge
 //!
@@ -104,12 +105,16 @@
 //! * J/P source targeting: the judged destination is the source-normalized
 //!   `--short` name and the published destination is the exact physical ref
 //!   named by the full symbolic `HEAD`. The source's whitespace-stripped shadow
-//!   case now commits on that physical ref, and the judged guard refuses
-//!   protected/invalid shadow cases before the native plan. Unborn physical refs
-//!   and short names `BranchName` cannot represent (`refs/...`, `HEAD`,
-//!   `-name`) are source-allowed but truthfully reported as native
-//!   non-publishable; no parent, ref, or plan is fabricated. The source's own
-//!   tag-disambiguation mismatch (`heads/topic` vs `topic`) stays a refusal.
+//!   case commits on that physical ref, and the judged guard refuses
+//!   protected/invalid shadow cases before the native plan. Ordinary born
+//!   branches, genuinely unborn destinations (a zero-parent root) and exact
+//!   non-heads refs (`refs/x`, `refs/heads/HEAD`, `refs/heads/-name`) all travel
+//!   through that one exact-ref planner/transaction. A remaining
+//!   [`crate::op_target::OpTargetVerdict::SourceAllowedButNativeCannotPublish`] is a genuine
+//!   native inability (an unparsable exact ref or a real plan failure), never a
+//!   fabricated parent/ref/plan. The source's own tag-disambiguation mismatch
+//!   (`heads/topic` vs `topic`) and a branch literally `HEAD` stay Source
+//!   step-4 refusals.
 //! * Cross-checkout CLAIM composition is not implemented; the started-record
 //!   read is local to this writer's record root, like `_read_started_event`.
 
@@ -119,7 +124,7 @@ use std::time::Duration;
 
 use sk_git::{
     BranchName, CommitGuardCapability, CommitMessage, GitError, GitOptions, GitPath, GitRepository,
-    ProtectedBranches, SafeCommitOutcome, SafeCommitTargetRequest,
+    ProtectedBranches, RefName, SafeCommitPhysicalOutcome, SafeCommitPhysicalRequest,
 };
 use sk_workspace::{ProtectionPolicy, WorkspaceError};
 use thiserror::Error;
@@ -211,7 +216,8 @@ impl OpCommitOutcome {
 /// The typed evidence a successful or partially successful native commit leaves.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum OpCommitEvidence {
-    /// `safe_commit` returned a confirmed outcome.
+    /// `safe_commit` returned a confirmed outcome on a physical branch that a
+    /// short [`BranchName`] can represent exactly.
     Committed {
         /// The landed commit id.
         commit: sk_git::Oid,
@@ -222,12 +228,36 @@ pub enum OpCommitEvidence {
         /// Non-fatal hook/diagnostic warnings.
         warnings: Vec<String>,
     },
+    /// A confirmed commit landed on an exact physical ref that no short
+    /// [`BranchName`] can express (`refs/x`, `refs/heads/HEAD`,
+    /// `refs/heads/-name`).
+    ///
+    /// The destination is the real fully-qualified [`RefName`](sk_git::RefName)
+    /// the transaction published and compare-and-swapped; it is never a
+    /// sanitised label or a fabricated short branch.
+    CommittedPhysical {
+        /// The landed commit id.
+        commit: sk_git::Oid,
+        /// The exact fully-qualified ref the commit landed on.
+        destination: sk_git::RefName,
+        /// Whether the planner observed the destination genuinely absent, so
+        /// this landed commit is a zero-parent root published by an
+        /// absent-ref create. `false` means it pinned a real destination tip.
+        was_unborn: bool,
+        /// The paths the commit carries, read back from the commit.
+        committed_paths: Vec<GitPath>,
+        /// Non-fatal hook/diagnostic warnings.
+        warnings: Vec<String>,
+    },
     /// A candidate exists, but its publication on the destination is unconfirmed.
     /// This is neither a confirmed commit nor proof that nothing landed.
     AdvanceUnconfirmed {
         /// Immutable candidate created by this attempt.
         candidate: sk_git::Oid,
-        /// Requested destination branch.
+        /// The exact physical destination ref (`refs/...`) the transaction
+        /// pinned, as the backend reported it. This is not inferred or
+        /// shortened from the source-judged name; for a born ordinary branch it
+        /// reads `refs/heads/<branch>`.
         destination: String,
         /// Destination tip observed after the failure, if readable.
         observed_tip: Option<sk_git::Oid>,
@@ -244,6 +274,47 @@ pub enum OpCommitEvidence {
         /// The paths whose real-index state needs repair.
         affected_paths: Vec<GitPath>,
     },
+}
+
+impl OpCommitEvidence {
+    /// The exact fully-qualified physical ref a confirmed commit landed on.
+    ///
+    /// This is additive and typed: the legacy [`Self::Committed`] branch
+    /// remains a [`BranchName`] and is widened to its real
+    /// `refs/heads/...` ref, never a lossy string. Only the successful committed
+    /// variants store a destination here. `None` on landed-repair/unconfirmed
+    /// evidence does NOT mean nothing landed; inspect its typed commit/candidate.
+    pub fn committed_ref(&self) -> Option<sk_git::RefName> {
+        match self {
+            Self::Committed { destination, .. } => Some(destination.as_ref_name()),
+            Self::CommittedPhysical { destination, .. } => Some(destination.clone()),
+            Self::AdvanceUnconfirmed { .. } | Self::SafeCommitLanded { .. } => None,
+        }
+    }
+
+    /// The commit id of either successful committed-evidence variant.
+    ///
+    /// Landed-repair and unconfirmed variants retain their own typed IDs; this
+    /// success accessor returns `None` for them, not proof that nothing landed.
+    pub fn committed_commit(&self) -> Option<&sk_git::Oid> {
+        match self {
+            Self::Committed { commit, .. } | Self::CommittedPhysical { commit, .. } => Some(commit),
+            Self::AdvanceUnconfirmed { .. } | Self::SafeCommitLanded { .. } => None,
+        }
+    }
+
+    /// The observed destination state, when this evidence recorded it.
+    ///
+    /// The legacy [`Self::Committed`] variant predates the exact-ref family and
+    /// does not carry that fact (`None`); it is not inferred.
+    pub fn was_unborn(&self) -> Option<bool> {
+        match self {
+            Self::CommittedPhysical { was_unborn, .. } => Some(*was_unborn),
+            Self::Committed { .. }
+            | Self::AdvanceUnconfirmed { .. }
+            | Self::SafeCommitLanded { .. } => None,
+        }
+    }
 }
 
 /// Which close path is committing.
@@ -306,23 +377,26 @@ pub(crate) enum StartedReadError {
     },
 }
 
-/// The one message-free request builder shared by admission and the real
-/// commit.
+/// The one message-free exact-physical request builder shared by admission and
+/// the real commit.
 ///
-/// `protected` is the **verdict decided on the source-judged destination J**,
-/// projected 1:1 onto the physical destination P. The Op reaches this builder
-/// only after that judged guard allowed, so it passes the empty set — which
-/// preserves the source's actual-only-protection quirk instead of hardening P.
-/// The builder carries exactly the facts the source requested — destination, the
-/// one requested path, and the projected protection — and no payload, so no
-/// placeholder message reaches the backend.
-pub(crate) fn build_safe_commit_target(
-    destination: &BranchName,
+/// The destination is the exact full `RefName` the Source's symbolic `HEAD`
+/// names, not a short branch. `ProtectedBranches` is deliberately empty: the
+/// source's protection verdict was already decided on the source-judged
+/// destination `J`, and `NativeProtectedBranches` cannot express names such as
+/// `refs/x`, `refs/heads/HEAD` or `refs/heads/-name` at all. Passing the empty
+/// projection preserves the source's actual-only-protection quirk instead of
+/// adding a speculative P refusal; the one canonical STANDARD guard still runs
+/// in the shared planner. No payload is carried, so no placeholder message
+/// reaches the backend.
+pub(crate) fn build_safe_physical_commit_target(
+    destination: &RefName,
     path: &GitPath,
-    protected: ProtectedBranches,
-) -> SafeCommitTargetRequest {
-    SafeCommitTargetRequest::new(destination.clone(), [path.clone()])
-        .with_protection(protected, CommitGuardCapability::Standard)
+) -> SafeCommitPhysicalRequest {
+    SafeCommitPhysicalRequest::new(destination.clone(), [path.clone()]).with_protection(
+        ProtectedBranches::default(),
+        CommitGuardCapability::Standard,
+    )
 }
 
 /// The source's default 30-second Git probe budget.
@@ -362,7 +436,7 @@ impl OpCommitService {
     ///
     /// The selected options apply to repository opening and every later Git
     /// probe made through this handle. A non-work-tree root is represented as
-    /// [`RepositoryBinding::NotAWorkTree`], not a construction failure.
+    /// the internal `RepositoryBinding::NotAWorkTree` state, not a construction failure.
     pub fn with_git_options(
         project_root: impl Into<PathBuf>,
         writer: InvocationWriter,
@@ -483,9 +557,9 @@ impl OpCommitService {
     ///
     /// The project-root and record-checkout policies are both resolved and
     /// OR-ed exactly like `preflight_commit` step 6c. The verdict is a boolean
-    /// fact: the Op never forces `J` through `BranchName`, so a judged name the
-    /// native publisher cannot represent is still judged by the reference's own
-    /// rule.
+    /// fact: the Op never forces `J` through `BranchName` or
+    /// `NativeProtectedBranches`, so a judged name such as `refs/x` is still
+    /// judged by the reference's own string rule.
     pub(crate) fn judged_protection(
         &self,
         judged: &JudgedDestination,
@@ -617,7 +691,7 @@ impl OpCommitService {
                     .open_repository()
                     .expect("a resolved target names an open repository");
                 commit_outcome_for(
-                    repository.apply_safe_message_commit(&message_plan),
+                    repository.apply_safe_physical_commit(&message_plan),
                     target.judged().as_str(),
                 )
             }
@@ -662,23 +736,39 @@ impl OpCommitService {
     }
 }
 
-/// Map one backend outcome to the source-visible Op outcome.
+/// Map one physical backend outcome to the source-visible Op outcome.
 ///
-/// The evidence vocabulary, destination naming and best-effort semantics are
-/// unchanged; only the entry point that produced the error moved from the
-/// legacy plan/apply pair to the exact-byte plan. A protected refusal names the
-/// source-judged destination `J`, not the physical `P` the request carried.
+/// There is one publisher/one outcome adapter. A representable `refs/heads/<P>`
+/// keeps the legacy [`OpCommitEvidence::Committed`] shape (short
+/// [`BranchName`]) so existing consumers do not silently lose the field they
+/// read; an exact ref no short name can express becomes
+/// [`OpCommitEvidence::CommittedPhysical`] with the real full `RefName` and the
+/// planner-observed root fact. Neither branch fabricates or sanitises a name.
+/// A protected refusal names the source-judged destination `J`, not the
+/// physical `P` the request carried.
 fn commit_outcome_for(
-    result: Result<SafeCommitOutcome, GitError>,
+    result: Result<SafeCommitPhysicalOutcome, GitError>,
     judged: &str,
 ) -> OpCommitOutcome {
     match result {
-        Ok(outcome) => OpCommitOutcome::new_committed(OpCommitEvidence::Committed {
-            commit: outcome.commit().clone(),
-            destination: outcome.destination().clone(),
-            committed_paths: outcome.committed_paths().to_vec(),
-            warnings: outcome.warnings().to_vec(),
-        }),
+        Ok(outcome) => {
+            let evidence = match outcome.destination_ref().short_branch() {
+                Some(destination) => OpCommitEvidence::Committed {
+                    commit: outcome.commit().clone(),
+                    destination,
+                    committed_paths: outcome.committed_paths().to_vec(),
+                    warnings: outcome.warnings().to_vec(),
+                },
+                None => OpCommitEvidence::CommittedPhysical {
+                    commit: outcome.commit().clone(),
+                    destination: outcome.destination_ref().clone(),
+                    was_unborn: outcome.was_unborn(),
+                    committed_paths: outcome.committed_paths().to_vec(),
+                    warnings: outcome.warnings().to_vec(),
+                },
+            };
+            OpCommitOutcome::new_committed(evidence)
+        }
         Err(GitError::SafeCommitProtectedBranch { .. }) => OpCommitOutcome::new_refused(
             crate::op_custody::OpWriteRefusal::protected_branch(judged).reason,
         ),

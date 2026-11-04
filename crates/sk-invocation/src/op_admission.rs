@@ -18,9 +18,11 @@
 //!    ([`OP_WRITE_PROTECTED_BRANCH`] naming J, or
 //!    [`OP_WRITE_PROTECTION_CONFIG_INVALID`]). Every other source preflight
 //!    failure is a `SafeCommitError` in the reference and therefore admits the
-//!    audit write; the close still refuses the commit itself. A source-allowed
-//!    shape the native publisher cannot prepare yet (unborn P, unrepresentable
-//!    P) admits here as well, truthfully, and never becomes a source refusal.
+//!    audit write; the close still refuses the commit itself. A genuine
+//!    remaining native inability (an unparsable exact ref, a real planner
+//!    failure) admits here as well, truthfully, and never becomes a source
+//!    refusal. Unborn and non-heads destinations are now published by the
+//!    exact-ref backend, so they are ordinary `Ready` verdicts here.
 //!
 //! The adjudication is read-only: no `kitty-ops/` directory, index file, record,
 //! reference, or worktree is created or changed. A protection refusal never

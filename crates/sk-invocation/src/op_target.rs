@@ -15,25 +15,27 @@
 //!   `removeprefix("refs/heads/")`. Step 4 compares H with J. Stripping happens
 //!   before prefix removal, so `topic\u{a0}` matches `topic` while
 //!   `\u{a0}topic` does not.
-//! * **P** — the exact physical suffix of the full symbolic `HEAD` ref
-//!   (`refs/heads/<P>`). Only P is handed to the canonical native publisher, so
-//!   its HEAD assertion, tip/CAS transaction, captured index, and evidence stay
-//!   exact and truthful.
+//! * **P** — the exact full symbolic `HEAD` ref itself (`refs/heads/<P>`, a
+//!   one-level `refs/x`, `refs/heads/HEAD`, `refs/heads/-name`, or a genuinely
+//!   absent ref). Only P is handed to the one canonical exact-ref
+//!   planner/transaction, so its HEAD assertion, born/unborn state, tip/CAS,
+//!   captured index, and evidence stay exact and truthful.
 //!
 //! [`OpCommitService::judge_record_target`] is the one per-call authority shared
 //! by admission and the real close. It reproduces `preflight_commit`'s order:
 //! 1 shape, (2 non-empty paths), 3 worktree relationship, 4 H == J,
 //! 5 `refs/heads/J` exists, 6a/6b source path proof, 6c protection on J. Only
-//! after the source's own guard allows does it resolve P and ask the canonical
-//! planner for a message-free target plan.
+//! after the source's own guard allows does it resolve exact P and ask the
+//! canonical physical planner for a message-free target plan.
 //!
 //! A source preflight failure **admits the audit write** (it is a
 //! `SafeCommitError` in the reference) but **refuses the actual commit**. A
-//! source-allowed shape the native publisher cannot represent (unborn P, a
-//! `refs/`-prefixed short name, a native-only pre-guard refusal) is reported as
+//! genuine remaining native inability (an exact ref `RefName` cannot parse, or
+//! the canonical planner really fails) is reported as
 //! [`OpTargetVerdict::SourceAllowedButNativeCannotPublish`] — never as a source
-//! refusal, a fake success, or a plan without a real request. No parent is
-//! seeded or fabricated.
+//! refusal, a fake success, or a plan without a real request. Unborn
+//! destinations and non-heads refs are no longer such a case: they publish
+//! through the same exact-ref backend. No parent is seeded or fabricated.
 //!
 //! Read-only: only `symbolic-ref`, `for-each-ref`, config reads, filesystem
 //! observation, and the planner's own read-only checks run here.
@@ -42,13 +44,12 @@ use std::fmt;
 use std::path::PathBuf;
 
 use sk_git::{
-    BranchName, CommitGuardCapability, GitError, GitPath, ProtectedBranches, RefName,
-    SafeCommitTargetPlan, SourcePathRefusal, evaluate_commit_guard_decision,
-    plan_source_commit_path,
+    CommitGuardCapability, GitError, GitPath, RefName, SafeCommitPhysicalPlan, SourcePathRefusal,
+    evaluate_commit_guard_decision, plan_source_commit_path,
 };
 use sk_workspace::WorkspaceError;
 
-use crate::op_commit::{OpCommitService, ProtectionRead, build_safe_commit_target};
+use crate::op_commit::{OpCommitService, ProtectionRead, build_safe_physical_commit_target};
 use crate::op_commit_policy::strip_git_stdout;
 
 /// The source-judged destination `J`.
@@ -76,7 +77,7 @@ impl JudgedDestination {
 #[derive(Clone, Debug)]
 pub(crate) struct OpBranchTarget {
     judged: JudgedDestination,
-    publication: BranchName,
+    publication: RefName,
 }
 
 impl OpBranchTarget {
@@ -85,8 +86,13 @@ impl OpBranchTarget {
         &self.judged
     }
 
-    /// The exact physical branch the canonical publisher receives.
-    pub(crate) fn publication(&self) -> &BranchName {
+    /// The exact physical ref the canonical publisher receives.
+    ///
+    /// This is the full symbolic `HEAD` target with its prefix intact. It is
+    /// deliberately not a short branch name: `refs/x`, `refs/heads/HEAD` and
+    /// `refs/heads/-name` are real Source destinations no `BranchName` can
+    /// express, and forcing them through one would invent a different ref.
+    pub(crate) fn publication(&self) -> &RefName {
         &self.publication
     }
 }
@@ -179,15 +185,18 @@ pub(crate) enum OpTargetVerdict {
     Repository(GitError),
     /// A protection read failed for a reason other than malformed config.
     Protection(WorkspaceError),
-    /// The source allows the commit and the canonical native plan is ready.
+    /// The source allows the commit and the canonical exact-ref plan is ready.
     Ready {
         /// The sealed judged/physical pair.
         target: OpBranchTarget,
-        /// The message-free canonical plan.
-        plan: Box<SafeCommitTargetPlan>,
+        /// The message-free canonical physical plan.
+        plan: Box<SafeCommitPhysicalPlan>,
     },
-    /// The source allows the commit, but the native publisher cannot prepare a
-    /// plan for this exact physical shape yet.
+    /// The source allows the commit, but a genuine remaining native inability
+    /// (an unparsable exact ref or a real planner failure) prevents publication.
+    ///
+    /// Unborn destinations and non-heads exact refs are no longer reported
+    /// here: the exact-ref backend publishes them.
     SourceAllowedButNativeCannotPublish {
         /// The judged name.
         judged: String,
@@ -331,15 +340,11 @@ impl OpCommitService {
                 worktree_root,
             });
         };
-        let Some(publication) = full.as_str().strip_prefix("refs/heads/") else {
-            return OpTargetVerdict::SourceAllowedButNativeCannotPublish {
-                judged: judged.as_str().to_owned(),
-                cause: GitError::Unsupported {
-                    feature: "publishing an Op through a non-branch symbolic HEAD target",
-                },
-            };
-        };
-        let publication = match BranchName::parse(publication) {
+        // P is the exact full symbolic `HEAD` target, including a one-level
+        // namespace, a branch literally named `HEAD`, a leading `-` component,
+        // and real whitespace bytes. It is parsed as the exact `RefName` the
+        // publisher compare-and-swaps; it is never stripped to a short name.
+        let publication = match RefName::parse(full.as_str()) {
             Ok(publication) => publication,
             Err(cause) => {
                 return OpTargetVerdict::SourceAllowedButNativeCannotPublish {
@@ -355,13 +360,12 @@ impl OpCommitService {
         // The source decided this destination is unprotected under J; the
         // projection is that verdict, not a second lookup of P's spelling.
         // That preserves the source's actual-only-protection quirk (a config
-        // that protects only the raw P does not stop this commit).
-        let request = build_safe_commit_target(
-            target.publication(),
-            source_path.normalized(),
-            ProtectedBranches::default(),
-        );
-        match repository.plan_safe_commit_target(&request) {
+        // that protects only the raw P does not stop this commit), and it keeps
+        // `NativeProtectedBranches` (which cannot express `refs/x`, `HEAD` or
+        // `-name`) out of the Source policy question.
+        let request =
+            build_safe_physical_commit_target(target.publication(), source_path.normalized());
+        match repository.plan_safe_physical_commit(&request) {
             Ok(plan) => OpTargetVerdict::Ready {
                 target,
                 plan: Box::new(plan),

@@ -677,6 +677,16 @@ fn project_and_record_protection_policies_are_unioned() {
     let subject =
         String::from_utf8(fixture.git_at_ok(&worktree, &["log", "-1", "--format=%s"])).unwrap();
     assert_eq!(subject.trim(), "op(linked): review [01ARZ3ND]");
+    // The Source passes the record path relative to the record root; the
+    // committed tree carries that relative spelling, never the absolute
+    // project-root projection.
+    assert_eq!(
+        fixture.git_at_ok(
+            &worktree,
+            &["show", "--name-only", "--format=", "--no-renames", "HEAD"]
+        ),
+        format!("kitty-ops/{RECORD}.jsonl\n").as_bytes()
+    );
 }
 
 #[test]
@@ -748,7 +758,8 @@ fn operator_hatch_matches_the_source_and_stays_an_explicit_seam() {
 
 fn outcome_commit(outcome: &sk_invocation::OpCommitOutcome) -> String {
     match outcome.evidence().expect("committed evidence") {
-        OpCommitEvidence::Committed { commit, .. } => commit.to_string(),
+        OpCommitEvidence::Committed { commit, .. }
+        | OpCommitEvidence::CommittedPhysical { commit, .. } => commit.to_string(),
         other => panic!("expected committed evidence, got {other:?}"),
     }
 }
@@ -1256,7 +1267,10 @@ fn nested_hook_retains_unconfirmed_advance_evidence() {
             observed_tip,
             detail,
         } => {
-            assert_eq!(destination, "topic");
+            assert_eq!(
+                destination, "refs/heads/topic",
+                "uncertainty names the exact physical ref the transaction pinned"
+            );
             assert_eq!(observed_tip.as_ref().unwrap().as_str(), fixture.head());
             assert_ne!(Some(candidate), observed_tip.as_ref());
             assert_eq!(
@@ -1425,7 +1439,8 @@ fn captured_index_child() {
     let mut service = OpCommitService::new(&root, InvocationWriter::new(&root)).with_hatch(None);
     let outcome = service.commit_op_record(&id(&invocation_id), OpClosedBy::Agent);
     match outcome.evidence() {
-        Some(OpCommitEvidence::Committed { commit, .. }) => {
+        Some(OpCommitEvidence::Committed { commit, .. })
+        | Some(OpCommitEvidence::CommittedPhysical { commit, .. }) => {
             println!("commit={commit}");
         }
         other => panic!("child commit did not land cleanly: {outcome:?} / {other:?}"),
@@ -2727,6 +2742,32 @@ fn commit_object(fixture: &Fixture, revision: &str) -> Vec<u8> {
     fixture.git_ok(&["cat-file", "commit", revision])
 }
 
+/// Read exactly `full_ref`, without `rev-parse`'s short-name DWIM that can
+/// resolve `refs/x` through `refs/heads/refs/x` when `refs/x` is absent.
+fn exact_ref_tip(fixture: &Fixture, full_ref: &str) -> Option<String> {
+    let output = fixture.git_at(
+        &fixture.root,
+        &[
+            "for-each-ref",
+            "--format=%(refname)%00%(objectname)",
+            full_ref,
+        ],
+    );
+    assert!(output.status.success(), "for-each-ref {full_ref} failed");
+    String::from_utf8(output.stdout)
+        .expect("for-each-ref output is UTF-8")
+        .lines()
+        .filter_map(|line| line.split_once('\0'))
+        .find(|(name, _)| *name == full_ref)
+        .map(|(_, oid)| oid.trim().to_owned())
+}
+
+/// Read a fixture file byte-exactly (for example a raw reflog).
+fn raw_file(fixture: &Fixture, relative: &str) -> Vec<u8> {
+    fs::read(fixture.root.join(relative))
+        .unwrap_or_else(|error| panic!("read {relative} in {}: {error}", fixture.root.display()))
+}
+
 /// The last reflog entry's message, before any Git message conversion.
 fn reflog_message(fixture: &Fixture, branch: &str) -> Vec<u8> {
     let path = fixture.root.join(".git/logs/refs/heads").join(branch);
@@ -2767,18 +2808,53 @@ fn shadow_protection(fixture: &Fixture, protected: bool) {
     }
 }
 
-const BORN_BOUND_GUARD: &str = "SK_JP_BORN_BOUND_CHILD";
+const BOUND_CHILD_GUARD: &str = "SK_JP_BOUND_CHILD";
+const BOUND_CHILD_TEST: &str = "SK_JP_BOUND_CHILD_TEST";
+const BOUND_CHILD_ROOT: &str = "SK_JP_BOUND_ROOT";
 
-/// Bind the complete commit object by running this one test in a child process
-/// whose environment carries the fixture's fixed author/committer dates. The
-/// native Git process and the live source interpreter both inherit them, so
-/// OID/object/reflog equality is bound metadata, not a coincidence.
-fn born_bound_child() -> bool {
-    if std::env::var_os(BORN_BOUND_GUARD).is_some() {
+/// Bind the complete commit object by running one test in a child process whose
+/// environment carries fixed author/committer dates and a real temporary CWD,
+/// HOME, every XDG root and TMPDIR. The native Git process and the live source
+/// interpreter both inherit them, so OID/object/reflog equality is bound
+/// metadata, not a coincidence.
+///
+/// The child asserts those roots permanently: a future harness change that
+/// inherited the source checkout CWD, an operator HOME or a machine XDG root is
+/// a hard failure instead of a green comparison.
+fn bound_child(test_name: &str) -> bool {
+    if std::env::var_os(BOUND_CHILD_GUARD).is_some() {
+        assert_eq!(
+            std::env::var(BOUND_CHILD_TEST).ok().as_deref(),
+            Some(test_name),
+            "the bound child runs exactly the requested test"
+        );
+        let root = PathBuf::from(std::env::var_os(BOUND_CHILD_ROOT).expect("bound child root"));
         assert_eq!(
             std::env::current_dir().unwrap(),
-            PathBuf::from(std::env::var_os("SK_JP_BORN_BOUND_ROOT").unwrap()),
-            "born metadata child must not inherit the source checkout CWD"
+            root,
+            "bound child must not inherit the source checkout CWD"
+        );
+        for (variable, directory) in [
+            ("HOME", "home"),
+            ("XDG_CONFIG_HOME", "config"),
+            ("XDG_CACHE_HOME", "cache"),
+            ("XDG_DATA_HOME", "data"),
+            ("XDG_STATE_HOME", "state"),
+            ("TMPDIR", "tmp"),
+        ] {
+            assert_eq!(
+                std::env::var_os(variable).map(PathBuf::from),
+                Some(root.join(directory)),
+                "bound child {variable} must be the isolated temporary root"
+            );
+        }
+        assert_eq!(
+            std::env::var_os("GIT_AUTHOR_DATE").as_deref(),
+            Some(std::ffi::OsStr::new("2020-01-01T00:00:00+0000"))
+        );
+        assert_eq!(
+            std::env::var_os("GIT_COMMITTER_DATE").as_deref(),
+            Some(std::ffi::OsStr::new("2020-01-01T00:00:00+0000"))
         );
         return true;
     }
@@ -2787,13 +2863,10 @@ fn born_bound_child() -> bool {
         fs::create_dir_all(sandbox.path().join(name)).unwrap();
     }
     let output = Command::new(std::env::current_exe().expect("current test binary"))
-        .args([
-            "--exact",
-            "shadow_branch_unprotected_born_publication_matches_the_source",
-            "--nocapture",
-        ])
-        .env(BORN_BOUND_GUARD, "1")
-        .env("SK_JP_BORN_BOUND_ROOT", sandbox.path())
+        .args(["--exact", test_name, "--nocapture"])
+        .env(BOUND_CHILD_GUARD, "1")
+        .env(BOUND_CHILD_TEST, test_name)
+        .env(BOUND_CHILD_ROOT, sandbox.path())
         .current_dir(sandbox.path())
         .env("HOME", sandbox.path().join("home"))
         .env("XDG_CONFIG_HOME", sandbox.path().join("config"))
@@ -2803,6 +2876,9 @@ fn born_bound_child() -> bool {
         .env("TMPDIR", sandbox.path().join("tmp"))
         .env("GIT_AUTHOR_DATE", "2020-01-01T00:00:00+0000")
         .env("GIT_COMMITTER_DATE", "2020-01-01T00:00:00+0000")
+        .env("PYTHONUTF8", "1")
+        .env("LC_ALL", "C.UTF-8")
+        .env("LANG", "C.UTF-8")
         .output()
         .expect("run the bound-metadata child");
     assert!(
@@ -2816,7 +2892,7 @@ fn born_bound_child() -> bool {
 
 #[test]
 fn shadow_branch_unprotected_born_publication_matches_the_source() {
-    if !born_bound_child() {
+    if !bound_child("shadow_branch_unprotected_born_publication_matches_the_source") {
         return;
     }
     let native = shadow_fixture(NBSP_PHYSICAL, true);
@@ -2966,7 +3042,10 @@ fn shadow_branch_born_protected_and_invalid_admission_and_close_match_the_source
 }
 
 #[test]
-fn shadow_branch_unborn_unprotected_is_source_allowed_but_native_nonpublishable() {
+fn shadow_branch_unborn_unprotected_root_publication_matches_the_source() {
+    if !bound_child("shadow_branch_unborn_unprotected_root_publication_matches_the_source") {
+        return;
+    }
     let native = shadow_fixture(NBSP_PHYSICAL, false);
     let source = shadow_fixture(NBSP_PHYSICAL, false);
     let physical_ref = format!("refs/heads/{NBSP_PHYSICAL}");
@@ -2997,42 +3076,89 @@ fn shadow_branch_unborn_unprotected_is_source_allowed_but_native_nonpublishable(
     let main_before = ref_tip(&native, "refs/heads/main");
 
     let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
-    assert!(!outcome.committed(), "{outcome:?}");
-    let refusal = outcome.refusal().expect("a truthful native refusal");
-    assert!(
-        refusal.contains("native publisher"),
-        "the source-allow/native-nonpublishable verdict is explicit: {refusal:?}"
-    );
-    assert!(
-        !refusal.contains("protected branch"),
-        "the refusal is not mislabelled as a source/policy refusal: {refusal:?}"
+    assert!(outcome.committed(), "{outcome:?}");
+    let published = ref_tip(&native, &physical_ref).expect("the native publisher created P");
+    match outcome.evidence().expect("committed evidence") {
+        OpCommitEvidence::Committed {
+            commit,
+            destination,
+            committed_paths,
+            ..
+        } => {
+            assert_eq!(destination.as_str(), NBSP_PHYSICAL, "evidence names P");
+            assert_eq!(commit.as_str(), published, "the OID is the physical tip");
+            assert_eq!(
+                committed_paths.as_slice(),
+                &[
+                    GitPath::from_git_bytes(format!("kitty-ops/{RECORD}.jsonl").as_bytes())
+                        .unwrap()
+                ],
+                "only the record path is committed"
+            );
+        }
+        other => panic!("expected representable committed evidence, got {other:?}"),
+    }
+    let evidence = outcome.evidence().expect("committed evidence");
+    assert_eq!(
+        evidence
+            .committed_ref()
+            .expect("the full physical ref")
+            .as_str(),
+        physical_ref
     );
     assert_eq!(
-        outcome.evidence(),
-        None,
-        "no plan and no fabricated evidence"
+        evidence
+            .committed_commit()
+            .expect("the landed commit id")
+            .as_str(),
+        published
     );
-    assert_eq!(ref_tip(&native, &physical_ref), None, "P stays absent");
+    assert_eq!(
+        evidence.was_unborn(),
+        None,
+        "the legacy Committed shape predates the exact-ref state and is not inferred"
+    );
+    let parents =
+        String::from_utf8(native.git_ok(&["rev-list", "--parents", "-n", "1", &published]))
+            .expect("rev-list is UTF-8");
+    assert_eq!(
+        parents.split_whitespace().count(),
+        1,
+        "the native root commit has zero parents, not a seeded J/main parent"
+    );
     assert_eq!(ref_tip(&native, "refs/heads/topic"), shadow_before);
     assert_eq!(ref_tip(&native, "refs/heads/main"), main_before);
     assert_eq!(native.record_bytes(RECORD), record);
 
-    let reference = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+    let reference = oracle_commit_bound(&source.root, &source.root, RECORD, "agent");
     assert_eq!(
         reference["committed"], true,
         "source outcome: {reference:?}"
     );
-    let published = ref_tip(&source, &physical_ref).expect("the source created P");
-    assert_eq!(source.head(), published);
-    let parents = String::from_utf8(source.git_ok(&["rev-list", "--parents", "-n", "1", "HEAD"]))
-        .expect("rev-list is UTF-8");
     assert_eq!(
-        parents.split_whitespace().count(),
-        1,
-        "the source's first publication is a root commit with no fabricated parent"
+        ref_tip(&source, &physical_ref).as_deref(),
+        Some(published.as_str()),
+        "one bound physical tip on both sides"
     );
-    assert_eq!(ref_tip(&source, "refs/heads/topic"), shadow_before);
+    assert_eq!(source.head(), published);
+    assert_eq!(
+        commit_object(&source, "HEAD"),
+        commit_object(&native, &published),
+        "the complete root commit object is identical"
+    );
+    assert_eq!(
+        reflog_message(&native, NBSP_PHYSICAL),
+        reflog_message(&source, NBSP_PHYSICAL),
+        "the physical root reflog payload is identical"
+    );
+    assert_eq!(source.commit_paths(), native.commit_paths());
+    assert_eq!(
+        ref_tip(&source, "refs/heads/topic"),
+        shadow_before,
+        "the source's J shadow did not move"
+    );
     assert_eq!(ref_tip(&source, "refs/heads/main"), main_before);
+    assert_eq!(source.record_bytes(RECORD), record);
 }
 
 #[test]
@@ -3129,7 +3255,10 @@ fn judged_refs_prefixed_branch_uses_source_path_order_before_the_guard() {
 }
 
 #[test]
-fn judged_refs_prefixed_branch_publication_is_truthfully_nonpublishable() {
+fn judged_refs_prefixed_branch_publication_uses_typed_full_ref_evidence() {
+    if !bound_child("judged_refs_prefixed_branch_publication_uses_typed_full_ref_evidence") {
+        return;
+    }
     let native = Fixture::with_positive_primary();
     native.git_ok(&["checkout", "-q", "-b", "refs/x"]);
     let source = Fixture::with_positive_primary();
@@ -3148,29 +3277,57 @@ fn judged_refs_prefixed_branch_publication_is_truthfully_nonpublishable() {
 
     native.write_started_and_completed(RECORD, "p", "a");
     source.write_started_and_completed(RECORD, "p", "a");
+    let record = native.record_bytes(RECORD);
     let before = ref_tip(&native, "refs/heads/refs/x");
     let source_before = ref_tip(&source, "refs/heads/refs/x");
     let mut service = native.service();
     let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
-    assert!(!outcome.committed(), "{outcome:?}");
-    assert!(
-        outcome
-            .refusal()
-            .is_some_and(|reason| reason.contains("native publisher")),
-        "{outcome:?}"
-    );
-    assert_eq!(
-        ref_tip(&native, "refs/heads/refs/x"),
-        before,
-        "the unrepresentable physical ref is never rewritten"
-    );
+    assert!(outcome.committed(), "{outcome:?}");
+    let published = ref_tip(&native, "refs/heads/refs/x").expect("P advanced");
+    assert_ne!(Some(published.clone()), before);
+    match outcome.evidence().expect("typed full-ref evidence") {
+        OpCommitEvidence::CommittedPhysical {
+            commit,
+            destination,
+            was_unborn,
+            committed_paths,
+            ..
+        } => {
+            assert_eq!(destination.as_str(), "refs/heads/refs/x");
+            assert_eq!(commit.as_str(), published);
+            assert!(!was_unborn, "the born physical ref pinned a real tip");
+            assert_eq!(
+                committed_paths.as_slice(),
+                &[
+                    GitPath::from_git_bytes(format!("kitty-ops/{RECORD}.jsonl").as_bytes())
+                        .unwrap()
+                ]
+            );
+        }
+        other => panic!("expected typed physical evidence, got {other:?}"),
+    }
+    assert_eq!(native.record_bytes(RECORD), record);
 
-    let reference = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+    let reference = oracle_commit_bound(&source.root, &source.root, RECORD, "agent");
     assert_eq!(
         reference["committed"], true,
         "the source commits on the exact physical ref: {reference:?}"
     );
     assert_ne!(ref_tip(&source, "refs/heads/refs/x"), source_before);
+    assert_eq!(
+        ref_tip(&source, "refs/heads/refs/x").as_deref(),
+        Some(published.as_str())
+    );
+    assert_eq!(source.head(), published);
+    assert_eq!(
+        commit_object(&source, "HEAD"),
+        commit_object(&native, &published),
+        "the complete commit object is identical"
+    );
+    assert_eq!(
+        reflog_message(&native, "refs/x"),
+        reflog_message(&source, "refs/x")
+    );
 }
 
 #[test]
@@ -3210,39 +3367,250 @@ fn tag_disambiguated_short_label_keeps_the_source_head_mismatch_refusal() {
     assert_eq!(source.head(), source_head, "source also commits nothing");
 }
 
-#[test]
-fn source_allowed_non_branch_symbolic_target_is_not_invented_as_a_head_mismatch() {
-    let native = Fixture::with_positive_primary();
-    let source = Fixture::with_positive_primary();
-    for fixture in [&native, &source] {
-        fixture.git_ok(&["branch", "x"]);
-        fixture.git_ok(&["branch", "refs/x"]);
-        fixture.git_ok(&["update-ref", "refs/x", &fixture.head()]);
-        fixture.git_ok(&["symbolic-ref", "HEAD", "refs/x"]);
-        // Load-bearing disambiguator: this real root ref makes --short print
-        // refs/x rather than x, so Source J == H for the non-heads target.
-        fs::write(fixture.root.join(".git/x"), format!("{}\n", fixture.head())).unwrap();
-        let short = fixture.git_ok(&["symbolic-ref", "--short", "HEAD"]);
-        assert_eq!(String::from_utf8(short).unwrap().trim(), "refs/x");
-        fixture.write_started_and_completed(RECORD, "p", "a");
+/// A born/unborn exact non-heads physical `refs/x` checkout.
+///
+/// `refs/heads/x` and `refs/heads/refs/x` plus the real loose root ref
+/// `.git/x` are the load-bearing disambiguators: Git's `--short` label is
+/// `refs/x` exactly like the Source-judged name, while the physical symbolic
+/// target is the exact ref `refs/x` itself. The `refs/heads/refs/x` shadow is
+/// the Source step-5 existence witness.
+fn non_heads_fixture(born: bool) -> Fixture {
+    let fixture = Fixture::with_positive_primary();
+    let seed = fixture.head();
+    fixture.git_ok(&["branch", "x"]);
+    fixture.git_ok(&["branch", "refs/x"]);
+    if born {
+        fixture.git_ok(&["update-ref", "refs/x", &seed]);
     }
-    let reference = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+    fixture.git_ok(&["symbolic-ref", "HEAD", "refs/x"]);
+    fs::write(fixture.root.join(".git/x"), format!("{seed}\n")).unwrap();
+    let short = fixture.git_ok(&["symbolic-ref", "--short", "HEAD"]);
+    assert_eq!(String::from_utf8(short).unwrap().trim(), "refs/x");
+    fixture
+}
+
+#[test]
+fn non_heads_born_refs_x_publication_matches_the_source() {
+    if !bound_child("non_heads_born_refs_x_publication_matches_the_source") {
+        return;
+    }
+    let native = non_heads_fixture(true);
+    let source = non_heads_fixture(true);
+    let before = native.snapshot();
+    let mut service = native.service();
+    assert_eq!(service.op_write_refusal().expect("admission answers"), None);
+    assert_eq!(native.snapshot(), before, "admission is read-only");
+    assert_eq!(
+        oracle_admission(&source.root, &source.root, None),
+        serde_json::Value::Null
+    );
+
+    native.write_started_and_completed(RECORD, "p", "a");
+    source.write_started_and_completed(RECORD, "p", "a");
+    let record = native.record_bytes(RECORD);
+    let p_before = exact_ref_tip(&native, "refs/x");
+    let shadow_before = ref_tip(&native, "refs/heads/refs/x");
+    let main_before = ref_tip(&native, "refs/heads/main");
+
+    let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
+    assert!(outcome.committed(), "{outcome:?}");
+    let published = exact_ref_tip(&native, "refs/x").expect("the exact ref advanced");
+    assert_ne!(Some(published.clone()), p_before);
+    match outcome.evidence().expect("typed full-ref evidence") {
+        OpCommitEvidence::CommittedPhysical {
+            commit,
+            destination,
+            was_unborn,
+            ..
+        } => {
+            assert_eq!(destination.as_str(), "refs/x");
+            assert_eq!(commit.as_str(), published);
+            assert!(!was_unborn);
+        }
+        other => panic!("expected typed physical evidence, got {other:?}"),
+    }
+    assert_eq!(
+        outcome
+            .evidence()
+            .unwrap()
+            .committed_ref()
+            .expect("typed full ref")
+            .as_str(),
+        "refs/x"
+    );
+    assert_eq!(ref_tip(&native, "refs/heads/refs/x"), shadow_before);
+    assert_eq!(ref_tip(&native, "refs/heads/main"), main_before);
+    assert_eq!(native.record_bytes(RECORD), record);
+    assert!(
+        !native.root.join(".git/logs/refs/x").exists(),
+        "a non-heads ref has no branch reflog, exactly like Source's git commit"
+    );
+
+    let reference = oracle_commit_bound(&source.root, &source.root, RECORD, "agent");
     assert_eq!(
         reference["committed"], true,
         "actual source commits through the non-heads symbolic target: {reference:?}"
     );
-    let before = native.head();
+    assert_eq!(source.head(), published);
+    assert_eq!(
+        commit_object(&source, "HEAD"),
+        commit_object(&native, &published),
+        "the complete commit object is identical"
+    );
+    assert_eq!(
+        raw_file(&native, ".git/logs/HEAD"),
+        raw_file(&source, ".git/logs/HEAD"),
+        "the HEAD reflog bytes are identical"
+    );
+    assert_eq!(source.commit_paths(), native.commit_paths());
+    assert_eq!(ref_tip(&source, "refs/heads/refs/x"), shadow_before);
+    assert_eq!(ref_tip(&source, "refs/heads/main"), main_before);
+    assert_eq!(source.record_bytes(RECORD), record);
+}
+
+#[test]
+fn non_heads_unborn_refs_x_root_publication_matches_the_source() {
+    if !bound_child("non_heads_unborn_refs_x_root_publication_matches_the_source") {
+        return;
+    }
+    let native = non_heads_fixture(false);
+    let source = non_heads_fixture(false);
+    assert_eq!(exact_ref_tip(&native, "refs/x"), None);
+    let before = native.snapshot();
+    let mut service = native.service();
+    assert_eq!(
+        service.op_write_refusal().expect("admission answers"),
+        None,
+        "step 5 sees the refs/heads/refs/x shadow"
+    );
+    assert_eq!(native.snapshot(), before);
+    assert_eq!(
+        oracle_admission(&source.root, &source.root, None),
+        serde_json::Value::Null
+    );
+
+    native.write_started_and_completed(RECORD, "p", "a");
+    source.write_started_and_completed(RECORD, "p", "a");
+    let record = native.record_bytes(RECORD);
+    let shadow_before = ref_tip(&native, "refs/heads/refs/x");
+    let main_before = ref_tip(&native, "refs/heads/main");
+
+    let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
+    assert!(outcome.committed(), "{outcome:?}");
+    let published = exact_ref_tip(&native, "refs/x").expect("the exact ref was created");
+    match outcome.evidence().expect("typed full-ref evidence") {
+        OpCommitEvidence::CommittedPhysical {
+            commit,
+            destination,
+            was_unborn,
+            ..
+        } => {
+            assert_eq!(destination.as_str(), "refs/x");
+            assert_eq!(commit.as_str(), published);
+            assert!(
+                was_unborn,
+                "the exact ref was genuinely absent at plan time"
+            );
+        }
+        other => panic!("expected typed physical evidence, got {other:?}"),
+    }
+    let parents =
+        String::from_utf8(native.git_ok(&["rev-list", "--parents", "-n", "1", &published]))
+            .expect("rev-list is UTF-8");
+    assert_eq!(
+        parents.split_whitespace().count(),
+        1,
+        "the native publication is a zero-parent root"
+    );
+    assert_eq!(ref_tip(&native, "refs/heads/refs/x"), shadow_before);
+    assert_eq!(ref_tip(&native, "refs/heads/main"), main_before);
+    assert_eq!(native.record_bytes(RECORD), record);
+
+    let reference = oracle_commit_bound(&source.root, &source.root, RECORD, "agent");
+    assert_eq!(reference["committed"], true, "{reference:?}");
+    assert_eq!(source.head(), published);
+    assert_eq!(
+        commit_object(&source, "HEAD"),
+        commit_object(&native, &published)
+    );
+    assert_eq!(
+        raw_file(&native, ".git/logs/HEAD"),
+        raw_file(&source, ".git/logs/HEAD")
+    );
+    assert_eq!(ref_tip(&source, "refs/heads/refs/x"), shadow_before);
+    assert_eq!(ref_tip(&source, "refs/heads/main"), main_before);
+    assert_eq!(source.record_bytes(RECORD), record);
+}
+
+/// A born branch literally named `-name` (`refs/heads/-name`).
+fn dash_name_fixture() -> Fixture {
+    let fixture = Fixture::with_positive_primary();
+    fixture.git_ok(&["update-ref", "refs/heads/-name", &fixture.head()]);
+    fixture.git_ok(&["symbolic-ref", "HEAD", "refs/heads/-name"]);
+    let short = fixture.git_ok(&["symbolic-ref", "--short", "HEAD"]);
+    assert_eq!(String::from_utf8(short).unwrap().trim(), "-name");
+    fixture
+}
+
+#[test]
+fn dash_prefixed_branch_publication_matches_the_source() {
+    if !bound_child("dash_prefixed_branch_publication_matches_the_source") {
+        return;
+    }
+    let native = dash_name_fixture();
+    let source = dash_name_fixture();
+    assert_eq!(
+        native
+            .service()
+            .op_write_refusal()
+            .expect("admission answers"),
+        None
+    );
+    assert_eq!(
+        oracle_admission(&source.root, &source.root, None),
+        serde_json::Value::Null
+    );
+
+    native.write_started_and_completed(RECORD, "p", "a");
+    source.write_started_and_completed(RECORD, "p", "a");
+    let record = native.record_bytes(RECORD);
+    let before = ref_tip(&native, "refs/heads/-name");
+    let main_before = ref_tip(&native, "refs/heads/main");
     let outcome = native
         .service()
         .commit_op_record(&id(RECORD), OpClosedBy::Agent);
-    assert!(!outcome.committed());
-    let reason = outcome.refusal().unwrap();
-    assert!(
-        reason.contains("native publisher"),
-        "source preflight passed; this is native non-publication, not a source HEAD mismatch: {reason}"
+    assert!(outcome.committed(), "{outcome:?}");
+    let published = ref_tip(&native, "refs/heads/-name").expect("the branch advanced");
+    assert_ne!(Some(published.clone()), before);
+    match outcome.evidence().expect("typed full-ref evidence") {
+        OpCommitEvidence::CommittedPhysical {
+            commit,
+            destination,
+            was_unborn,
+            ..
+        } => {
+            assert_eq!(destination.as_str(), "refs/heads/-name");
+            assert_eq!(commit.as_str(), published);
+            assert!(!was_unborn);
+        }
+        other => panic!("expected typed physical evidence, got {other:?}"),
+    }
+    assert_eq!(ref_tip(&native, "refs/heads/main"), main_before);
+    assert_eq!(native.record_bytes(RECORD), record);
+
+    let reference = oracle_commit_bound(&source.root, &source.root, RECORD, "agent");
+    assert_eq!(reference["committed"], true, "{reference:?}");
+    assert_eq!(source.head(), published);
+    assert_eq!(
+        commit_object(&source, "HEAD"),
+        commit_object(&native, &published)
     );
-    assert_eq!(native.head(), before);
-    assert!(outcome.evidence().is_none());
+    assert_eq!(
+        reflog_message(&native, "-name"),
+        reflog_message(&source, "-name")
+    );
+    assert_eq!(ref_tip(&source, "refs/heads/main"), main_before);
+    assert_eq!(source.record_bytes(RECORD), record);
 }
 
 #[test]
@@ -3286,4 +3654,594 @@ fn actual_only_protection_quirk_still_commits_on_the_physical_ref() {
         "source outcome: {reference:?}"
     );
     assert_ne!(ref_tip(&source, &physical_ref), source_before);
+}
+
+#[test]
+fn non_heads_judged_guard_refuses_born_and_unborn_before_any_physical_plan() {
+    for born in [true, false] {
+        for protected in [true, false] {
+            let native = non_heads_fixture(born);
+            let source = non_heads_fixture(born);
+            for fixture in [&native, &source] {
+                if protected {
+                    protect(&fixture.root, "[\"refs/x\"]");
+                } else {
+                    protect(&fixture.root, "not-a-list");
+                }
+            }
+            let before = native.snapshot();
+            let source_before = source.snapshot();
+            let reference = oracle_admission(&source.root, &source.root, None);
+            let expected_code = if protected {
+                "OP_WRITE_PROTECTED_BRANCH"
+            } else {
+                "OP_WRITE_PROTECTION_CONFIG_INVALID"
+            };
+            assert_eq!(reference["code"], expected_code);
+            assert_eq!(source.snapshot(), source_before);
+
+            let mut service = native.service();
+            let refusal = service
+                .op_write_refusal()
+                .expect("admission answers")
+                .expect("the judged non-heads name is refused before any physical plan");
+            assert_eq!(refusal.code.as_str(), expected_code);
+            assert_eq!(refusal.reason, reference["reason"].as_str().unwrap());
+            assert_eq!(native.snapshot(), before, "admission is read-only");
+
+            native.write_started_and_completed(RECORD, "p", "a");
+            source.write_started_and_completed(RECORD, "p", "a");
+            let record = native.record_bytes(RECORD);
+            let p_before = exact_ref_tip(&native, "refs/x");
+            let shadow_before = ref_tip(&native, "refs/heads/refs/x");
+            let main_before = ref_tip(&native, "refs/heads/main");
+
+            let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
+            assert!(!outcome.committed(), "{outcome:?}");
+            assert!(outcome.refusal().is_some());
+            assert_eq!(exact_ref_tip(&native, "refs/x"), p_before);
+            assert_eq!(ref_tip(&native, "refs/heads/refs/x"), shadow_before);
+            assert_eq!(ref_tip(&native, "refs/heads/main"), main_before);
+            assert_eq!(native.record_bytes(RECORD), record);
+
+            let source_outcome = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+            assert_eq!(source_outcome["committed"], false, "{source_outcome:?}");
+            assert_eq!(exact_ref_tip(&source, "refs/x"), p_before);
+            assert_eq!(ref_tip(&source, "refs/heads/refs/x"), shadow_before);
+            assert_eq!(ref_tip(&source, "refs/heads/main"), main_before);
+        }
+    }
+}
+
+#[test]
+fn non_heads_judged_protection_unions_project_and_record_policies() {
+    let fixture = non_heads_fixture(true);
+    let worktree = fixture.scratch("linked-non-heads");
+    fixture.git_ok(&[
+        "worktree",
+        "add",
+        "-q",
+        worktree.to_str().expect("UTF-8 worktree path"),
+        "refs/heads/refs/x",
+    ]);
+    fixture.git_at_ok(&worktree, &["symbolic-ref", "HEAD", "refs/x"]);
+    assert_eq!(
+        String::from_utf8(fixture.git_at_ok(&worktree, &["symbolic-ref", "--short", "HEAD"]))
+            .unwrap()
+            .trim(),
+        "refs/x"
+    );
+
+    for (project, record, expected) in [
+        ("[\"refs/x\"]", "[]", Some("OP_WRITE_PROTECTED_BRANCH")),
+        ("[]", "[\"refs/x\"]", Some("OP_WRITE_PROTECTED_BRANCH")),
+        ("[]", "[]", None),
+        (
+            "[]",
+            "not-a-list",
+            Some("OP_WRITE_PROTECTION_CONFIG_INVALID"),
+        ),
+    ] {
+        protect(&fixture.root, project);
+        protect(&worktree, record);
+        let before = fixture.snapshot();
+        let mut service = fixture.service_at(&fixture.root, &worktree);
+        let native = service.op_write_refusal().expect("admission answers");
+        let reference = oracle_admission(&fixture.root, &worktree, None);
+        match expected {
+            Some(code) => {
+                let refusal = native.expect("the union refuses the raw judged non-heads name");
+                assert_eq!(refusal.code.as_str(), code);
+                assert_eq!(refusal.reason, reference["reason"].as_str().unwrap());
+                assert_eq!(reference["code"], code);
+            }
+            None => {
+                assert_eq!(native, None);
+                assert_eq!(reference, serde_json::Value::Null);
+            }
+        }
+        assert_eq!(fixture.snapshot(), before, "admission is read-only");
+    }
+}
+
+/// A branch literally named `HEAD` (`refs/heads/HEAD`): `--short` labels it
+/// `heads/HEAD`, so the Source's own step-4 comparison against `HEAD` fails.
+fn head_literal_fixture() -> Fixture {
+    let fixture = Fixture::with_positive_primary();
+    fixture.git_ok(&["update-ref", "refs/heads/HEAD", &fixture.head()]);
+    fixture.git_ok(&["symbolic-ref", "HEAD", "refs/heads/HEAD"]);
+    assert_eq!(
+        String::from_utf8(fixture.git_ok(&["symbolic-ref", "--short", "HEAD"]))
+            .unwrap()
+            .trim(),
+        "heads/HEAD"
+    );
+    fixture
+}
+
+#[test]
+fn branch_literally_head_keeps_the_source_step4_mismatch() {
+    let native = head_literal_fixture();
+    let source = head_literal_fixture();
+    let before = native.snapshot();
+    assert_eq!(
+        native
+            .service()
+            .op_write_refusal()
+            .expect("admission answers"),
+        None,
+        "a step-4 SafeCommitError admits the audit write"
+    );
+    assert_eq!(native.snapshot(), before);
+    assert_eq!(
+        oracle_admission(&source.root, &source.root, None),
+        serde_json::Value::Null
+    );
+
+    native.write_started_and_completed(RECORD, "p", "a");
+    source.write_started_and_completed(RECORD, "p", "a");
+    let record = native.record_bytes(RECORD);
+    let branch_before = ref_tip(&native, "refs/heads/HEAD");
+    let outcome = native
+        .service()
+        .commit_op_record(&id(RECORD), OpClosedBy::Agent);
+    assert!(!outcome.committed(), "{outcome:?}");
+    assert!(
+        outcome
+            .refusal()
+            .is_some_and(|reason| reason.contains("does not match")),
+        "the source's own label/full-ref mismatch is preserved: {outcome:?}"
+    );
+    assert_eq!(ref_tip(&native, "refs/heads/HEAD"), branch_before);
+    assert_eq!(native.record_bytes(RECORD), record);
+
+    let reference = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+    assert_eq!(
+        reference["committed"], false,
+        "the source does not treat the HEAD literal as automatically allowed: {reference:?}"
+    );
+    assert_eq!(ref_tip(&source, "refs/heads/HEAD"), branch_before);
+    assert_eq!(source.record_bytes(RECORD), record);
+}
+
+#[test]
+fn unshadowed_unborn_destination_keeps_the_source_step5_refusal() {
+    let native = Fixture::with_positive_primary();
+    native.git_ok(&["checkout", "-q", "--orphan", "fresh"]);
+    let source = Fixture::with_positive_primary();
+    source.git_ok(&["checkout", "-q", "--orphan", "fresh"]);
+    let before = native.snapshot();
+    let source_before = source.snapshot();
+    assert_eq!(
+        native
+            .service()
+            .op_write_refusal()
+            .expect("admission answers"),
+        None,
+        "the missing destination is a SafeCommitError and admits the audit write"
+    );
+    assert_eq!(native.snapshot(), before);
+    assert_eq!(
+        oracle_admission(&source.root, &source.root, None),
+        serde_json::Value::Null
+    );
+    assert_eq!(source.snapshot(), source_before);
+
+    native.write_started_and_completed(RECORD, "p", "a");
+    source.write_started_and_completed(RECORD, "p", "a");
+    let record = native.record_bytes(RECORD);
+    let outcome = native
+        .service()
+        .commit_op_record(&id(RECORD), OpClosedBy::Agent);
+    assert!(!outcome.committed(), "{outcome:?}");
+    assert!(
+        outcome
+            .refusal()
+            .is_some_and(|reason| reason.contains("does not exist")),
+        "the native root capability is not used to bypass Source step 5: {outcome:?}"
+    );
+    assert_eq!(ref_tip(&native, "refs/heads/fresh"), None);
+    assert_eq!(native.record_bytes(RECORD), record);
+
+    let reference = oracle_commit(&source.root, &source.root, RECORD, "agent", None);
+    assert_eq!(reference["committed"], false, "{reference:?}");
+    assert_eq!(ref_tip(&source, "refs/heads/fresh"), None);
+    assert_eq!(source.record_bytes(RECORD), record);
+}
+
+#[test]
+fn doctor_sweep_root_spine_publication_matches_the_source() {
+    if !bound_child("doctor_sweep_root_spine_publication_matches_the_source") {
+        return;
+    }
+    let mut fixtures = Vec::new();
+    for _ in 0..2 {
+        let fixture = Fixture::with_positive_primary();
+        fixture.write_started(
+            ARCHIVE,
+            json!({"event": "started", "invocation_id": ARCHIVE, "profile_id": "legacy-prof", "action": "plan"}),
+        );
+        fixture.git_ok(&["add", "--force", &format!("kitty-ops/{ARCHIVE}.jsonl")]);
+        fixture.git_ok(&["commit", "-q", "-m", "archive record"]);
+        fixture.git_ok(&["branch", "topic"]);
+        fixture.git_ok(&["checkout", "-q", "--orphan", NBSP_PHYSICAL]);
+        fixture.git_ok(&["read-tree", "--empty"]);
+        let completed = OpCompletedEvent::new(OpCompletedFields {
+            invocation_id: id(ARCHIVE),
+            completed_at: "2026-11-02T00:00:00+00:00".to_owned(),
+            outcome: OpOutcome::Done,
+            closed_by: ClosedBy::DoctorSweep,
+            evidence_ref: None,
+        })
+        .expect("valid closure");
+        append_op_closure(&fixture.root, &completed).expect("append closure spine");
+        fixtures.push(fixture);
+    }
+    let native = &fixtures[0];
+    let source = &fixtures[1];
+    let archive_before = native.record_bytes(ARCHIVE);
+    assert_eq!(source.record_bytes(ARCHIVE), archive_before);
+    let spine_path = native.root.join("kitty-ops").join(OP_CLOSURES_FILENAME);
+    let spine_before = fs::read(&spine_path).unwrap();
+    assert_eq!(
+        fs::read(source.root.join("kitty-ops").join(OP_CLOSURES_FILENAME)).unwrap(),
+        spine_before
+    );
+
+    let physical_ref = format!("refs/heads/{NBSP_PHYSICAL}");
+    let outcome = native
+        .service()
+        .commit_op_record(&id(ARCHIVE), OpClosedBy::DoctorSweep);
+    assert!(outcome.committed(), "{outcome:?}");
+    let published = ref_tip(native, &physical_ref).expect("the root spine publication");
+    assert_eq!(
+        native.subject(),
+        "op(legacy-prof): plan [01ARZ3ND] (doctor sweep)"
+    );
+    assert_eq!(native.commit_paths(), vec!["kitty-ops/op-closures.jsonl"]);
+    let parents =
+        String::from_utf8(native.git_ok(&["rev-list", "--parents", "-n", "1", &published]))
+            .unwrap();
+    assert_eq!(parents.split_whitespace().count(), 1, "zero-parent root");
+    assert_eq!(native.record_bytes(ARCHIVE), archive_before);
+    assert_eq!(fs::read(&spine_path).unwrap(), spine_before);
+
+    let reference = oracle_commit_bound(&source.root, &source.root, ARCHIVE, "doctor_sweep");
+    assert_eq!(reference["committed"], true, "{reference:?}");
+    assert_eq!(source.head(), published);
+    assert_eq!(
+        commit_object(source, "HEAD"),
+        commit_object(native, &published)
+    );
+    assert_eq!(
+        reflog_message(native, NBSP_PHYSICAL),
+        reflog_message(source, NBSP_PHYSICAL)
+    );
+    assert_eq!(source.record_bytes(ARCHIVE), archive_before);
+    assert_eq!(
+        fs::read(source.root.join("kitty-ops").join(OP_CLOSURES_FILENAME)).unwrap(),
+        spine_before
+    );
+}
+
+#[test]
+fn root_raw80_surrogateescape_message_matches_the_source() {
+    if !bound_child("root_raw80_surrogateescape_message_matches_the_source") {
+        return;
+    }
+    let native = shadow_fixture(NBSP_PHYSICAL, false);
+    let source = shadow_fixture(NBSP_PHYSICAL, false);
+    let line = "{\"profile_id\":\"\\udc80\",\"action\":\"a\"}\n";
+    native.write_record_line(RECORD, line);
+    source.write_record_line(RECORD, line);
+    let physical_ref = format!("refs/heads/{NBSP_PHYSICAL}");
+
+    let reference = oracle_commit_bound(&source.root, &source.root, RECORD, "agent");
+    assert_eq!(
+        reference["committed"], true,
+        "the source commits the escaped byte on a pinned UTF-8 startup context: {reference:?}"
+    );
+    let outcome = native
+        .service()
+        .commit_op_record(&id(RECORD), OpClosedBy::Agent);
+    assert!(outcome.committed(), "{outcome:?}");
+    let published = ref_tip(&native, &physical_ref).expect("the root publication");
+    assert_eq!(source.head(), published);
+    assert_eq!(
+        commit_object(&source, "HEAD"),
+        commit_object(&native, &published),
+        "Git's conversion of the authored byte yields the same commit object"
+    );
+    let native_log = reflog_message(&native, NBSP_PHYSICAL);
+    assert_eq!(native_log, reflog_message(&source, NBSP_PHYSICAL));
+    assert!(
+        native_log.windows(4).any(|window| window == b"op(\x80"),
+        "the reflog retains the raw surrogateescape byte before Git conversion: {native_log:?}"
+    );
+    assert_eq!(native.record_bytes(RECORD), line.as_bytes());
+    assert_eq!(source.record_bytes(RECORD), line.as_bytes());
+}
+
+#[test]
+fn root_cas_race_retains_unconfirmed_physical_evidence() {
+    let fixture = shadow_fixture(NBSP_PHYSICAL, false);
+    fixture.write_started_and_completed(RECORD, "p", "a");
+    let record = fixture.record_bytes(RECORD);
+    let seed = ref_tip(&fixture, "refs/heads/topic").expect("the J shadow seed");
+    let physical_ref = format!("refs/heads/{NBSP_PHYSICAL}");
+    let shadow_before = ref_tip(&fixture, "refs/heads/topic");
+    let main_before = ref_tip(&fixture, "refs/heads/main");
+
+    let hooks = fixture.root.join(".git/hooks");
+    fs::create_dir_all(&hooks).unwrap();
+    let hook = hooks.join("pre-commit");
+    fs::write(
+        &hook,
+        format!("#!/bin/sh\ngit update-ref \"{physical_ref}\" {seed}\n"),
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    let mut service = fixture.service();
+    let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
+    assert!(!outcome.committed(), "{outcome:?}");
+    assert!(
+        outcome
+            .refusal()
+            .is_some_and(|reason| reason.contains("unconfirmed advance")),
+        "{outcome:?}"
+    );
+    match outcome
+        .evidence()
+        .expect("typed uncertainty survives a root race")
+    {
+        OpCommitEvidence::AdvanceUnconfirmed {
+            candidate,
+            destination,
+            observed_tip,
+            detail,
+        } => {
+            assert_eq!(destination.as_str(), physical_ref);
+            assert_eq!(
+                observed_tip.as_ref().map(|oid| oid.as_str()),
+                Some(seed.as_str())
+            );
+            assert_ne!(candidate.as_str(), seed);
+            let parents = String::from_utf8(fixture.git_ok(&[
+                "rev-list",
+                "--parents",
+                "-n",
+                "1",
+                candidate.as_str(),
+            ]))
+            .unwrap();
+            assert_eq!(
+                parents.split_whitespace().count(),
+                1,
+                "the uncertain candidate is a real zero-parent root, not a seeded commit"
+            );
+            assert_eq!(
+                fixture.git_ok(&["cat-file", "-t", candidate.as_str()]),
+                b"commit\n"
+            );
+            assert!(detail.contains("do not assume nothing happened"));
+        }
+        other => panic!("expected unconfirmed evidence, got {other:?}"),
+    }
+    assert_eq!(
+        ref_tip(&fixture, &physical_ref).as_deref(),
+        Some(seed.as_str())
+    );
+    assert_eq!(ref_tip(&fixture, "refs/heads/topic"), shadow_before);
+    assert_eq!(ref_tip(&fixture, "refs/heads/main"), main_before);
+    assert_eq!(fixture.record_bytes(RECORD), record);
+    assert_eq!(service.last_op_commit(), Some(&outcome));
+}
+
+#[test]
+fn captured_root_alternate_index_is_reconciled_by_the_real_commit() {
+    let fixture = shadow_fixture(NBSP_PHYSICAL, false);
+    fixture.write_started(
+        RECORD,
+        json!({"event": "started", "invocation_id": RECORD, "profile_id": "p", "action": "a"}),
+    );
+    let default_before = fs::read(fixture.root.join(".git/index")).unwrap();
+    let custom = fixture.scratch("custom-root-index");
+    fs::write(&custom, b"").unwrap();
+    fixture.index_at(&custom, &["read-tree", "--empty"]);
+    fixture.write("unrelated.txt", "staged-only-in-custom\n");
+    fixture.index_at(&custom, &["add", "unrelated.txt"]);
+
+    let output = Command::new(std::env::current_exe().expect("current test executable"))
+        .args([
+            "--exact",
+            "captured_index_root_child",
+            "--ignored",
+            "--nocapture",
+        ])
+        .env_clear()
+        .env(
+            "PATH",
+            std::env::var_os("PATH").unwrap_or_else(|| "/usr/bin:/bin".into()),
+        )
+        .current_dir(&fixture.root)
+        .env("HOME", &fixture.home)
+        .env("XDG_CONFIG_HOME", &fixture.home)
+        .env("XDG_CACHE_HOME", &fixture.home)
+        .env("XDG_DATA_HOME", &fixture.home)
+        .env("XDG_STATE_HOME", &fixture.home)
+        .env("TMPDIR", &fixture.tmp)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_INDEX_FILE", &custom)
+        .env("SK_OP_CAPTURE_ROOT", &fixture.root)
+        .env("SK_OP_CAPTURE_HOME", &fixture.home)
+        .env("SK_OP_CAPTURE_TMP", &fixture.tmp)
+        .env("SK_OP_CAPTURE_ID", RECORD)
+        .env_remove("SPEC_KITTY_ALLOW_PROTECTED_BRANCH_COMMITS")
+        .output()
+        .expect("run captured-root-index child");
+    assert!(
+        output.status.success(),
+        "captured-root-index child failed:\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let commit = stdout
+        .lines()
+        .find_map(|line| line.strip_prefix("commit="))
+        .unwrap_or_else(|| panic!("child did not print commit=:\n{stdout}"))
+        .trim()
+        .to_owned();
+    let physical_ref = format!("refs/heads/{NBSP_PHYSICAL}");
+    assert_eq!(
+        ref_tip(&fixture, &physical_ref).as_deref(),
+        Some(commit.as_str())
+    );
+    assert_eq!(
+        fixture.commit_paths(),
+        vec![format!("kitty-ops/{RECORD}.jsonl")]
+    );
+    let parents =
+        String::from_utf8(fixture.git_ok(&["rev-list", "--parents", "-n", "1", &commit])).unwrap();
+    assert_eq!(parents.split_whitespace().count(), 1, "zero-parent root");
+
+    let custom_entries = fixture.index_at(&custom, &["ls-files", "-s", "-z"]);
+    let custom_text = String::from_utf8_lossy(&custom_entries);
+    assert!(custom_text.contains(&format!("kitty-ops/{RECORD}.jsonl")));
+    assert!(custom_text.contains("unrelated.txt"));
+    let default_entries = fixture.git_ok(&["ls-files", "-s", "-z"]);
+    assert!(
+        !String::from_utf8_lossy(&default_entries).contains(&format!("kitty-ops/{RECORD}.jsonl"))
+    );
+    assert_eq!(
+        fs::read(fixture.root.join(".git/index")).unwrap(),
+        default_before,
+        "the default index raw bytes are unchanged"
+    );
+}
+
+/// Child half of [`captured_root_alternate_index_is_reconciled_by_the_real_commit`].
+#[test]
+#[ignore]
+fn captured_index_root_child() {
+    let root = PathBuf::from(
+        std::env::var_os("SK_OP_CAPTURE_ROOT")
+            .expect("parent must provide the actual isolated captured-index root"),
+    );
+    let home = PathBuf::from(std::env::var_os("SK_OP_CAPTURE_HOME").expect("capture home"));
+    let tmp = PathBuf::from(std::env::var_os("SK_OP_CAPTURE_TMP").expect("capture tmp"));
+    assert_eq!(std::env::current_dir().unwrap(), root);
+    for (variable, expected) in [
+        ("HOME", &home),
+        ("XDG_CONFIG_HOME", &home),
+        ("XDG_CACHE_HOME", &home),
+        ("XDG_DATA_HOME", &home),
+        ("XDG_STATE_HOME", &home),
+        ("TMPDIR", &tmp),
+    ] {
+        assert_eq!(
+            std::env::var_os(variable).map(PathBuf::from).as_ref(),
+            Some(expected),
+            "captured child {variable} must be an explicit isolated root"
+        );
+    }
+    let invocation_id = std::env::var("SK_OP_CAPTURE_ID").expect("child invocation id");
+    let mut service = OpCommitService::new(&root, InvocationWriter::new(&root)).with_hatch(None);
+    let outcome = service.commit_op_record(&id(&invocation_id), OpClosedBy::Agent);
+    match outcome.evidence() {
+        Some(OpCommitEvidence::Committed { commit, .. })
+        | Some(OpCommitEvidence::CommittedPhysical { commit, .. }) => {
+            println!("commit={commit}");
+        }
+        other => panic!("child commit did not land cleanly: {outcome:?} / {other:?}"),
+    }
+}
+
+#[test]
+fn root_cas_race_observed_tip_none_retains_candidate_and_detail() {
+    let fixture = shadow_fixture(NBSP_PHYSICAL, false);
+    fixture.write_started_and_completed(RECORD, "p", "a");
+    let record = fixture.record_bytes(RECORD);
+    let physical_ref = format!("refs/heads/{NBSP_PHYSICAL}");
+    let hooks = fixture.root.join(".git/hooks");
+    fs::create_dir_all(&hooks).unwrap();
+    let hook = hooks.join("pre-commit");
+    fs::write(
+        &hook,
+        format!(
+            "#!/bin/sh\nprintf 'not-a-commit\\n' > \"$(git rev-parse --absolute-git-dir)/refs/heads/{NBSP_PHYSICAL}\"\n"
+        ),
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    let mut service = fixture.service();
+    let outcome = service.commit_op_record(&id(RECORD), OpClosedBy::Agent);
+    assert!(!outcome.committed(), "{outcome:?}");
+    match outcome.evidence().expect("typed uncertainty survives") {
+        OpCommitEvidence::AdvanceUnconfirmed {
+            candidate,
+            destination,
+            observed_tip,
+            detail,
+        } => {
+            assert_eq!(destination.as_str(), physical_ref);
+            assert!(
+                observed_tip.is_none(),
+                "an unreadable destination stays unknown, never a guessed or invented tip"
+            );
+            assert_ne!(
+                observed_tip.as_ref().map(|oid| oid.as_str()),
+                Some(candidate.as_str())
+            );
+            let parents = String::from_utf8(fixture.git_ok(&[
+                "rev-list",
+                "--parents",
+                "-n",
+                "1",
+                candidate.as_str(),
+            ]))
+            .unwrap();
+            assert_eq!(parents.split_whitespace().count(), 1);
+            assert!(detail.contains("do not assume nothing happened"));
+        }
+        other => panic!("expected unconfirmed evidence, got {other:?}"),
+    }
+    assert_eq!(fixture.record_bytes(RECORD), record);
+    assert_eq!(service.last_op_commit(), Some(&outcome));
+    assert!(
+        fs::read(fixture.root.join(".git/refs/heads").join(NBSP_PHYSICAL))
+            .unwrap()
+            .starts_with(b"not-a-commit"),
+        "the concurrent writer's unreadable ref is retained, not repaired or deleted"
+    );
 }

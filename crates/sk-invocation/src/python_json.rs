@@ -104,7 +104,7 @@ fn push_ascii_escape(target: &mut String, character: char) {
 /// CPython `repr()` for a string, used by operator-facing refusal messages.
 ///
 /// This is the `&str` wrapper over the one canonical formatter authority,
-/// [`python_repr_codepoints`]. A `&str` can only hold Unicode scalars, so the
+/// the private `python_repr_codepoints` primitive. A `&str` can only hold Unicode scalars, so the
 /// wrapper is used for text that already decoded strictly; the legacy Op reader
 /// passes Python code points (including lone surrogate units) to the same
 /// primitive.

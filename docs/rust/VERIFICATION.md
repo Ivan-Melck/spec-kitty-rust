@@ -8,6 +8,31 @@ audience: software-engineer
 **Incomplete rewrite.** Local test success, partial library parity and fast
 inspection workloads do not satisfy [the completion loop](LOOP.md).
 
+## Actual Op root/exact/non-heads publication — after `3fabdf29f`
+
+Existing OpCommitService now uses accepted exact physical Git plan/prepare/apply
+for all Source-allowed calls. RawJ policy/Source-relative paths/shape→roots→H==J→
+Jrefexists→paths→STANDARDguard precede P. Real current-service Source executor
+false-refusal reds: unborn NBSP, born/unborn refs/x, -name, refs-prefixed branch;
+source-valid publication now binds real root0parents/fullobject/OID/rawreflog/Ptip/
+Jmain unchanged. Source tag/HEAD mismatch/no-shadow Step5/D1/RawJ protection and
+invalid-config union still preserved. Doctor spine/archive/raw80/typed fullref
+success/native candidate Some/None and captured-index controls pass; Native-only
+race/index controls not promoted to Source failure-footprint equality.
+
+Op244/0/3helpers10suites; workspace2358/0/16helpers192suites, Git357/Kernel199/
+doctrine175/charter80 included unchanged. Strict workspace Clippy/fullfmt/both
+release CLIs/optimized Op/offline/exact53 green. Strict Op rustdoc now also green
+after two pre-existing private-link fixes (compiler/docs, not business reds).
+Success getters documented honestly: None on landed-repair/unconfirmed evidence
+is not proof nothing landed; legacy root-fact accessor stays None, not guessed.
+Completion599/PERF27/pending/valid/0of16 unchanged. Current sixbindings/source
+scope/gates `/tmp/sk-op-physical-integration.UedJO9/command-log-index.tsv` and
+`crates/sk-invocation/OP-PHYSICAL-PUBLICATION-INTEGRATION-REPORT.md`; all seven
+accepted Git bindings frozen. Owner report historical/comment-test hashes differ.
+Fresh independent Op review pending; COMMIT_EDITMSG/hook argv, phase/index-error/
+NUL/locale/platform/full executor/CLI/StepContract/performance remain required.
+
 ## Exact physical/unborn Git backend — published `abd0b5450`, base `102f3b81b`
 
 One shared planner/transaction now accepts exact validated RefName and observes
@@ -33,7 +58,9 @@ index comparison remains semantic across copies; captured default raw bytes are
 asserted unchanged locally. D/F candidate uncertainty remains preserved; Source
 COMMIT_EDITMSG/hook arguments and noncommit error-phase gaps are not waived.
 Disposition `reviews/git-physical-target-disposition.md`. Actual Op consumer
-still lacks publication wiring; no Op/CLI/workflow/platform/performance acceptance.
+still lacked publication wiring at that Git-only checkpoint; the newer Op section
+above records the actual consumer implementation, not full Op/CLI/workflow/
+platform/performance acceptance.
 
 ## Independent J/H/P review / path follow-up — after `fc61898c9`
 

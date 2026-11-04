@@ -98,9 +98,19 @@ pub fn run_python(script: &str, stdin: Option<&str>) -> String {
     for directory in ["home", "cache", "config", "data", "state", "tmp"] {
         std::fs::create_dir_all(sandbox.join(directory)).expect("create isolated probe root");
     }
+    // Assert the isolation inside the interpreter as well as setting it: a
+    // future harness change that inherited the source checkout CWD or an
+    // operator root is a hard failure, not a green source comparison.
+    let prologue = r#"import os as _sk_os
+_sk_root = _sk_os.environ["SK_ORACLE_SANDBOX_ROOT"]
+assert _sk_os.getcwd() == _sk_root, _sk_os.getcwd()
+for _sk_var, _sk_sub in (("HOME", "home"), ("XDG_CACHE_HOME", "cache"), ("XDG_CONFIG_HOME", "config"), ("XDG_DATA_HOME", "data"), ("XDG_STATE_HOME", "state"), ("TMPDIR", "tmp")):
+    assert _sk_os.environ.get(_sk_var) == _sk_os.path.join(_sk_root, _sk_sub), (_sk_var, _sk_os.environ.get(_sk_var))
+del _sk_os, _sk_root, _sk_var, _sk_sub
+"#;
     let mut child = Command::new(python())
         .arg("-c")
-        .arg(script)
+        .arg(format!("{prologue}{script}"))
         .current_dir(sandbox)
         .env("HOME", sandbox.join("home"))
         .env("XDG_CACHE_HOME", sandbox.join("cache"))
@@ -108,6 +118,7 @@ pub fn run_python(script: &str, stdin: Option<&str>) -> String {
         .env("XDG_DATA_HOME", sandbox.join("data"))
         .env("XDG_STATE_HOME", sandbox.join("state"))
         .env("TMPDIR", sandbox.join("tmp"))
+        .env("SK_ORACLE_SANDBOX_ROOT", sandbox)
         .env("PYTHONPATH", root.join("src"))
         .env("SPEC_KITTY_PACKS_ROOT", root.join("packs"))
         .env("PYTHONDONTWRITEBYTECODE", "1")
