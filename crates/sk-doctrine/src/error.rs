@@ -451,6 +451,17 @@ pub enum DoctrineError {
         source: Box<crate::ledger::ActivationReadError>,
     },
 
+    /// A checked identity operation could not produce its Source result.
+    ///
+    /// Keeps the existing Source/Native failure authority as a standard cause;
+    /// a scalar view never substitutes empty text for an exact filename stem.
+    #[error("identity operation failed: {source}")]
+    IdentityQuery {
+        /// The original checked query or Native scalar-view failure.
+        #[source]
+        source: Box<crate::identity::IdentityFailure>,
+    },
+
     /// A lazy progressive record delivery phase failed.
     ///
     /// The reference reads a delivered artifact's metadata from its model

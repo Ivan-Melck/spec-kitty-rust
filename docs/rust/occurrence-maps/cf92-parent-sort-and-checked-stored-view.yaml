@@ -1,0 +1,43 @@
+target:
+  term: CF92 decoded component ordering and nonempty checked stored-spelling view
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Reuse existing Kernel source_path_component_key; do not invent sorting/codec. Stored-spelling exact path must propagate checked query failure, scalar facade must error not fabricate empty.
+  import_paths:
+    action: manual_review
+    notes: Existing PythonString/IdentityFailure/NativeOfferingFailure/OsDecodeError and canonical sort key only. One boxed Doctrine identity query seam, no second hierarchy.
+  filesystem_paths:
+    action: manual_review
+    notes: Same-stem raw-byte and astral filename suffixes expose different first-match under native byte vs Source decoded-component sort. Directory codec failure must not become false-reserved predicate.
+  serialized_keys:
+    action: manual_review
+    notes: Raw codepoint stored and ordering receipts, exact native path retained in Native projection cause.
+  cli_commands:
+    action: do_not_change
+    notes: No root/flags/count/writer changes. Actual scalar writer capability still required gap, no empty successful identity.
+  user_facing_strings:
+    action: manual_review
+    notes: Truthful Native scalar-view error, not invalid Source data/collision or repr-as-ID.
+  tests_fixtures:
+    action: manual_review
+    notes: Strengthen real business child stdout/exact53 guards and Source intended outcome assertions before Native. ExistingAPI negatives before correction; no output rewriting/sharedfixture.
+  logs_telemetry:
+    action: manual_review
+    notes: Producer red is unwrapped/masked unqualified evidence; late valid guards do not backdate it. Source scalar refuse remains required gap.
+exceptions:
+  - path: crates/sk-doctrine/src/identity.rs
+    action: manual_review
+    reason: Canonical Source component sort, checked stored-spelling projection/query, propagate directory name decode errors.
+  - path: crates/sk-doctrine/src/error.rs
+    action: manual_review
+    reason: Parent-owned one boxed IdentityQuery cause for existing checked scalar API, standard source preserved.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: Existing DiagnosticProjection display/doc generalized to honest checked Source scalar-text view, no second projection policy.
+  - path: crates/sk-doctrine/tests/cf92_exact_filename_identity.rs
+    action: manual_review
+    reason: Prospective child stdout/exact53 guard correction, actual first-match order and scalar-nonempty red, exact stored data comparison.
+status:
+  accepted: false
+  phase: prospective parent sorting and checked scalar identity correction

@@ -35,8 +35,10 @@ use std::sync::OnceLock;
 use sk_charter::ArtifactKind;
 use sk_kernel::PythonString;
 use sk_kernel::python_int::IntDecimalError;
+use sk_kernel::python_os_encoding::{OsDecodeError, OsEncodingContext};
 use sk_kernel::python_utf8::{PythonUtf8DecodeError, decode_utf8};
 use sk_kernel::text_decode::normalize_newlines;
+use sk_kernel::{source_name_before_first_dot, source_path_component_key};
 
 use crate::error::DoctrineError;
 use crate::offering::{ConstructorAbort, GateFailure, NativeOfferingFailure, SuccessOnce};
@@ -83,7 +85,8 @@ pub trait IdentityLookup {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Entry {
     kind: ArtifactKind,
-    stem: String,
+    /// Source `_config_stem`: the decoded native file name before its first dot.
+    stem: PythonString,
     /// The id the file declares, when it declares a non-empty one.
     declared: Option<PythonString>,
     /// The identity key: the declared id, or the file stem when none is declared.
@@ -94,9 +97,9 @@ struct Entry {
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct KindTable {
-    by_stem: BTreeMap<String, Entry>,
+    by_stem: BTreeMap<PythonString, Entry>,
     by_id: BTreeMap<PythonString, Entry>,
-    ids_by_stem: BTreeMap<String, BTreeSet<PythonString>>,
+    ids_by_stem: BTreeMap<PythonString, BTreeSet<PythonString>>,
     entries: Vec<Entry>,
 }
 
@@ -513,7 +516,20 @@ impl IdentityIndex {
     /// Reads the existing index only: a shadowed stem occurs once, at its
     /// highest-precedence occurrence. This enumerates identity, not an
     /// effective-set verdict (which also depends on service and pack policy).
+    ///
+    /// This is the explicit **scalar capability view**: a stem is a decoded file
+    /// name and may hold surrogate units a Rust `String` cannot carry, so those
+    /// stems are omitted here and reported by [`IdentityIndex::stems_exact`]. It
+    /// never substitutes or re-spells a stem.
     pub fn stems(&self, kind: ArtifactKind) -> Vec<String> {
+        self.stems_exact(kind)
+            .into_iter()
+            .filter_map(|stem| stem.to_scalar_string().ok())
+            .collect()
+    }
+
+    /// Distinct activation stems, exactly.
+    pub fn stems_exact(&self, kind: ArtifactKind) -> Vec<PythonString> {
         let table = self.table(kind);
         let mut seen = BTreeSet::new();
         table
@@ -530,8 +546,16 @@ impl IdentityIndex {
     /// indexes the org and project overlays. It is therefore *not* the
     /// reference's `list_available` answer (that layout is
     /// `crate::offering::availability_stems`); use it only to reason about the
-    /// index itself.
+    /// index itself. Scalar capability view; see [`Self::declared_id_stems_exact`].
     pub fn declared_id_stems(&self, kind: ArtifactKind) -> Vec<String> {
+        self.declared_id_stems_exact(kind)
+            .into_iter()
+            .filter_map(|stem| stem.to_scalar_string().ok())
+            .collect()
+    }
+
+    /// [`IdentityIndex::declared_id_stems`], exactly.
+    pub fn declared_id_stems_exact(&self, kind: ArtifactKind) -> Vec<PythonString> {
         let table = self.table(kind);
         let mut seen = BTreeSet::new();
         table
@@ -614,8 +638,10 @@ impl IdentityIndex {
         if kind.glob_pattern().is_empty() {
             return Ok(entries);
         }
-        for (layer, path) in self.scan_files(kind) {
-            let stem = config_stem(&path);
+        let codec = OsEncodingContext::from_environment();
+        for (layer, path) in self.scan_files(kind, &codec)? {
+            let stem =
+                config_stem(&path, &codec).map_err(|cause| path_decode_abort(&path, cause))?;
             if stem.is_empty() {
                 continue;
             }
@@ -623,9 +649,7 @@ impl IdentityIndex {
                 FileRead::Skipped => continue,
                 FileRead::Declared(declared) => declared,
             };
-            let identity = declared
-                .clone()
-                .unwrap_or_else(|| PythonString::from_scalars(stem.trim()));
+            let identity = declared.clone().unwrap_or_else(|| python_strip(&stem));
             if identity.is_empty() {
                 continue;
             }
@@ -646,19 +670,25 @@ impl IdentityIndex {
     /// The list is memoised for the pass, so a file born after a failed scan stays
     /// outside the retried scan until a new index starts a new pass — the
     /// reference's directory-snapshot boundary, not a fresh walk per query.
-    fn scan_files(&self, kind: ArtifactKind) -> Vec<(usize, PathBuf)> {
+    fn scan_files(
+        &self,
+        kind: ArtifactKind,
+        codec: &OsEncodingContext,
+    ) -> Result<Vec<(usize, PathBuf)>, IdentityFailure> {
         if let Some(files) = self.pass.borrow().files.get(&kind) {
-            return files.clone();
+            return Ok(files.clone());
         }
         let suffix = kind.glob_pattern().trim_start_matches('*').to_owned();
         let mut files = Vec::new();
         for (layer, directory, depth) in self.scan_layers(kind) {
-            for path in artifact_files_in(&directory, &suffix, depth) {
+            for path in artifact_files_in(&directory, &suffix, depth, codec)
+                .map_err(|failure| path_decode_abort(&failure.path, failure.cause))?
+            {
                 files.push((layer, path));
             }
         }
         self.pass.borrow_mut().files.insert(kind, files.clone());
-        files
+        Ok(files)
     }
 
     /// One file's completed identity read.
@@ -768,9 +798,7 @@ impl IdentityIndex {
     fn lookup_existing_exact(&self, kind: ArtifactKind, token: &PythonString) -> Option<&Entry> {
         let bare = Self::bare_exact(kind, token);
         let table = self.table(kind);
-        if let Ok(stem) = bare.to_scalar_string()
-            && let Some(entry) = table.by_stem.get(&stem)
-        {
+        if let Some(entry) = table.by_stem.get(&bare) {
             return Some(entry);
         }
         if let Some(entry) = table.by_id.get(&bare) {
@@ -801,9 +829,7 @@ impl IdentityIndex {
     ) -> Option<PythonString> {
         let bare = Self::bare_exact(kind, token);
         let table = self.table(kind);
-        if let Ok(stem) = bare.to_scalar_string()
-            && let Some(entry) = table.by_stem.get(&stem)
-        {
+        if let Some(entry) = table.by_stem.get(&bare) {
             return Some(entry.declared_id.clone());
         }
         if let Some(entry) = table.by_id.get(&bare) {
@@ -863,7 +889,10 @@ impl IdentityIndex {
         table
             .entries
             .iter()
-            .find(|entry| entry.stem == stem && self.layer_name(entry.layer) == layer)
+            .find(|entry| {
+                entry.stem.to_scalar_string().ok().as_deref() == Some(stem)
+                    && self.layer_name(entry.layer) == layer
+            })
             .map(|entry| entry.declared_id.clone())
     }
 
@@ -944,7 +973,7 @@ impl IdentityIndex {
     pub fn names_a_file(&self, kind: ArtifactKind, token: &str) -> bool {
         self.table(kind)
             .by_stem
-            .contains_key(Self::bare(kind, token))
+            .contains_key(&PythonString::from_scalars(Self::bare(kind, token)))
     }
 
     /// The activation stem for a token; `None` when unknown or unrepresentable.
@@ -962,10 +991,8 @@ impl IdentityIndex {
         if kind == ArtifactKind::Directive && table.by_id.contains_key(&bare) {
             return self.stem_for_declared_id_exact(kind, &bare);
         }
-        if let Ok(stem) = bare.to_scalar_string()
-            && table.by_stem.contains_key(&stem)
-        {
-            return Some(PythonString::from_scalars(&stem));
+        if table.by_stem.contains_key(&bare) {
+            return Some(bare);
         }
         self.declared_id_exact(kind, &bare)
             .and_then(|declared| self.stem_for_declared_id_exact(kind, &declared))
@@ -1009,12 +1036,12 @@ impl IdentityIndex {
                 continue;
             }
             if kind != ArtifactKind::Directive {
-                return Some(PythonString::from_scalars(&entry.stem));
+                return Some(entry.stem.clone());
             }
             let representative = table.by_stem.get(&entry.stem)?;
             let distinct = table.ids_by_stem.get(&entry.stem).map(BTreeSet::len);
             if &representative.declared_id == declared && distinct == Some(1) {
-                return Some(PythonString::from_scalars(&entry.stem));
+                return Some(entry.stem.clone());
             }
         }
         None
@@ -1030,20 +1057,41 @@ impl IdentityIndex {
         kind: ArtifactKind,
         token: &str,
     ) -> Result<String, DoctrineError> {
-        self.stored_spelling_exact(kind, &PythonString::from_scalars(token))
-            .map(|stem| stem.to_scalar_string().unwrap_or_default())
+        let token = PythonString::from_scalars(token);
+        let stem = self.stored_spelling_exact(kind, &token)?;
+        stem.to_scalar_string().map_err(|codepoint| {
+            let path = self
+                .lookup_existing_exact(kind, &token)
+                .map(|entry| entry.path.clone())
+                .unwrap_or_default();
+            DoctrineError::IdentityQuery {
+                source: Box::new(IdentityFailure::Native(
+                    NativeOfferingFailure::DiagnosticProjection {
+                        path,
+                        part: "identity stored spelling",
+                        exact: stem,
+                        codepoint,
+                    },
+                )),
+            }
+        })
     }
 
     /// [`IdentityIndex::stored_spelling`], exactly.
     ///
-    /// A stem is a file name, so the result always has a scalar projection; for
-    /// an unknown token the exact token is returned unchanged (it may be
-    /// non-scalar), which is the reference's "kept as written" behaviour.
+    /// A decoded filename may contain surrogateescape code points; this exact
+    /// result never requires a scalar projection. An unknown token is returned
+    /// unchanged, matching Source's "kept as written" behavior. A raising scan
+    /// remains a typed query failure, not an unknown-token success.
     pub fn stored_spelling_exact(
         &self,
         kind: ArtifactKind,
         token: &PythonString,
     ) -> Result<PythonString, DoctrineError> {
+        self.try_table(kind)
+            .map_err(|source| DoctrineError::IdentityQuery {
+                source: Box::new(source),
+            })?;
         if let Some(stem) = self.stem_exact(kind, token) {
             return Ok(stem);
         }
@@ -1070,7 +1118,7 @@ impl IdentityIndex {
             .iter()
             .find(|entry| entry.declared_id == declared)
             .map(|entry| entry.stem.clone())
-            .unwrap_or_else(|| label(&bare));
+            .unwrap_or_else(|| bare.clone());
         let declarations = table
             .entries
             .iter()
@@ -1086,7 +1134,7 @@ impl IdentityIndex {
         DoctrineError::ActivationIdCollision {
             kind: kind.canonical().to_owned(),
             artifact_id: label(&bare),
-            file_name,
+            file_name: label(&file_name),
             declarations,
         }
     }
@@ -1559,11 +1607,19 @@ pub fn scan_all(index: &mut IdentityIndex) {
     }
 }
 
-fn config_stem(path: &Path) -> String {
-    path.file_name()
-        .and_then(|name| name.to_str())
-        .map(|name| name.split('.').next().unwrap_or(name).to_owned())
-        .unwrap_or_default()
+fn path_decode_abort(path: &Path, cause: OsDecodeError) -> IdentityFailure {
+    GateFailure::Native(NativeOfferingFailure::IdentityPathDecode {
+        path: path.to_path_buf(),
+        cause,
+    })
+}
+
+fn config_stem(path: &Path, codec: &OsEncodingContext) -> Result<PythonString, OsDecodeError> {
+    let name = match path.file_name() {
+        Some(name) => codec.decode_os_str(name)?,
+        None => return Ok(PythonString::default()),
+    };
+    Ok(source_name_before_first_dot(&name))
 }
 
 /// The declared id of one artifact file, exactly.
@@ -1618,37 +1674,97 @@ pub(crate) fn python_strip(text: &PythonString) -> PythonString {
         .expect("a slice of valid code points is valid")
 }
 
+/// A native name that the captured filesystem codec could not decode, with the
+/// exact path it came from.
+struct NameDecodeFailure {
+    path: PathBuf,
+    cause: OsDecodeError,
+}
+
 /// The artifact files of one layer directory, sorted (the reference's
 /// `sorted(glob(...))` per scan directory).
-pub(crate) fn artifact_files_in(directory: &Path, suffix: &str, depth: ScanDepth) -> Vec<PathBuf> {
+///
+/// A name is compared through the ONE captured filesystem codec, never a UTF-8
+/// guess, so a Source-valid non-UTF8 name is discovered exactly as `pathlib`
+/// spells it. The returned paths keep their native spelling.
+fn artifact_files_in(
+    directory: &Path,
+    suffix: &str,
+    depth: ScanDepth,
+    codec: &OsEncodingContext,
+) -> Result<Vec<PathBuf>, NameDecodeFailure> {
     let mut files = Vec::new();
     match depth {
         ScanDepth::Flat => {
             if let Ok(entries) = std::fs::read_dir(directory) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path.is_file()
-                        && path
-                            .file_name()
-                            .and_then(|name| name.to_str())
-                            .is_some_and(|name| name.ends_with(suffix))
-                    {
+                    if path.is_file() && name_has_suffix(&path, suffix, codec)? {
                         files.push(path);
                     }
                 }
             }
         }
         ScanDepth::Recursive | ScanDepth::RecursiveExcludingLegacy => {
-            collect_recursive(directory, suffix, &mut files, depth);
+            collect_recursive(directory, suffix, &mut files, depth, codec)?;
         }
     }
-    files.sort();
-    files
+    let mut keyed = files
+        .into_iter()
+        .map(|path| {
+            let key =
+                source_path_component_key(&path, codec).map_err(|cause| NameDecodeFailure {
+                    path: path.clone(),
+                    cause,
+                })?;
+            Ok((key, path))
+        })
+        .collect::<Result<Vec<_>, NameDecodeFailure>>()?;
+    keyed.sort_by(|left, right| left.0.cmp(&right.0));
+    Ok(keyed.into_iter().map(|(_, path)| path).collect())
 }
 
-fn collect_recursive(directory: &Path, suffix: &str, files: &mut Vec<PathBuf>, depth: ScanDepth) {
+/// Whether `path`'s decoded final name ends with *suffix* (the glob's literal tail).
+fn name_has_suffix(
+    path: &Path,
+    suffix: &str,
+    codec: &OsEncodingContext,
+) -> Result<bool, NameDecodeFailure> {
+    let Some(name) = path.file_name() else {
+        return Ok(false);
+    };
+    let decoded = decode_name(name, path, codec)?;
+    let points = decoded.codepoints();
+    let tail = suffix.chars().map(u32::from).collect::<Vec<_>>();
+    Ok(points.len() >= tail.len() && points[points.len() - tail.len()..] == tail)
+}
+
+fn decode_name(
+    name: &std::ffi::OsStr,
+    path: &Path,
+    codec: &OsEncodingContext,
+) -> Result<PythonString, NameDecodeFailure> {
+    codec
+        .decode_os_str(name)
+        .map_err(|cause| NameDecodeFailure {
+            path: path.to_path_buf(),
+            cause,
+        })
+}
+
+fn name_is(name: &PythonString, text: &str) -> bool {
+    name.codepoints() == text.chars().map(u32::from).collect::<Vec<_>>().as_slice()
+}
+
+fn collect_recursive(
+    directory: &Path,
+    suffix: &str,
+    files: &mut Vec<PathBuf>,
+    depth: ScanDepth,
+    codec: &OsEncodingContext,
+) -> Result<(), NameDecodeFailure> {
     let Ok(entries) = std::fs::read_dir(directory) else {
-        return;
+        return Ok(());
     };
     for entry in entries.flatten() {
         let path = entry.path();
@@ -1657,19 +1773,17 @@ fn collect_recursive(directory: &Path, suffix: &str, files: &mut Vec<PathBuf>, d
             // directory that happens to be named `built-in` stays discoverable,
             // exactly as the reference's loader still loads it.
             if depth == ScanDepth::RecursiveExcludingLegacy
-                && path.file_name().and_then(|name| name.to_str()) == Some("built-in")
+                && let Some(name) = path.file_name()
+                && name_is(&decode_name(name, &path, codec)?, "built-in")
             {
                 continue;
             }
-            collect_recursive(&path, suffix, files, ScanDepth::Recursive);
-        } else if path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name| name.ends_with(suffix))
-        {
+            collect_recursive(&path, suffix, files, ScanDepth::Recursive, codec)?;
+        } else if name_has_suffix(&path, suffix, codec)? {
             files.push(path);
         }
     }
+    Ok(())
 }
 
 #[cfg(test)]

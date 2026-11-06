@@ -235,7 +235,8 @@ pub enum NativeOfferingFailure {
         /// The gate's delivery outcomes and escape evidence for this attempt.
         log: Box<WarningLog>,
     },
-    /// A Source diagnostic cannot pass the current scalar-only exception carrier.
+    /// An exact Source text fragment cannot pass a checked scalar-only view.
+    /// The historical variant name also covers identity spelling projections.
     /// This is a required Native capability gap, not a Source-invalid document.
     DiagnosticProjection {
         /// The original native filename, without lossy display conversion.
@@ -261,6 +262,19 @@ pub enum NativeOfferingFailure {
         /// The original canonical start-up policy error, boxed so this start-up
         /// boundary does not inflate every `Result` carrying the enum.
         cause: Box<sk_kernel::python_json::PythonJsonError>,
+    },
+    /// The existing filesystem codec cannot decode a native artifact file name
+    /// during identity discovery.
+    ///
+    /// Source `os.fsdecode` cannot fail for POSIX filename bytes (it uses
+    /// `surrogateescape`), so this is a typed Native capability/start-up refusal,
+    /// never a Source exception, an empty stem, or a silently skipped file. The
+    /// original path and the canonical Kernel decoder cause are retained.
+    IdentityPathDecode {
+        /// The original native path whose final name could not be decoded.
+        path: PathBuf,
+        /// The original canonical filesystem-decoder cause.
+        cause: sk_kernel::python_os_encoding::OsDecodeError,
     },
     /// The existing filesystem codec cannot produce a Source diagnostic path.
     DiagnosticPathDecode {
@@ -289,7 +303,12 @@ impl std::fmt::Display for NativeOfferingFailure {
                 part, codepoint, ..
             } => write!(
                 formatter,
-                "native Source diagnostic representation is unavailable: {part} contains U+{codepoint:04X}"
+                "native scalar Source text representation is unavailable: {part} contains U+{codepoint:04X}"
+            ),
+            Self::IdentityPathDecode { path, cause } => write!(
+                formatter,
+                "native identity filename decoding is unavailable at {}: {cause}",
+                path.display()
             ),
             Self::DiagnosticPathDecode { cause, .. } => write!(
                 formatter,
@@ -310,6 +329,7 @@ impl std::error::Error for NativeOfferingFailure {
             Self::ActivationSetOrder { cause, .. } => Some(cause),
             Self::ActivationWarningDelivery { cause, .. } => Some(cause.as_ref()),
             Self::DiagnosticProjection { .. } => None,
+            Self::IdentityPathDecode { cause, .. } => Some(cause),
             Self::DiagnosticPathDecode { cause, .. } => Some(cause),
             Self::IntegerTextPolicy { cause, .. } => Some(cause.as_ref()),
         }
