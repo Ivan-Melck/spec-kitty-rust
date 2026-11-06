@@ -72,6 +72,7 @@ use crate::profile::{ProfileRepository, applies_to_languages_match_exact};
 pub(crate) mod gate;
 pub(crate) mod include_access;
 pub(crate) mod model;
+pub(crate) mod prevalidation;
 pub(crate) mod value;
 
 pub use gate::{ActivationGate, GateFailure, WarningLog};
@@ -234,6 +235,25 @@ pub enum NativeOfferingFailure {
         /// The gate's delivery outcomes and escape evidence for this attempt.
         log: Box<WarningLog>,
     },
+    /// A Source diagnostic cannot pass the current scalar-only exception carrier.
+    /// This is a required Native capability gap, not a Source-invalid document.
+    DiagnosticProjection {
+        /// The original native filename, without lossy display conversion.
+        path: PathBuf,
+        /// The diagnostic fragment that needs the missing representation.
+        part: &'static str,
+        /// The exact original fragment, never replacement text or repr-as-data.
+        exact: PythonString,
+        /// The original checked projection failure (the first non-scalar unit).
+        codepoint: u32,
+    },
+    /// The existing filesystem codec cannot produce a Source diagnostic path.
+    DiagnosticPathDecode {
+        /// The original native filename.
+        path: PathBuf,
+        /// The original canonical filesystem-decoder cause.
+        cause: sk_kernel::python_os_encoding::OsDecodeError,
+    },
 }
 
 impl std::fmt::Display for NativeOfferingFailure {
@@ -250,6 +270,16 @@ impl std::fmt::Display for NativeOfferingFailure {
                 "activation warning delivery is unavailable in this native stream \
                  composition: {cause}"
             ),
+            Self::DiagnosticProjection {
+                part, codepoint, ..
+            } => write!(
+                formatter,
+                "native Source diagnostic representation is unavailable: {part} contains U+{codepoint:04X}"
+            ),
+            Self::DiagnosticPathDecode { cause, .. } => write!(
+                formatter,
+                "native Source diagnostic path decoding is unavailable: {cause}"
+            ),
         }
     }
 }
@@ -259,6 +289,8 @@ impl std::error::Error for NativeOfferingFailure {
         match self {
             Self::ActivationSetOrder { cause, .. } => Some(cause),
             Self::ActivationWarningDelivery { cause, .. } => Some(cause.as_ref()),
+            Self::DiagnosticProjection { .. } => None,
+            Self::DiagnosticPathDecode { cause, .. } => Some(cause),
         }
     }
 }
@@ -827,6 +859,9 @@ impl CanonicalOfferingService {
             if document.value.as_mapping().is_none() {
                 continue;
             }
+            // The reference's `_pre_validate` phase: after the non-mapping guard,
+            // before model admission (F4's skip/fatal split).
+            prevalidation::prevalidate(kind, &document, &path)?;
             let Some(id) = model::model_id(kind, &document) else {
                 continue;
             };
@@ -873,6 +908,9 @@ impl CanonicalOfferingService {
                 if document.value.as_mapping().is_none() {
                     continue;
                 }
+                // The reference's overlay hook phase runs before `data.get("id")`
+                // and before the merge, so an inline reference aborts here.
+                prevalidation::prevalidate(kind, &document, &path)?;
                 let Some(raw) = document.value.get("id") else {
                     continue;
                 };
@@ -1398,8 +1436,9 @@ fn collect_files(directory: &Path, suffix: &str, files: &mut Vec<PathBuf>) {
             collect_files(&path, suffix, files);
         } else if path
             .file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name| name.ends_with(suffix))
+            // Kind suffixes are ASCII. A non-scalar filename prefix must not
+            // make a matching native filename disappear before its ordinary read.
+            .is_some_and(|name| name.as_encoded_bytes().ends_with(suffix.as_bytes()))
         {
             files.push(path);
         }

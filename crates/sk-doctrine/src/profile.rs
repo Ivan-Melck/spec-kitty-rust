@@ -62,7 +62,11 @@ pub const UNION_LIST_FIELDS: [&str; 5] = [
 ];
 
 /// Fields rejected on any artifact as a retired inline reference channel.
-const FORBIDDEN_INLINE_REFERENCE_FIELDS: [&str; 3] = ["tactic_refs", "paradigm_refs", "applies_to"];
+///
+/// The canonical tuple lives in the offering's `_pre_validate` owner
+/// ([`crate::offering::prevalidation::FORBIDDEN_INLINE_REFERENCE_FIELDS`]) so this
+/// post-validation skip and the aborting repository hook cannot drift apart.
+use crate::offering::prevalidation::FORBIDDEN_INLINE_REFERENCE_FIELDS;
 
 /// Relationship fields retired in the DRG hard cutover.
 const RETIRED_RELATIONSHIP_KEYS: [&str; 4] = [

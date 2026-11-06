@@ -1,0 +1,43 @@
+target:
+  term: CF88 prevalidation Native diagnostic failure classification and independent phase control
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Existing NativeOfferingFailure gains precise non-scalar diagnostic and filesystem decode causes; prevalidation must never ordinary-new a Native capability failure.
+  import_paths:
+    action: manual_review
+    notes: Existing canonical PythonString/OsDecodeError/source_path_text only, no parser/codec/exception hierarchy clones.
+  filesystem_paths:
+    action: manual_review
+    notes: Preserve undecodable native paths and OsDecodeError; current scalar-only artifact filename filter silently omits Source-valid raw-name prefixes, compare invariant ASCII suffix against native encoded bytes without decoding prefix. Independent child roots and identical relative direct-repository paths avoid output rewriting.
+  serialized_keys:
+    action: manual_review
+    notes: New tiny parent controls for native classification and phase, existing Source diagnostic scalar shape retained.
+  cli_commands:
+    action: do_not_change
+    notes: No root/CLI/envelope/count changes.
+  user_facing_strings:
+    action: manual_review
+    notes: Native representation failure truthful and typed, no lossy path.display or fictitious Source exception; exact Source diagnostic support still required gap.
+  tests_fixtures:
+    action: manual_review
+    notes: Source-first currentAPI negatives; producer shared fixture/root rewriting/missing hashseed-codec-expectedSource guards not qualified pairs. One independent parent relative-path plan.
+  logs_telemetry:
+    action: manual_review
+    notes: Do not promote result comparisons to warning/traceback/global error wire parity.
+exceptions:
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: Parent-owned narrow Native failure enum/Display/standard source arms and ASCII suffix filter preserving raw native filename prefixes, no Source hierarchy or traversal redesign.
+  - path: crates/sk-doctrine/src/offering/prevalidation.rs
+    action: manual_review
+    reason: Route diagnostic projection/decode failures through existing from_native with original data, not ordinary unresolvable health.
+  - path: crates/sk-doctrine/tests/cf88_parent_diagnostic_phase.rs
+    action: manual_review
+    reason: Tiny currentAPI Native-boundary negative and independently guarded real Source/Native relative-path prevalidation plan.
+  - path: crates/sk-doctrine/tests/cf88_directive_prevalidation.rs
+    action: manual_review
+    reason: Explicitly quarantine producer protocol-invalid shared-fixture/root-rewritten controls, preserve history, use independent raw-message parent target instead; no product assertions weakened.
+status:
+  accepted: false
+  phase: prospective parent typed Native classification and phase control
