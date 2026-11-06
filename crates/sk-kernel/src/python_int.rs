@@ -7,6 +7,12 @@ use crate::{
     python_text::{decimal_value, is_whitespace},
 };
 
+/// CPython's "no decimal conversion ceiling" value (`PYTHONINTMAXSTRDIGITS=0`).
+///
+/// The same `0` disables the ceiling in [`parse_text`] and [`format_decimal`], so a
+/// caller cannot spell "unlimited" two different ways.
+pub const UNLIMITED_INTEGER_DIGITS: usize = 0;
+
 /// A Python ValueError from `int(str)`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum IntTextError {
@@ -25,14 +31,76 @@ impl std::fmt::Display for IntTextError {
                 let repr: String = argument.repr().chars().take(200).collect();
                 write!(out, "invalid literal for int() with base 10: {repr}")
             }
-            Self::DigitLimit { limit, digits } => write!(
-                out,
-                "Exceeds the limit ({limit} digits) for integer string conversion: value has {digits} digits; use sys.set_int_max_str_digits() to increase the limit"
-            ),
+            Self::DigitLimit { limit, digits } => {
+                write!(out, "{}", parse_digit_limit_message(*limit, *digits))
+            }
         }
     }
 }
 impl std::error::Error for IntTextError {}
+
+/// A Python ValueError from `str(int)` / `repr(int)` decimal formatting.
+///
+/// This is the **integer-to-text** direction, and the reference's message really
+/// differs from the text-to-integer one: measured on the pinned CPython 3.11.15,
+/// `str(2**14285)` reports no observed digit count, while `int("1" + "0" * 4300)`
+/// appends `: value has 4301 digits`. The two messages are rendered by
+/// [`parse_digit_limit_message`] and [`decimal_digit_limit_message`] in this one
+/// module so neither phase can borrow the other's wording.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IntDecimalError {
+    /// CPython's configured decimal string-conversion ceiling was exceeded.
+    ///
+    /// `digits` is the observed magnitude width. CPython 3.11.15 does not print it
+    /// for this direction; it is retained as structured evidence, never as text.
+    DigitLimit { limit: usize, digits: usize },
+}
+
+impl std::fmt::Display for IntDecimalError {
+    fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::DigitLimit { limit, .. } => decimal_digit_limit_message(*limit).fmt(out),
+        }
+    }
+}
+impl std::error::Error for IntDecimalError {}
+
+/// `str(int)` for canonical decimal text, under the interpreter's ceiling.
+///
+/// `digits` is the canonical decimal spelling the object model carries (an
+/// optional `-` and no leading zeros); the sign is not a decimal digit. A
+/// `digit_limit` of [`UNLIMITED_INTEGER_DIGITS`] disables the ceiling. The check
+/// matches the pinned interpreter's boundary exactly: a magnitude of `limit`
+/// digits renders and `limit + 1` raises.
+///
+/// # Errors
+///
+/// [`IntDecimalError::DigitLimit`] when the spelling would exceed the ceiling.
+pub fn format_decimal(digits: &str, digit_limit: usize) -> Result<String, IntDecimalError> {
+    let magnitude = digits.strip_prefix('-').unwrap_or(digits);
+    let count = magnitude.len();
+    if digit_limit != UNLIMITED_INTEGER_DIGITS && count > digit_limit {
+        return Err(IntDecimalError::DigitLimit {
+            limit: digit_limit,
+            digits: count,
+        });
+    }
+    Ok(digits.to_owned())
+}
+
+/// The one text-to-integer ceiling message (`int(str)`).
+fn parse_digit_limit_message(limit: usize, digits: usize) -> String {
+    format!(
+        "Exceeds the limit ({limit} digits) for integer string conversion: value has {digits} digits; use sys.set_int_max_str_digits() to increase the limit"
+    )
+}
+
+/// The one integer-to-text ceiling message (`str(int)`); no observed count.
+fn decimal_digit_limit_message(limit: usize) -> String {
+    format!(
+        "Exceeds the limit ({limit} digits) for integer string conversion; use sys.set_int_max_str_digits() to increase the limit"
+    )
+}
 
 /// `int(text, 10)` as canonical ASCII decimal digits, without a width bound.
 ///
@@ -107,6 +175,46 @@ fn integer_space(code: u32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn integer_formatting_uses_its_own_ceiling_message() {
+        // The measured pinned-interpreter boundary: `limit` digits render and
+        // `limit + 1` raise. `str(-10**n)` counts magnitude digits only.
+        assert_eq!(format_decimal(&"1".repeat(4300), 4300).unwrap().len(), 4300);
+        let error = format_decimal(&"1".repeat(4301), 4300).unwrap_err();
+        assert_eq!(
+            error,
+            IntDecimalError::DigitLimit {
+                limit: 4300,
+                digits: 4301
+            }
+        );
+        assert_eq!(
+            error.to_string(),
+            "Exceeds the limit (4300 digits) for integer string conversion; use sys.set_int_max_str_digits() to increase the limit"
+        );
+        assert_eq!(
+            format_decimal(&format!("-{}", "1".repeat(4301)), 0)
+                .unwrap()
+                .len(),
+            4302
+        );
+        assert!(matches!(
+            format_decimal(&format!("-{}", "1".repeat(641)), 640),
+            Err(IntDecimalError::DigitLimit {
+                limit: 640,
+                digits: 641
+            })
+        ));
+        assert_eq!(format_decimal("0", 640).unwrap(), "0");
+        // The int(str) direction keeps its distinct message bytes.
+        assert_eq!(
+            parse_text(&PythonString::from_scalars(&"1".repeat(4301)), 4300)
+                .unwrap_err()
+                .to_string(),
+            "Exceeds the limit (4300 digits) for integer string conversion: value has 4301 digits; use sys.set_int_max_str_digits() to increase the limit"
+        );
+    }
+
     #[test]
     fn ceiling_checks_the_valid_prefix_before_a_bad_suffix_but_not_bad_underscores() {
         let prefix = "1".repeat(4301);

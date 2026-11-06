@@ -247,6 +247,21 @@ pub enum NativeOfferingFailure {
         /// The original checked projection failure (the first non-scalar unit).
         codepoint: u32,
     },
+    /// The interpreter's integer-conversion policy cannot be resolved.
+    ///
+    /// An invalid `PYTHONINTMAXSTRDIGITS` kills CPython before any business code
+    /// runs, so there is no Source Python business exception to reproduce; this keeps the
+    /// phase/path and the original canonical Kernel policy error as data instead of
+    /// inventing a class, an unlimited policy or a healthy skip.
+    IntegerTextPolicy {
+        /// The read phase that needed the decimal conversion ceiling.
+        phase: &'static str,
+        /// The file the phase was handling.
+        path: PathBuf,
+        /// The original canonical start-up policy error, boxed so this start-up
+        /// boundary does not inflate every `Result` carrying the enum.
+        cause: Box<sk_kernel::python_json::PythonJsonError>,
+    },
     /// The existing filesystem codec cannot produce a Source diagnostic path.
     DiagnosticPathDecode {
         /// The original native filename.
@@ -280,6 +295,11 @@ impl std::fmt::Display for NativeOfferingFailure {
                 formatter,
                 "native Source diagnostic path decoding is unavailable: {cause}"
             ),
+            Self::IntegerTextPolicy { phase, path, cause } => write!(
+                formatter,
+                "the interpreter integer conversion policy is unavailable during {phase} at {}: {cause}",
+                path.display()
+            ),
         }
     }
 }
@@ -291,6 +311,7 @@ impl std::error::Error for NativeOfferingFailure {
             Self::ActivationWarningDelivery { cause, .. } => Some(cause.as_ref()),
             Self::DiagnosticProjection { .. } => None,
             Self::DiagnosticPathDecode { cause, .. } => Some(cause),
+            Self::IntegerTextPolicy { cause, .. } => Some(cause.as_ref()),
         }
     }
 }

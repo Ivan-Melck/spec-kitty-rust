@@ -48,6 +48,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use crate::PythonString;
+use crate::python_int::{IntDecimalError, UNLIMITED_INTEGER_DIGITS, format_decimal};
 use crate::python_value::PythonValue;
 use serde_yaml_ng::Value;
 use serde_yaml_ng::value::Tag;
@@ -404,140 +405,172 @@ impl ObjectGraph {
 
     /// Python `repr()` of one object, with Python's recursion markers.
     ///
-    /// A cycle is printed as `[...]` inside a list / `{...}` inside a dict,
-    /// derived from the real structure — never a marker that replaces data.
+    /// **Inspection facade, not the Source business path.** It renders under the
+    /// explicit unlimited integer policy
+    /// ([`UNLIMITED_INTEGER_DIGITS`](crate::python_int::UNLIMITED_INTEGER_DIGITS))
+    /// through the SAME renderer as [`Self::try_repr`], so this convenience cannot
+    /// drift from it; it does not claim the reference's decimal ceiling. A caller
+    /// observing Source's eager `str()`/`repr()` phase must call [`Self::try_repr`]
+    /// (or [`Self::try_python_str`]) with the interpreter's configured limit.
     pub fn repr(&self, id: NodeId) -> String {
-        let mut path: Vec<NodeId> = Vec::new();
-        self.repr_with_path(id, &mut path)
+        self.try_repr(id, UNLIMITED_INTEGER_DIGITS)
+            .expect("the unlimited integer policy cannot refuse a render")
     }
 
-    fn repr_with_path(&self, id: NodeId, path: &mut Vec<NodeId>) -> String {
+    /// Python `repr()` of one object under the interpreter's integer ceiling.
+    ///
+    /// The traversal, alias/cycle short-circuit and authored ordering are the same
+    /// as [`Self::repr`]; the only fallible step is decimal integer formatting, which
+    /// propagates from nested values and mapping keys in demand order.
+    ///
+    /// # Errors
+    ///
+    /// [`IntDecimalError::DigitLimit`] when an `int` in the demanded subtree would
+    /// exceed the configured decimal conversion ceiling.
+    pub fn try_repr(&self, id: NodeId, digit_limit: usize) -> Result<String, IntDecimalError> {
+        let mut rendered = String::new();
+        self.write_repr(id, digit_limit, &mut Vec::new(), &mut rendered)?;
+        Ok(rendered)
+    }
+
+    /// The one `repr()` traversal, shared by both entry points.
+    fn write_repr(
+        &self,
+        id: NodeId,
+        digit_limit: usize,
+        path: &mut Vec<NodeId>,
+        out: &mut String,
+    ) -> Result<(), IntDecimalError> {
         match self.object(id) {
-            Object::Null => "None".to_owned(),
-            Object::Bool(true) => "True".to_owned(),
-            Object::Bool(false) => "False".to_owned(),
-            Object::Int(digits) => digits.clone(),
-            Object::Float { value, .. } => crate::python_json::python_float_repr(*value),
-            Object::Str(text) => text.repr().to_string(),
-            Object::Bytes(bytes) => bytes_repr(bytes),
-            Object::Date(text) | Object::DateTime(text) => timestamp_repr(text),
+            Object::Null => out.push_str("None"),
+            Object::Bool(true) => out.push_str("True"),
+            Object::Bool(false) => out.push_str("False"),
+            Object::Int(digits) => out.push_str(&format_decimal(digits, digit_limit)?),
+            Object::Float { value, .. } => {
+                out.push_str(&crate::python_json::python_float_repr(*value))
+            }
+            Object::Str(text) => out.push_str(&text.repr()),
+            Object::Bytes(bytes) => out.push_str(&bytes_repr(bytes)),
+            Object::Date(text) | Object::DateTime(text) => out.push_str(&timestamp_repr(text)),
             Object::Seq(items) => {
                 if path.contains(&id) {
-                    return "[...]".to_owned();
+                    out.push_str("[...]");
+                    return Ok(());
                 }
                 path.push(id);
-                let mut rendered = String::from("[");
+                out.push('[');
                 for (position, item) in items.iter().enumerate() {
                     if position > 0 {
-                        rendered.push_str(", ");
+                        out.push_str(", ");
                     }
-                    rendered.push_str(&self.repr_with_path(*item, path));
+                    self.write_repr(*item, digit_limit, path, out)?;
                 }
-                rendered.push(']');
+                out.push(']');
                 path.pop();
-                rendered
             }
             Object::Tuple(items) => {
                 if path.contains(&id) {
-                    return "(...)".to_owned();
+                    out.push_str("(...)");
+                    return Ok(());
                 }
                 path.push(id);
-                let mut rendered = String::from("(");
+                out.push('(');
                 for (position, item) in items.iter().enumerate() {
                     if position > 0 {
-                        rendered.push_str(", ");
+                        out.push_str(", ");
                     }
-                    rendered.push_str(&self.repr_with_path(*item, path));
+                    self.write_repr(*item, digit_limit, path, out)?;
                 }
                 if items.len() == 1 {
-                    rendered.push(',');
+                    out.push(',');
                 }
-                rendered.push(')');
+                out.push(')');
                 path.pop();
-                rendered
             }
             Object::Map(entries) => {
                 if path.contains(&id) {
-                    return "{...}".to_owned();
+                    out.push_str("{...}");
+                    return Ok(());
                 }
                 path.push(id);
-                let mut rendered = String::from("{");
+                out.push('{');
                 for (position, (key, value)) in entries.iter().enumerate() {
                     if position > 0 {
-                        rendered.push_str(", ");
+                        out.push_str(", ");
                     }
-                    rendered.push_str(&self.repr_with_path(*key, path));
-                    rendered.push_str(": ");
-                    rendered.push_str(&self.repr_with_path(*value, path));
+                    self.write_repr(*key, digit_limit, path, out)?;
+                    out.push_str(": ");
+                    self.write_repr(*value, digit_limit, path, out)?;
                 }
-                rendered.push('}');
+                out.push('}');
                 path.pop();
-                rendered
             }
             Object::OrderedDict(entries) => {
                 // Source (ruamel safe `!!omap`) prints the `ordereddict` call
                 // form, not a dict literal.
                 if path.contains(&id) {
-                    return "ordereddict([...])".to_owned();
+                    out.push_str("ordereddict([...])");
+                    return Ok(());
                 }
                 path.push(id);
-                let mut rendered = String::from("ordereddict([");
+                out.push_str("ordereddict([");
                 for (position, (key, value)) in entries.iter().enumerate() {
                     if position > 0 {
-                        rendered.push_str(", ");
+                        out.push_str(", ");
                     }
-                    rendered.push('(');
-                    rendered.push_str(&self.repr_with_path(*key, path));
-                    rendered.push_str(", ");
-                    rendered.push_str(&self.repr_with_path(*value, path));
-                    rendered.push(')');
+                    out.push('(');
+                    self.write_repr(*key, digit_limit, path, out)?;
+                    out.push_str(", ");
+                    self.write_repr(*value, digit_limit, path, out)?;
+                    out.push(')');
                 }
-                rendered.push_str("])");
+                out.push_str("])");
                 path.pop();
-                rendered
             }
             Object::Set(items) => {
                 // CPython prints an empty set as the call form, not `{set()}`.
                 if items.is_empty() {
-                    return "set()".to_owned();
+                    out.push_str("set()");
+                    return Ok(());
                 }
                 if path.contains(&id) {
-                    return "{...}".to_owned();
+                    out.push_str("{...}");
+                    return Ok(());
                 }
                 path.push(id);
-                let mut rendered = String::from("{");
+                out.push('{');
                 for (position, item) in items.iter().enumerate() {
                     if position > 0 {
-                        rendered.push_str(", ");
+                        out.push_str(", ");
                     }
-                    rendered.push_str(&self.repr_with_path(*item, path));
+                    self.write_repr(*item, digit_limit, path, out)?;
                 }
-                rendered.push('}');
+                out.push('}');
                 path.pop();
-                rendered
             }
             Object::Pairs(entries) => {
                 if path.contains(&id) {
-                    return "[...]".to_owned();
+                    out.push_str("[...]");
+                    return Ok(());
                 }
                 path.push(id);
-                let mut rendered = String::from("[");
+                out.push('[');
                 for (position, (key, value)) in entries.iter().enumerate() {
                     if position > 0 {
-                        rendered.push_str(", ");
+                        out.push_str(", ");
                     }
                     // Python's `repr` of a `!!pairs` entry is its real tuple.
-                    rendered.push('(');
-                    rendered.push_str(&self.repr_with_path(*key, path));
-                    rendered.push_str(", ");
-                    rendered.push_str(&self.repr_with_path(*value, path));
-                    rendered.push(')');
+                    out.push('(');
+                    self.write_repr(*key, digit_limit, path, out)?;
+                    out.push_str(", ");
+                    self.write_repr(*value, digit_limit, path, out)?;
+                    out.push(')');
                 }
-                rendered.push(']');
+                out.push(']');
                 path.pop();
-                rendered
             }
         }
+        Ok(())
     }
 
     /// Project the whole graph into the acyclic [`PythonValue`] tree.
@@ -572,11 +605,34 @@ impl ObjectGraph {
     /// [`Self::repr`] (containers' `str` **is** their `repr` in CPython, so a
     /// cycle prints its structural `[...]`/`{...}` marker). This is the ONE
     /// `str()` authority consumers share; none of them carries a private walker.
+    ///
+    /// Like [`Self::repr`], this is the explicit **unlimited** inspection facade.
+    /// The Source eager `str()` phase must call [`Self::try_python_str`] with the
+    /// interpreter's configured ceiling.
     pub fn python_str(&self, id: NodeId) -> PythonString {
+        self.try_python_str(id, UNLIMITED_INTEGER_DIGITS)
+            .expect("the unlimited integer policy cannot refuse a render")
+    }
+
+    /// Python `str()` of one object under the interpreter's integer ceiling.
+    ///
+    /// `str` and `date`/`datetime` spellings never consult the ceiling; every other
+    /// kind renders through the one [`Self::try_repr`] traversal, so a nested `int`
+    /// propagates [`IntDecimalError`] from its demand position.
+    ///
+    /// # Errors
+    ///
+    /// [`IntDecimalError::DigitLimit`] when a demanded `int` would exceed the
+    /// configured decimal conversion ceiling.
+    pub fn try_python_str(
+        &self,
+        id: NodeId,
+        digit_limit: usize,
+    ) -> Result<PythonString, IntDecimalError> {
         match self.object(id) {
-            Object::Str(text) => text.clone(),
-            Object::Date(text) | Object::DateTime(text) => PythonString::from_scalars(text),
-            _ => PythonString::from_scalars(&self.repr(id)),
+            Object::Str(text) => Ok(text.clone()),
+            Object::Date(text) | Object::DateTime(text) => Ok(PythonString::from_scalars(text)),
+            _ => Ok(PythonString::from_scalars(&self.try_repr(id, digit_limit)?)),
         }
     }
 

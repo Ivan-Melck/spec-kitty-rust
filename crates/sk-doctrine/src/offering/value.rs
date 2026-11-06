@@ -47,6 +47,7 @@ use std::path::Path;
 
 use serde_yaml_ng::Value;
 use sk_kernel::PythonString;
+use sk_kernel::python_int::IntDecimalError;
 use sk_kernel::python_yaml::{NodeRef, ObjectGraph, build_from_value_with_markers};
 
 use crate::profile_text::ProfileTextError;
@@ -197,8 +198,27 @@ impl ArtifactDocument {
     /// containers *is* their `repr()`, including the structural `[...]`/`{...}`
     /// recursion marker for a cycle. The text is the Kernel graph authority's,
     /// not a private walker here.
+    ///
+    /// This entry point renders under the explicit **unlimited** integer policy; it
+    /// is the inspection/diagnostic facade. A caller observing Source's eager
+    /// `str()` phase must use [`Self::try_python_str`] with the interpreter's
+    /// configured ceiling.
     pub(crate) fn python_str(&self, node: NodeRef<'_>) -> PythonString {
         self.graph.python_str(node.id())
+    }
+
+    /// Python `str(value)` under the interpreter's decimal integer ceiling.
+    ///
+    /// # Errors
+    ///
+    /// [`IntDecimalError::DigitLimit`] when a demanded `int` in the subtree would
+    /// exceed the configured conversion ceiling.
+    pub(crate) fn try_python_str(
+        &self,
+        node: NodeRef<'_>,
+        digit_limit: usize,
+    ) -> Result<PythonString, IntDecimalError> {
+        self.graph.try_python_str(node.id(), digit_limit)
     }
 
     /// Python `repr(value)` for one graph node.

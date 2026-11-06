@@ -38,23 +38,34 @@
 //! the forbidden-field tuple, so the id spelling is settled even for a document
 //! that turns out to carry no forbidden field, and `reject_inline_refs_in_procedure_steps`
 //! computes it again before its own scan. This module reproduces that order with
-//! the one `str()` authority ([`ArtifactDocument::python_str`]): the value is
-//! rendered eagerly, and only its exact scalar projection (which can fail for a
+//! the one `str()` authority ([`ArtifactDocument::try_python_str`]): the value is
+//! rendered eagerly through the Kernel graph with the interpreter's configured
+//! decimal ceiling, and only its exact scalar projection (which can fail for a
 //! lone surrogate) is deferred to the raise path.
 //!
-//! One Source eager failure is **not** expressible here: CPython's `str()`/
+//! A decimal integer whose spelling exceeds `sys.get_int_max_str_digits()` therefore
+//! raises `ValueError` here, before any field walk, exactly as the reference's eager
+//! `str()` does; that abort escapes the reference's per-file
+//! `except (YAMLError, ValidationError, OSError)` and aborts the whole load. The
+//! ceiling comes from the one existing Kernel start-up authority
+//! (`python_json::environment_integer_digits`) and its message is the measured
+//! integer-to-text text, which differs from `int(str)`'s.
+//!
+//! One Source eager failure is still **not** expressible here: CPython's `str()`/
 //! `repr()` raises `RecursionError` ("maximum recursion depth exceeded") for a
 //! pathologically nested structure (measured at ~900 nested flow sequences),
 //! even when no forbidden field is present, and that escapes the per-file catch.
-//! The Kernel graph `str` authority returns text instead of a recursion-limit
-//! error, so this phase cannot observe that failure. The ASCII RecursionError
-//! message itself fits [`ConstructorAbort`]; the missing seam is a typed,
-//! caller-appropriate recursion-limit result from the Kernel text authority.
-//! This remains a required gap, separate from non-scalar diagnostic rendering.
+//! The Kernel graph text authority does not model a caller recursion budget, so
+//! this phase cannot observe that failure. The ASCII RecursionError message itself
+//! fits [`ConstructorAbort`]; the missing seam is a typed, caller-appropriate
+//! recursion-limit result from the Kernel text authority. That remains a required
+//! gap, separate from the implemented integer ceiling and from non-scalar
+//! diagnostic rendering.
 
 use std::path::Path;
 
 use sk_charter::ArtifactKind;
+use sk_kernel::python_int::IntDecimalError;
 use sk_kernel::python_os_encoding::OsEncodingContext;
 use sk_kernel::{PythonString, source_path_text};
 
@@ -104,7 +115,8 @@ pub(crate) fn prevalidate(
         return Ok(());
     }
     // `str(data.get("id", "?"))`, eagerly and before the tuple walk.
-    let id = artifact_id(document);
+    let digit_limit = integer_digit_limit(path)?;
+    let id = artifact_id(document, digit_limit)?;
     if let Some(field) = FORBIDDEN_INLINE_REFERENCE_FIELDS
         .into_iter()
         .find(|field| document.value.get(*field).is_some())
@@ -116,7 +128,7 @@ pub(crate) fn prevalidate(
     }
     // The separate Source step helper renders the id again before even reading
     // `steps`; do not merge that eager call with the top-level helper's render.
-    let id = artifact_id(document);
+    let id = artifact_id(document, digit_limit)?;
     // `steps = data.get("steps") or []`: the Python truthiness fallback, then the
     // `isinstance(steps, list)` guard, then the `isinstance(step, dict)` skip.
     let Some(steps) = document
@@ -160,14 +172,48 @@ const fn hooks(kind: ArtifactKind) -> bool {
     )
 }
 
+/// The interpreter's decimal integer-conversion ceiling for this artifact layer.
+///
+/// CPython refuses to *start* for an invalid `PYTHONINTMAXSTRDIGITS`, so there is no
+/// Source business exception at this point: the canonical Kernel policy error is
+/// carried as a typed Native start-up failure, never as a fake Source class, a
+/// silent unlimited policy or a healthy skip.
+fn integer_digit_limit(path: &Path) -> Result<usize, OfferingLoadError> {
+    sk_kernel::python_json::environment_integer_digits().map_err(|cause| {
+        OfferingLoadError::from_native(NativeOfferingFailure::IntegerTextPolicy {
+            phase: "artifact pre-validation",
+            path: path.to_path_buf(),
+            cause: Box::new(cause),
+        })
+    })
+}
+
 /// `str(data.get("id", "?"))` through the canonical graph authority.
 ///
 /// A structured id keeps its Python spelling (a container renders its `repr`), an
 /// absent one is the reference's placeholder, and an authored `null` is `"None"`.
-fn artifact_id(document: &ArtifactDocument) -> PythonString {
+/// An `int` whose decimal spelling exceeds the interpreter's ceiling raises
+/// `ValueError` here, before any forbidden-field walk — exactly the reference's
+/// eager phase.
+fn artifact_id(
+    document: &ArtifactDocument,
+    digit_limit: usize,
+) -> Result<PythonString, OfferingLoadError> {
     match document.root().lookup("id") {
-        Some(node) => document.python_str(node),
-        None => PythonString::from_scalars("?"),
+        Some(node) => document
+            .try_python_str(node, digit_limit)
+            .map_err(decimal_conversion_abort),
+        None => Ok(PythonString::from_scalars("?")),
+    }
+}
+
+/// The Source `ValueError` for an eager `str(int)` above the ceiling.
+fn decimal_conversion_abort(error: IntDecimalError) -> OfferingLoadError {
+    match error {
+        IntDecimalError::DigitLimit { .. } => OfferingLoadError::from_abort(ConstructorAbort {
+            python: "ValueError",
+            message: error.to_string(),
+        }),
     }
 }
 

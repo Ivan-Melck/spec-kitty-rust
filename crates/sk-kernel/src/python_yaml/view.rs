@@ -21,6 +21,7 @@
 //! delegate here, so a consumer cannot drift by carrying a private copy.
 
 use crate::PythonString;
+use crate::python_int::IntDecimalError;
 use crate::python_value::PythonValue;
 
 use super::Dialect;
@@ -313,13 +314,37 @@ impl<'g> NodeRef<'g> {
     }
 
     /// Python `repr()` with structural recursion markers.
+    ///
+    /// The explicit unlimited inspection facade; Source's eager text phase uses
+    /// [`Self::try_repr`] with the interpreter's configured ceiling.
     pub fn repr(self) -> String {
         self.graph.repr(self.id)
     }
 
+    /// Python `repr()` under the interpreter's decimal integer ceiling.
+    ///
+    /// # Errors
+    ///
+    /// [`IntDecimalError::DigitLimit`] from the demanded subtree.
+    pub fn try_repr(self, digit_limit: usize) -> Result<String, IntDecimalError> {
+        self.graph.try_repr(self.id, digit_limit)
+    }
+
     /// Python `str()`, as exact code points.
+    ///
+    /// The explicit unlimited inspection facade; Source's eager text phase uses
+    /// [`Self::try_python_str`] with the interpreter's configured ceiling.
     pub fn python_str(self) -> PythonString {
         self.graph.python_str(self.id)
+    }
+
+    /// Python `str()` under the interpreter's decimal integer ceiling.
+    ///
+    /// # Errors
+    ///
+    /// [`IntDecimalError::DigitLimit`] from the demanded subtree.
+    pub fn try_python_str(self, digit_limit: usize) -> Result<PythonString, IntDecimalError> {
+        self.graph.try_python_str(self.id, digit_limit)
     }
 
     /// Project just this subtree into the acyclic legacy tree.
