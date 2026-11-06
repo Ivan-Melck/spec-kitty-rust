@@ -1,0 +1,49 @@
+target:
+  term: "Bounded include/preset/list/coordination handoff integration"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Restamp uses canonical Source TextTruncate not durable atomic replace; local RestampError preserves Source writer cause. Kind list derives once from canonical charter universe. Test-only CF35 isolation strengthened, no domain semantic relabeling.
+  import_paths:
+    action: manual_review
+    notes: Namespaced Kernel Source writer reused; no dependency/global error/root-export changes.
+  filesystem_paths:
+    action: manual_review
+    notes: Restamp source write follows links/keeps inode and hardlink associations; no copied temporary/atomic policy. Fresh fixtures and test sandbox dirs only.
+  serialized_keys:
+    action: do_not_change
+    notes: manifest_hash is actual self-hash key; no renamed manifest/report/envelope keys. Remove duplicate kind row by canonical universe, not a new kind vocabulary.
+  cli_commands:
+    action: do_not_change
+    notes: Existing routes/flags and doctor13/6 remain; coordination incomplete adapter not counted implemented.
+  user_facing_strings:
+    action: manual_review
+    notes: Correct restamp atomic-writer claim and truthful capabilities (finite models/merged serving/preset restamp delivered but directive/skill/gate/exact-payload/list-floor/wire debts remain).
+  tests_fixtures:
+    action: manual_review
+    notes: Add hardlink/inode restamp Source control before fix and typed write refusal controls. Add CONFIG_DIRS/DATA_DIRS to both actual CF35 children and assertions inside Source BEFORE imports/computation. Add unique canonical kind-row check, keep all prior output/deny/default/lock assertions.
+  logs_telemetry:
+    action: do_not_change
+    notes: Original five-XDG/parent-asserted CF35 run remains limited; Source-only CF32/34 not paired. Producer invalid/posthoc maps and raw/masked/overscoped attempts remain disclosed.
+exceptions:
+  - path: crates/sk-charter/src/bundle_restamp.rs
+    action: manual_review
+    reason: Source write policy and local typed cause only; canonical hash/model/lock composition unchanged.
+  - path: crates/sk-charter/tests/cf34_parent_source_publication.rs
+    action: manual_review
+    reason: Actual Source in-place inode/hardlink/symlink semantics and write-refusal test, no writer policy clone.
+  - path: crates/sk-workspace/tests/cf35_coordination_health_source.rs
+    action: manual_review
+    reason: Test-only full child isolation assertions, not missing checks or root-route changes.
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: kind_tokens canonical universe derivation only; list-specific lenient-floor gap deferred, no activation/Roots rewrite.
+  - path: crates/sk-cli/tests/cf36_parent_kind_universe.rs
+    action: manual_review
+    reason: New unique kind/order and templates-null control through real existing payload API.
+  - path: crates/sk-cli/src/compat/capabilities.rs
+    action: manual_review
+    reason: Scoped real delivered behavior/debts only; no implemented counts/global promotion or CF37/38 active claims.
+status:
+  accepted: false
+  phase: parent pre-edit actual Source integration

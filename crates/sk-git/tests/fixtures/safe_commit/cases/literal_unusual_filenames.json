@@ -1,0 +1,471 @@
+{
+  "after": {
+    "branch": "lane",
+    "committed_paths": [
+      "-x.txt",
+      "colon:name.txt",
+      "dollar$name.txt",
+      "hash#name.txt",
+      "line\nbreak.txt",
+      "quote\"name.txt",
+      "semi;name.txt",
+      "space name.txt",
+      "tab\tname.txt",
+      "unicode-é.txt"
+    ],
+    "custom_index": null,
+    "files": [
+      {
+        "path": "-x.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "a.txt",
+        "sha256": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+        "text": "one\n"
+      },
+      {
+        "path": "colon:name.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "dollar$name.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "hash#name.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "line\nbreak.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "other.txt",
+        "sha256": "f34848ca92665c342abd5816c9e3eda0e82180671195362bcd0080544a3bc2ac",
+        "text": "base\n"
+      },
+      {
+        "path": "partial.txt",
+        "sha256": "67117a01b0c95df8867b8077878b5bfa42eb68710b69305b9a11789ec91feaad",
+        "text": "p0\np1\np2\n"
+      },
+      {
+        "path": "quote\"name.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "seed.txt",
+        "sha256": "4a6689419b00b11700c9b6246bcfa8936c8f5e1e824db3a7e57030e2d1c1a684",
+        "text": "seed\n"
+      },
+      {
+        "path": "semi;name.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "space name.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "tab\tname.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "unicode-é.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      }
+    ],
+    "head": "b4730856b422a0be0f443d6fe6ad512772779e49",
+    "index": [
+      "100644 626799f0f85326a8c1fc522db584e86cdfccd51f 0 -x.txt",
+      "100644 5626abf0f72e58d7a153368ba57db4c673c0e171 0 a.txt",
+      "100644 626799f0f85326a8c1fc522db584e86cdfccd51f 0 colon:name.txt",
+      "100644 626799f0f85326a8c1fc522db584e86cdfccd51f 0 dollar$name.txt",
+      "100644 626799f0f85326a8c1fc522db584e86cdfccd51f 0 hash#name.txt",
+      "100644 626799f0f85326a8c1fc522db584e86cdfccd51f 0 line\nbreak.txt",
+      "100644 df967b96a579e45a18b8251732d16804b2e56a55 0 other.txt",
+      "100644 2ebfd8e28731959dd720d01f8eaae04f68f1e793 0 partial.txt",
+      "100644 626799f0f85326a8c1fc522db584e86cdfccd51f 0 quote\"name.txt",
+      "100644 e31de1f3a235fd5e8f97207b8e43cd2aa06a6417 0 seed.txt",
+      "100644 626799f0f85326a8c1fc522db584e86cdfccd51f 0 semi;name.txt",
+      "100644 626799f0f85326a8c1fc522db584e86cdfccd51f 0 space name.txt",
+      "100644 626799f0f85326a8c1fc522db584e86cdfccd51f 0 tab\tname.txt",
+      "100644 626799f0f85326a8c1fc522db584e86cdfccd51f 0 unicode-é.txt"
+    ],
+    "index_flags": [
+      "H -x.txt",
+      "H a.txt",
+      "H colon:name.txt",
+      "H dollar$name.txt",
+      "H hash#name.txt",
+      "H line\nbreak.txt",
+      "H other.txt",
+      "H partial.txt",
+      "H quote\"name.txt",
+      "H seed.txt",
+      "H semi;name.txt",
+      "H space name.txt",
+      "H tab\tname.txt",
+      "H unicode-é.txt"
+    ],
+    "message": "diff: unusual\n",
+    "message_sha256": "3b8b4ca6e0e55b1671be82619afbd01f278ec041b6b99db71847d6de91911c53",
+    "parents": [
+      "018e162eefd58eca15f3e4986da5826d4bcd720f"
+    ],
+    "reflog": [
+      "b4730856b422a0be0f443d6fe6ad512772779e49|commit: diff: unusual",
+      "018e162eefd58eca15f3e4986da5826d4bcd720f|commit (initial): initial"
+    ],
+    "refs": [
+      "refs/heads/lane b4730856b422a0be0f443d6fe6ad512772779e49"
+    ],
+    "status": [],
+    "tree": "b1741f9c2367ff4a9063561a35c747a4083fe97f"
+  },
+  "before": {
+    "branch": "lane",
+    "committed_paths": [
+      "-x.txt",
+      "a.txt",
+      "colon:name.txt",
+      "dollar$name.txt",
+      "hash#name.txt",
+      "line\nbreak.txt",
+      "other.txt",
+      "partial.txt",
+      "quote\"name.txt",
+      "seed.txt",
+      "semi;name.txt",
+      "space name.txt",
+      "tab\tname.txt",
+      "unicode-é.txt"
+    ],
+    "custom_index": null,
+    "files": [
+      {
+        "path": "-x.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "a.txt",
+        "sha256": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+        "text": "one\n"
+      },
+      {
+        "path": "colon:name.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "dollar$name.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "hash#name.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "line\nbreak.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "other.txt",
+        "sha256": "f34848ca92665c342abd5816c9e3eda0e82180671195362bcd0080544a3bc2ac",
+        "text": "base\n"
+      },
+      {
+        "path": "partial.txt",
+        "sha256": "67117a01b0c95df8867b8077878b5bfa42eb68710b69305b9a11789ec91feaad",
+        "text": "p0\np1\np2\n"
+      },
+      {
+        "path": "quote\"name.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "seed.txt",
+        "sha256": "4a6689419b00b11700c9b6246bcfa8936c8f5e1e824db3a7e57030e2d1c1a684",
+        "text": "seed\n"
+      },
+      {
+        "path": "semi;name.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "space name.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "tab\tname.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      },
+      {
+        "path": "unicode-é.txt",
+        "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+        "text": "v1\n"
+      }
+    ],
+    "head": "018e162eefd58eca15f3e4986da5826d4bcd720f",
+    "index": [
+      "100644 13ceda207b642cbbbdc409ae0bc8eefd1c2bd573 0 -x.txt",
+      "100644 5626abf0f72e58d7a153368ba57db4c673c0e171 0 a.txt",
+      "100644 13ceda207b642cbbbdc409ae0bc8eefd1c2bd573 0 colon:name.txt",
+      "100644 13ceda207b642cbbbdc409ae0bc8eefd1c2bd573 0 dollar$name.txt",
+      "100644 13ceda207b642cbbbdc409ae0bc8eefd1c2bd573 0 hash#name.txt",
+      "100644 13ceda207b642cbbbdc409ae0bc8eefd1c2bd573 0 line\nbreak.txt",
+      "100644 df967b96a579e45a18b8251732d16804b2e56a55 0 other.txt",
+      "100644 2ebfd8e28731959dd720d01f8eaae04f68f1e793 0 partial.txt",
+      "100644 13ceda207b642cbbbdc409ae0bc8eefd1c2bd573 0 quote\"name.txt",
+      "100644 e31de1f3a235fd5e8f97207b8e43cd2aa06a6417 0 seed.txt",
+      "100644 13ceda207b642cbbbdc409ae0bc8eefd1c2bd573 0 semi;name.txt",
+      "100644 13ceda207b642cbbbdc409ae0bc8eefd1c2bd573 0 space name.txt",
+      "100644 13ceda207b642cbbbdc409ae0bc8eefd1c2bd573 0 tab\tname.txt",
+      "100644 13ceda207b642cbbbdc409ae0bc8eefd1c2bd573 0 unicode-é.txt"
+    ],
+    "index_flags": [
+      "H -x.txt",
+      "H a.txt",
+      "H colon:name.txt",
+      "H dollar$name.txt",
+      "H hash#name.txt",
+      "H line\nbreak.txt",
+      "H other.txt",
+      "H partial.txt",
+      "H quote\"name.txt",
+      "H seed.txt",
+      "H semi;name.txt",
+      "H space name.txt",
+      "H tab\tname.txt",
+      "H unicode-é.txt"
+    ],
+    "message": "initial\n",
+    "message_sha256": "da68f54607d5f5644954096ce1597c006c5bb9f2497e07441bf064b81003ef8a",
+    "parents": [],
+    "reflog": [
+      "018e162eefd58eca15f3e4986da5826d4bcd720f|commit (initial): initial"
+    ],
+    "refs": [
+      "refs/heads/lane 018e162eefd58eca15f3e4986da5826d4bcd720f"
+    ],
+    "status": [
+      " M -x.txt",
+      " M colon:name.txt",
+      " M dollar$name.txt",
+      " M hash#name.txt",
+      " M line\nbreak.txt",
+      " M quote\"name.txt",
+      " M semi;name.txt",
+      " M space name.txt",
+      " M tab\tname.txt",
+      " M unicode-é.txt"
+    ],
+    "tree": "d395c325bff40571eed15dcd74de85ab573e02e2"
+  },
+  "description": "Spaces, leading dashes, tabs, newlines, colons, quotes, hashes and Unicode in paths are data.",
+  "detail_tokens": [],
+  "divergence": null,
+  "expectation": "match",
+  "hooks": [],
+  "name": "literal_unusual_filenames",
+  "native": {
+    "landed_kind": null,
+    "variant": null
+  },
+  "oracle": {
+    "commit": "b4730856b422a0be0f443d6fe6ad512772779e49",
+    "error_detail": null,
+    "facts": [],
+    "landed_kind": null,
+    "outcome": "ok",
+    "refusal_class": null,
+    "warnings": []
+  },
+  "oracle_environment": {
+    "baseline": "9aed3a8012cb5eb22c0128b14d525039f95fea7a",
+    "git": "git version 2.43.0",
+    "python": "3.11.15",
+    "verify_oracle_ok": true
+  },
+  "request": {
+    "capability": "standard",
+    "custom_index": false,
+    "expected_parent": null,
+    "index_deletions": [],
+    "message": "diff: unusual",
+    "paths": [
+      "space name.txt",
+      "-x.txt",
+      "tab\tname.txt",
+      "line\nbreak.txt",
+      "colon:name.txt",
+      "quote\"name.txt",
+      "hash#name.txt",
+      "semi;name.txt",
+      "dollar$name.txt",
+      "unicode-é.txt"
+    ],
+    "protection": null,
+    "wait_for_sentinel": false
+  },
+  "route": "worktree",
+  "setup": {
+    "branch": "lane",
+    "files": [
+      {
+        "content": "seed\n",
+        "path": "seed.txt"
+      },
+      {
+        "content": "one\n",
+        "path": "a.txt"
+      },
+      {
+        "content": "base\n",
+        "path": "other.txt"
+      },
+      {
+        "content": "p0\np1\np2\n",
+        "path": "partial.txt"
+      },
+      {
+        "content": "v0\n",
+        "path": "space name.txt"
+      },
+      {
+        "content": "v0\n",
+        "path": "-x.txt"
+      },
+      {
+        "content": "v0\n",
+        "path": "tab\tname.txt"
+      },
+      {
+        "content": "v0\n",
+        "path": "line\nbreak.txt"
+      },
+      {
+        "content": "v0\n",
+        "path": "colon:name.txt"
+      },
+      {
+        "content": "v0\n",
+        "path": "quote\"name.txt"
+      },
+      {
+        "content": "v0\n",
+        "path": "hash#name.txt"
+      },
+      {
+        "content": "v0\n",
+        "path": "semi;name.txt"
+      },
+      {
+        "content": "v0\n",
+        "path": "dollar$name.txt"
+      },
+      {
+        "content": "v0\n",
+        "path": "unicode-é.txt"
+      }
+    ],
+    "hooks": [],
+    "steps": [
+      {
+        "argv": [
+          "git",
+          "add",
+          "-A"
+        ]
+      },
+      {
+        "argv": [
+          "git",
+          "commit",
+          "-q",
+          "-m",
+          "initial"
+        ]
+      },
+      {
+        "write": {
+          "content": "v1\n",
+          "path": "space name.txt"
+        }
+      },
+      {
+        "write": {
+          "content": "v1\n",
+          "path": "-x.txt"
+        }
+      },
+      {
+        "write": {
+          "content": "v1\n",
+          "path": "tab\tname.txt"
+        }
+      },
+      {
+        "write": {
+          "content": "v1\n",
+          "path": "line\nbreak.txt"
+        }
+      },
+      {
+        "write": {
+          "content": "v1\n",
+          "path": "colon:name.txt"
+        }
+      },
+      {
+        "write": {
+          "content": "v1\n",
+          "path": "quote\"name.txt"
+        }
+      },
+      {
+        "write": {
+          "content": "v1\n",
+          "path": "hash#name.txt"
+        }
+      },
+      {
+        "write": {
+          "content": "v1\n",
+          "path": "semi;name.txt"
+        }
+      },
+      {
+        "write": {
+          "content": "v1\n",
+          "path": "dollar$name.txt"
+        }
+      },
+      {
+        "write": {
+          "content": "v1\n",
+          "path": "unicode-é.txt"
+        }
+      }
+    ]
+  }
+}

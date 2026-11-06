@@ -1,0 +1,46 @@
+target:
+  term: "Typed map admission key coercion and post-collision null projection"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Existing admission helpers use canonical lax string predicate; existing PythonJsonDict assignment factored for phase-specific values and retain. Same key codec and payload walker, no second schema or merger.
+  import_paths:
+    action: do_not_change
+    notes: Existing Kernel and Doctrine owners only; no dependencies or new codec/parser.
+  filesystem_paths:
+    action: do_not_change
+    notes: Fresh fixture roots; preserve Source invalid overlay skip retaining lower builtin, no placement changes.
+  serialized_keys:
+    action: manual_review
+    notes: Source typed root key normalization before Any projection and JSON-key collisions before null filtering; preserve first-position last-value semantics and actual field keys.
+  cli_commands:
+    action: do_not_change
+    notes: No flags routes counts or stdout changes; active stdout/context/skill/Status lanes untouched.
+  user_facing_strings:
+    action: manual_review
+    notes: Correct unsupported phase from payload to model admission; float repr documentation acknowledges model key consumer. No Source tracebacks or extra envelope fields invented.
+  tests_fixtures:
+    action: manual_review
+    notes: New real before-fix model/overlay/bytes/collision controls; preserve existing invalid-unadmitted defensive dump test and all previous assertions. Source observations not a new pair.
+  logs_telemetry:
+    action: do_not_change
+    notes: Preserve producer post-edit map/unwrapped commands/foreign blocked gates, do not manufacture pre-edit compliance or original Source data.
+exceptions:
+  - path: crates/sk-doctrine/src/offering/model.rs
+    action: manual_review
+    reason: Existing string_map and optional_mapping helper blocks only; Skill-specific admission untouched.
+  - path: crates/sk-doctrine/src/body/exact.rs
+    action: manual_review
+    reason: Typed Any root key stage and shared exact_object null-filter phase only; one codec/schema retained.
+  - path: crates/sk-kernel/src/python_json/value.rs
+    action: manual_review
+    reason: Same exact dictionary assignment helper over phase-specific values and retain, insert delegates; no equality/hash/parser/number/model changes.
+  - path: crates/sk-kernel/src/python_json.rs
+    action: manual_review
+    reason: Float repr consumer documentation only.
+  - path: crates/sk-doctrine/tests/cf51_parent_projection_phases.rs
+    action: manual_review
+    reason: Focused consumer and projection tests before production correction.
+status:
+  accepted: false
+  phase: parent pre-edit typed map and collision correction

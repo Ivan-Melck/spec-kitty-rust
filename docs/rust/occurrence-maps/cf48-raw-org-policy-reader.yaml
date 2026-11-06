@@ -1,0 +1,127 @@
+# CF48 ADDITIVE lane classification; no active host Mission/Op or approval.
+# Scope: `crates/sk-doctrine/src/org_charter.rs`, the NEW
+# `crates/sk-doctrine/src/org_charter/` subtree (`source.rs`), the exact
+# `org_charter` re-exports in `crates/sk-doctrine/src/lib.rs`, ONE additive
+# `DoctrineError` variant in `crates/sk-doctrine/src/error.rs`, and the NEW test
+# binary `crates/sk-doctrine/tests/cf48_raw_org_policy.rs`.
+# No pre-existing identifier is renamed, removed or deprecated, so
+# `target.operation` is omitted (additive). Existing public function names keep
+# their signatures; their *implementation* moves onto the new raw owner, which is
+# the intended behavior change (Source raw read instead of whole-policy schema
+# validation), not a rename.
+# Purely additive at the symbol level, so `target.operation` is omitted (the
+# schema's operation enum is rename|remove|deprecate; nothing is renamed,
+# removed or deprecated here). The raw document/`extends:` walk becomes the one
+# owner of `org-charter.yaml` reads; the typed `OrgCharterPolicy` capability
+# (`load_org_charter_policy`) is retained unchanged as an explicit checked
+# Native capability. Source `_iter_org_charter_docs`, `_required_values`,
+# `read_org_required_ids` and `_read_org_required_selections` are distinct APIs
+# and are modelled as distinct functions rather than homogenized.
+target:
+  term: "CF48 canonical Source raw org-policy reader and per-field projections"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      NEW public symbols only: `OrgCharterRawDocument`,
+      `org_charter_raw_documents`, `read_org_required_ids`,
+      `read_org_required_ids_exact`, `read_org_required_selections`,
+      `read_org_required_selections_exact`, `read_org_skill_namespace_exact`,
+      `read_org_required_provenance_exact`, and the private
+      `org_charter::source` module. EXISTING public symbols keep their names and
+      signatures but are re-implemented over the raw owner:
+      `org_charter_documents(_with_packs_root)`, `declared_policies`,
+      `read_org_required_tokens(_exact)(_with_packs_root)`,
+      `read_org_required_provenance(_with_packs_root)`, `required_floor(_with_packs_root)`,
+      `read_org_skill_namespace`, `configured_org_roots(_with_packs_root)`,
+      `org_required_stems`, `union_required_tokens`. `load_org_charter_policy`,
+      `OrgCharterPolicy`, `RequiredFloor`, `RequiringPack`, `GovernancePolicy`,
+      `ActivationEntry` keep their shapes; `RequiredFloor::unresolved_exact` is
+      retained so exact code points are never dropped. No canonical authority is
+      cloned: `ArtifactDocument`/`ObjectGraph`/`PythonString`/`profile_text`/
+      `profile_construct`, `sk_charter::load_org_pack_registry`,
+      `OrgPackConfig::effective_root`, `pack_org_charter`, `IdentityIndex` and
+      `effective_deny` stay the borrow-only owners.
+  import_paths:
+    action: manual_review
+    notes: >-
+      New internal module edge `org_charter -> org_charter::source` only.
+      `source.rs` borrows `crate::offering::value::ArtifactDocument` read-only; no
+      change to `offering/value.rs`, `profile_text.rs` or `profile_construct.rs`.
+      No new external crate, no `Cargo.toml`/`Cargo.lock` edit (parent-owned).
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      `org-charter.yaml` (via the existing `ORG_CHARTER` const and
+      `sk_kernel::pack_org_charter`), `.kittify/config.yaml` (via
+      `sk_charter::load_org_pack_registry`), and the configured pack roots
+      (via `OrgPackConfig::effective_root`) are unchanged spellings. Nothing is
+      created, renamed or adopted; no new directory is invented.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      Authored YAML keys stay exactly as authored: `schema_version`, `extends`,
+      `org_name`, `interview_defaults`, `skill_namespace`, `governance_policies`,
+      `activations`, and `required_<plural>` for every org-requirable kind. No key
+      is renamed, removed or added. The typed loader's `extra="forbid"` field set
+      is unchanged, so the typed capability still refuses unknown keys.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No CLI command, flag, subcommand or capability-matrix entry is added or
+      changed. The root CLI/catalogue/registration remain parent-owned; the new
+      readers are library APIs only and are not wired into any command by this lane.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Strict-posture messages follow the reference structure: the
+      `The org required floor cannot be read, so nothing was changed. Fix the org
+      pack, or run `spec-kitty doctor charter-packs`.` suffix plus
+      ``required_<kind>` in the org-charter.yaml of org pack '<member>' must be a
+      list of ids.` / `cannot read <path> of org pack '<name>': <cause>` /
+      `<path> of org pack '<name>' is not a YAML mapping.` / `the extends: chain of
+      org pack '<name>' is invalid: <cause>`. Wording is native; phase and
+      posture are what is claimed. ONE new message for the escaping (uncaught)
+      constructor failure: `org charter raw read aborted by <path>:
+      <PythonException>: <message>`.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      KEEP: `crates/sk-doctrine/tests/org_floor_tokens_oracle.rs`,
+      `tests/governance_oracle.rs`, `tests/cf29_preset_application.rs`,
+      `tests/cf8_context_render.rs` are unmodified and must stay green.
+      UPDATED (owned file only): the module-local
+      `lenient_floor_keeps_every_other_kind_and_the_extends_chain` test asserted
+      that the strict *document* walk refuses a malformed `required_*` field; the
+      pinned Source raw walk does not validate fields, so the strict per-requested
+      *field* reader now owns that refusal. The assertion moves there (evidence:
+      `source-probe-run-2.SNPC3k.log` case `malformed_unrelated_field`).
+      NEW: `crates/sk-doctrine/tests/cf48_raw_org_policy.rs` (new file) and
+      module-local `#[cfg(test)]` tests in `org_charter/source.rs`, all fresh
+      `tempfile` roots. No existing test is weakened and no fixture is rewritten.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log key, event, metric or telemetry field is added or renamed. The
+      readers are side-effect free: no file is written, no lock is taken, no
+      ledger entry is appended.
+exceptions:
+  - path: crates/sk-doctrine/src/error.rs
+    action: manual_review
+    reason: >-
+      ONE additive variant `DoctrineError::OrgCharterReadAborted { path,
+      exception, message }` carries a constructor failure the reference does NOT
+      catch (`KeyError`/`TypeError`/`AssertionError`), so it must escape the
+      caught refusal phases instead of masquerading as a skip or a strict
+      refusal. No other error variant, code or message is changed.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: >-
+      Same-item re-exports of the new `org_charter` items only. No other module
+      export, ordering or grouping is touched.
+  - path: docs/rust/occurrence-maps/cf48-raw-org-policy-reader.yaml
+    action: do_not_change
+    reason: This file records the additive classification; it is not an approval.
+status:
+  reviewed_by: "CF48 implementer pre-edit classification (not independent approval)"
+  accepted: false

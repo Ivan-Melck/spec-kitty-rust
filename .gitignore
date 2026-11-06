@@ -1,6 +1,9 @@
 # FUSE temporary files (created by filesystem-in-userspace on some Linux systems)
 .fuse_hidden*
 
+# Rust workspace
+/target/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -56,6 +59,7 @@ pyproject.local.toml
 # uv.lock is the canonical lockfile for spec-kitty-cli (NFR-005 of mission
 # shared-package-boundary-cutover-01KQ22DS); track it explicitly.
 !uv.lock
+!Cargo.lock
 .worktrees/
 .kittify/.dashboard
 .kittify/active-mission

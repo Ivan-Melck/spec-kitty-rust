@@ -1,0 +1,80 @@
+target:
+  term: Source charter-bundle freshness gate with retired sync and one live action-context consumer
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      NEW additive public surface in sk-doctrine: ensure_charter_bundle_fresh,
+      sync_charter_bundle, CharterSyncResult/CharterStaleness plus the same-item
+      lib.rs re-exports. No existing symbol is renamed, removed or deprecated;
+      existing Kernel provenance/journal, sk-charter hash, and CLI symbols keep
+      their names and meanings.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      Reuse sk_kernel::git_topology, sk_kernel::text_decode,
+      sk_kernel::encoding_provenance, sk_kernel::paths::source_path_exists and
+      sk_charter::{CHARTER_MD, CHARTER_YAML, hash_content}. No new crate,
+      dependency, git process, decoder, lock or writer import.
+  filesystem_paths:
+    action: manual_review
+    notes: >-
+      New reads: <canonical-root>/.kittify/charter/charter.md, metadata.yaml and
+      the Source-empty derived-file inventory. Provenance journal placement stays
+      the existing Kernel rule; the live caller will anchor it on process CWD
+      (Source's relative `.kittify/encoding-provenance/global.jsonl`) instead of
+      the resolved read root, and must not add another path authority.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No JSON wire key changes. The context payload keeps its exact ordered key
+      list; the provenance record shape stays the Kernel owner's nine keys.
+  cli_commands:
+    action: manual_review
+    notes: >-
+      `charter context` keeps its flags, routes and stdout. Only the granted
+      call seam changes: context_payload invokes the new freshness gate at the
+      Source phase and passes the resolved canonical root to the ordinary
+      charter.md render read. No other command, count or route changes.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Source logger.warning bodies are reproduced verbatim for the freshness
+      evaluation and auto-sync failure phases; Native has no logger, so they are
+      surfaced on the result carrier instead of stdout. A strict ordinary-render
+      read failure now escapes instead of silently rendering without prose.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New focused tests: crates/sk-doctrine/tests/cf65_charter_sync.rs and
+      crates/sk-cli/tests/cf65_context_sync_consumer.rs. Two pre-existing
+      fixtures whose premise (a non-git project) the real Source also refuses are
+      corrected to a git-backed project with all assertions unchanged.
+  logs_telemetry:
+    action: manual_review
+    notes: >-
+      Provenance records are appended only through the Kernel journal when the
+      bundle is incomplete/stale; a complete fresh bundle and absent prose record
+      nothing, and retirement keeps derived-artifact writes at zero.
+exceptions:
+  - path: crates/sk-doctrine/src/charter_sync.rs
+    action: manual_review
+    reason: New module; Source ensure_charter_bundle_fresh + retired sync lifecycle over existing owners.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Same-item additive re-exports only.
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: Granted freshness call plus canonical read-root plumbing and the strict ordinary-render read seam.
+  - path: crates/sk-cli/src/compat/charter/context_include.rs
+    action: manual_review
+    reason: Mechanical call of the changed private reader signature; behaviour unchanged.
+  - path: crates/sk-cli/tests/cf8_charter_command.rs
+    action: manual_review
+    reason: Fixture premise correction (git-backed, fresh bundle); no assertion weakened.
+  - path: crates/sk-cli/tests/cf46_charter_list_availability.rs
+    action: manual_review
+    reason: Fixture premise correction (git-backed) so the pack refusal is not masked by a root failure.
+status:
+  accepted: false
+  phase: child prospective occurrence classification before edits

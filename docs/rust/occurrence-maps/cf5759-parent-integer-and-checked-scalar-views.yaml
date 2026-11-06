@@ -1,0 +1,52 @@
+target:
+  term: "Canonical Python integer text conversion and checked exact scalar adapters"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: One Kernel int-text lexical/normalization/digit-limit authority reused by typed org and annotations; existing lower numeric comparison reused for PythonInt Ord, no comparator clone.
+  import_paths:
+    action: manual_review
+    notes: Exact Kernel module declaration and current owner imports; no deps.
+  filesystem_paths:
+    action: do_not_change
+    notes: Fresh data fixtures only, no writes to live repo refs/index/state or Source.
+  serialized_keys:
+    action: manual_review
+    notes: Finite serde rejects unrepresentable exact strings instead of fake null; exact Kernel JSON unchanged.
+  cli_commands:
+    action: do_not_change
+    notes: No routes flags counts registration or root doctor admission.
+  user_facing_strings:
+    action: manual_review
+    notes: Source int rejects ASCII information separators despite str.isspace; keeps Unicode Nd/space/sign/underscores/digit ceiling. Error via canonical Python repr, not Rust Debug.
+  tests_fixtures:
+    action: manual_review
+    notes: Before-fix primitive/real typed loader and annotation controls; all original Source valid-data assertions kept; finite-null expectations are unapproved, not goldens.
+  logs_telemetry:
+    action: do_not_change
+    notes: Producer post-edit/unwrapped/broad/qualified gates remain disclosed; no retrospective approval.
+exceptions:
+  - path: crates/sk-kernel/src/python_int.rs
+    action: manual_review
+    reason: New sole int-text conversion facade over existing Nd/whitespace/digit-limit facts.
+  - path: crates/sk-kernel/src/lib.rs
+    action: manual_review
+    reason: Exact same-item module declaration only.
+  - path: crates/sk-doctrine/src/org_charter.rs
+    action: manual_review
+    reason: Public wrappers delegate integer parsing/comparison and checked serde adapters; CF61 record/body errors untouched.
+  - path: crates/sk-cli/src/compat/console_text.rs
+    action: manual_review
+    reason: Prospective reuse of same Kernel int-text and existing startup digit-setting facades after the distinct isdigit gate, no third parser or ceiling table.
+  - path: crates/sk-status/src/source_annotation.rs
+    action: manual_review
+    reason: Existing int-string conversion delegates canonical parser, no annotation schema/fold fork.
+  - path: crates/sk-doctrine/tests/cf5759_parent_scalar_contract.rs
+    action: manual_review
+    reason: Focused typed schema/checked serde/annotation source-int controls before correction.
+  - path: crates/sk-status/tests/cf5759_parent_integer_admission.rs
+    action: manual_review
+    reason: Prospective full-stream annotation consumer of the shared Source int-text rejection and ceiling; not a before-fix red claim.
+status:
+  accepted: false
+  phase: parent prospective lower scalar authority and failure-view correction

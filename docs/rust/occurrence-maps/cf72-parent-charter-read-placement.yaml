@@ -1,0 +1,40 @@
+target:
+  term: Source project charter read placement and exists read phases
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Existing shared charter-document reader selects lexical ordinary Source read, no containment or regular-file-only absence.
+  import_paths:
+    action: do_not_change
+    notes: Reuse canonical CHARTER_YAML and Source exists primitive, no new parser/reader model.
+  filesystem_paths:
+    action: manual_review
+    notes: Symlink outside checkout is Source-valid, directory and unignored stat/read errors are not healthy absent; follow normal path.
+  serialized_keys:
+    action: do_not_change
+    notes: GovernanceResolution and charter fields unchanged.
+  cli_commands:
+    action: do_not_change
+    notes: Existing compact consumer held.
+  user_facing_strings:
+    action: manual_review
+    notes: Real path/read cause retained in existing error family, no Source exact error prose claim.
+  tests_fixtures:
+    action: manual_review
+    notes: Fresh independent Source observations before existing-API phase/placement negatives; no source tree mutation.
+  logs_telemetry:
+    action: manual_review
+    notes: No fake healthy default, report remaining exact-config/model/catch/two-read debt unapproved.
+exceptions:
+  - path: crates/sk-doctrine/src/project_governance.rs
+    action: manual_review
+    reason: Narrow shared read placement/exists/read fix only, no policy or schema clone.
+  - path: crates/sk-doctrine/tests/cf72_parent_read_placement.rs
+    action: manual_review
+    reason: New Source-derived live resolver read phases and authority controls.
+  - path: crates/sk-cli/tests/cf72_compact_governance_cli.rs
+    action: manual_review
+    reason: Actual Native codec identity assertion, not only ASCII decodability; prospective guards only.
+status:
+  accepted: false
+  phase: prospective parent read correction

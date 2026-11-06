@@ -1,0 +1,61 @@
+target:
+  term: "Live Source plain console layout and canonical width/sanitization"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Compose existing Kernel layout/cell/text primitives into one CLI console text policy; no second formatter/codec/width table. Extend canonical isdigit facts only if absent.
+  import_paths:
+    action: manual_review
+    notes: One console_text module and exact declarations; existing stdout writer/encoder reused.
+  filesystem_paths:
+    action: do_not_change
+    notes: Fresh fixtures only, no state/placement/ref/index/cache mutation; existing state-before-output behavior retained.
+  serialized_keys:
+    action: do_not_change
+    notes: JSON bypasses text layout and sanitization; no extra fields or marker escaping.
+  cli_commands:
+    action: manual_review
+    notes: Existing include/action text borrows one layout policy; no routes flags counts registration changed.
+  user_facing_strings:
+    action: manual_review
+    notes: Actual Source CliConsole sanitizer/width/wrap behavior, distinguish plain Rich from CLI; missing emoji/TTY/startup semantics explicit not approved.
+  tests_fixtures:
+    action: manual_review
+    notes: New before-fix real CLI width/tabs/sanitizer controls, real Source/Native child isolation if paired; no reinterpretation of producer masked compiler exits as greens.
+  logs_telemetry:
+    action: do_not_change
+    notes: Literal malformed DSML not replayed, actual report stays provisional, absent producer PRE-map and tail-masked Cargo errors/unwrapped reads retained.
+exceptions:
+  - path: crates/sk-cli/src/compat/console_text.rs
+    action: manual_review
+    reason: New one Source CLI text policy around existing Kernel layout.
+  - path: crates/sk-cli/src/compat/mod.rs
+    action: manual_review
+    reason: Exact same-item module declaration only.
+  - path: crates/sk-cli/src/compat/python_output.rs
+    action: manual_review
+    reason: Text seam composes layout, stdout/JSON codecs/writer/error contracts unchanged.
+  - path: crates/sk-cli/src/compat/invocation.rs
+    action: manual_review
+    reason: Prospective canonical width helper delegation for the existing profile table, no copied COLUMNS policy or stdout/profile-model rewrites.
+  - path: crates/sk-kernel/src/python_console/layout.rs
+    action: manual_review
+    reason: Remove signed-width cast so supported huge widths do not wrap to negative; no cell table or extra model.
+  - path: crates/sk-kernel/src/python_text.rs
+    action: manual_review
+    reason: Exact isdigit predicate using existing Nd and Source-generated nondecimal digit facts, no decimal/word rule change.
+  - path: crates/sk-kernel/src/python_digit_data.rs
+    action: manual_review
+    reason: New derived UCD14 nondecimal digit facts, no duplicated existing Nd table.
+  - path: crates/sk-kernel/src/lib.rs
+    action: manual_review
+    reason: Exact private digit data declaration only if needed.
+  - path: crates/sk-cli/tests/cf43_exact_include_cli.rs
+    action: manual_review
+    reason: Prospective Source-correct raw JSON text versus wrapped human text assertion, preserve every original fixture and no-write/data association check.
+  - path: crates/sk-cli/tests/cf56_parent_console_layout.rs
+    action: manual_review
+    reason: New focused actual console layout/real output controls.
+status:
+  accepted: false
+  phase: parent prospective live composition, not retroactive producer compliance

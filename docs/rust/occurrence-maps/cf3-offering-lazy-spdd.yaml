@@ -1,0 +1,72 @@
+# PRE-EDIT classification for CF3 (lazy canonical offering + raw SPDD selection).
+# No host Mission/Op is open for this lane; this map is a lane-scoped record, not
+# an approval. Inventory: read of src/charter/activation/{effective_set,
+# identity_index,active_charter_service_builder}.py, kind_vocabulary.py
+# (_read_id/_scan_roots/_org_scan_dirs/_under_reserved_builtin_subdir),
+# charter/offering/{base,service}.py, charter/offering/spdd_reasons/activation.py,
+# charter/spdd_reasons.py, kernel/activation_ledger_store.py.
+# This lane is ADDITIVE: no existing identifier is renamed, removed or deprecated.
+target:
+  term: "eager all-kind IdentityIndex construction that swallows construction aborts"
+  replacement: "lazy per-kind fallible table construction with try_* query phase"
+  operation: rename
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      IdentityIndex::from_roots stops calling scan_all (no artifact is read at
+      construction; Source scans each (kind, layer set) lazily, NFR-003). Tables
+      move to a per-kind OnceLock<Result<KindTable, ConstructorAbort>> so a
+      queried kind's abort surfaces at that query and is memoised, while the
+      existing infallible accessors stay total (empty table = capability view).
+      New additive surface: try_table (pub(crate)), try_scan, try_declared_id(_exact),
+      try_declared_id_in_layer_exact, try_stem(_exact), try_stem_for_declared_id,
+      try_knows, try_has_declared_id, try_names_a_file, try_source_layer,
+      try_path_for, try_selection_id, try_stored_spelling, try_activation_id.
+      scan_all stays (best effort) for existing callers; no call site lost.
+  import_paths:
+    action: manual_review
+    notes: >-
+      identity.rs imports crate::offering::ConstructorAbort (one shared abort
+      type, no mirror) and std::sync::OnceLock. New module
+      src/activation_selection.rs is declared from the crate-owned activation.rs
+      via #[path] and re-exported once from lib.rs as
+      `pub use activation::selection as activation_selection;` (single additive
+      line, no identifier removed; parent may relocate). No new external
+      dependency, manifest or lock change.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      .kittify/config.yaml, .kittify/charter/activation.yaml, the org/project/
+      built-in artifact layouts and every pack path stay fixed. The new tests use
+      fresh mktemp fixtures only.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No YAML/JSON key is renamed. The SPDD selector READS the existing raw
+      activated_/deactivated_ keys (activated_paradigms, activated_tactics,
+      activated_directives and their deactivated_ forms) through the ledger
+      vocabulary helpers; it writes nothing.
+  cli_commands:
+    action: do_not_change
+    notes: No command, flag, alias, exit code or registration change.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Reproduce Source's exact SPDD messages: "Invalid YAML in <path>: ...",
+      "<path> root must be a mapping.", "Activation key '<key>' must be a list,
+      got <type>." and ".kittify/config.yaml 'charter:' pointer names <path>,
+      which does not exist." Existing effective-set reason strings are unchanged.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      Existing identity tests keep calling scan_all, which is now a best-effort
+      no-op for correctness. New tests: tests/cf3_offering_lazy_spdd.rs (public
+      API) plus unit tests in activation_selection.rs. No existing assertion is
+      weakened.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      Source logs a debug line when a layer cannot be scanned. Native has no
+      logging seam in this crate, so debug logging remains an explicit gap rather
+      than an invented logger.

@@ -1,0 +1,43 @@
+target:
+  term: Canonical Source context action keys and checked finite execution payloads
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Existing normalization becomes Source strip/lower over canonical Unicode facts; same helper used for state keys, no selector-table clone.
+  import_paths:
+    action: manual_review
+    notes: Narrow same-item action-normalization export, existing Kernel text/JSON authority.
+  filesystem_paths:
+    action: manual_review
+    notes: Context state key read matches normalized write; all root/CWD placement otherwise unchanged.
+  serialized_keys:
+    action: manual_review
+    notes: Existing action values follow Source normalization. Finite projection fails explicitly rather than success null; exact CLI payload unchanged.
+  cli_commands:
+    action: manual_review
+    notes: Same routes/flags/counts, Source-valid whitespace/case spelling accepted.
+  user_facing_strings:
+    action: manual_review
+    notes: Action normalization preserves Source full spelling after strip/lower rather than invented selector shortening.
+  tests_fixtures:
+    action: manual_review
+    notes: New Source-first normalization cases and prospective exact/finite adapter control; missing compact rail remains explicit debt.
+  logs_telemetry:
+    action: manual_review
+    notes: Independent Source root assertion strengthened, no retrospective evidence upgrade.
+exceptions:
+  - path: crates/sk-doctrine/src/context.rs
+    action: manual_review
+    reason: Canonical action key only; shared phase/model/record code untouched.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Narrow same-item action normalization export.
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: Existing state read and new finite payload view, no fake null.
+  - path: crates/sk-cli/tests/cf66_context_execution_cli.rs
+    action: manual_review
+    reason: Prospective normalized input/state cases and explicit finite projection failure control.
+status:
+  accepted: false
+  phase: parent prospective action-key and finite-view correction

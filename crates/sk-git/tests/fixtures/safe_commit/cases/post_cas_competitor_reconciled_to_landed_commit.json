@@ -1,0 +1,246 @@
+{
+  "after": {
+    "branch": "lane",
+    "committed_paths": [
+      "p.txt"
+    ],
+    "custom_index": null,
+    "files": [
+      {
+        "path": "a.txt",
+        "sha256": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+        "text": "one\n"
+      },
+      {
+        "path": "other.txt",
+        "sha256": "f34848ca92665c342abd5816c9e3eda0e82180671195362bcd0080544a3bc2ac",
+        "text": "base\n"
+      },
+      {
+        "path": "p.txt",
+        "sha256": "98f404818e878ae751f5cd51d11def27c5a257a5b2179521fe0640761150ea9e",
+        "text": "ours-v2\n"
+      },
+      {
+        "path": "partial.txt",
+        "sha256": "67117a01b0c95df8867b8077878b5bfa42eb68710b69305b9a11789ec91feaad",
+        "text": "p0\np1\np2\n"
+      },
+      {
+        "path": "seed.txt",
+        "sha256": "4a6689419b00b11700c9b6246bcfa8936c8f5e1e824db3a7e57030e2d1c1a684",
+        "text": "seed\n"
+      }
+    ],
+    "head": "5d421cd9a72a17b3a302b1a72fa3eac9d0d0bf01",
+    "index": [
+      "100644 5626abf0f72e58d7a153368ba57db4c673c0e171 0 a.txt",
+      "100644 df967b96a579e45a18b8251732d16804b2e56a55 0 other.txt",
+      "100644 202eea6ccd32e48876c639ead16fabc8f435a4e9 0 p.txt",
+      "100644 2ebfd8e28731959dd720d01f8eaae04f68f1e793 0 partial.txt",
+      "100644 e31de1f3a235fd5e8f97207b8e43cd2aa06a6417 0 seed.txt"
+    ],
+    "index_flags": [
+      "H a.txt",
+      "H other.txt",
+      "H p.txt",
+      "H partial.txt",
+      "H seed.txt"
+    ],
+    "message": "competitor\n",
+    "message_sha256": "edd5a162bd8b8482de21e7bd46fe3c10af7ace866c785d80766c5633d27d18ea",
+    "parents": [
+      "a362917772f99a97ea33eb77cbf1c537ce1d7bde"
+    ],
+    "reflog": [
+      "5d421cd9a72a17b3a302b1a72fa3eac9d0d0bf01|",
+      "a362917772f99a97ea33eb77cbf1c537ce1d7bde|interpose",
+      "6942d8b6ee8004baac88c3b22dd311e60c8b1de4|commit (initial): initial"
+    ],
+    "refs": [
+      "refs/heads/lane 5d421cd9a72a17b3a302b1a72fa3eac9d0d0bf01"
+    ],
+    "status": [
+      "M  p.txt"
+    ],
+    "tree": "045ec74d6af9ebab3e5e4b755269edba215c63f9"
+  },
+  "before": {
+    "branch": "lane",
+    "committed_paths": [
+      "a.txt",
+      "other.txt",
+      "p.txt",
+      "partial.txt",
+      "seed.txt"
+    ],
+    "custom_index": null,
+    "files": [
+      {
+        "path": "a.txt",
+        "sha256": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+        "text": "one\n"
+      },
+      {
+        "path": "other.txt",
+        "sha256": "f34848ca92665c342abd5816c9e3eda0e82180671195362bcd0080544a3bc2ac",
+        "text": "base\n"
+      },
+      {
+        "path": "p.txt",
+        "sha256": "98f404818e878ae751f5cd51d11def27c5a257a5b2179521fe0640761150ea9e",
+        "text": "ours-v2\n"
+      },
+      {
+        "path": "partial.txt",
+        "sha256": "67117a01b0c95df8867b8077878b5bfa42eb68710b69305b9a11789ec91feaad",
+        "text": "p0\np1\np2\n"
+      },
+      {
+        "path": "seed.txt",
+        "sha256": "4a6689419b00b11700c9b6246bcfa8936c8f5e1e824db3a7e57030e2d1c1a684",
+        "text": "seed\n"
+      }
+    ],
+    "head": "6942d8b6ee8004baac88c3b22dd311e60c8b1de4",
+    "index": [
+      "100644 5626abf0f72e58d7a153368ba57db4c673c0e171 0 a.txt",
+      "100644 df967b96a579e45a18b8251732d16804b2e56a55 0 other.txt",
+      "100644 b19a1e93bec1317dc6097229e12afaffbfa74dc2 0 p.txt",
+      "100644 2ebfd8e28731959dd720d01f8eaae04f68f1e793 0 partial.txt",
+      "100644 e31de1f3a235fd5e8f97207b8e43cd2aa06a6417 0 seed.txt"
+    ],
+    "index_flags": [
+      "H a.txt",
+      "H other.txt",
+      "H p.txt",
+      "H partial.txt",
+      "H seed.txt"
+    ],
+    "message": "initial\n",
+    "message_sha256": "da68f54607d5f5644954096ce1597c006c5bb9f2497e07441bf064b81003ef8a",
+    "parents": [],
+    "reflog": [
+      "6942d8b6ee8004baac88c3b22dd311e60c8b1de4|commit (initial): initial"
+    ],
+    "refs": [
+      "refs/heads/lane 6942d8b6ee8004baac88c3b22dd311e60c8b1de4"
+    ],
+    "status": [
+      " M p.txt"
+    ],
+    "tree": "79aeb916731aadfddfd0ba9f2e74802f15c888c4"
+  },
+  "description": "A competitor that lands on top of our commit after the CAS cannot redirect the index reconciliation away from the landed commit.",
+  "detail_tokens": [],
+  "divergence": null,
+  "expectation": "match",
+  "hooks": [
+    {
+      "argv": [],
+      "cached": [
+        "p.txt"
+      ],
+      "cwd_is_worktree": "yes",
+      "extra": [],
+      "git_dir": "<unset>",
+      "git_editor": "unset",
+      "git_prefix": "",
+      "hook": "pre-commit",
+      "index": "private",
+      "index_in_git_dir": "no",
+      "nargs": 0,
+      "status": [
+        "M  p.txt"
+      ]
+    }
+  ],
+  "name": "post_cas_competitor_reconciled_to_landed_commit",
+  "native": {
+    "landed_kind": null,
+    "variant": null
+  },
+  "oracle": {
+    "commit": "a362917772f99a97ea33eb77cbf1c537ce1d7bde",
+    "error_detail": null,
+    "facts": [],
+    "landed_kind": null,
+    "outcome": "ok",
+    "refusal_class": null,
+    "warnings": []
+  },
+  "oracle_environment": {
+    "baseline": "9aed3a8012cb5eb22c0128b14d525039f95fea7a",
+    "git": "git version 2.43.0",
+    "python": "3.11.15",
+    "verify_oracle_ok": true
+  },
+  "request": {
+    "capability": "standard",
+    "custom_index": false,
+    "expected_parent": "head",
+    "index_deletions": [],
+    "message": "interpose",
+    "paths": [
+      "p.txt"
+    ],
+    "protection": null,
+    "wait_for_sentinel": true
+  },
+  "route": "pinned",
+  "setup": {
+    "branch": "lane",
+    "files": [
+      {
+        "content": "seed\n",
+        "path": "seed.txt"
+      },
+      {
+        "content": "one\n",
+        "path": "a.txt"
+      },
+      {
+        "content": "base\n",
+        "path": "other.txt"
+      },
+      {
+        "content": "p0\np1\np2\n",
+        "path": "partial.txt"
+      },
+      {
+        "content": "ours\n",
+        "path": "p.txt"
+      }
+    ],
+    "hooks": [
+      {
+        "name": "pre-commit",
+        "script": "#!/bin/sh\nLOG=\"${SK_SAFE_COMMIT_HOOK_LOG:?}\"\n{\n  echo \"hook=pre-commit\"\n  echo \"nargs=$#\"\n  i=0\n  for a in \"$@\"; do\n    i=$((i+1))\n    if [ -f \"$a\" ]; then\n      echo \"argv$i=file:$(git hash-object --no-filters -- \"$a\")\"\n    else\n      echo \"argv$i=text:$a\"\n    fi\n  done\n  if [ -n \"${GIT_INDEX_FILE-}\" ]; then\n    real=\"$(git rev-parse --absolute-git-dir)/index\"\n    if [ \"$GIT_INDEX_FILE\" = \"$real\" ]; then echo \"index=real\"; else echo \"index=private\"; fi\n    case \"$GIT_INDEX_FILE\" in\n      \"$(git rev-parse --absolute-git-dir)\"/*) echo \"index_in_git_dir=yes\";;\n      *) echo \"index_in_git_dir=no\";;\n    esac\n  else\n    echo \"index=unset\"\n    echo \"index_in_git_dir=no\"\n  fi\n  if [ \"$(pwd -P)\" = \"$(git rev-parse --show-toplevel)\" ]; then\n    echo \"cwd_is_worktree=yes\"\n  else\n    echo \"cwd_is_worktree=no\"\n  fi\n  echo \"git_dir=${GIT_DIR-<unset>}\"\n  echo \"git_prefix=${GIT_PREFIX-<unset>}\"\n  if [ -n \"${GIT_EDITOR-}\" ]; then echo \"git_editor=set:$GIT_EDITOR\"; else echo \"git_editor=unset\"; fi\n  git status --porcelain | sed 's/^/status=/'\n  git diff --cached --name-only | sed 's/^/cached=/'\n} >> \"$LOG\"\n\n# Deterministic post-CAS interposition: a background helper waits until our\n# compare-and-swap has moved the branch off the pinned parent, then lands a\n# competitor commit on top of ours and signals completion.\nif [ -n \"${SK_POST_CAS_SENTINEL-}\" ]; then\n  (\n    branch=\"$(git symbolic-ref --short -q HEAD)\"\n    parent=\"$(git rev-parse HEAD)\"\n    n=0\n    while [ \"$n\" -lt 15000 ]; do\n      if [ -f \"${SK_POST_CAS_FAILED-}\" ]; then exit 1; fi\n      cur=\"$(git rev-parse \"refs/heads/$branch\" 2>/dev/null || true)\"\n      if [ -n \"$cur\" ] && [ \"$cur\" != \"$parent\" ]; then\n        export GIT_INDEX_FILE=\"${SK_POST_CAS_INDEX:?}\"\n        git read-tree \"$cur\"\n        blob=$(printf 'competitor\\n' | git hash-object -w --stdin)\n        git update-index --add --cacheinfo 100644 \"$blob\" p.txt\n        tree=$(git write-tree)\n        c2=$(git commit-tree \"$tree\" -p \"$cur\" -m competitor)\n        git update-ref \"refs/heads/$branch\" \"$c2\" \"$cur\"\n        : > \"${SK_POST_CAS_SENTINEL:?}\"\n        exit 0\n      fi\n      n=$((n+1))\n      sleep 0.002 2>/dev/null || sleep 1\n    done\n    : > \"${SK_POST_CAS_FAILED:?}\"\n  ) >/dev/null 2>&1 &\nfi\nexit 0\n"
+      }
+    ],
+    "steps": [
+      {
+        "argv": [
+          "git",
+          "add",
+          "-A"
+        ]
+      },
+      {
+        "argv": [
+          "git",
+          "commit",
+          "-q",
+          "-m",
+          "initial"
+        ]
+      },
+      {
+        "write": {
+          "content": "ours-v2\n",
+          "path": "p.txt"
+        }
+      }
+    ]
+  }
+}

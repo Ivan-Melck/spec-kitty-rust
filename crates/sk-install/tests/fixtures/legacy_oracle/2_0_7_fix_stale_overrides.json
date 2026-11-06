@@ -1,0 +1,24 @@
+{
+  "case": "2_0_7_fix_stale_overrides",
+  "meta": {
+    "can_apply": [
+      true,
+      ""
+    ],
+    "changes": [
+      "Removed stale override: overrides/templates/plan-template.md"
+    ],
+    "detect": true,
+    "error": null,
+    "success": true,
+    "warnings": []
+  },
+  "tree": {
+    ".kittify/": "DIR",
+    ".kittify/config.yaml": "8651825cb7451bc86266533190d6b1672500d8e23825eebf8bba0b4de89b732c",
+    ".kittify/metadata.yaml": "b971bb8541fce2b073582d78ca9c0aa3a1c5f78b928075c1c6d2f0cc52356a35",
+    ".kittify/overrides/": "DIR",
+    ".kittify/overrides/templates/": "DIR",
+    ".kittify/overrides/templates/spec-template.md": "52436f51e1243e5765623274db31dce0a6b100281a4b5aa02cf828be9ba96947"
+  }
+}

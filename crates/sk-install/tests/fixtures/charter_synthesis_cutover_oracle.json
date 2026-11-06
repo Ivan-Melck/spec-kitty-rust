@@ -1,0 +1,591 @@
+{
+ "_provenance": "Recorded by the pinned Source (CPython 3.11.15, .venv-rust-oracle) running the ACTUAL m_4_0_0rc6_charter_pack_cutover migration (all eight steps) over the pre-cutover fixture trees recorded here, plus a differing-content collision refusal. Placeholders: $PROJECT (apply case), $COLLISION, $WORKSPACE. Volatile: the skills manifest's created_at/updated_at are the run's own UTC instant and are bound, not normalised away, by the test. Regenerate with /tmp/sk-a5/probe_cutover.py through /tmp/sk-a5/source-probe.sh.",
+ "collision": {
+  "after": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/graph.yaml": {
+    "kind": "file",
+    "sha256": "d7336b891e6a305c29a588f952b3e92f7c63e754e522fdcd9f9454421079877f",
+    "text": "nodes:\n- id: different\n"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "7996f104de7bc74487349ee61b7e4cfd4de999e386fc562ee390e1b106ef4b68",
+    "text": "catalog:\n  references: []\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "794e866d48852cecff55ee7228ebbaaa31cdfefffc07195e3dd1c1f684225037",
+    "text": "charter: .kittify/charter/charter.yaml\n"
+   },
+   ".kittify/doctrine": {
+    "kind": "dir"
+   },
+   ".kittify/doctrine/graph.yaml": {
+    "kind": "file",
+    "sha256": "67681e08fbd9b713a91c4fcef9e9c45454a7d73897514ceade83544d99b3d78d",
+    "text": "nodes:\n- id: local\n"
+   }
+  },
+  "before": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/graph.yaml": {
+    "kind": "file",
+    "sha256": "d7336b891e6a305c29a588f952b3e92f7c63e754e522fdcd9f9454421079877f",
+    "text": "nodes:\n- id: different\n"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "7996f104de7bc74487349ee61b7e4cfd4de999e386fc562ee390e1b106ef4b68",
+    "text": "catalog:\n  references: []\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "794e866d48852cecff55ee7228ebbaaa31cdfefffc07195e3dd1c1f684225037",
+    "text": "charter: .kittify/charter/charter.yaml\n"
+   },
+   ".kittify/doctrine": {
+    "kind": "dir"
+   },
+   ".kittify/doctrine/graph.yaml": {
+    "kind": "file",
+    "sha256": "67681e08fbd9b713a91c4fcef9e9c45454a7d73897514ceade83544d99b3d78d",
+    "text": "nodes:\n- id: local\n"
+   }
+  },
+  "detect": true,
+  "result": {
+   "changes_made": [
+    "{\"errors\": [\".kittify/doctrine/graph.yaml collides with .kittify/charter-packs/graph.yaml (different content); reconcile the two, then run `spec-kitty upgrade` again\"], \"kept_for_review\": [], \"matches_minimal\": [], \"moved\": [], \"reset\": [], \"rewritten\": [], \"skills_kept\": [], \"skills_removed\": []}"
+   ],
+   "errors": [
+    ".kittify/doctrine/graph.yaml collides with .kittify/charter-packs/graph.yaml (different content); reconcile the two, then run `spec-kitty upgrade` again"
+   ],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": false,
+   "warnings": []
+  }
+ },
+ "cutover": {
+  "after": {
+   ".claude": {
+    "kind": "dir"
+   },
+   ".claude/skills": {
+    "kind": "dir"
+   },
+   ".gitignore": {
+    "kind": "file",
+    "sha256": "7e581a523d15d8f55ca3005a92fbf0fbaa0b9fbe933d928795a331ccbc90a9ba",
+    "text": "node_modules/\n.kittify/charter-packs/**\n!.kittify/charter-packs/graph.yaml\n!.kittify/charter-packs/pack.yaml\n"
+   },
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/.provenance": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/.provenance/directive-legacy.yaml": {
+    "kind": "file",
+    "sha256": "92b5724d256235420f765f1ff68907b2877ea3e94c0f661a127d2f467e5d95fa",
+    "text": "adapter_id: builtin-fixture\nartifact_kind: directive\nartifact_slug: legacy\nartifact_urn: directive:PROJECT_001\nsource_input_ids:\n- .kittify/charter-packs/directives/001-legacy.directive.yaml\nsource_section: .kittify/charter-packs/directives/001-legacy.directive.yaml\nsource_urns:\n- directive:PROJECT_001\nnested:\n  paths:\n  - .kittify/charter-packs/graph.yaml\n  - keep-me.yaml\n"
+   },
+   ".kittify/charter-packs/directives": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/directives/001-legacy.directive.yaml": {
+    "kind": "file",
+    "sha256": "982fe4c3d4053fa8bacfc125ebd2d475d73c762e27f3b161148b9f18c89cb58a",
+    "text": "id: PROJECT_001\nkind: directive\n"
+   },
+   ".kittify/charter-packs/graph.yaml": {
+    "kind": "file",
+    "sha256": "46331081d8bf250ce559019575d6beddc4fa734e56ff5047998a5b13332cc065",
+    "text": "nodes: []\nedges: []\n"
+   },
+   ".kittify/charter-packs/nested": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/nested/deep": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/nested/deep/tactic.tactic.yaml": {
+    "kind": "file",
+    "sha256": "afad98a981a9835ce7caec9867c4589b7a5fa9111791675c7bdc040543d09d93",
+    "text": "id: TACTIC_001\nkind: tactic\n"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "67eec4665c26234a5e8966df21ec73ba521e9dd90b554814afd8ed5d764a6e85",
+    "text": "governance:\n  charter:\n    selected_directives: []\ncatalog:\n  references: []\nmetadata:\n  bundle_schema_version: 2\nactivations:\n- kind: directive\n  charter_pack_id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n  enabled: true\nactivated_procedures:\n- 001-project-intent-directive\nmission_type_activations:\n- software-dev\n"
+   },
+   ".kittify/charter/governance.yaml": {
+    "kind": "file",
+    "sha256": "576434c70d77a65010b96b7f44f0bde997f8225f3555857995a003c3a3a8900e",
+    "text": "charter:\n  selected_directives: []\n"
+   },
+   ".kittify/charter/interview": {
+    "kind": "dir"
+   },
+   ".kittify/charter/interview/answers.yaml": {
+    "kind": "file",
+    "sha256": "050eaa657564e9b5b9a58e6c490197d781ed7a3089601e7212b4903e68f8e938",
+    "text": "charter:\n  mission: software-dev\nselected_directives:\n- DIRECTIVE_001\n"
+   },
+   ".kittify/charter/provenance": {
+    "kind": "dir"
+   },
+   ".kittify/charter/provenance/directive-legacy.yaml": {
+    "kind": "file",
+    "sha256": "92b5724d256235420f765f1ff68907b2877ea3e94c0f661a127d2f467e5d95fa",
+    "text": "adapter_id: builtin-fixture\nartifact_kind: directive\nartifact_slug: legacy\nartifact_urn: directive:PROJECT_001\nsource_input_ids:\n- .kittify/charter-packs/directives/001-legacy.directive.yaml\nsource_section: .kittify/charter-packs/directives/001-legacy.directive.yaml\nsource_urns:\n- directive:PROJECT_001\nnested:\n  paths:\n  - .kittify/charter-packs/graph.yaml\n  - keep-me.yaml\n"
+   },
+   ".kittify/charter/synthesis-manifest.yaml": {
+    "kind": "file",
+    "sha256": "fba3fb387d2f2ef198ebe294678b56d82c3934d0a50add667611c94d018a32f2",
+    "text": "adapter_id: builtin-fixture\nadapter_version: 1.0.0\nartifacts:\n- content_hash: 0f0f\n  kind: directive\n  path: .kittify/charter-packs/directives/001-legacy.directive.yaml\n  provenance_path: .kittify/charter/provenance/directive-legacy.yaml\n  slug: legacy\nbuilt_in_only: false\nbundle_content_hash: sha256:stale\ncreated_at: '2026-01-01T00:00:00+00:00'\nmanifest_hash: 9413fc3a66c0a73a58efd5921a1511964db6626e604c71d3369a0bb29a2911f6\nmission_id:\nrun_id: 01J00000000000000000000000\nschema_version: '3'\nsynthesizer_version: 4.0.0rc5\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "29b19924800057c39ab52906796d0a236a03a0fcca7468ea78236091d419c312",
+    "text": "agents:\n  available:\n  - claude\ncharter: .kittify/charter/charter.yaml\ncharter_packs:\n  org:\n    packs:\n    - name: acme\n      local_path: /packs/acme\ngovernance:\n  charter:\n    selected_directives:\n    - 001-legacy\ntracker:\n  ownership:\n    enabled: true\n"
+   },
+   ".kittify/skills-manifest.json": {
+    "kind": "file",
+    "sha256": "2350aa798c1101673666e272fd1e0a78c588d8bee333b9e5ea048b954033b7c1",
+    "text": "{\n  \"version\": 1,\n  \"created_at\": \"2026-11-04T23:52:32.808801+00:00\",\n  \"updated_at\": \"2026-11-04T23:52:32.808801+00:00\",\n  \"spec_kitty_version\": \"4.0.0rc5\",\n  \"entries\": [\n    {\n      \"skill_name\": \"spec-kitty\",\n      \"source_file\": \"SKILL.md\",\n      \"installed_path\": \".claude/skills/spec-kitty/SKILL.md\",\n      \"installation_class\": \"native-root-required\",\n      \"agent_key\": \"claude\",\n      \"content_hash\": \"sha256:keep\",\n      \"installed_at\": \"2026-01-01T00:00:00+00:00\",\n      \"delivery_mode\": \"copy\"\n    }\n  ]\n}\n"
+   }
+  },
+  "after_dry": {
+   ".claude": {
+    "kind": "dir"
+   },
+   ".claude/skills": {
+    "kind": "dir"
+   },
+   ".claude/skills/spk-doctrine-charter": {
+    "kind": "dir"
+   },
+   ".claude/skills/spk-doctrine-charter/SKILL.md": {
+    "kind": "file",
+    "sha256": "6bbbfb98ba1e46f136106cf2c5012cb02902d39fbfe2b81543efed7aef5d7a17",
+    "text": "---\nname: spk-doctrine-charter\n---\n\nbody\n"
+   },
+   ".gitignore": {
+    "kind": "file",
+    "sha256": "ff104a0956eaa588f0a9231a22912369e9393091ceb0a347d9a0faed994d57ce",
+    "text": "node_modules/\n.kittify/doctrine/**\n!.kittify/doctrine/graph.yaml\n"
+   },
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "50677a21c53891277b34f41e93e913fb73e672f7a0f50cce0cadc07fb70fef8d",
+    "text": "governance:\n  charter:\n    selected_directives: []\ncatalog:\n  references: []\nmetadata:\n  bundle_schema_version: 2\nactivations:\n- kind: directive\n  doctrine_pack_id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n  enabled: true\nactivated_kinds:\n- directives\n- tactics\n- styleguides\n- toolguides\n- paradigms\n- procedures\n- agent_profiles\n- mission_step_contracts\nactivated_directives:\n- 001-architectural-integrity-standard\n- 003-decision-documentation-requirement\n- 010-specification-fidelity-requirement\n- 018-doctrine-versioning-requirement\n- 024-locality-of-change\n- 025-boy-scout-rule\n- 028-search-tool-discipline\n- 029-agent-commit-signing-policy\n- 030-test-and-typecheck-quality-gate\n- 031-context-aware-design\n- 032-conceptual-alignment\n- 033-targeted-staging-policy\n- 034-test-first-development\n- 035-bulk-edit-occurrence-classification\n- 036-black-box-integration-testing\n- 037-living-documentation-sync\n- 038-structured-prompt-boundary\n- 039-lynn-cole-engineering-culture\n- 040-recurring-bug-structural-intervention\nactivated_tactics: []\nactivated_procedures:\n- 001-project-intent-directive\nmission_type_activations:\n- software-dev\n"
+   },
+   ".kittify/charter/governance.yaml": {
+    "kind": "file",
+    "sha256": "28769a5ef6c908e4505ee257c6e5103d68b83648eac6ded22cd0c4a94041914f",
+    "text": "doctrine:\n  selected_directives: []\n"
+   },
+   ".kittify/charter/interview": {
+    "kind": "dir"
+   },
+   ".kittify/charter/interview/answers.yaml": {
+    "kind": "file",
+    "sha256": "79d31eda5d903050d05626219e5b4b0d6baaa7bbf0a1de86efad4bd260df452a",
+    "text": "doctrine:\n  mission: software-dev\nselected_directives:\n- DIRECTIVE_001\n"
+   },
+   ".kittify/charter/provenance": {
+    "kind": "dir"
+   },
+   ".kittify/charter/provenance/directive-legacy.yaml": {
+    "kind": "file",
+    "sha256": "393b61717ab3d69e93fd53528836d951ac8102ce0348ed549d2b3cb5962fd221",
+    "text": "adapter_id: builtin-fixture\nartifact_kind: directive\nartifact_slug: legacy\nartifact_urn: directive:PROJECT_001\nsource_input_ids:\n- .kittify/doctrine/directives/001-legacy.directive.yaml\nsource_section: .kittify/doctrine/directives/001-legacy.directive.yaml\nsource_urns:\n- directive:PROJECT_001\nnested:\n  paths:\n  - .kittify/doctrine/graph.yaml\n  - keep-me.yaml\n"
+   },
+   ".kittify/charter/synthesis-manifest.yaml": {
+    "kind": "file",
+    "sha256": "cd1c3d8acca24ac7e706c4924a2c554d4184309771ee3a5afed641bce85a246f",
+    "text": "adapter_id: builtin-fixture\nadapter_version: 1.0.0\nartifacts:\n- content_hash: 0f0f\n  kind: directive\n  path: .kittify/doctrine/directives/001-legacy.directive.yaml\n  provenance_path: .kittify/charter/provenance/directive-legacy.yaml\n  slug: legacy\nbuilt_in_only: false\nbundle_content_hash: sha256:stale\ncreated_at: '2026-01-01T00:00:00+00:00'\nmanifest_hash: 82091248030812258e86183843fc727cf56b375578f4573d884fd0d28e378e84\nmission_id:\nrun_id: 01J00000000000000000000000\nschema_version: '3'\nsynthesizer_version: 4.0.0rc5\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "7d639a6b93e34dfc68c50e2b1d132d3eaf1e6a04f504b8f807f9aa5a3b14814f",
+    "text": "agents:\n  available:\n  - claude\ncharter: .kittify/charter/charter.yaml\ndoctrine:\n  org:\n    packs:\n    - name: acme\n      local_path: /packs/acme\ngovernance:\n  doctrine:\n    selected_directives:\n    - 001-legacy\ntracker:\n  doctrine:\n    enabled: true\norganisation_packs:\n- name: beta\n  path: /packs/beta\n  source: local_path\n- name: remote\n  path: https://example.invalid/x\n  source: git\nactivated_glossary_packs: []\n"
+   },
+   ".kittify/doctrine": {
+    "kind": "dir"
+   },
+   ".kittify/doctrine/.provenance": {
+    "kind": "dir"
+   },
+   ".kittify/doctrine/.provenance/directive-legacy.yaml": {
+    "kind": "file",
+    "sha256": "393b61717ab3d69e93fd53528836d951ac8102ce0348ed549d2b3cb5962fd221",
+    "text": "adapter_id: builtin-fixture\nartifact_kind: directive\nartifact_slug: legacy\nartifact_urn: directive:PROJECT_001\nsource_input_ids:\n- .kittify/doctrine/directives/001-legacy.directive.yaml\nsource_section: .kittify/doctrine/directives/001-legacy.directive.yaml\nsource_urns:\n- directive:PROJECT_001\nnested:\n  paths:\n  - .kittify/doctrine/graph.yaml\n  - keep-me.yaml\n"
+   },
+   ".kittify/doctrine/directives": {
+    "kind": "dir"
+   },
+   ".kittify/doctrine/directives/001-legacy.directive.yaml": {
+    "kind": "file",
+    "sha256": "982fe4c3d4053fa8bacfc125ebd2d475d73c762e27f3b161148b9f18c89cb58a",
+    "text": "id: PROJECT_001\nkind: directive\n"
+   },
+   ".kittify/doctrine/graph.yaml": {
+    "kind": "file",
+    "sha256": "46331081d8bf250ce559019575d6beddc4fa734e56ff5047998a5b13332cc065",
+    "text": "nodes: []\nedges: []\n"
+   },
+   ".kittify/doctrine/nested": {
+    "kind": "dir"
+   },
+   ".kittify/doctrine/nested/deep": {
+    "kind": "dir"
+   },
+   ".kittify/doctrine/nested/deep/tactic.tactic.yaml": {
+    "kind": "file",
+    "sha256": "afad98a981a9835ce7caec9867c4589b7a5fa9111791675c7bdc040543d09d93",
+    "text": "id: TACTIC_001\nkind: tactic\n"
+   },
+   ".kittify/skills-manifest.json": {
+    "kind": "file",
+    "sha256": "2469a42a155fa9b67607bd950f155ae8df11146433d79a2c2b7715bb67dc7317",
+    "text": "{\n  \"entries\": [\n    {\n      \"agent_key\": \"claude\",\n      \"content_hash\": \"sha256:6bbbfb98ba1e46f136106cf2c5012cb02902d39fbfe2b81543efed7aef5d7a17\",\n      \"delivery_mode\": \"copy\",\n      \"installation_class\": \"native-root-required\",\n      \"installed_at\": \"2026-01-01T00:00:00+00:00\",\n      \"installed_path\": \".claude/skills/spk-doctrine-charter/SKILL.md\",\n      \"skill_name\": \"spk-doctrine-charter\",\n      \"source_file\": \"SKILL.md\",\n      \"source_ref\": \".kittify/doctrine/skills/spk-doctrine-charter/SKILL.md\"\n    },\n    {\n      \"agent_key\": \"claude\",\n      \"content_hash\": \"sha256:keep\",\n      \"delivery_mode\": \"copy\",\n      \"installation_class\": \"native-root-required\",\n      \"installed_at\": \"2026-01-01T00:00:00+00:00\",\n      \"installed_path\": \".claude/skills/spec-kitty/SKILL.md\",\n      \"skill_name\": \"spec-kitty\",\n      \"source_file\": \"SKILL.md\"\n    }\n  ],\n  \"spec_kitty_version\": \"4.0.0rc5\",\n  \"version\": 1\n}"
+   }
+  },
+  "after_second": {
+   ".claude": {
+    "kind": "dir"
+   },
+   ".claude/skills": {
+    "kind": "dir"
+   },
+   ".gitignore": {
+    "kind": "file",
+    "sha256": "7e581a523d15d8f55ca3005a92fbf0fbaa0b9fbe933d928795a331ccbc90a9ba",
+    "text": "node_modules/\n.kittify/charter-packs/**\n!.kittify/charter-packs/graph.yaml\n!.kittify/charter-packs/pack.yaml\n"
+   },
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/.provenance": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/.provenance/directive-legacy.yaml": {
+    "kind": "file",
+    "sha256": "92b5724d256235420f765f1ff68907b2877ea3e94c0f661a127d2f467e5d95fa",
+    "text": "adapter_id: builtin-fixture\nartifact_kind: directive\nartifact_slug: legacy\nartifact_urn: directive:PROJECT_001\nsource_input_ids:\n- .kittify/charter-packs/directives/001-legacy.directive.yaml\nsource_section: .kittify/charter-packs/directives/001-legacy.directive.yaml\nsource_urns:\n- directive:PROJECT_001\nnested:\n  paths:\n  - .kittify/charter-packs/graph.yaml\n  - keep-me.yaml\n"
+   },
+   ".kittify/charter-packs/directives": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/directives/001-legacy.directive.yaml": {
+    "kind": "file",
+    "sha256": "982fe4c3d4053fa8bacfc125ebd2d475d73c762e27f3b161148b9f18c89cb58a",
+    "text": "id: PROJECT_001\nkind: directive\n"
+   },
+   ".kittify/charter-packs/graph.yaml": {
+    "kind": "file",
+    "sha256": "46331081d8bf250ce559019575d6beddc4fa734e56ff5047998a5b13332cc065",
+    "text": "nodes: []\nedges: []\n"
+   },
+   ".kittify/charter-packs/nested": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/nested/deep": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/nested/deep/tactic.tactic.yaml": {
+    "kind": "file",
+    "sha256": "afad98a981a9835ce7caec9867c4589b7a5fa9111791675c7bdc040543d09d93",
+    "text": "id: TACTIC_001\nkind: tactic\n"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "67eec4665c26234a5e8966df21ec73ba521e9dd90b554814afd8ed5d764a6e85",
+    "text": "governance:\n  charter:\n    selected_directives: []\ncatalog:\n  references: []\nmetadata:\n  bundle_schema_version: 2\nactivations:\n- kind: directive\n  charter_pack_id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n  enabled: true\nactivated_procedures:\n- 001-project-intent-directive\nmission_type_activations:\n- software-dev\n"
+   },
+   ".kittify/charter/governance.yaml": {
+    "kind": "file",
+    "sha256": "576434c70d77a65010b96b7f44f0bde997f8225f3555857995a003c3a3a8900e",
+    "text": "charter:\n  selected_directives: []\n"
+   },
+   ".kittify/charter/interview": {
+    "kind": "dir"
+   },
+   ".kittify/charter/interview/answers.yaml": {
+    "kind": "file",
+    "sha256": "050eaa657564e9b5b9a58e6c490197d781ed7a3089601e7212b4903e68f8e938",
+    "text": "charter:\n  mission: software-dev\nselected_directives:\n- DIRECTIVE_001\n"
+   },
+   ".kittify/charter/provenance": {
+    "kind": "dir"
+   },
+   ".kittify/charter/provenance/directive-legacy.yaml": {
+    "kind": "file",
+    "sha256": "92b5724d256235420f765f1ff68907b2877ea3e94c0f661a127d2f467e5d95fa",
+    "text": "adapter_id: builtin-fixture\nartifact_kind: directive\nartifact_slug: legacy\nartifact_urn: directive:PROJECT_001\nsource_input_ids:\n- .kittify/charter-packs/directives/001-legacy.directive.yaml\nsource_section: .kittify/charter-packs/directives/001-legacy.directive.yaml\nsource_urns:\n- directive:PROJECT_001\nnested:\n  paths:\n  - .kittify/charter-packs/graph.yaml\n  - keep-me.yaml\n"
+   },
+   ".kittify/charter/synthesis-manifest.yaml": {
+    "kind": "file",
+    "sha256": "fba3fb387d2f2ef198ebe294678b56d82c3934d0a50add667611c94d018a32f2",
+    "text": "adapter_id: builtin-fixture\nadapter_version: 1.0.0\nartifacts:\n- content_hash: 0f0f\n  kind: directive\n  path: .kittify/charter-packs/directives/001-legacy.directive.yaml\n  provenance_path: .kittify/charter/provenance/directive-legacy.yaml\n  slug: legacy\nbuilt_in_only: false\nbundle_content_hash: sha256:stale\ncreated_at: '2026-01-01T00:00:00+00:00'\nmanifest_hash: 9413fc3a66c0a73a58efd5921a1511964db6626e604c71d3369a0bb29a2911f6\nmission_id:\nrun_id: 01J00000000000000000000000\nschema_version: '3'\nsynthesizer_version: 4.0.0rc5\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "29b19924800057c39ab52906796d0a236a03a0fcca7468ea78236091d419c312",
+    "text": "agents:\n  available:\n  - claude\ncharter: .kittify/charter/charter.yaml\ncharter_packs:\n  org:\n    packs:\n    - name: acme\n      local_path: /packs/acme\ngovernance:\n  charter:\n    selected_directives:\n    - 001-legacy\ntracker:\n  ownership:\n    enabled: true\n"
+   },
+   ".kittify/skills-manifest.json": {
+    "kind": "file",
+    "sha256": "2350aa798c1101673666e272fd1e0a78c588d8bee333b9e5ea048b954033b7c1",
+    "text": "{\n  \"version\": 1,\n  \"created_at\": \"2026-11-04T23:52:32.808801+00:00\",\n  \"updated_at\": \"2026-11-04T23:52:32.808801+00:00\",\n  \"spec_kitty_version\": \"4.0.0rc5\",\n  \"entries\": [\n    {\n      \"skill_name\": \"spec-kitty\",\n      \"source_file\": \"SKILL.md\",\n      \"installed_path\": \".claude/skills/spec-kitty/SKILL.md\",\n      \"installation_class\": \"native-root-required\",\n      \"agent_key\": \"claude\",\n      \"content_hash\": \"sha256:keep\",\n      \"installed_at\": \"2026-01-01T00:00:00+00:00\",\n      \"delivery_mode\": \"copy\"\n    }\n  ]\n}\n"
+   }
+  },
+  "before": {
+   ".claude": {
+    "kind": "dir"
+   },
+   ".claude/skills": {
+    "kind": "dir"
+   },
+   ".claude/skills/spk-doctrine-charter": {
+    "kind": "dir"
+   },
+   ".claude/skills/spk-doctrine-charter/SKILL.md": {
+    "kind": "file",
+    "sha256": "6bbbfb98ba1e46f136106cf2c5012cb02902d39fbfe2b81543efed7aef5d7a17",
+    "text": "---\nname: spk-doctrine-charter\n---\n\nbody\n"
+   },
+   ".gitignore": {
+    "kind": "file",
+    "sha256": "ff104a0956eaa588f0a9231a22912369e9393091ceb0a347d9a0faed994d57ce",
+    "text": "node_modules/\n.kittify/doctrine/**\n!.kittify/doctrine/graph.yaml\n"
+   },
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "50677a21c53891277b34f41e93e913fb73e672f7a0f50cce0cadc07fb70fef8d",
+    "text": "governance:\n  charter:\n    selected_directives: []\ncatalog:\n  references: []\nmetadata:\n  bundle_schema_version: 2\nactivations:\n- kind: directive\n  doctrine_pack_id: 01ARZ3NDEKTSV4RRFFQ69G5FAV\n  enabled: true\nactivated_kinds:\n- directives\n- tactics\n- styleguides\n- toolguides\n- paradigms\n- procedures\n- agent_profiles\n- mission_step_contracts\nactivated_directives:\n- 001-architectural-integrity-standard\n- 003-decision-documentation-requirement\n- 010-specification-fidelity-requirement\n- 018-doctrine-versioning-requirement\n- 024-locality-of-change\n- 025-boy-scout-rule\n- 028-search-tool-discipline\n- 029-agent-commit-signing-policy\n- 030-test-and-typecheck-quality-gate\n- 031-context-aware-design\n- 032-conceptual-alignment\n- 033-targeted-staging-policy\n- 034-test-first-development\n- 035-bulk-edit-occurrence-classification\n- 036-black-box-integration-testing\n- 037-living-documentation-sync\n- 038-structured-prompt-boundary\n- 039-lynn-cole-engineering-culture\n- 040-recurring-bug-structural-intervention\nactivated_tactics: []\nactivated_procedures:\n- 001-project-intent-directive\nmission_type_activations:\n- software-dev\n"
+   },
+   ".kittify/charter/governance.yaml": {
+    "kind": "file",
+    "sha256": "28769a5ef6c908e4505ee257c6e5103d68b83648eac6ded22cd0c4a94041914f",
+    "text": "doctrine:\n  selected_directives: []\n"
+   },
+   ".kittify/charter/interview": {
+    "kind": "dir"
+   },
+   ".kittify/charter/interview/answers.yaml": {
+    "kind": "file",
+    "sha256": "79d31eda5d903050d05626219e5b4b0d6baaa7bbf0a1de86efad4bd260df452a",
+    "text": "doctrine:\n  mission: software-dev\nselected_directives:\n- DIRECTIVE_001\n"
+   },
+   ".kittify/charter/provenance": {
+    "kind": "dir"
+   },
+   ".kittify/charter/provenance/directive-legacy.yaml": {
+    "kind": "file",
+    "sha256": "393b61717ab3d69e93fd53528836d951ac8102ce0348ed549d2b3cb5962fd221",
+    "text": "adapter_id: builtin-fixture\nartifact_kind: directive\nartifact_slug: legacy\nartifact_urn: directive:PROJECT_001\nsource_input_ids:\n- .kittify/doctrine/directives/001-legacy.directive.yaml\nsource_section: .kittify/doctrine/directives/001-legacy.directive.yaml\nsource_urns:\n- directive:PROJECT_001\nnested:\n  paths:\n  - .kittify/doctrine/graph.yaml\n  - keep-me.yaml\n"
+   },
+   ".kittify/charter/synthesis-manifest.yaml": {
+    "kind": "file",
+    "sha256": "cd1c3d8acca24ac7e706c4924a2c554d4184309771ee3a5afed641bce85a246f",
+    "text": "adapter_id: builtin-fixture\nadapter_version: 1.0.0\nartifacts:\n- content_hash: 0f0f\n  kind: directive\n  path: .kittify/doctrine/directives/001-legacy.directive.yaml\n  provenance_path: .kittify/charter/provenance/directive-legacy.yaml\n  slug: legacy\nbuilt_in_only: false\nbundle_content_hash: sha256:stale\ncreated_at: '2026-01-01T00:00:00+00:00'\nmanifest_hash: 82091248030812258e86183843fc727cf56b375578f4573d884fd0d28e378e84\nmission_id:\nrun_id: 01J00000000000000000000000\nschema_version: '3'\nsynthesizer_version: 4.0.0rc5\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "7d639a6b93e34dfc68c50e2b1d132d3eaf1e6a04f504b8f807f9aa5a3b14814f",
+    "text": "agents:\n  available:\n  - claude\ncharter: .kittify/charter/charter.yaml\ndoctrine:\n  org:\n    packs:\n    - name: acme\n      local_path: /packs/acme\ngovernance:\n  doctrine:\n    selected_directives:\n    - 001-legacy\ntracker:\n  doctrine:\n    enabled: true\norganisation_packs:\n- name: beta\n  path: /packs/beta\n  source: local_path\n- name: remote\n  path: https://example.invalid/x\n  source: git\nactivated_glossary_packs: []\n"
+   },
+   ".kittify/doctrine": {
+    "kind": "dir"
+   },
+   ".kittify/doctrine/.provenance": {
+    "kind": "dir"
+   },
+   ".kittify/doctrine/.provenance/directive-legacy.yaml": {
+    "kind": "file",
+    "sha256": "393b61717ab3d69e93fd53528836d951ac8102ce0348ed549d2b3cb5962fd221",
+    "text": "adapter_id: builtin-fixture\nartifact_kind: directive\nartifact_slug: legacy\nartifact_urn: directive:PROJECT_001\nsource_input_ids:\n- .kittify/doctrine/directives/001-legacy.directive.yaml\nsource_section: .kittify/doctrine/directives/001-legacy.directive.yaml\nsource_urns:\n- directive:PROJECT_001\nnested:\n  paths:\n  - .kittify/doctrine/graph.yaml\n  - keep-me.yaml\n"
+   },
+   ".kittify/doctrine/directives": {
+    "kind": "dir"
+   },
+   ".kittify/doctrine/directives/001-legacy.directive.yaml": {
+    "kind": "file",
+    "sha256": "982fe4c3d4053fa8bacfc125ebd2d475d73c762e27f3b161148b9f18c89cb58a",
+    "text": "id: PROJECT_001\nkind: directive\n"
+   },
+   ".kittify/doctrine/graph.yaml": {
+    "kind": "file",
+    "sha256": "46331081d8bf250ce559019575d6beddc4fa734e56ff5047998a5b13332cc065",
+    "text": "nodes: []\nedges: []\n"
+   },
+   ".kittify/doctrine/nested": {
+    "kind": "dir"
+   },
+   ".kittify/doctrine/nested/deep": {
+    "kind": "dir"
+   },
+   ".kittify/doctrine/nested/deep/tactic.tactic.yaml": {
+    "kind": "file",
+    "sha256": "afad98a981a9835ce7caec9867c4589b7a5fa9111791675c7bdc040543d09d93",
+    "text": "id: TACTIC_001\nkind: tactic\n"
+   },
+   ".kittify/skills-manifest.json": {
+    "kind": "file",
+    "sha256": "2469a42a155fa9b67607bd950f155ae8df11146433d79a2c2b7715bb67dc7317",
+    "text": "{\n  \"entries\": [\n    {\n      \"agent_key\": \"claude\",\n      \"content_hash\": \"sha256:6bbbfb98ba1e46f136106cf2c5012cb02902d39fbfe2b81543efed7aef5d7a17\",\n      \"delivery_mode\": \"copy\",\n      \"installation_class\": \"native-root-required\",\n      \"installed_at\": \"2026-01-01T00:00:00+00:00\",\n      \"installed_path\": \".claude/skills/spk-doctrine-charter/SKILL.md\",\n      \"skill_name\": \"spk-doctrine-charter\",\n      \"source_file\": \"SKILL.md\",\n      \"source_ref\": \".kittify/doctrine/skills/spk-doctrine-charter/SKILL.md\"\n    },\n    {\n      \"agent_key\": \"claude\",\n      \"content_hash\": \"sha256:keep\",\n      \"delivery_mode\": \"copy\",\n      \"installation_class\": \"native-root-required\",\n      \"installed_at\": \"2026-01-01T00:00:00+00:00\",\n      \"installed_path\": \".claude/skills/spec-kitty/SKILL.md\",\n      \"skill_name\": \"spec-kitty\",\n      \"source_file\": \"SKILL.md\"\n    }\n  ],\n  \"spec_kitty_version\": \"4.0.0rc5\",\n  \"version\": 1\n}"
+   }
+  },
+  "can_apply": [
+   true,
+   ""
+  ],
+  "detect": true,
+  "detect_after": false,
+  "dry_result": {
+   "changes_made": [
+    "{\"errors\": [], \"kept_for_review\": [\".kittify/charter/charter.yaml: activated_procedures customised; not changed\"], \"matches_minimal\": [], \"moved\": [\".kittify/doctrine/.provenance/directive-legacy.yaml -> .kittify/charter-packs/.provenance/directive-legacy.yaml\", \".kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml\", \".kittify/doctrine/graph.yaml -> .kittify/charter-packs/graph.yaml\", \".kittify/doctrine/nested/deep/tactic.tactic.yaml -> .kittify/charter-packs/nested/deep/tactic.tactic.yaml\"], \"reset\": [\".kittify/charter/charter.yaml: activated_kinds (matched the released default kind gate; now absent)\", \".kittify/charter/charter.yaml: activated_directives (matched a released default list; now absent, every built-in available)\", \".kittify/charter/charter.yaml: activated_tactics was [] (nothing active); now absent (all tactics available)\", \".kittify/config.yaml: activated_glossary_packs was [] (nothing active); now absent (all glossary packs available)\"], \"rewritten\": [\".kittify/charter/synthesis-manifest.yaml: artifacts[].path .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml\", \".kittify/charter/provenance/directive-legacy.yaml: source_input_ids[0] .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml\", \".kittify/charter/provenance/directive-legacy.yaml: source_section .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml\", \".kittify/charter/provenance/directive-legacy.yaml: nested.paths[0] .kittify/doctrine/graph.yaml -> .kittify/charter-packs/graph.yaml\", \".kittify/doctrine/.provenance/directive-legacy.yaml: source_input_ids[0] .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml\", \".kittify/doctrine/.provenance/directive-legacy.yaml: source_section .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml\", \".kittify/doctrine/.provenance/directive-legacy.yaml: nested.paths[0] .kittify/doctrine/graph.yaml -> .kittify/charter-packs/graph.yaml\", \".kittify/skills-manifest.json: entries[].source_ref .kittify/doctrine/skills/spk-doctrine-charter/SKILL.md -> .kittify/charter-packs/skills/spk-doctrine-charter/SKILL.md\", \".gitignore: rule .kittify/doctrine/** -> .kittify/charter-packs/**\", \".gitignore: rule !.kittify/doctrine/graph.yaml -> !.kittify/charter-packs/graph.yaml\", \".gitignore: added !.kittify/charter-packs/pack.yaml (keeps the project pack.yaml tracked under the charter-pack ignore rule)\", \".kittify/config.yaml: doctrine.org.packs -> charter_packs.org.packs\", \".kittify/config.yaml: dropped organisation_packs (charter_packs.org is already present; the canonical value wins; dropped value: [{\\\"name\\\":\\\"beta\\\",\\\"path\\\":\\\"/packs/beta\\\",\\\"source\\\":\\\"local_path\\\"},{\\\"name\\\":\\\"remote\\\",\\\"path\\\":\\\"https://example.invalid/x\\\",\\\"source\\\":\\\"git\\\"}])\", \".kittify/config.yaml: governance.doctrine -> governance.charter\", \".kittify/config.yaml: tracker.doctrine -> tracker.ownership\", \".kittify/charter/governance.yaml: doctrine -> charter\", \".kittify/charter/interview/answers.yaml: doctrine -> charter\", \".kittify/charter/charter.yaml: activations[].doctrine_pack_id -> activations[].charter_pack_id\"], \"skills_kept\": [], \"skills_removed\": [\".claude/skills/spk-doctrine-charter (spk-doctrine-charter; package-owned (manifest))\"]}",
+    "Would move .kittify/doctrine/.provenance/directive-legacy.yaml -> .kittify/charter-packs/.provenance/directive-legacy.yaml",
+    "Would move .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml",
+    "Would move .kittify/doctrine/graph.yaml -> .kittify/charter-packs/graph.yaml",
+    "Would move .kittify/doctrine/nested/deep/tactic.tactic.yaml -> .kittify/charter-packs/nested/deep/tactic.tactic.yaml",
+    "Would rewrite .kittify/charter/synthesis-manifest.yaml: artifacts[].path .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml",
+    "Would rewrite .kittify/charter/provenance/directive-legacy.yaml: source_input_ids[0] .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml",
+    "Would rewrite .kittify/charter/provenance/directive-legacy.yaml: source_section .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml",
+    "Would rewrite .kittify/charter/provenance/directive-legacy.yaml: nested.paths[0] .kittify/doctrine/graph.yaml -> .kittify/charter-packs/graph.yaml",
+    "Would rewrite .kittify/doctrine/.provenance/directive-legacy.yaml: source_input_ids[0] .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml",
+    "Would rewrite .kittify/doctrine/.provenance/directive-legacy.yaml: source_section .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml",
+    "Would rewrite .kittify/doctrine/.provenance/directive-legacy.yaml: nested.paths[0] .kittify/doctrine/graph.yaml -> .kittify/charter-packs/graph.yaml",
+    "Would rewrite .kittify/skills-manifest.json: entries[].source_ref .kittify/doctrine/skills/spk-doctrine-charter/SKILL.md -> .kittify/charter-packs/skills/spk-doctrine-charter/SKILL.md",
+    "Would rewrite .gitignore: rule .kittify/doctrine/** -> .kittify/charter-packs/**",
+    "Would rewrite .gitignore: rule !.kittify/doctrine/graph.yaml -> !.kittify/charter-packs/graph.yaml",
+    "Would rewrite .gitignore: added !.kittify/charter-packs/pack.yaml (keeps the project pack.yaml tracked under the charter-pack ignore rule)",
+    "Would rewrite .kittify/config.yaml: doctrine.org.packs -> charter_packs.org.packs",
+    "Would rewrite .kittify/config.yaml: dropped organisation_packs (charter_packs.org is already present; the canonical value wins; dropped value: [{\"name\":\"beta\",\"path\":\"/packs/beta\",\"source\":\"local_path\"},{\"name\":\"remote\",\"path\":\"https://example.invalid/x\",\"source\":\"git\"}])",
+    "Would rewrite .kittify/config.yaml: governance.doctrine -> governance.charter",
+    "Would rewrite .kittify/config.yaml: tracker.doctrine -> tracker.ownership",
+    "Would rewrite .kittify/charter/governance.yaml: doctrine -> charter",
+    "Would rewrite .kittify/charter/interview/answers.yaml: doctrine -> charter",
+    "Would rewrite .kittify/charter/charter.yaml: activations[].doctrine_pack_id -> activations[].charter_pack_id",
+    "Would reset .kittify/charter/charter.yaml: activated_kinds (matched the released default kind gate; now absent)",
+    "Would reset .kittify/charter/charter.yaml: activated_directives (matched a released default list; now absent, every built-in available)",
+    "Would reset .kittify/charter/charter.yaml: activated_tactics was [] (nothing active); now absent (all tactics available)",
+    "Would reset .kittify/config.yaml: activated_glossary_packs was [] (nothing active); now absent (all glossary packs available)",
+    "Would remove skill .claude/skills/spk-doctrine-charter (spk-doctrine-charter; package-owned (manifest))"
+   ],
+   "errors": [],
+   "manual_review_required": true,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": [
+    "Would keep for review: .kittify/charter/charter.yaml: activated_procedures customised; not changed",
+    ".kittify/charter/charter.yaml: activated_kinds matched the released default kind gate and is now absent. To keep this exact list pinned, set activated_kinds: [agent_profiles, directives, mission_step_contracts, paradigms, procedures, styleguides, tactics, toolguides] in .kittify/charter/charter.yaml.",
+    ".kittify/charter/charter.yaml: activated_directives matched a released default list and is now absent. To keep this exact list pinned, set activated_directives: [001-architectural-integrity-standard, 003-decision-documentation-requirement, 010-specification-fidelity-requirement, 018-doctrine-versioning-requirement, 024-locality-of-change, 025-boy-scout-rule, 028-search-tool-discipline, 029-agent-commit-signing-policy, 030-test-and-typecheck-quality-gate, 031-context-aware-design, 032-conceptual-alignment, 033-targeted-staging-policy, 034-test-first-development, 035-bulk-edit-occurrence-classification, 036-black-box-integration-testing, 037-living-documentation-sync, 038-structured-prompt-boundary, 039-lynn-cole-engineering-culture, 040-recurring-bug-structural-intervention] in .kittify/charter/charter.yaml.",
+    ".kittify/charter/charter.yaml: activated_tactics was [] (nothing active); it is now absent (all tactics available). To switch the kind off again, set activated_tactics: [] in .kittify/charter/charter.yaml.",
+    ".kittify/config.yaml: activated_glossary_packs was [] (nothing active); it is now absent (all glossary packs available). To switch the kind off again, set activated_glossary_packs: [] in .kittify/config.yaml."
+   ]
+  },
+  "is_first_application": true,
+  "result": {
+   "changes_made": [
+    "{\"errors\": [], \"kept_for_review\": [\".kittify/charter/charter.yaml: activated_procedures customised; not changed\"], \"matches_minimal\": [], \"moved\": [\".kittify/doctrine/.provenance/directive-legacy.yaml -> .kittify/charter-packs/.provenance/directive-legacy.yaml\", \".kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml\", \".kittify/doctrine/graph.yaml -> .kittify/charter-packs/graph.yaml\", \".kittify/doctrine/nested/deep/tactic.tactic.yaml -> .kittify/charter-packs/nested/deep/tactic.tactic.yaml\"], \"reset\": [\".kittify/charter/charter.yaml: activated_kinds (matched the released default kind gate; now absent)\", \".kittify/charter/charter.yaml: activated_directives (matched a released default list; now absent, every built-in available)\", \".kittify/charter/charter.yaml: activated_tactics was [] (nothing active); now absent (all tactics available)\", \".kittify/config.yaml: activated_glossary_packs was [] (nothing active); now absent (all glossary packs available)\"], \"rewritten\": [\".kittify/charter/synthesis-manifest.yaml: artifacts[].path .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml\", \".kittify/charter/provenance/directive-legacy.yaml: source_input_ids[0] .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml\", \".kittify/charter/provenance/directive-legacy.yaml: source_section .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml\", \".kittify/charter/provenance/directive-legacy.yaml: nested.paths[0] .kittify/doctrine/graph.yaml -> .kittify/charter-packs/graph.yaml\", \".kittify/charter-packs/.provenance/directive-legacy.yaml: source_input_ids[0] .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml\", \".kittify/charter-packs/.provenance/directive-legacy.yaml: source_section .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml\", \".kittify/charter-packs/.provenance/directive-legacy.yaml: nested.paths[0] .kittify/doctrine/graph.yaml -> .kittify/charter-packs/graph.yaml\", \".kittify/skills-manifest.json: entries[].source_ref .kittify/doctrine/skills/spk-doctrine-charter/SKILL.md -> .kittify/charter-packs/skills/spk-doctrine-charter/SKILL.md\", \".gitignore: rule .kittify/doctrine/** -> .kittify/charter-packs/**\", \".gitignore: rule !.kittify/doctrine/graph.yaml -> !.kittify/charter-packs/graph.yaml\", \".gitignore: added !.kittify/charter-packs/pack.yaml (keeps the project pack.yaml tracked under the charter-pack ignore rule)\", \".kittify/config.yaml: doctrine.org.packs -> charter_packs.org.packs\", \".kittify/config.yaml: dropped organisation_packs (charter_packs.org is already present; the canonical value wins; dropped value: [{\\\"name\\\":\\\"beta\\\",\\\"path\\\":\\\"/packs/beta\\\",\\\"source\\\":\\\"local_path\\\"},{\\\"name\\\":\\\"remote\\\",\\\"path\\\":\\\"https://example.invalid/x\\\",\\\"source\\\":\\\"git\\\"}])\", \".kittify/config.yaml: governance.doctrine -> governance.charter\", \".kittify/config.yaml: tracker.doctrine -> tracker.ownership\", \".kittify/charter/governance.yaml: doctrine -> charter\", \".kittify/charter/interview/answers.yaml: doctrine -> charter\", \".kittify/charter/charter.yaml: activations[].doctrine_pack_id -> activations[].charter_pack_id\"], \"skills_kept\": [], \"skills_removed\": [\".claude/skills/spk-doctrine-charter (spk-doctrine-charter; package-owned (manifest))\"]}",
+    "Moved .kittify/doctrine/.provenance/directive-legacy.yaml -> .kittify/charter-packs/.provenance/directive-legacy.yaml",
+    "Moved .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml",
+    "Moved .kittify/doctrine/graph.yaml -> .kittify/charter-packs/graph.yaml",
+    "Moved .kittify/doctrine/nested/deep/tactic.tactic.yaml -> .kittify/charter-packs/nested/deep/tactic.tactic.yaml",
+    "Rewrote .kittify/charter/synthesis-manifest.yaml: artifacts[].path .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml",
+    "Rewrote .kittify/charter/provenance/directive-legacy.yaml: source_input_ids[0] .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml",
+    "Rewrote .kittify/charter/provenance/directive-legacy.yaml: source_section .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml",
+    "Rewrote .kittify/charter/provenance/directive-legacy.yaml: nested.paths[0] .kittify/doctrine/graph.yaml -> .kittify/charter-packs/graph.yaml",
+    "Rewrote .kittify/charter-packs/.provenance/directive-legacy.yaml: source_input_ids[0] .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml",
+    "Rewrote .kittify/charter-packs/.provenance/directive-legacy.yaml: source_section .kittify/doctrine/directives/001-legacy.directive.yaml -> .kittify/charter-packs/directives/001-legacy.directive.yaml",
+    "Rewrote .kittify/charter-packs/.provenance/directive-legacy.yaml: nested.paths[0] .kittify/doctrine/graph.yaml -> .kittify/charter-packs/graph.yaml",
+    "Rewrote .kittify/skills-manifest.json: entries[].source_ref .kittify/doctrine/skills/spk-doctrine-charter/SKILL.md -> .kittify/charter-packs/skills/spk-doctrine-charter/SKILL.md",
+    "Rewrote .gitignore: rule .kittify/doctrine/** -> .kittify/charter-packs/**",
+    "Rewrote .gitignore: rule !.kittify/doctrine/graph.yaml -> !.kittify/charter-packs/graph.yaml",
+    "Rewrote .gitignore: added !.kittify/charter-packs/pack.yaml (keeps the project pack.yaml tracked under the charter-pack ignore rule)",
+    "Rewrote .kittify/config.yaml: doctrine.org.packs -> charter_packs.org.packs",
+    "Rewrote .kittify/config.yaml: dropped organisation_packs (charter_packs.org is already present; the canonical value wins; dropped value: [{\"name\":\"beta\",\"path\":\"/packs/beta\",\"source\":\"local_path\"},{\"name\":\"remote\",\"path\":\"https://example.invalid/x\",\"source\":\"git\"}])",
+    "Rewrote .kittify/config.yaml: governance.doctrine -> governance.charter",
+    "Rewrote .kittify/config.yaml: tracker.doctrine -> tracker.ownership",
+    "Rewrote .kittify/charter/governance.yaml: doctrine -> charter",
+    "Rewrote .kittify/charter/interview/answers.yaml: doctrine -> charter",
+    "Rewrote .kittify/charter/charter.yaml: activations[].doctrine_pack_id -> activations[].charter_pack_id",
+    "Reset .kittify/charter/charter.yaml: activated_kinds (matched the released default kind gate; now absent)",
+    "Reset .kittify/charter/charter.yaml: activated_directives (matched a released default list; now absent, every built-in available)",
+    "Reset .kittify/charter/charter.yaml: activated_tactics was [] (nothing active); now absent (all tactics available)",
+    "Reset .kittify/config.yaml: activated_glossary_packs was [] (nothing active); now absent (all glossary packs available)",
+    "Removed skill .claude/skills/spk-doctrine-charter (spk-doctrine-charter; package-owned (manifest))"
+   ],
+   "errors": [],
+   "manual_review_required": true,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": [
+    "Kept for review: .kittify/charter/charter.yaml: activated_procedures customised; not changed",
+    ".kittify/charter/charter.yaml: activated_kinds matched the released default kind gate and is now absent. To keep this exact list pinned, set activated_kinds: [agent_profiles, directives, mission_step_contracts, paradigms, procedures, styleguides, tactics, toolguides] in .kittify/charter/charter.yaml.",
+    ".kittify/charter/charter.yaml: activated_directives matched a released default list and is now absent. To keep this exact list pinned, set activated_directives: [001-architectural-integrity-standard, 003-decision-documentation-requirement, 010-specification-fidelity-requirement, 018-doctrine-versioning-requirement, 024-locality-of-change, 025-boy-scout-rule, 028-search-tool-discipline, 029-agent-commit-signing-policy, 030-test-and-typecheck-quality-gate, 031-context-aware-design, 032-conceptual-alignment, 033-targeted-staging-policy, 034-test-first-development, 035-bulk-edit-occurrence-classification, 036-black-box-integration-testing, 037-living-documentation-sync, 038-structured-prompt-boundary, 039-lynn-cole-engineering-culture, 040-recurring-bug-structural-intervention] in .kittify/charter/charter.yaml.",
+    ".kittify/charter/charter.yaml: activated_tactics was [] (nothing active); it is now absent (all tactics available). To switch the kind off again, set activated_tactics: [] in .kittify/charter/charter.yaml.",
+    ".kittify/config.yaml: activated_glossary_packs was [] (nothing active); it is now absent (all glossary packs available). To switch the kind off again, set activated_glossary_packs: [] in .kittify/config.yaml."
+   ]
+  },
+  "second_result": {
+   "changes_made": [
+    "{\"errors\": [], \"kept_for_review\": [\".kittify/charter/charter.yaml: activated_procedures customised; not changed\"], \"matches_minimal\": [], \"moved\": [], \"reset\": [], \"rewritten\": [], \"skills_kept\": [], \"skills_removed\": []}"
+   ],
+   "errors": [],
+   "manual_review_required": true,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": [
+    "Kept for review: .kittify/charter/charter.yaml: activated_procedures customised; not changed"
+   ]
+  },
+  "structural_detect": true,
+  "structural_detect_after": false
+ }
+}

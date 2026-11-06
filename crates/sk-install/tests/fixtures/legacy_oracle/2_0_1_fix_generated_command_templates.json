@@ -1,0 +1,24 @@
+{
+  "case": "2_0_1_fix_generated_command_templates",
+  "meta": {
+    "can_apply": [
+      true,
+      ""
+    ],
+    "changes": [
+      "Updated: .claude/commands/spec-kitty.tasks.md"
+    ],
+    "detect": true,
+    "error": null,
+    "success": true,
+    "warnings": []
+  },
+  "tree": {
+    ".claude/": "DIR",
+    ".claude/commands/": "DIR",
+    ".claude/commands/spec-kitty.tasks.md": "5501ce1ccb10082fad0e164bd28d834978853cf4f57ccf95ddea0dbf018c4ccf",
+    ".kittify/": "DIR",
+    ".kittify/config.yaml": "8651825cb7451bc86266533190d6b1672500d8e23825eebf8bba0b4de89b732c",
+    ".kittify/metadata.yaml": "b971bb8541fce2b073582d78ca9c0aa3a1c5f78b928075c1c6d2f0cc52356a35"
+  }
+}

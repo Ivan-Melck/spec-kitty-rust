@@ -1,0 +1,52 @@
+target:
+  term: "Exact payload float sign and shared model-JSON datetime presentation"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Correct YAML12 negative infinity double sign; one Kernel presentation facade converts canonical datetime ISO text to Pydantic JSON UTC-Z, reused by existing DecisionMoment and exact artifact payload, no parser/schema clone.
+  import_paths:
+    action: manual_review
+    notes: Existing lower Kernel clock/JSON/YAML authorities; no dependencies/root reexports needed.
+  filesystem_paths:
+    action: do_not_change
+    notes: Only fresh test YAML documents; no Source/pack/pin/golden change or active service ownership.
+  serialized_keys:
+    action: do_not_change
+    notes: Same payload fields and canonical model semantics; no new header/envelope keys.
+  cli_commands:
+    action: do_not_change
+    notes: Source consumer composition remains separate missing edge, no new CLI/registration/capability promotion.
+  user_facing_strings:
+    action: manual_review
+    notes: Correct producer timestamp diagnosis — Source ruamel constructs datetime and Pydantic formats UTC as Z; do NOT alter implicit resolver. Negative infinity is -Infinity not Infinity.
+  tests_fixtures:
+    action: manual_review
+    notes: Test existing parser/exact API Source values BEFORE fixes; keep finite adapters/old representative pairs, replace explicit current-divergent timestamp/infinity assertions only after real Source observation, preserve original failure evidence. Add shared presentation/date/offset/fraction checks.
+  logs_telemetry:
+    action: do_not_change
+    notes: Preserve producer fixture exclusions/expectation rounds and failed attempts; Source observation fCaNvE is not a new pair or approval.
+exceptions:
+  - path: crates/sk-kernel/src/python_yaml/construct.rs
+    action: manual_review
+    reason: YAML12 .inf unsigned magnitude then single existing sign application only.
+  - path: crates/sk-kernel/src/clock.rs
+    action: manual_review
+    reason: Shared validated-canonical datetime presentation facade, not a second datetime parser or wall-clock read.
+  - path: crates/sk-workspace/src/decision_model.rs
+    action: manual_review
+    reason: Existing model JSON text delegates UTC-Z presentation to lower owner; Python isoformat sorting unchanged.
+  - path: crates/sk-doctrine/src/body/exact.rs
+    action: manual_review
+    reason: Same facade for Any datetime JSON; fix wrong reader diagnosis/docs/current-divergent assertion, not model schema/admission.
+  - path: crates/sk-kernel/tests/cf38_parent_float_sign.rs
+    action: manual_review
+    reason: Real construct API Source -inf/signedzero control.
+  - path: crates/sk-doctrine/tests/cf38_exact_artifact_payload.rs
+    action: manual_review
+    reason: Add restored negative-infinity and datetime cases to actual both-child paired fixtures, not a changed payload matcher or reduced assertions. This addition is classified before pair-fixture edits, after separately approved core changes.
+  - path: crates/sk-doctrine/tests/cf38_parent_model_datetime.rs
+    action: manual_review
+    reason: Actual file/graph exact payload tests against Source observed model-JSON presentation.
+status:
+  accepted: false
+  phase: parent pre-edit Source float/presentation correction

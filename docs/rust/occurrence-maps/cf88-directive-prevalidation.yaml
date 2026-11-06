@@ -1,0 +1,100 @@
+target:
+  term: CF88 the Source Directive repository `_pre_validate` inline-reference abort phase (an aborting `InlineReferenceRejectedError`), implemented in the Native layered offering load
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Additive: no public rename and no existing public item changes shape. A new
+      crate-private `offering::prevalidation` module becomes the ONE owner of the retired
+      inline-reference field tuple (moved there from `profile.rs`, which keeps its own
+      skip wording) and of the Source `_pre_validate` phase for the kinds this crate
+      implements (Directive only, the lane's grant; every other kind stays a no-op like
+      `BaseArtifactRepository._pre_validate`). The abort reuses the existing
+      `offering::ConstructorAbort` (`python: "InlineReferenceRejectedError"`) and the
+      existing `OfferingLoadError::from_abort` carrier; no new exception hierarchy, no
+      class-string parsing, no fake Native/Source class, no panic.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      Only existing crate edges are used: `sk_charter::ArtifactKind`, `sk_kernel`
+      (`PythonString`, `OsEncodingContext`, `source_path_text`) and the crate's own
+      `offering::value::ArtifactDocument`. No dependency, manifest, lock, feature,
+      registry or `lib.rs` export change; the new module is `pub(crate)`.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No root, pack, pin, golden or tracked fixture path changes. The abort message names
+      the actual offending file, rendered through the canonical `source_path_text`
+      (Python `str(Path)`, including surrogateescape), never a lossy `display()`; the
+      controls build fresh tempfile trees under an isolated CWD/HOME/all-seven-XDG/
+      TMPDIR/TMP/TEMP with the pinned absolute PYTHONPATH and packs root.
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      The three rejected field names (`tactic_refs`, `paradigm_refs`, `applies_to`) are
+      Source constants reused verbatim, in Source's tuple order; no key is renamed,
+      added or removed, and no YAML/JSON wire shape changes. The abort is raised before
+      model admission, so the admitted key set is unchanged.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No new command, flag or exit contract. A directive document carrying a retired
+      inline reference now reaches the CLI as the existing aborting path
+      (`IncludeError::Aborted` / `OfferingLoadError` -> `ServiceKeys::Aborted`) instead
+      of a skipped document's ordinary miss; the envelope and the rendered message family
+      are the existing ones.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      The raised text is the Source's own four lines (`Inline reference rejected in
+      <path>:`, `artifact_kind: directive`, `forbidden_field: <field>`, `migration:
+      <hint>`), with the hint built from the same `{source: directive:<id>, target:
+      <target-kind>:<target-id>, relation: requires}` / `packs/built-in/directive.graph.yaml`
+      template and Source's `str(data.get("id", "?"))` id label (via the canonical graph
+      `python_str`). No new warning prefix, no invented migration advice, no Rust `Debug`
+      text.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New tiny named target `crates/sk-doctrine/tests/cf88_directive_prevalidation.rs`
+      only. Its controls are Source-first and business-real: built-in/org/project
+      inline-reference aborts per forbidden field and tuple order, overlay hook-before-id
+      ordering, structured/absent id labels, the non-mapping / schema-invalid / YAML-syntax
+      warn-and-continue controls, the service and include consumers, same-service
+      fail->fix->retry, warm skipped/loaded snapshots versus a fresh service, and one
+      guarded independent actual Source/Native pair. Existing CF42/CF83/CF84 targets,
+      fixtures and maps stay unchanged.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No logging emission change. The reference's per-file skip warning text is still not
+      reproduced (an existing, separately recorded gap); this lane adds no log line and
+      does not turn the abort into a log record.
+exceptions:
+  - path: crates/sk-doctrine/src/offering/prevalidation.rs
+    action: manual_review
+    reason: >-
+      New crate-private module: the ONE canonical `_pre_validate` phase owner, the
+      retired inline-reference field tuple, and the Source abort text. No second class
+      table, error hierarchy or hint template.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: >-
+      Two hook call sites in the existing layered load, placed where the reference places
+      them: after the non-mapping guard and before model admission (built-in) and before
+      the overlay id checks; plus the `pub(crate) mod prevalidation;` declaration.
+  - path: crates/sk-doctrine/src/profile.rs
+    action: manual_review
+    reason: >-
+      Mechanical unification only: the private retired-field tuple is replaced by the one
+      canonical copy in `offering::prevalidation`, so the profile skip path and the
+      directive pre-validation phase cannot drift. Its own wording, order and skip
+      behaviour are unchanged.
+  - path: crates/sk-doctrine/tests/cf88_directive_prevalidation.rs
+    action: manual_review
+    reason: New named target; the only test file this lane adds.
+  - path: docs/rust/occurrence-maps/cf88-directive-prevalidation.yaml
+    action: manual_review
+    reason: This PRE classification map for the lane.
+status:
+  accepted: false

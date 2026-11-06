@@ -1,0 +1,65 @@
+# Occurrence map — CF37 canonical Source JSON-backed Claude settings model.
+#
+# PRE-edit classification (DIRECTIVE_035). This lane is ADDITIVE: no existing
+# string is renamed, removed or deprecated, so `target.operation` is omitted.
+# The term below names the new canonical model this change introduces; each
+# standard category records how existing occurrences of the Claude-settings
+# surface are treated (KEEP / tests / docs), not a bulk replacement rule.
+#
+# Lane scope (from the CF37 orders): crates/sk-install/src/session.rs +
+# NEW crates/sk-install/src/session/claude_settings.rs,
+# crates/sk-install/src/tool_surface_diagnostics/session_presence.rs (hook
+# parse-failure propagation only), crates/sk-install/src/tool_surface_diagnostics.rs
+# (SessionSurfaceFailure/SessionSurfacePhase carrier only), new cf37_* tests.
+target:
+  term: claude_settings
+
+categories:
+  # New module/items (`claude_settings`, `ClaudeSettingsParse`,
+  # `ClaudeSettingsShape::UncaughtJson`); the private serde walkers
+  # `hook_present`/`foreign_hook_entries` are replaced by the ONE canonical
+  # accessor inside the same file. Every site needs a read, not a blind rename.
+  code_symbols: { action: manual_review }
+
+  # `crate::session::claude_settings::*` is a new import path; session.rs and
+  # tool_surface_diagnostics/session_presence.rs imports must track it exactly.
+  import_paths: { action: rename }
+
+  # `.claude/settings.json` and `crates/sk-install/src/session/` layout stay
+  # put; no destination path changes in this lane.
+  filesystem_paths: { action: do_not_change }
+
+  # `hooks` / `SessionStart` / `Stop` / `type` / `command` are the upstream
+  # settings-JSON contract keys; the model reads them exactly and never renames
+  # them, and unknown keys/values are preserved on rewrite.
+  serialized_keys: { action: do_not_change }
+
+  # No CLI command, flag or exit code is added or renamed.
+  cli_commands: { action: do_not_change }
+
+  # The new diagnostics detail text names the Source phase that escaped
+  # (`ValueError` integer ceiling / `RecursionError`); existing finding codes and
+  # messages are unchanged.
+  user_facing_strings: { action: manual_review }
+
+  # New `cf37_*` tests plus the session unit tests that asserted the removed
+  # serde walker are rewritten against the canonical accessor.
+  tests_fixtures: { action: rename }
+
+  # No log key, metric or telemetry label changes.
+  logs_telemetry: { action: do_not_change }
+
+exceptions:
+  - path: "crates/sk-install/src/migrations/completion_modern/support.rs"
+    action: do_not_change
+    reason: >-
+      Foreign lane. It carries a second, serde-based Claude hook predicate
+      (`claude_hooks_registered`) that predates this model; per the CF37
+      ownership boundary this lane does not edit it. It is reported as
+      duplicate-authority debt with the exact delegation patch requested.
+  - path: "crates/sk-install/src/migrations/completion_modern/presence.rs"
+    action: do_not_change
+    reason: >-
+      Foreign lane. It already delegates its writes to
+      `crate::session::apply_session_presence`, so it inherits this model; no
+      edit is needed and none is made.

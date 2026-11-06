@@ -1,0 +1,22 @@
+[package]
+name = "sk-glossary"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Read-only glossary seed parsing, models, and scope resolution for Spec Kitty"
+
+[dependencies]
+chrono.workspace = true
+serde.workspace = true
+serde_yaml_ng.workspace = true
+thiserror.workspace = true
+sk-kernel = { path = "../sk-kernel" }
+
+[dev-dependencies]
+serde_json.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

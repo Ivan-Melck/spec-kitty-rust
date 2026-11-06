@@ -1,0 +1,66 @@
+# PRE-EDIT inventory .bAWXhf/.joXFjK/.GHnaF7; no host Mission/Op or approval.
+target:
+  term: "charter rewrite Source write exception and text/traversal semantics"
+  replacement: "typed uncaught failure and canonical Unicode/file walk"
+  operation: rename
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Add transparent boxed SourceWrite InstallError (no old variant removal).
+      Generated helper retains typed writer error; rewrite_file returns Result,
+      catches only actual IO errors, propagates other exceptions. Three callers
+      use ?. Replace UTF8-byte-index ASCII-only substitution with safe literal
+      comparison via canonical Python regex_ignore_case_key. Don't recurse into
+      child directory symlinks; preserve Source file-symlink behavior. No new
+      regex/parser/writer/registry or fabricated partial_writes.
+  import_paths:
+    action: manual_review
+    notes: InstallError references existing Kernel SourceWriteError; regex reuses existing Kernel table; no dependency/manifest/lock change.
+  filesystem_paths:
+    action: do_not_change
+    notes: Existing migration/files/command/ledger paths unchanged; new isolated test fixtures only. No real checkout mutation.
+  serialized_keys:
+    action: do_not_change
+    notes: MigrationOutcome fields, errors/changes/warnings and migration IDs stay fixed; exception is not a returned report.
+  cli_commands:
+    action: do_not_change
+    notes: No CLI wiring/aliases/flags/registrations/exit-code policy promotion.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Preserve Source generated refusal message directly, not upgrade-refused
+      prefix or returned Failed-to-write report. Native inspection gains the
+      additive source_write error code. Generic IO strerror wire remains open.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      Source-first actual callback collision/symlink/error/Unicode boundaries,
+      file-vs-directory symlinks, later-artifact ordering and read-only preview;
+      both actual children assert all7XDG/CWD/HOME/tmp/PYTHONPATH/packs. Full
+      bytes/mode/inode/mtime/symlink/artifact footprints, not unit pretendSource.
+  logs_telemetry:
+    action: do_not_change
+    notes: No log/metric/event identity rename or success/readiness label.
+exceptions:
+  - path: crates/sk-install/src/error.rs
+    action: manual_review
+    reason: Add transparent SourceWrite typed failure and its own code, not generic refusal.
+  - path: crates/sk-install/src/migrations/completion_modern/rescue_spine.rs
+    action: manual_review
+    reason: Narrow rewrite/helper/result-call sites plus shared regex comparison and Source rglob directory-symlink behavior.
+  - path: crates/sk-install/tests/charter_writer_source.rs
+    action: manual_review
+    reason: New actual Source-vs-Native public-callback error-phase/read-only proof.
+  - path: crates/sk-install/tests/oracle/charter_writer.py
+    action: manual_review
+    reason: Source cause assertions and raw receipts before Native, not a runtime adapter.
+  - path: crates/sk-kernel/src/**
+    action: do_not_change
+    reason: Current shared writer/codec/regex APIs reused; live L6 graph authority off-limits for this repair.
+  - path: src/**
+    action: do_not_change
+    reason: Pinned Source remains oracle.
+status:
+  reviewed_by: "parent pre-edit classification (not independent approval)"
+  accepted: false

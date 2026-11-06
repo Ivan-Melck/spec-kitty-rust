@@ -1,0 +1,128 @@
+# CF35 ADDITIVE lane classification; no active host Mission/Op and no approval.
+#
+# Scope: the NEW read-only coordination-health domain
+# (`crates/sk-workspace/src/coordination_health.rs`), its NEW CLI adapter
+# (`crates/sk-cli/src/compat/doctor/coordination_health.rs`), the two exact
+# module declarations that expose them, and the new `cf35_*` tests. No
+# pre-existing identifier is renamed, removed or deprecated, so
+# `target.operation` is omitted (additive). This map is a PRE-edit
+# classification record, not an approval, a Mission event, or a gate waiver.
+target:
+  term: "new CF35 coordination-health identifiers (sk_workspace::coordination_health::*, sk_cli::compat::doctor::coordination_health)"
+  operation: null
+  notes: >-
+    Purely additive. The lane replaces the `doctor coordination` refusal with a
+    real read-only diagnosis that COMPOSES canonical authorities (sk-git refs/
+    status/index/ancestry/version/remote, sk-workspace naming + lenient meta
+    reader, sk-mission selector) instead of cloning Source's private git parser,
+    branch roster, manifest reader or prefix policy. `--fix` stays explicitly
+    refused before any read or write; the read-only leaf additionally refuses
+    when a Source check has no canonical owner yet, rather than dropping it and
+    reporting a healthy mission.
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      NEW public symbols only, all under the two new modules:
+      `sk_workspace::coordination_health::{CoordinationFinding, Severity,
+      CoordinationHealthRequest, CoordinationHealthReport, UnavailableCheck,
+      CoordinationHealthError, coordination_health}` plus the finding-code
+      constants. No existing symbol's meaning, signature or visibility changes.
+      Canonical authorities are reused in place: `sk_git::GitRepository`
+      (`git_version`, `read_branch_tip`, `remote_branch_lookup`,
+      `symbolic_head_ref`, `head_commit`, `is_ancestor`, `status`,
+      `index_entries`), `sk_workspace::naming` (`WORKTREES_DIRNAME`,
+      `coord_dir_name`, `coord_mission_dir_name`, `MissionIdentity` grammar),
+      `sk_workspace::doctor::meta::read_meta`/`python_truthy` (the existing
+      classify-never-crash manifest reader), `sk_workspace::ProjectWorkspace`
+      (primary root), and `sk_mission::select_mission` for `--mission`
+      resolution. No private git process, JSON parser, branch roster, event
+      decoder or prefix/pattern policy is introduced.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No new module path is created outside the two declared files, and no
+      dependency edge is added: sk-workspace keeps its declared sk-git/
+      sk-mission/sk-status/sk-kernel/serde_json deps, sk-cli keeps the crates it
+      already depends on. No manifest, lockfile, feature or registry change.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      Every inspected path is the reference spelling and nothing is created,
+      renamed, adopted or deleted: `kitty-specs/`, `kitty-specs/<dir>/meta.json`,
+      `.worktrees/<slug>-<mid8>-coord`, `refs/heads/<branch>`, `refs/remotes/*`,
+      the repository object database and the worktree index. The domain is
+      read-only: it opens no lock, materializes no worktree, refreshes no index
+      (`--no-optional-locks`) and writes no file.
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      Reproduces Source's finding payload keys exactly — `severity`, `message`,
+      `next_step`, `error_code`, `extra` — and Source's `extra` keys `detected`,
+      `tracked`, `tracked_count`, `truncated`, `meta_path`, `recovery_args`,
+      `mission_slug`, `mid8`, `coord_branch`. No existing serialized key is
+      renamed. Java/JSON key ORDER is not claimed byte-identical (serde_json
+      sorts map keys; Python preserves insertion order) — the same
+      non-byte-pinned JSON posture the shipped doctor leaves already record.
+  cli_commands:
+    action: manual_review
+    notes: >-
+      Adds no new CLI flag: Source's `doctor coordination` surface
+      (`--fix`, `--json`, `--check-staleness`, `--mission`) is already declared
+      in `DoctorCommand::Coordination`. The adapter exposes exactly one real
+      entry point (`coordination_health::run`). Root dispatch, the
+      IMPLEMENTED_LEAVES/REFUSED_LEAVES arrays, capability catalogues and the
+      `refuse` arm remain PARENT-owned and are requested as an exact patch; this
+      lane does not wire them.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Finding messages, remedies and the `spec-kitty doctor workspaces --fix` /
+      `spec-kitty doctor coordination --mission <slug> --fix` recovery commands
+      follow Source verbatim (including the remote-only fetch/branch/fix
+      ordering and the "flatten the mission" hint). The human renderer is
+      plain text with Source's `severity: message` + `  -> next_step` layout, not
+      a Rich-styled byte clone; that layout is deliberately not byte-pinned, the
+      same qualification the shipped doctor leaves carry. Two NEW refusal
+      strings name the missing canonical owners rather than inventing a health
+      claim.
+  tests_fixtures:
+    action: do_not_change
+    notes: >-
+      NEW `crates/sk-workspace/tests/cf35_coordination_health.rs` and
+      `crates/sk-cli/tests/cf35_coordination_health_cli.rs` plus module-local
+      `#[cfg(test)]` cases. All fixtures are fresh `tempfile` roots with a real
+      `git init`, real `git worktree add` linked worktrees, real refs/branches
+      and a real repository index. No existing test or fixture is edited,
+      weakened or reclassified, and no fabricated OID/time/readiness value is
+      written.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log key, ledger record, metric, event or telemetry field is added or
+      renamed. The domain prints nothing; the adapter writes the report to
+      stdout only. No Mission/Op record is opened.
+exceptions:
+  - path: crates/sk-workspace/src/coordination_health.rs
+    action: manual_review
+    reason: >-
+      Carries the `unavailable` declaration for the two Source checks whose
+      canonical owner does not exist yet (lane sparse-checkout pattern policy +
+      lane-worktree recomposition recognizer; consolidation reconcile-marker /
+      stranded-`done` coherence). Declaring them as unavailable instead of
+      cloning them is the point of the entry: the adapter refuses rather than
+      emitting a partial green.
+  - path: crates/sk-cli/src/compat/doctor/coordination_health.rs
+    action: manual_review
+    reason: >-
+      The adapter is reachable only after the parent wires the root route; until
+      then it is dead code from the binary's point of view. It also refuses
+      `--fix` outright because every Source `--fix` arm materializes worktrees,
+      rewrites `meta.json`, backfills topology, fast-forwards branches or
+      reverts strand commits — none of which this read-only lane may perform.
+  - path: docs/rust/occurrence-maps/cf35-coordination-health.yaml
+    action: do_not_change
+    reason: This file records the additive classification; it is not an approval.
+status:
+  reviewed_by: "CF35 implementer pre-edit classification (not independent approval)"
+  accepted: false

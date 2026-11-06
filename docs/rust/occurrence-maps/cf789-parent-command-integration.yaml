@@ -1,0 +1,45 @@
+# Parent PRE-EDIT classification. Inventory .Z2gFCD + actual completed adapters/root read.
+# Existing guesses/missing file inventory attempts retained; no host Mission/Op.
+target:
+  term: "completed acceptance charter doctor command composition"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Add Doctor and Charter root variants and delegate to delivered runners, never clone behavior. Acceptance already delegates Source collection/policy/matrix; no new acceptance path.
+  import_paths:
+    action: do_not_change
+    notes: Use already declared canonical compat modules; native inspection CharterCommand remains distinct.
+  filesystem_paths:
+    action: do_not_change
+    notes: No Source/packs/pins/lock/data/resource roots changed.
+  serialized_keys:
+    action: manual_review
+    notes: Capability rows move from stale unsupported to explicitly partial, name functionality and remaining gaps; no payload schema change in adapters.
+  cli_commands:
+    action: manual_review
+    notes: Register charter and doctor in real compatibility tree, not native inspection. All refused options retain nonzero exit. No declaration-only capability success.
+  user_facing_strings:
+    action: manual_review
+    notes: Honest bounded capability descriptions; no parity/whole-leaf-completion or unsupported-as-success labels.
+  tests_fixtures:
+    action: manual_review
+    notes: Root parse/bare doctor nonzero/safe refusal plus delivered focused smoke. No fixture weakening; Native-only not Source differential proof.
+  logs_telemetry:
+    action: do_not_change
+    notes: No global inventory counts, independent review, formal accounting or benchmark promotion.
+exceptions:
+  - path: crates/sk-cli/src/compat/mod.rs
+    action: manual_review
+    reason: Two real command group routes directly invoke completed canonical adapter runners.
+  - path: crates/sk-cli/src/compat/capabilities.rs
+    action: manual_review
+    reason: Acceptance/charter/doctor local partial rows only; other stale capabilities require their own integration followup.
+  - path: crates/sk-cli/tests/cf789_parent_routes.rs
+    action: manual_review
+    reason: Additive actual root-tree smoke with explicit refusal-state assertions.
+structural_targets:
+  - path: crates/sk-cli/tests/cf789_parent_routes.rs
+    reason: New public-root integration smoke.
+status:
+  accepted: false
+  phase: parent pre-edit route wiring, final equivalence gates deferred not waived

@@ -1,0 +1,42 @@
+# Parent PRE-EDIT module allocation after CF17 consumer CLI checks passed.
+# Declaration ONLY, zero functionality until actual CF23 runner delivered.
+target:
+  term: "tool surface diagnostic adapter allocation"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Add pub mod tool_surfaces in existing doctor tree and doc-only new file; no runner/result stub or fake successful payload.
+  import_paths:
+    action: manual_review
+    notes: One canonical module, no path attribute workaround or duplicate type.
+  filesystem_paths:
+    action: do_not_change
+    notes: No Source/packs/pins/golden/runtime data changes; new source module only.
+  serialized_keys:
+    action: do_not_change
+    notes: No diagnostic payload/schema or native completion claim from declarations.
+  cli_commands:
+    action: do_not_change
+    notes: Existing refused leaves remain refused until parent wires actual delivered runner.
+  user_facing_strings:
+    action: manual_review
+    notes: Update local partial-doctor gap text for actual completed fork facts; prefix unification pending active owner, repair/lifecycle still missing.
+  tests_fixtures:
+    action: do_not_change
+    notes: No existing assertions changed in this module allocation.
+  logs_telemetry:
+    action: do_not_change
+    notes: No new leaf counts/global fidelity/performance/accounting promotion.
+exceptions:
+  - path: crates/sk-cli/src/compat/doctor.rs
+    action: manual_review
+    reason: Public child module declaration only, all real dispatch parent-owned.
+  - path: crates/sk-cli/src/compat/doctor/tool_surfaces.rs
+    action: manual_review
+    reason: New documentation-only namespace, explicitly no functionality until CF23 delivery.
+  - path: crates/sk-cli/src/compat/capabilities.rs
+    action: manual_review
+    reason: Correct stale partial gap text after actual fork CLI facts pass.
+status:
+  accepted: false
+  phase: parent pre-edit module allocation and bounded gap wording

@@ -1,0 +1,43 @@
+target:
+  term: CF93 exact PythonString lists through the existing canonical YAML emitter
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Add exact string-list mapping input. Share existing mapping and sequence state machines and double-quoted writer; widen its units to u32, no second emitter.
+  import_paths:
+    action: manual_review
+    notes: Existing sk-kernel PythonString, canonical graph and implicit_scalar_kind with RuamelSafe12; same-item sk-charter public reexport, no dependency addition. Measured underscore quoting red requires removing the private scalar resolver clone, not another local regex repair.
+  filesystem_paths:
+    action: do_not_change
+    notes: No production placement, writer, metadata, lock or transaction changes. Independent business fixtures only.
+  serialized_keys:
+    action: do_not_change
+    notes: Authored mapping keys unchanged; full exact values and emitted bytes observed, not repr-as-ID or JSON value bridges.
+  cli_commands:
+    action: do_not_change
+    notes: Actual activation CLI still requires exact document/planner/output integration. This batch does not claim that closure.
+  user_facing_strings:
+    action: manual_review
+    notes: Source double-quote escapes and width/Unicode behavior use the existing formatter. Surrogates escape as uppercase four-digit u units, supplementary scalars stay single scalars.
+  tests_fixtures:
+    action: manual_review
+    notes: One named charter target, independent actual guarded Source/Native business processes before reads. Source public render_yaml_document bytes against Native formatter, all2048Cs and exact roundtrip. Not a full activation workflow pair.
+  logs_telemetry:
+    action: manual_review
+    notes: Preserve failed producer and invalid Source fixture attempts; no inference retry or masked receipts. New API absence is not a business red.
+exceptions:
+  - path: crates/sk-charter/src/canonical_yaml.rs
+    action: manual_review
+    reason: Extend the ONE existing emitter to exact string-list data and reuse its original sequence and quoted state machines. Prospective follow-up after actual red zh9VFC and census mW0rMC removes duplicate private bool/int/float/null/timestamp resolver helpers in favor of canonical Kernel dialect authority.
+  - path: crates/sk-kernel/src/python_yaml/dialect.rs
+    action: manual_review
+    reason: Source resolver regex dispatch excludes underscore-initial integer spellings. Current Source writer emits underscore plain while Native quotes it even after emitter unification. Correct that one canonical dispatch guard, preserve signed underscore regex behavior, no local emitter override.
+  - path: crates/sk-charter/src/lib.rs
+    action: manual_review
+    reason: Same-item public input API reexport only.
+  - path: crates/sk-charter/tests/cf93_exact_yaml_string_lists.rs
+    action: manual_review
+    reason: New bounded actual serialization children and canonical graph roundtrip, no root CLI or publication claim.
+status:
+  accepted: false
+  phase: prospective exact canonical string-list serialization capability

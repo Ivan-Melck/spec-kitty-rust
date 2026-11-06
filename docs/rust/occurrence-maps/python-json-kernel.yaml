@@ -1,0 +1,53 @@
+# Pre-edit canonical relocation, not a wire/key/CLI rename.
+# No active Mission exists; no Mission metadata or runtime gate pass is fabricated.
+target:
+  term: crates/sk-invocation/src/python_json.rs
+  replacement: crates/sk-kernel/src/python_json.rs
+  operation: rename
+categories:
+  code_symbols: {action: manual_review}
+  import_paths: {action: manual_review}
+  filesystem_paths: {action: manual_review}
+  serialized_keys: {action: do_not_change}
+  cli_commands: {action: do_not_change}
+  user_facing_strings: {action: manual_review}
+  tests_fixtures: {action: manual_review}
+  logs_telemetry: {action: do_not_change}
+moves:
+  - from: [crates/sk-invocation/src/python_json.rs]
+    to: crates/sk-kernel/src/python_json.rs
+    reason: Move the frozen exact tree, scalar builder, float and string encoder below Invocation and Workspace; retain the Invocation file as a compatibility facade, not a second implementation.
+exceptions:
+  - path: crates/sk-kernel/src/python_json.rs
+    action: manual_review
+    reason: Receive existing implementation/tests; imports become crate-relative and the shared float helper is public; no wire/data/algorithm rewrite during relocation.
+  - path: crates/sk-kernel/src/lib.rs
+    action: manual_review
+    reason: Add public production JSON module; preserve existing public repr/string APIs.
+  - path: crates/sk-invocation/src/python_json.rs
+    action: manual_review
+    reason: Retain old callable names and same nominal type via exact Kernel reexports, including crate-visible float helper; no second formatter.
+  - path: crates/sk-invocation/src/lib.rs
+    action: manual_review
+    reason: Expose the production compatibility facade module, so all callable encoder aliases are reachable rather than unused private reexports; Kernel remains the only implementation.
+  - path: crates/sk-invocation/src/executor.rs
+    action: do_not_change
+    reason: Existing PythonJsonValue export continues through facade with same type identity.
+  - path: crates/sk-invocation/src/legacy_json.rs
+    action: do_not_change
+    reason: Legacy parser and float caller remain unchanged, distinct grammar/claim semantics preserved.
+  - path: crates/sk-invocation/src/record.rs
+    action: do_not_change
+    reason: Existing scalar Op builder import/wire behavior continues through alias.
+  - path: crates/sk-workspace/src/merge_drivers.rs
+    action: manual_review
+    reason: Follow-up uses shared lower-layer formatter and actual per-protocol field order; must not create a duplicate encoder.
+  - path: crates/sk-invocation/tests/python_json_numbers_source.rs
+    action: do_not_change
+    reason: Permanent Source-first numeric public API regression passes unchanged via alias.
+  - path: crates/sk-invocation/tests/python_json_kernel_alias.rs
+    action: manual_review
+    reason: New same-build nominal identity and bidirectional assignment check; no cross-build TypeId assertion.
+  - path: docs/rust/reviews/**
+    action: manual_review
+    reason: Record new bindings only; preserve immutable original G/coordinator report subjects and receipts.

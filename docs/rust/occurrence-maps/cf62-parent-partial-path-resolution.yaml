@@ -1,0 +1,43 @@
+target:
+  term: Preserve partially resolved symlink prefixes through non-strict lstat failures
+categories:
+  code_symbols:
+    action: manual_review
+    notes: One existing Kernel walker gains explicit IO policy; keep default inspection behavior unchanged and remove Status whole-path fallback.
+  import_paths:
+    action: manual_review
+    notes: Same-item Kernel paths export only, no second walker/parser or dependency.
+  filesystem_paths:
+    action: manual_review
+    notes: Source candidate/root resolution continues per component after lstat errors, not by reverting a partially resolved path.
+  serialized_keys:
+    action: do_not_change
+    notes: No business payload or wire keys added.
+  cli_commands:
+    action: do_not_change
+    notes: No route/count/doctor promotion.
+  user_facing_strings:
+    action: manual_review
+    notes: Preserve actual escaped failure phase; subclass/message and operational symlink budget remain explicit open debt.
+  tests_fixtures:
+    action: manual_review
+    notes: New Source-first existing pair alias plus inaccessible metadata case, fresh symlink in temporary sandbox.
+  logs_telemetry:
+    action: do_not_change
+    notes: No reconstructed receipts; classifier differences not parity greens.
+exceptions:
+  - path: crates/sk-kernel/src/fs_resolve.rs
+    action: manual_review
+    reason: One existing resolution engine gets policy argument, no second implementation.
+  - path: crates/sk-kernel/src/paths.rs
+    action: manual_review
+    reason: Narrow explicit-policy facade over same walker, default unchanged.
+  - path: crates/sk-status/src/source_metadata.rs
+    action: manual_review
+    reason: Select per-component IO tolerance instead of lossy whole-path fallback, preserve actual catch scope.
+  - path: crates/sk-status/tests/cf62_source_execution_exceptions.rs
+    action: manual_review
+    reason: Prospective symlink-root inaccessible-tail real Source comparison case.
+status:
+  accepted: false
+  phase: parent prospective partial-path correction

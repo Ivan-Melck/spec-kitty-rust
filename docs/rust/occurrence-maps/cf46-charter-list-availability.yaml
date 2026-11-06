@@ -1,0 +1,148 @@
+# CF46 occurrence classification — charter-list availability / required-floor
+# composition (list-scoped consumer).
+#
+# PRE-EDIT classification: authored BEFORE the code edits it describes, from the
+# grep counts recorded in the evidence root under
+# `043-pre-edit-counts.5oZvlI.log` (`grep -rF` over `crates/sk-cli/src` and
+# `crates/sk-cli/tests`):
+#
+#   list_payload               11  (1 decl at compat/charter.rs:818, 1 call at
+#                                   :742, 9 test call sites in cf8/cf36)  -> KEEP name+signature
+#   available_ids              10  (1 decl + 3 non-list callers at :1136,
+#                                   :1217, :1891 and their reads)          -> KEEP
+#   available_mission_types     4  (1 decl + 3 non-list callers)           -> KEEP
+#   fn list_command             1                                          -> KEEP, body gains the composed cells
+#   "activated"                 6                                          -> KEEP key, value now sorted
+#   "available"                14                                          -> KEEP key, value composed per layer
+#   "deactivated"              10                                          -> KEEP key, value now sorted
+#   mod list_templates          1                                          -> KEEP, one ADD beside it
+#   required_not_in_force       0                                          -> ADD (reference-only key)
+#   required_in_force           0                                          -> ADD (reference-only key)
+#   required_floor_unreadable   0                                          -> ADD (reference-only key)
+#   show_available             12                                          -> KEEP flag
+#   all_layers                  6                                          -> KEEP flag
+#
+# The change is ADDITIVE: one new list-scoped module plus a body replacement in
+# `list_payload`/`list_command`. No identifier is renamed and no public JSON key
+# changes spelling. `Roots::load` stays strict for every other charter command.
+#
+# Schema note: this rewrite lane has NO host Mission (inventing mission metadata
+# is forbidden), so no `mission:` key exists and `schema_version` is omitted —
+# the schema sets `additionalProperties: false` at the root and does not admit
+# it. The root key set here is exactly `target`, `categories`, `exceptions`.
+
+target:
+  term: "charter list availability / org required-floor composition (list-scoped consumer)"
+  # No `operation`: this is additive (new module + strictly wider already-existing
+  # availability rows); nothing is renamed, removed or deprecated.
+
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      KEEP every existing symbol and signature: `charter::list_payload(root,
+      show_available, all_layers)`, `charter::list_command`, `Roots`, and
+      `Roots::{load, available_ids, available_mission_types}` (the last three
+      keep their non-list callers in activate/deactivate/include untouched).
+      ADD (new, non-colliding): module
+      `crate::compat::charter::list_availability` with `ListRoster::load`,
+      `Listing::load`, `KindRow`, `Floors`, `Omission`, `InForce`, and the
+      list-scoped `availability_entries`/`mission_type_entries` helpers. The
+      new module holds NO second floor model: it reads
+      `sk_doctrine::{read_org_required_provenance, resolve_deny,
+      load_activation_ledger}` and `sk_charter::ArtifactKind` facts.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No new crate, manifest, lockfile, feature or dependency edge. The new
+      module consumes already-declared edges only: `sk-charter`
+      (`ArtifactKind`, `CHARTER_KIND_TOKENS`, `MISSION_TYPE_TOKEN`,
+      `load_project_config`, `PackRoots`, `PathExpansion`, `BuiltInSearch`,
+      `Limits`), `sk-doctrine` (`load_activation_ledger`, `IdentityIndex`,
+      `scan_all`, `read_org_required_provenance`, `resolve_deny`,
+      `mission_type_fallback`, `scan_mission_types_dir`,
+      `ORG_MISSION_TYPES_SUBDIR`, `PROJECT_MISSION_TYPES_RELATIVE_TO_KITTIFY`,
+      `EffectiveWhenAbsent`) and `sk-kernel` (`get_package_asset_root`).
+      `sk-cli -> sk-doctrine/sk-charter` is the existing adapter direction.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      Read-only. Same paths the reference listing reads: `.kittify/config.yaml`,
+      `.kittify/charter/activation.yaml`, `.kittify/charter-packs/<kind dir>`,
+      each configured existing org pack root, and the installed built-in pack
+      (`<built-in>/<plural>`, `<built-in>/missions/built_in_step_contracts`,
+      `<built-in>/missions/mission_types`). No file, directory, cache, config,
+      lock or fixture inside a project is created, written or deleted —
+      including for a declared-but-unfetched org pack (it is dropped from the
+      roster, never fetched/materialised).
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      The `charter list --json` contract keeps every existing spelling and every
+      `null`-vs-absent rule: `result`, `kinds[]` (`kind`, `activated`,
+      `available`, `deactivated`; `available` stays `null` without
+      `--show-available`/`--all`), top-level `templates` stays `null` without
+      `--all`, and `--all` template rows keep exactly
+      `template_id`/`mission`/`name`/`tier`. Two value rules become
+      reference-shaped: `activated`/`deactivated` arrays are sorted, and
+      `available` rows are the artifact stems (never the declared id promoted to
+      a second row). ADD only the reference's additive, non-empty-only keys:
+      `required_not_in_force{<plural>:[{id,packs}]}`,
+      `required_in_force{<plural>:[{id,packs}]}` and
+      `required_floor_unreadable[<plural>]`. No extra wire field is introduced.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No root CLI parser, enum, dispatch arm, capability row, flag or help text
+      is edited. `charter list [--show-available] [--all] [--json]` keeps its
+      exact surface; `--all` still implies `--show-available`.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      The plain-line renderer keeps the existing Safe shape and gains the
+      reference's honest status cells: absent-key text distinguishes the
+      "all built-ins" rule from the org-required-only (`skill`) rule, an empty
+      explicit allow list reads as an explicit restriction, and per-id floor
+      markers name `required (not in force: explicit allow list omits it);
+      required by '<pack>'`, `in force: required by '<pack>'`, and the
+      `org required floor unreadable — run `spec-kitty doctor charter-packs``
+      hint. Rich colour/style markup is not imitated (disclosed divergence).
+      No line claims fetched/materialised/healthy/synced for an unfetched pack.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      ADD `crates/sk-cli/tests/cf46_charter_list_availability.rs` (fresh
+      `tempfile` fixtures only). KEEP `cf8_charter_command.rs` and
+      `cf36_charter_list_templates.rs` assertions unchanged: the CF8 fixture's
+      `--all` directive row (`024-locality-of-change`, layer `built-in`,
+      declared_id `DIRECTIVE_024`) and the CF36 `templates: null` /
+      template-row / no-write assertions all remain valid Source-valid premises.
+      No existing test is skipped, weakened or deleted.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric, event or telemetry key. The listing emits nothing; its
+      only output is the payload/text and the coded error envelope.
+
+exceptions:
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: >-
+      Owns `list_command` and `list_payload`; the body of each is replaced by a
+      call into the new list-scoped module, and one additive `mod
+      list_availability;` line is added. `Roots::load` and every other command
+      in the file are untouched.
+  - path: crates/sk-cli/src/compat/charter/list_availability.rs
+    action: manual_review
+    reason: >-
+      NEW file; all of its symbols are additions. It is the list-scoped
+      roster/availability/status/floor composition consumer and owns no
+      canonical authority of its own.
+  - path: crates/sk-cli/tests/cf46_charter_list_availability.rs
+    action: manual_review
+    reason: >-
+      NEW file; additive tests only.
+  - path: docs/rust/occurrence-maps/cf46-charter-list-availability.yaml
+    action: do_not_change
+    reason: >-
+      This classification artifact itself; not changed by the implementation.

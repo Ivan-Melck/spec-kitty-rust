@@ -1,0 +1,136 @@
+# Pre-edit occurrence classification for the DecisionIndex model/store lane (D1).
+#
+# No host Mission exists for this lane and none is invented here: this map lives
+# beside the other rewrite-wave maps under docs/rust/occurrence-maps/ rather than
+# in an (absent) kitty-specs/<mission>/occurrence_map.yaml.
+#
+# The edit is a MOVE plus additive modules, not a wire/key/CLI rename:
+#   * the typed DecisionIndex model (validation, defaults, coercion, the pydantic
+#     datetime domain, the JSON projection) leaves merge_drivers/exact.rs for ONE
+#     new module that BOTH the merge driver and the new read-only store consume;
+#   * the raw union / conflict precedence / publication policy stays in the driver;
+#   * a new read-only store and its Source-first tests are added.
+#
+# Classification counts were taken BEFORE the extraction (grep over the working
+# tree, target/ excluded, ignored/unreadable/fixture/doc paths included), recorded
+# in evidence probe `d1-p22-occurrence-enumeration`.
+target:
+  term: "merge_drivers/exact.rs DecisionIndex typed model span (DecisionMoment, project_decision_index, project_decision_entry, decision_version, decision_* validators, DECISION_* tables)"
+  replacement: "crates/sk-workspace/src/decision_model.rs (one typed model) + crates/sk-workspace/src/decision_store.rs (read-only loader)"
+  operation: rename
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Private/`pub(crate)` helper names are carried across unchanged
+      (DecisionMoment, decision_version, decision_moment_value, decision_boolean,
+      decision_summary, decision_options, decision_member, decision_text,
+      decision_optional_text, decision_field, decision_key_label, digits,
+      days_in_month, ascii_lower, DECISION_REQUIRED, DECISION_ENTRY_FIELDS,
+      DECISION_ORIGIN_FLOWS, DECISION_STATUSES, DECISION_TRUE_WORDS,
+      DECISION_FALSE_WORDS, DECISION_EPOCH_*). `DecisionStatus` becomes the one
+      public enum both callers use, so the raw union's status list is deleted
+      rather than duplicated. No caller outside sk-workspace sees these names.
+  import_paths:
+    action: manual_review
+    notes: >-
+      One new import edge (`use crate::decision_model::{self, DecisionModelError,
+      DecisionStatus}`) in merge_drivers/exact.rs; decision_model.rs imports only
+      `sk_kernel`, so the model never depends on the merge module or its errors.
+      crates/sk-workspace/src/lib.rs gains two `pub mod` lines.
+  filesystem_paths:
+    action: manual_review
+    notes: >-
+      New files crates/sk-workspace/src/decision_model.rs and
+      crates/sk-workspace/src/decision_store.rs (plus one new test file). No
+      on-disk ledger path changes: `decisions/index.json`, `DM-<id>.md` and the
+      `merge=spec-kitty-decision-index` attribute are untouched.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      `version`, `mission_id`, `entries` and the 18 IndexEntry field names are
+      Source's wire. The projection still emits every field in declaration order
+      and the refusal text still names them identically.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      `merge-driver-decision-index` and its gitattributes line are unchanged; this
+      lane adds no command, flag or subcommand.
+  user_facing_strings:
+    action: do_not_change
+    notes: >-
+      Every existing refusal string is preserved byte-for-byte through the typed
+      error's Display and the merge adapter; the new store uses Source's
+      `Cannot read <path>: <cause> — fail-closed ...` wrapper text.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      decision_validation_source.rs (210 Source bodies), decision_raw_union_exact_source.rs
+      and decision_serializer_preservation_exception.rs are NOT edited or
+      weakened; they must still pass unchanged. One new Source-first test file
+      (decision_model_store_source.rs) is added for the model/store interface.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log key, metric name or event field is touched; the store is silent on
+      the success path (no logging seam is introduced).
+moves:
+  - from: [crates/sk-workspace/src/merge_drivers/exact.rs]
+    to: crates/sk-workspace/src/decision_model.rs
+    reason: >-
+      Promote the ONE typed DecisionIndex model out of the merge driver so the
+      read-only store can validate with the same model instead of a second
+      validator or a raw-union/merge-driver shortcut. Union precedence, conflict
+      refusal and `%A` publication stay in the driver.
+exceptions:
+  - path: crates/sk-workspace/src/merge_drivers/exact.rs
+    action: manual_review
+    reason: >-
+      Receives the delegation only: the moved span is deleted, project_decision_index
+      now validates the unioned document through the shared model and adapts its
+      typed error to MergeDriverError; the raw union, `str_key`, terminal-beats-open
+      precedence, event-log/acceptance/issue sections and all other drivers are
+      unchanged.
+  - path: crates/sk-workspace/src/decision_model.rs
+    action: manual_review
+    reason: >-
+      New file. Sole typed validation/default/coercion/datetime/projection
+      authority; consumed by the merge driver and the store.
+  - path: crates/sk-workspace/src/decision_store.rs
+    action: manual_review
+    reason: >-
+      New file. Read-only load_index with Source's exists/probe, strict UTF-8,
+      JSON, non-object and model phases, a typed DecisionIndexReadError and no
+      write, lock, repair or serializer path.
+  - path: crates/sk-workspace/src/lib.rs
+    action: manual_review
+    reason: Narrow module registration for the two new modules; no other export changes.
+  - path: crates/sk-workspace/tests/decision_model_store_source.rs
+    action: manual_review
+    reason: >-
+      New Source-first paired evidence for the model/store contract; asserts the
+      actual Source phase and cause before the Native replay.
+  - path: crates/sk-workspace/tests/decision_validation_source.rs
+    action: do_not_change
+    reason: Existing 210-body Source-first suite; proves the extraction preserved behaviour.
+  - path: crates/sk-workspace/tests/decision_raw_union_exact_source.rs
+    action: do_not_change
+    reason: Raw-union API contract, untouched by the move.
+  - path: crates/sk-workspace/tests/decision_serializer_preservation_exception.rs
+    action: do_not_change
+    reason: The authorized summary-key exception; load/validation preservation is asserted here, serialization deviation stays there.
+  - path: crates/sk-workspace/src/acceptance_source.rs
+    action: do_not_change
+    reason: Parent-owned collector; this lane delivers the store interface and does not rewire the consumer.
+  - path: src/specify_cli/decisions/**
+    action: do_not_change
+    reason: Pinned Source oracle (models.py, store.py); reference only, never edited.
+  - path: src/kernel/meta_decode.py
+    action: do_not_change
+    reason: Pinned Source decode authority the store's phases mirror; reference only.
+  - path: docs/rust/occurrence-maps/decision-index-model-store.yaml
+    action: manual_review
+    reason: This classification artifact (new).
+status:
+  reviewed_by: "implementer (D1 lane, self-classification; NOT an approval)"
+  accepted: false

@@ -1,0 +1,39 @@
+# Parent PRE-EDIT review of actual .slw9Eg/.TqwK2N executed failures and
+# real fixtures/Source event-prefix/fork bodies. No Mission/Op metadata.
+target:
+  term: "decision fork CLI source-fact fixture integration"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Tests assert real completed fork facts, not retired unevaluated disclosure. Existing coord prefix remains active CF18-owned; parent does NOT edit it or unify merely by name.
+  import_paths:
+    action: do_not_change
+    notes: Existing canonical fold/store/Git owners retained, no new dependency.
+  filesystem_paths:
+    action: manual_review
+    notes: Add actual decisions.events.jsonl to the claimed single-home fixture on PRIMARY only; no product/source/golden paths changed.
+  serialized_keys:
+    action: do_not_change
+    notes: No product payload schema edit. Test asserts actual Source fork/streams/ledger/findings rather than obsolete Native-only unevaluated_findings.
+  cli_commands:
+    action: do_not_change
+    notes: Same doctor decisions command/read-only exit contract.
+  user_facing_strings:
+    action: manual_review
+    notes: Correct fixture comments; no extra semantic exception or false Source approval.
+  tests_fixtures:
+    action: manual_review
+    notes: Preserve old clean/id/refusal/immutable assertions, strengthen real fork facts. Existing new CLI test expected a stream absent from its fixture; actually supply that stream and assert its count/id provenance, do not widen expected states.
+  logs_telemetry:
+    action: do_not_change
+    notes: Retain both prior failed executions and no Source/performance/global promotion.
+exceptions:
+  - path: crates/sk-cli/tests/cf14_doctor_record_diagnostics.rs
+    action: manual_review
+    reason: Replace obsolete disclosure assertion with actual clean fork/ledger/stream facts, rest unchanged.
+  - path: crates/sk-cli/tests/cf17_decision_fork_doctor.rs
+    action: manual_review
+    reason: Add omitted PRIMARY decision-stream fixture and verify concrete Source single-home facts.
+status:
+  accepted: false
+  phase: parent pre-edit deferred CLI fixture integration

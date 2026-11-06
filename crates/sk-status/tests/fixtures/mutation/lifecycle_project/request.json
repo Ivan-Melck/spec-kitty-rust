@@ -1,0 +1,20 @@
+{
+  "aggregate_id": "1f8bca14-6f1b-4a1c-9a6c-1d6f0f0b2c3d",
+  "aggregate_type": "Project",
+  "dedup_keys": {
+    "project_uuid": "1f8bca14-6f1b-4a1c-9a6c-1d6f0f0b2c3d"
+  },
+  "event_id": "01K9M0R3WJ8V6Q1Y4T7B2N5C0A",
+  "event_type": "ProjectInitialized",
+  "log_path": "canonical-events.jsonl",
+  "payload": {
+    "actor": "cli",
+    "initialized_at": "2026-11-02T09:00:00Z",
+    "project_slug": "mutation-fixture",
+    "project_uuid": "1f8bca14-6f1b-4a1c-9a6c-1d6f0f0b2c3d",
+    "runtime_version": "4.1.0"
+  },
+  "project_slug": "mutation-fixture",
+  "project_uuid": "1f8bca14-6f1b-4a1c-9a6c-1d6f0f0b2c3d",
+  "timestamp": "2026-11-02T09:00:00+00:00"
+}

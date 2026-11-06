@@ -1,0 +1,40 @@
+target:
+  term: "Source event text line boundaries and canonical diagnostic repr"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Source read loop uses Kernel Python splitlines whitespace and string repr; existing model reducer and Native diary behavior unchanged.
+  import_paths:
+    action: do_not_change
+    notes: Existing Kernel dependency only; no new parser or dependency.
+  filesystem_paths:
+    action: do_not_change
+    notes: Fresh test directories only; no metadata placement or stream write change.
+  serialized_keys:
+    action: do_not_change
+    notes: No event field or snapshot schema changes in this narrow correction.
+  cli_commands:
+    action: do_not_change
+    notes: No doctor routing capabilities counts or fix support.
+  user_facing_strings:
+    action: manual_review
+    notes: Canonical Python repr escaping and correct line numbers; reclassify deliberate strengthening documentation as unapproved phase mismatch, not Source semantics.
+  tests_fixtures:
+    action: manual_review
+    notes: Before-fix Unicode separators whitespace and quoted discriminator tests; strengthen the existing matrix with an actual isolated Native re-exec before business reads. Producer narrowings remain documented gaps not accepted parity; committed fixture is still Source child plus in-process Native until separately strengthened.
+  logs_telemetry:
+    action: do_not_change
+    notes: Failed attempts and real Source narrowings retained; no new isolated-pair claim.
+exceptions:
+  - path: crates/sk-status/src/replay.rs
+    action: manual_review
+    reason: Source line loop diagnostic string branch and phase documentation only.
+  - path: crates/sk-status/tests/cf49_parent_source_text.rs
+    action: manual_review
+    reason: New narrow public Source reader regressions before production correction.
+  - path: crates/sk-workspace/tests/cf49_source_event_admission.rs
+    action: manual_review
+    reason: Prospective actual Native child branch and pre-work seven-XDG assertions, Source receipt first; original native leg ran in-process despite completion claim.
+status:
+  accepted: false
+  phase: parent pre-edit Source text correction

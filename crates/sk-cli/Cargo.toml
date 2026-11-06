@@ -1,0 +1,42 @@
+[package]
+name = "sk-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Native Spec Kitty command-line adapters for the Rust rewrite"
+publish = false
+
+[[bin]]
+name = "spec-kitty-rust"
+path = "src/main.rs"
+
+[[bin]]
+name = "spec-kitty"
+path = "src/bin/spec-kitty.rs"
+
+[dependencies]
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+chrono.workspace = true
+sk-charter = { path = "../sk-charter" }
+sk-doctrine = { path = "../sk-doctrine" }
+sk-git = { path = "../sk-git" }
+sk-glossary = { path = "../sk-glossary" }
+sk-install = { path = "../sk-install" }
+sk-invocation = { path = "../sk-invocation" }
+sk-kernel = { path = "../sk-kernel" }
+sk-mission = { path = "../sk-mission" }
+sk-run-store = { path = "../sk-run-store" }
+sk-runtime = { path = "../sk-runtime" }
+sk-status = { path = "../sk-status" }
+sk-workspace = { path = "../sk-workspace" }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

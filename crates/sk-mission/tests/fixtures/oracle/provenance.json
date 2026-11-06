@@ -1,0 +1,23 @@
+{
+  "generated_by": "crates/sk-mission/tests/oracle/generate_oracle_fixtures.py",
+  "python_executable": "/home/exedev/.local/share/uv/tools/spec-kitty-cli/bin/python",
+  "python_version": "3.11.15",
+  "documented_baseline_commit": "9aed3a8012cb5eb22c0128b14d525039f95fea7a",
+  "oracle_source_commit": "94fc25c48015dc98f92db30ac72624d10f20b431",
+  "source_paths": [
+    "src/specify_cli/core/mission_creation_meta.py",
+    "src/specify_cli/core/mission_creation_identity.py",
+    "src/specify_cli/core/mission_creation_scaffold.py",
+    "src/specify_cli/core/dependency_parser.py",
+    "src/specify_cli/mission_metadata.py"
+  ],
+  "creation_inputs": {
+    "mission_id": "01KZ6G6H4R8Y9J2N4Q7V3B6M1F",
+    "mid8": "01KZ6G6H",
+    "directory_name": "demo-mission-01KZ6G6H",
+    "friendly_name": "Demo Mission",
+    "created_at": "2026-11-02T10:00:00Z",
+    "target_branch": "main"
+  },
+  "notes": "The documented baseline is 9aed3a8012cb5eb22c0128b14d525039f95fea7a; the oracle source files are byte-identical at the recorded oracle_source_commit. meta.json fixtures were produced by _build_create_meta + write_meta (the canonical serialization: sorted keys, two-space indent, trailing newline). No coordination-branch mint is recorded in these fixtures; the coordination_branch field is supplied by the workspace owner."
+}

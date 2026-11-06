@@ -1,0 +1,51 @@
+# Parent PRE-EDIT review from actual Source init.py1190..1530, Native run_delivery,
+# and actual CF11 full_init_baseline failure receipts. No host Mission/Op.
+target:
+  term: "full initialization command render activation phase"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Defer full-project command rendering until after actual config publication.
+      Source installs final command skills after save_agent_config; a missing-config
+      selector truth table is not evidence that fresh init itself renders inactive.
+      Keep Native legacy no-assets prewrite validation distinct and evaluate each
+      template only once, through the ONE renderer and canonical project selector.
+  import_paths:
+    action: do_not_change
+    notes: No renderer/selector/model/parser ownership move or clone.
+  filesystem_paths:
+    action: do_not_change
+    notes: No Source/packs/pins/golden/resource/output filenames or roots change.
+  serialized_keys:
+    action: do_not_change
+    notes: Manifest/config schemas and recorded Source hashes unchanged.
+  cli_commands:
+    action: do_not_change
+    notes: Existing actual init path, no new routes/options/registrations.
+  user_facing_strings:
+    action: manual_review
+    notes: Clarify distinct Native legacy early render vs full Source config-visible phase; no blanket parity claim.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      KEEP full_init_baseline bytes/hashes/idempotence unchanged. Existing CF6
+      no-assets Native controls remain strong but explicitly name legacy scope.
+      Add full-delivery bound-template assertion against actual published config
+      and active/inactive user choices if achievable without changing golden data.
+  logs_telemetry:
+    action: do_not_change
+    notes: Retain prior parent finite greens and actual later reds; no metrics or readiness promotion.
+exceptions:
+  - path: crates/sk-install/src/init.rs
+    action: manual_review
+    reason: Defer full source render only; preserve native no-assets validation order.
+  - path: crates/sk-install/tests/cf6_parent_project_rendering.rs
+    action: manual_review
+    reason: Clarify legacy Native fixture scope, add actual full config-visible regression.
+  - path: crates/sk-install/tests/full_init_baseline.rs
+    action: do_not_change
+    reason: Immutable Source recorded-byte and retry controls exposed real parent regression; do not weaken or regenerate.
+status:
+  accepted: false
+  phase: parent pre-edit correction of Source full-init caller timing

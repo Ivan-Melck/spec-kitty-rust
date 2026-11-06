@@ -1,0 +1,31 @@
+{
+  "event_count": 1,
+  "last_event_id": "01J00000000000000000000001",
+  "materialized_at": "2026-01-01T00:00:01Z",
+  "mission_number": "42",
+  "mission_slug": "900-unicode-seeds",
+  "mission_type": "software-dev",
+  "schema_version": 2,
+  "summary": {
+    "approved": 0,
+    "blocked": 0,
+    "canceled": 0,
+    "claimed": 1,
+    "done": 0,
+    "for_review": 0,
+    "in_progress": 0,
+    "in_review": 0,
+    "planned": 0
+  },
+  "work_packages": {
+    "WP01": {
+      "actor": "migration:backfill_runtime_state",
+      "agent": "é-agent",
+      "force_count": 0,
+      "implementer_of_record": "é-agent",
+      "lane": "claimed",
+      "last_event_id": "01J00000000000000000000001",
+      "last_transition_at": "2026-01-01T00:00:01Z"
+    }
+  }
+}

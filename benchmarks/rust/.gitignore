@@ -1,0 +1,9 @@
+# Runtime artifacts from a measurement run. Keep report.json, summary.md,
+# samples.jsonl, identity.json, environment.json, fixtures.json and README.md.
+evidence/*/fixtures/
+evidence/*/home/
+evidence/*/tmp/
+evidence/*/pycache/
+evidence/*/empty-cwd/
+__pycache__/
+*.pyc

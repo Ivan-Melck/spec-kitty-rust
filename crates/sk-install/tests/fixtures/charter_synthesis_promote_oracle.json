@@ -1,0 +1,302 @@
+{
+ "_provenance": "Recorded by the pinned Source (CPython 3.11.15, .venv-rust-oracle) running the ACTUAL m_4_0_0rc8_promote_interview_selections migration against the pinned built-in pack: a present-list gain with an unresolved id, an absent key left untouched, a seeded list (the Source emits no hint because resolve_effective_sets does not resolve this fixture), a settled ledger record (JSONL at .kittify/migration-ledger.jsonl) and a no-selections project. Placeholders: $GAIN, $SEEDED, $SETTLED, $NONE, $WORKSPACE. The gain case's dry run is recorded too (it leaves only the empty synthesis lock file). Regenerate with /tmp/sk-a5/probe_promote.py through /tmp/sk-a5/source-probe.sh.",
+ "gain": {
+  "after": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "c0314e76dbcde9d9578c233454183b3db41c332a34656461ec6d7890475c667a",
+    "text": "governance:\n  charter:\n    selected_directives: []\ncatalog:\n  references: []\nmetadata:\n  bundle_schema_version: 2\nactivated_directives:\n- 024-locality-of-change\n- 001-architectural-integrity-standard\n- 010-specification-fidelity-requirement\ndeactivated_directives:\n- 010-specification-fidelity-requirement\n"
+   },
+   ".kittify/charter/interview": {
+    "kind": "dir"
+   },
+   ".kittify/charter/interview/answers.yaml": {
+    "kind": "file",
+    "sha256": "b21a3c8e8d123ae5fcea00bb683534b4372547768b2e72aae9cd26076f9c0dea",
+    "text": "mission: software-dev\nselected_directives:\n- DIRECTIVE_001\n- DIRECTIVE_010\n- DIRECTIVE_999\nselected_tactics:\n- adversarial-qa-handoff\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "65854816fe10e1e55be219f5f49245ba204f749ed4ceaf054c26cd41419f5bcb",
+    "text": "agents:\n  available:\n  - claude\ncharter: .kittify/charter/charter.yaml\n"
+   },
+   ".kittify/runtime": {
+    "kind": "dir"
+   },
+   ".kittify/runtime/locks": {
+    "kind": "dir"
+   },
+   ".kittify/runtime/locks/charter-synthesis.lock": {
+    "kind": "file",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "text": ""
+   }
+  },
+  "after_dry": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "863a6268f65515380fdd46c8ef5787952237b9dcc884483955ec9974a8ccdd41",
+    "text": "governance:\n  charter:\n    selected_directives: []\ncatalog:\n  references: []\nmetadata:\n  bundle_schema_version: 2\nactivated_directives:\n- 024-locality-of-change\ndeactivated_directives:\n- 010-specification-fidelity-requirement\n"
+   },
+   ".kittify/charter/interview": {
+    "kind": "dir"
+   },
+   ".kittify/charter/interview/answers.yaml": {
+    "kind": "file",
+    "sha256": "b21a3c8e8d123ae5fcea00bb683534b4372547768b2e72aae9cd26076f9c0dea",
+    "text": "mission: software-dev\nselected_directives:\n- DIRECTIVE_001\n- DIRECTIVE_010\n- DIRECTIVE_999\nselected_tactics:\n- adversarial-qa-handoff\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "65854816fe10e1e55be219f5f49245ba204f749ed4ceaf054c26cd41419f5bcb",
+    "text": "agents:\n  available:\n  - claude\ncharter: .kittify/charter/charter.yaml\n"
+   },
+   ".kittify/runtime": {
+    "kind": "dir"
+   },
+   ".kittify/runtime/locks": {
+    "kind": "dir"
+   },
+   ".kittify/runtime/locks/charter-synthesis.lock": {
+    "kind": "file",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "text": ""
+   }
+  },
+  "after_second": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "c0314e76dbcde9d9578c233454183b3db41c332a34656461ec6d7890475c667a",
+    "text": "governance:\n  charter:\n    selected_directives: []\ncatalog:\n  references: []\nmetadata:\n  bundle_schema_version: 2\nactivated_directives:\n- 024-locality-of-change\n- 001-architectural-integrity-standard\n- 010-specification-fidelity-requirement\ndeactivated_directives:\n- 010-specification-fidelity-requirement\n"
+   },
+   ".kittify/charter/interview": {
+    "kind": "dir"
+   },
+   ".kittify/charter/interview/answers.yaml": {
+    "kind": "file",
+    "sha256": "b21a3c8e8d123ae5fcea00bb683534b4372547768b2e72aae9cd26076f9c0dea",
+    "text": "mission: software-dev\nselected_directives:\n- DIRECTIVE_001\n- DIRECTIVE_010\n- DIRECTIVE_999\nselected_tactics:\n- adversarial-qa-handoff\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "65854816fe10e1e55be219f5f49245ba204f749ed4ceaf054c26cd41419f5bcb",
+    "text": "agents:\n  available:\n  - claude\ncharter: .kittify/charter/charter.yaml\n"
+   },
+   ".kittify/runtime": {
+    "kind": "dir"
+   },
+   ".kittify/runtime/locks": {
+    "kind": "dir"
+   },
+   ".kittify/runtime/locks/charter-synthesis.lock": {
+    "kind": "file",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "text": ""
+   }
+  },
+  "before": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "863a6268f65515380fdd46c8ef5787952237b9dcc884483955ec9974a8ccdd41",
+    "text": "governance:\n  charter:\n    selected_directives: []\ncatalog:\n  references: []\nmetadata:\n  bundle_schema_version: 2\nactivated_directives:\n- 024-locality-of-change\ndeactivated_directives:\n- 010-specification-fidelity-requirement\n"
+   },
+   ".kittify/charter/interview": {
+    "kind": "dir"
+   },
+   ".kittify/charter/interview/answers.yaml": {
+    "kind": "file",
+    "sha256": "b21a3c8e8d123ae5fcea00bb683534b4372547768b2e72aae9cd26076f9c0dea",
+    "text": "mission: software-dev\nselected_directives:\n- DIRECTIVE_001\n- DIRECTIVE_010\n- DIRECTIVE_999\nselected_tactics:\n- adversarial-qa-handoff\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "65854816fe10e1e55be219f5f49245ba204f749ed4ceaf054c26cd41419f5bcb",
+    "text": "agents:\n  available:\n  - claude\ncharter: .kittify/charter/charter.yaml\n"
+   }
+  },
+  "can_apply": [
+   true,
+   ""
+  ],
+  "detect": true,
+  "dry_result": {
+   "changes_made": [
+    "dry-run: would promote {'activated_directives': ['001-architectural-integrity-standard', '010-specification-fidelity-requirement']}"
+   ],
+   "errors": [],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": [
+    "Unresolved interview selections skipped (not promoted): directive:DIRECTIVE_999"
+   ]
+  },
+  "result": {
+   "changes_made": [
+    "Promoted ['001-architectural-integrity-standard', '010-specification-fidelity-requirement'] into activated_directives"
+   ],
+   "errors": [],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": [
+    "Unresolved interview selections skipped (not promoted): directive:DIRECTIVE_999"
+   ]
+  },
+  "second_result": {
+   "changes_made": [
+    "No interview selections to promote: every selection is already in force"
+   ],
+   "errors": [],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": [
+    "Unresolved interview selections skipped (not promoted): directive:DIRECTIVE_999"
+   ]
+  }
+ },
+ "no_selections": {
+  "after": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "73d92211c6ec341438f3063488d0da0efc088efa07ad7462ce5b8bf1c3b1121a",
+    "text": "governance:\n  charter:\n    selected_directives: []\ncatalog:\n  references: []\nmetadata:\n  bundle_schema_version: 2\nactivated_directives:\n- 024-locality-of-change\n"
+   },
+   ".kittify/charter/interview": {
+    "kind": "dir"
+   },
+   ".kittify/charter/interview/answers.yaml": {
+    "kind": "file",
+    "sha256": "e6eaed0c1fe5df8a968026ff2504c6fbcd357203b7bacc0806fb269c9e69075d",
+    "text": "mission: software-dev\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "65854816fe10e1e55be219f5f49245ba204f749ed4ceaf054c26cd41419f5bcb",
+    "text": "agents:\n  available:\n  - claude\ncharter: .kittify/charter/charter.yaml\n"
+   }
+  },
+  "result": {
+   "changes_made": [
+    "No interview selections to promote"
+   ],
+   "errors": [],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": []
+  }
+ },
+ "seeded": {
+  "after": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "b7d08a9e04f3c92b44948119c2335521ae51adde6fad7b2703064fee59fe90d5",
+    "text": "governance:\n  charter:\n    selected_directives: []\ncatalog:\n  references: []\nmetadata:\n  bundle_schema_version: 2\nactivated_directives:\n- 001-architectural-integrity-standard\n- 003-decision-documentation-requirement\n- 010-specification-fidelity-requirement\n- 018-doctrine-versioning-requirement\n- 024-locality-of-change\n- 025-boy-scout-rule\n- 028-search-tool-discipline\n- 029-agent-commit-signing-policy\n- 030-test-and-typecheck-quality-gate\n- 031-context-aware-design\n- 032-conceptual-alignment\n- 033-targeted-staging-policy\n- 034-test-first-development\n- 035-bulk-edit-occurrence-classification\n- 036-black-box-integration-testing\n- 037-living-documentation-sync\n- 038-structured-prompt-boundary\n- 039-lynn-cole-engineering-culture\n- 040-recurring-bug-structural-intervention\n"
+   },
+   ".kittify/charter/interview": {
+    "kind": "dir"
+   },
+   ".kittify/charter/interview/answers.yaml": {
+    "kind": "file",
+    "sha256": "001eee7cc520a26ce32345af895de4e48cafa872ed878802d0185aa8e4ec0395",
+    "text": "selected_directives:\n- DIRECTIVE_001\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "65854816fe10e1e55be219f5f49245ba204f749ed4ceaf054c26cd41419f5bcb",
+    "text": "agents:\n  available:\n  - claude\ncharter: .kittify/charter/charter.yaml\n"
+   }
+  },
+  "result": {
+   "changes_made": [
+    "No interview selections to promote: every selection is already in force"
+   ],
+   "errors": [],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": []
+  }
+ },
+ "settled": {
+  "after": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "73d92211c6ec341438f3063488d0da0efc088efa07ad7462ce5b8bf1c3b1121a",
+    "text": "governance:\n  charter:\n    selected_directives: []\ncatalog:\n  references: []\nmetadata:\n  bundle_schema_version: 2\nactivated_directives:\n- 024-locality-of-change\n"
+   },
+   ".kittify/charter/interview": {
+    "kind": "dir"
+   },
+   ".kittify/charter/interview/answers.yaml": {
+    "kind": "file",
+    "sha256": "b21a3c8e8d123ae5fcea00bb683534b4372547768b2e72aae9cd26076f9c0dea",
+    "text": "mission: software-dev\nselected_directives:\n- DIRECTIVE_001\n- DIRECTIVE_010\n- DIRECTIVE_999\nselected_tactics:\n- adversarial-qa-handoff\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "65854816fe10e1e55be219f5f49245ba204f749ed4ceaf054c26cd41419f5bcb",
+    "text": "agents:\n  available:\n  - claude\ncharter: .kittify/charter/charter.yaml\n"
+   },
+   ".kittify/migration-ledger.jsonl": {
+    "kind": "file",
+    "sha256": "f6f48a88c1f75919413f38c0ff0fb0a5b8800b98ec3c4e48a6f80b88859ba770",
+    "text": "{\"applied_at\": \"2026-01-01T00:00:00+00:00\", \"cli_version\": \"4.0.0rc5\", \"content_hash\": \"sha256:seed\", \"id\": \"unify_charter_activation_promote_answers\", \"identity\": \"unify_charter_activation_promote_answers\", \"result\": \"success\"}\n"
+   }
+  },
+  "result": {
+   "changes_made": [
+    "Interview selections were promoted by an earlier upgrade; nothing to promote"
+   ],
+   "errors": [],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": []
+  }
+ }
+}

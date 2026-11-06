@@ -1,0 +1,34 @@
+target:
+  term: CF85 fast recognizer rejects tab anywhere in the actual Source regex match
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Source tests found.group(0) for tab, including escaped literal id_field; Native only checked separator/trailing. One canonical recognizer change.
+  import_paths:
+    action: do_not_change
+    notes: No new regex/parser/codec or dependency.
+  filesystem_paths:
+    action: do_not_change
+    notes: Pure helper input and guarded Source-only control, ordinary read/cache lifetimes unchanged.
+  serialized_keys:
+    action: manual_review
+    notes: id_field literal with tab is allowed by helper regex escaping but must reject fast route.
+  cli_commands:
+    action: do_not_change
+    notes: No root/flag/accounting change.
+  user_facing_strings:
+    action: do_not_change
+    notes: No diagnostic/wire changes.
+  tests_fixtures:
+    action: manual_review
+    notes: Source actual helper observation then existing private helper unit negative; structural boundary not another business pair.
+  logs_telemetry:
+    action: manual_review
+    notes: Existing canonical production id/profile-id fields don't contain tabs; bounded extra helper-domain correction, no expanded parity claim.
+exceptions:
+  - path: crates/sk-doctrine/src/identity.rs
+    action: manual_review
+    reason: Entire matched line tab check and focused unit assertion in the existing helper matrix.
+status:
+  accepted: false
+  phase: prospective parent fast-helper exact-match correction

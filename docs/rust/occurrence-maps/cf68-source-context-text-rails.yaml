@@ -1,0 +1,160 @@
+# CF68 — NEW Source context TEXT rails + canonical reference-catalogue count.
+#
+# This lane ADDS one missing capability: the reference's four text rails
+# (`bootstrap` / widened `compact` bundle / undeclared non-bootstrap `compact` /
+# `missing`) with their own first_load/depth/mark/prose-read/reference-count
+# policy, the ONE canonical `catalog.references` catalogue reader with its deny
+# filter, and the live CLI consumer for all of it.
+#
+# No existing identifier, command, key, path or wire shape is renamed, removed
+# or deprecated, so `target.operation` is intentionally omitted (the schema
+# allows an additive map with only `target.term`). The one mechanical,
+# non-semantic ripple is the new `ContextMode::Missing` variant: every
+# exhaustive match on `ContextMode` gains an arm, and none of them changes any
+# other decision.
+target:
+  term: >-
+    a Native `charter context` text stage that only knows `bootstrap`/`compact`
+    and reports its `references_count` from the delivered link set
+  replacement: >-
+    the reference's four text rails selected in one doctrine seam
+    (`bootstrap` / `compact` bundle below the minimum depth / undeclared
+    non-bootstrap `compact` / `missing`), each with its Source
+    first_load/effective-depth/mark-timing/prose-read policy, plus the ONE
+    Source `_load_references` catalogue reader (charter.yaml `catalog.references`
+    with the effective deny) that supplies `references_count`, consumed by the
+    live CLI and by the `Reference Docs:` pointer block
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      NEW additive public surface in sk-doctrine: `ContextMode::Missing`,
+      `TextRail` (NonBootstrap/Missing/CompactBundle/Bootstrap) with
+      `mode()`/`marks_first_load()`, `select_text_rail`, `charter_present`,
+      `TextStageBuild`, `build_text_stage`, `ReferenceEntry`,
+      `load_reference_catalog`, `denied_by_kind` — plus their same-item
+      `lib.rs` re-exports. `build_action_context_text` keeps its name and its
+      pre-CF68 behaviour (presence assumed); the real consumer uses the
+      rail-carrying entry point. Existing symbols (`ContextMode::Bootstrap`,
+      `ContextMode::Compact`, `BOOTSTRAP_ACTIONS`, `render_*`, `exact_mode`,
+      `TextStage`, `ContextExecution`, `ContextStateTicket`, `prepare_context_state`)
+      keep their names; `exact_mode` gains the Missing arm.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      Reuse the existing `serde_yaml_ng` charter document reader
+      (`context::read_charter_document`), `sk_kernel::paths::source_path_exists`,
+      `sk_kernel::PythonString`, `crate::language_scope::python_value_repr`,
+      `crate::ledger::{ActivationsLedger, DenySet, effective_deny,
+      load_activation_ledger, resolve_deny}`, `crate::org_charter::org_required_stems`
+      and `crate::offering::include_access::source_roots` + `IdentityIndex`.
+      No new crate, dependency, manifest or lockfile edge; no second YAML
+      document reader, deny resolver, identity index or pointer resolver.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      Rail-specific read roots follow the reference exactly: the bootstrap rail
+      reads `<canonical_root>/charter.md` and `<canonical_root>/charter.yaml`
+      (the canonical read root the freshness gate already returned); the two
+      compact rails read `<repo_root>/charter.md`; the missing rail reads no
+      prose at all. `<repo>/.kittify/charter/context-state.json` is unchanged.
+      No new path spelling, no new state/derived file, no cleanup.
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      One new serialized value appears in the existing `charter context --json`
+      envelope: `"mode": "missing"` (the reference's `CharterContextResult.mode`
+      for the missing rail; the structured payload keeps its own
+      `bootstrap`/`compact` mode, exactly as the reference envelope does).
+      `references_count` changes VALUE only (the catalogue length, 0 on every
+      non-bootstrap rail) — no key is added, renamed or removed, and the
+      `context_schema_version` stays 1.4.0.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      `charter context` keeps every flag (`--action`, `--include`, `--profile`,
+      `--mission-type`, `--json`, `--include-all`,
+      `--mark-loaded/--no-mark-loaded`) and its stdout shape (the
+      `Action: <action> (bootstrap)` header stays bootstrap-only). Only the
+      first-stage body changes: rail selection, per-rail prose read, per-rail
+      mark timing, catalogue count and the `Reference Docs:` data source.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      ONE new user-facing block, the reference's missing-charter text
+      (`Charter Context:` / `- Charter file not found at
+      `.kittify/charter/charter.yaml`.` / `- Run `spec-kitty charter interview`
+      then `spec-kitty charter generate`.`), added verbatim. Every existing
+      message is untouched; no warning transport, no OS-error codec change.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      NEW focused tests only: crates/sk-cli/tests/cf68_context_text_rails.rs
+      (paired Source/Native actual children over the rail matrix: repeated
+      normalized action, undeclared action, declared-but-starved action,
+      md-only/yaml-only/both/neither presence, catalogue entries without
+      resolvable files, deny-filtered entries, first/second stage writes) and
+      the doctrine-level unit tests added inside sk-doctrine
+      (reference_catalog + rail selection). Fresh tempfile fixtures; both
+      business children assert temporary CWD/HOME/all seven XDG/TMPDIR/TMP/TEMP,
+      the absolute Source and packs roots and the hash seed before any read.
+      Existing exhaustive `ContextMode` matches in tests gain one mechanical arm.
+  logs_telemetry:
+    action: manual_review
+    notes: >-
+      No logger, telemetry or counter surface is added; nothing is registered.
+      The catalogue/count is a pure read of the authored charter.yaml and the
+      existing deny/identity authorities.
+exceptions:
+  - path: crates/sk-doctrine/src/context.rs
+    action: manual_review
+    reason: >-
+      The one rail/action-resolution/mode/presence seam: Missing variant, the
+      TextRail ordering rule, `charter_present`, the staged text entry point and
+      the extracted declared-action resolution used by both stages.
+  - path: crates/sk-doctrine/src/context_render.rs
+    action: manual_review
+    reason: >-
+      Rail/header/data selection only: one `ContextMode::Missing` arm and the
+      reference's fixed missing text. No second formatter or model.
+  - path: crates/sk-doctrine/src/reference_catalog.rs
+    action: manual_review
+    reason: >-
+      NEW narrow catalogue module: the reference `_load_references` reader and
+      the ONE effective-deny-by-kind composition shared with the include path.
+  - path: crates/sk-doctrine/src/offering/include_access.rs
+    action: manual_review
+    reason: >-
+      `denied_kind` delegates to the one `denied_by_kind` composition instead of
+      keeping its own copy. Behaviour preserved (same kinds, same plural order,
+      same spellings).
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Narrow same-item `mod`/`pub use` declarations for the added items.
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: >-
+      Rail/read/return/mark policy in `execute_text_stage`, the mechanical
+      `exact_mode` Missing arm, catalogue count plumbing, and `reference_docs`
+      now consuming the one catalogue reader instead of re-parsing charter.yaml.
+  - path: crates/sk-cli/src/compat/invocation.rs
+    action: manual_review
+    reason: Mechanical exhaustive `ContextMode` match ripple (unreachable arm).
+  - path: crates/sk-cli/tests/cf68_context_text_rails.rs
+    action: manual_review
+    reason: New focused paired rail test file.
+  - path: crates/sk-cli/tests/cf66_context_execution_cli.rs
+    action: manual_review
+    reason: Mechanical exhaustive mode-match ripple in an existing test helper.
+  - path: crates/sk-cli/tests/cf65_context_sync_consumer.rs
+    action: manual_review
+    reason: Mechanical exhaustive mode-match ripple in an existing test helper.
+  - path: crates/sk-doctrine/tests/cf50_exact_action_delivery.rs
+    action: manual_review
+    reason: Mechanical exhaustive mode-match ripple in an existing test helper.
+  - path: crates/sk-doctrine/tests/cf61_progressive_record_delivery.rs
+    action: manual_review
+    reason: Mechanical exhaustive mode-match ripple in an existing test helper.
+status:
+  accepted: false
+  phase: new canonical Source context text rails and reference-catalogue count

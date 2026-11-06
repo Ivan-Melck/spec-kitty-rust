@@ -1,0 +1,115 @@
+{
+  "expected": {
+    "error": "Audit decisions require mission_owner_id to be set in inputs",
+    "events": [
+      {
+        "event_type": "DecisionAuthorityDenied",
+        "payload": {
+          "actor_id": "owner-1",
+          "actor_type": "human",
+          "authority_role": "mission_owner",
+          "decision_id": "audit:review_gate",
+          "override_reason": null,
+          "raci_source": null,
+          "rationale_linkage": null,
+          "reason": "Audit decisions require mission_owner_id to be set in inputs",
+          "run_id": "run-1"
+        }
+      }
+    ],
+    "state": {
+      "blocked_reason": null,
+      "completed_steps": [
+        "lead_in"
+      ],
+      "decisions": {},
+      "inputs": {},
+      "issued_step_id": null,
+      "mission_id": null,
+      "mission_key": "m",
+      "mission_slug": null,
+      "pending_decisions": {
+        "audit:review_gate": {
+          "decision_id": "audit:review_gate",
+          "options": [
+            "approve",
+            "reject"
+          ],
+          "question": "Audit checkpoint: Review Gate. Approve to continue?",
+          "requested_at": "<TIMESTAMP>",
+          "requested_by": {
+            "actor_id": "agent-1",
+            "actor_type": "llm",
+            "display_name": "",
+            "model": null,
+            "provider": null,
+            "tool": null
+          },
+          "step_id": "review_gate"
+        }
+      },
+      "policy_snapshot": {
+        "default_route": "same_llm_context",
+        "extras": {},
+        "strictness": "medium"
+      },
+      "run_id": "run-1",
+      "template_hash": "frozen-hash",
+      "template_path": "/nonexistent/runtime-golden/mission.yaml"
+    }
+  },
+  "scenario": {
+    "actor": {
+      "actor_id": "owner-1",
+      "actor_type": "human",
+      "display_name": "",
+      "model": null,
+      "provider": null,
+      "tool": null
+    },
+    "answer": "approve",
+    "decision_id": "audit:review_gate",
+    "kind": "answer",
+    "name": "answer_audit_denied_missing_owner",
+    "snapshot": {
+      "blocked_reason": null,
+      "completed_steps": [
+        "lead_in"
+      ],
+      "decisions": {},
+      "inputs": {},
+      "issued_step_id": null,
+      "mission_id": null,
+      "mission_key": "m",
+      "mission_slug": null,
+      "pending_decisions": {
+        "audit:review_gate": {
+          "decision_id": "audit:review_gate",
+          "options": [
+            "approve",
+            "reject"
+          ],
+          "question": "Audit checkpoint: Review Gate. Approve to continue?",
+          "requested_at": "2026-01-01T00:00:00Z",
+          "requested_by": {
+            "actor_id": "agent-1",
+            "actor_type": "llm",
+            "display_name": "",
+            "model": null,
+            "provider": null,
+            "tool": null
+          },
+          "step_id": "review_gate"
+        }
+      },
+      "policy_snapshot": {
+        "default_route": "same_llm_context",
+        "extras": {},
+        "strictness": "medium"
+      },
+      "run_id": "run-1",
+      "template_hash": "frozen-hash",
+      "template_path": "/nonexistent/runtime-golden/mission.yaml"
+    }
+  }
+}

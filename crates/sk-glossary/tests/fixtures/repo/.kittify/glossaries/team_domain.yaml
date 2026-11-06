@@ -1,0 +1,33 @@
+# Spec Kitty glossary seed — scope: team_domain
+terms:
+
+  - surface: workspace
+    definition: Team-domain VS Code workspace configuration file
+    confidence: 0.9
+    status: active
+
+  - surface: mission
+    definition: >-
+      A unit of governed delivery: the concrete tracked item that carries one
+      piece of work from agreed intent to a verified result.
+    confidence: 1.0
+    status: active
+    synonyms_to_avoid:
+      - Feature
+
+  - surface: ceremony commit
+    definition: "DEPRECATED. Replaced by `status commit`."
+    confidence: 1.0
+    status: deprecated
+
+  - surface: characterization test
+    definition: |
+      A test that captures the observable behavior of existing code as
+      fixture-driven assertions, written before any refactor of that code.
+    confidence: 0.95
+    status: active
+    see_also:
+      - fr: FR-008
+        description: Wall-clock regression test requirement
+      - tactic: secure-regex-catastrophic-backtracking
+        path: src/doctrine/tactics/shipped/secure-regex-catastrophic-backtracking.tactic.yaml

@@ -1,0 +1,119 @@
+# PRE-EDIT occurrence classification for CF5 (write-observer ledger composition).
+#
+# This lane is ADDITIVE: it introduces `crates/sk-workspace/src/write_ledger.rs`
+# (declared from the owned `planning.rs` because `lib.rs` is parent-owned), a
+# `#[path]` module declaration, one new public struct field on
+# `MissionNumberAssignment`, and it moves one call site onto the composed door.
+# No existing identifier, file path, JSON key, CLI flag or wire field is renamed
+# or removed, so `operation` is intentionally omitted (additive change).
+#
+# Pre-edit inventory (code + tests + docs + pinned Source at
+# `9aed3a8012cb5eb22c0128b14d525039f95fea7a`, `__pycache__` excluded; counts
+# produced by the run's evidence label `occurrence-inventory`):
+#   MissionNumberAssignment                     6 hits, 1 Rust file
+#   mission_number_assignment                   8 hits, 1 Rust file
+#   bake_number_on_branch                       2 hits, 1 Rust file
+#   bake_mission_number_into_branch             8 hits, 1 Rust + 1 test file
+#   record_mission_number                       8 hits, sk-mission (lib/meta),
+#                                                sk-workspace/write_ledger.rs (new),
+#                                                Source phase_bookkeeping.py
+#   FinalizeWriteLedger                        10 hits, write_ledger.rs (new) +
+#                                                Source mission_finalize_commit.py,
+#                                                mission_finalize.py
+#   observe_writes                             95 hits across Kernel docs/tests/
+#                                                Source writer + Source
+#                                                kernel/atomic.py, finalize, bake
+#   notify_written                             84 hits across Kernel docs/tests +
+#                                                Source kernel/atomic.py, status
+#                                                store/reducer/views/lifecycle/
+#                                                progress, lanes/persistence.py,
+#                                                finalize
+target:
+  term: "write observation as a Kernel primitive only (no composed ledger/bake/status notify)"
+  replacement: "composed run ledger, owner-boundary status notify and bake capture on the one Kernel observer"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      New crate surface in write_ledger.rs: WriteLedger, WriteLedgerSession,
+      begin_write_ledger, active_write_ledger, with_write_ledger,
+      notify_published, ObservationSource, WriteNotification,
+      append_status_rows_observed, materialize_status_snapshot_observed,
+      MetaBakeCapture, bake_mission_number, BakeUndoOutcome, undo_meta_bake,
+      WriteScopeSnapshot, snapshot_mission_write_scope,
+      restore_mission_write_scope, restore_mission_write_scope_locked,
+      WriteScopeRestore, WriteLedgerError. Existing names keep their meaning:
+      MissionNumberAssignment gains one additive `meta_capture` field (no field
+      renamed/removed); `bake_number_on_branch` and `mission_number_assignment`
+      stay private with a widened return/capture argument;
+      bake_mission_number_into_branch is unchanged. Kernel's
+      observe_writes/notify_written/WriteContext are REUSED, never re-implemented.
+  import_paths:
+    action: manual_review
+    notes: >-
+      write_ledger.rs imports the existing sk_kernel source_writer observer API,
+      sk_kernel read_bounded/atomic_write/LockWait, sk_status
+      append_rows_atomic/materialize_snapshot_file/read_log_text/MissionLock and
+      sk_mission META_FILE_NAME/record_mission_number/lock_mission. No new
+      dependency, no manifest/lock change, no new crate edge (sk-workspace
+      already depended on sk-kernel, sk-status and sk-mission).
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No path moves. status.events.jsonl, status.json, meta.json, lanes.json and
+      the Mission write-scope layout keep their exact names and locations. Tests
+      use fresh mktemp tempdirs (plus one throwaway `git init` fixture for the
+      Mission lock) only; no repository ref or fixture is touched.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No JSON/JSONL/YAML key is added, renamed or re-rendered. meta.json still
+      goes through sk_mission::record_mission_number (canonical sorted/pretty
+      bytes), the status log still through the canonical append writer. The bake
+      capture records the published bytes, it does not author them.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No CLI command, flag, alias or exit code change. The CLI is
+      parent-owned and is not wired to the composed doors in this lane.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Only new Rust error/Display text in WriteLedgerError (post-publication
+      observer failure, readback mismatch, lock refusal, read failure). No
+      existing user-facing wording is altered.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New: crates/sk-workspace/tests/cf5_write_composition.rs and the unit tests
+      beside write_ledger.rs. No existing test is weakened, re-expected or
+      deleted; the pre-existing Source-first
+      crates/sk-workspace/tests/mission_number_bake_source.rs pair still passes
+      unchanged after the bake moved onto the composed capture.
+  logs_telemetry:
+    action: do_not_change
+    notes: No log/metric/event key added or renamed; no Source-vs-Native claim.
+exceptions:
+  - path: crates/sk-workspace/src/planning.rs
+    action: manual_review
+    reason: >-
+      One additive `#[path = "write_ledger.rs"] pub mod write_ledger;` declaration
+      (crate root `lib.rs` is parent-owned). The parent's follow-up replaces this
+      declaration with `pub mod write_ledger;` in lib.rs plus the re-export list;
+      it must never be duplicated.
+  - path: crates/sk-workspace/src/consolidation.rs
+    action: manual_review
+    reason: >-
+      Additive `meta_capture` field on MissionNumberAssignment plus the return
+      capture of the private bake path; the bake's number computation, commit,
+      fast-forward and skip semantics are unchanged.
+  - path: crates/sk-workspace/src/write_ledger.rs
+    action: manual_review
+    reason: >-
+      New composed surface. Declared path, not renamed; not yet re-exported from
+      the crate root.
+  - path: crates/sk-workspace/tests/cf5_write_composition.rs
+    action: manual_review
+    reason: >-
+      New Native composition smoke tests (status notify bytes, nested ordering,
+      bake capture + compare-and-swap undo, owned-byte restore vs foreign content).

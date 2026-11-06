@@ -1,0 +1,183 @@
+# CF34 occurrence classification — NEW Source preset publication composition
+# (bundle restamp + run-wide lock / force reread) for `charter activate --preset`.
+#
+# AUTHORED PRE-EDIT: this map was written against the live tree BEFORE any
+# CF34 code edit (the counts below were produced first, then this file, then the
+# implementation). The change is ADDITIVE — one new module, one named strict
+# Native capability kept beside the new Source-compatible entry point, one
+# outcome field, one CLI lock window, new `cf34_*` tests — so no identifier,
+# key, path or message is renamed, moved or removed by this lane.
+#
+# Pre-edit scope evidence (`grep -rn <term> crates --include=*.rs | wc -l`):
+#   apply_preset_plan          19  (sk-doctrine src 7, sk-cli src 1, cf29 tests 11)
+#   PresetOutcome              10  (sk-doctrine src 6, sk-cli src 4)
+#   plan_preset_application    23  (sk-doctrine src, sk-cli src, cf29 tests)
+#   bundle_restamp              0  (the new sk-charter module; NEW)
+#   restamp_bundle_hash         0  (the new canonical entry point; NEW)
+#   apply_preset_plan_observed  0  (the named strict Native capability; NEW)
+#   "restamp" in crates/*/src   1  family: two migration-local private helpers
+#                                (`sk-install/.../charter_synthesis/{promote,
+#                                legacy_rename}.rs`) — NOT edited by this lane and
+#                                NOT renamed; the new sk-charter module is the
+#                                canonical owner they can adopt later.
+#
+# No `sed`, no bulk rewrite, no second authority: the restamp composes
+# `sk_charter::synthesis::SynthesisManifest`/`finalize`/`to_canonical_bytes`,
+# `sk_charter::compute_bundle_content_hash` and the kernel atomic writer; the
+# preset path composes `sk_doctrine::acquire_synthesis_lock` +
+# `prepare_ledger_write`/`PreparedWrite::apply`; the CLI keeps calling the same
+# planner/writer and only adds the Source's write window.
+#
+# Schema note: there is NO `mission:` key — this rewrite lane has no host
+# Mission (inventing mission metadata is forbidden), matching the CF19/CF25/
+# CF28/CF29 maps beside this one. `operation` is omitted on `target:` because
+# this change is additive.
+#
+# This map deliberately carries no top-level `schema_version:` key even though
+# the neighbouring CF19/CF29 maps do: the Source schema is
+# `additionalProperties: false` and does not declare `schema_version`, so those
+# maps fail the machine schema check they are supposed to pass. This map is
+# validated with all three gates — see the lane report.
+
+target:
+  term: "NEW Source preset publication composition: bundle restamp after the activation write, the write + restamp under the run-wide charter synthesis lock, and the force path re-reading the current deny list under that lock (a named `*_observed` strict Native capability stays separate)"
+  replacement: "the delivered owners composed: `sk_charter::bundle_restamp::restamp_bundle_hash` + `sk_charter::synthesis`/`hash`/`canonical_yaml`/kernel atomic writer, `sk_doctrine::acquire_synthesis_lock` and the existing activation writer, plus one CLI write window"
+
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      ADD (new symbols only): `sk_charter::bundle_restamp::{RESTAMP_SKIPPED_WARNING,
+      RESTAMP_HELD_REASON, RESTAMP_UNAVAILABLE_REASON, RestampLockFailure,
+      RestampSkip, RestampOutcome, restamp_bundle_hash}`; and in
+      `sk_doctrine::preset_application`: `apply_preset_plan_observed` (the
+      plan-observation preconditions kept as a separately named Native
+      capability) plus the `_with_publication`/`_read_current_deny_delta`
+      private helpers. `PresetOutcome` gains one field, `restamp:
+      RestampOutcome`; every existing field keeps its name/type.
+      KEEP byte-for-byte: `plan_preset_application`, `apply_preset_plan`,
+      `PresetPlan`, `PresetChange`, `PresetApplicationError` (all variants and
+      `code()` values), `find_offering_pack`, `load_pack_preset`,
+      `governed_keys`, `ORG_PACKS_KEY`, every `sk-charter` symbol the new module
+      calls (`SynthesisManifest::{load,finalize,to_canonical_bytes,
+      verify_manifest_hash}`, `compute_bundle_content_hash`,
+      `canonical_yaml`, `SYNTHESIS_MANIFEST_PATH`), `sk_doctrine::{acquire_
+      synthesis_lock, DEFAULT_LOCK_TIMEOUT, prepare_ledger_write,
+      PreparedWrite::{apply, apply_observed, target}, YamlDocument,
+      deny_delta}`, and `sk_cli::compat::charter::{activate_command,
+      post_change_notices, Refusal, render_refusal}`. REMOVE nothing; RENAME
+      nothing. `apply_preset_plan` keeps its name and its Source semantics
+      (fresh prepare at apply time, no plan-byte precondition); the stricter
+      behaviour moves to the NEW `apply_preset_plan_observed` name, and the
+      cf29 test that asserted it is re-pointed there (see `tests_fixtures`).
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No new crate, feature, dependency edge or lockfile entry (DIRECTIVE_051 /
+      dependency-hygiene: this lane adds no dependency). `sk-charter` declares
+      `pub mod bundle_restamp;` and still depends on `sk-kernel` only — it does
+      NOT gain an `sk-doctrine` edge, which is why the run-wide lock is injected
+      as a caller-supplied acquire closure instead of a second lock owner.
+      `sk-doctrine` and `sk-cli` import the new symbols from the crates they
+      already depend on.
+  filesystem_paths:
+    action: manual_review
+    notes: >-
+      READ: `.kittify/charter/synthesis-manifest.yaml` (existence + model
+      validation), `.kittify/charter/charter.yaml` + optional
+      `.kittify/charter/activation.yaml` (through
+      `compute_bundle_content_hash`), and the activation target. WRITE: the
+      activation target through the existing single writer, then the manifest
+      through the kernel atomic writer — and only when the manifest exists, is
+      not a built-in-only seed, carries a `bundle_content_hash`, the bundle is
+      hashable and the stamp actually differs. No new path, directory, cache or
+      sidecar is created; the lock file is the existing
+      `<git-common-dir>/spec-kitty-locks/charter-synthesis/<digest>.lock` or
+      `.kittify/runtime/locks/charter-synthesis.lock`. Tests use fresh
+      `tempfile` fixtures only (never the repository).
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      The restamp rewrites the manifest through the canonical model, exactly as
+      the Source does: only `bundle_content_hash` and the derived
+      `manifest_hash` change value, while the canonical serialization also
+      materialises the model's own defaults (`schema_version`, `built_in_only`,
+      `mission_id: null`) and canonical key order — measured against the live
+      Source (probe receipts `restamp_differing_fields`). No manifest field is
+      added, dropped or renamed; extras are still refused by the model. The
+      governed activation keys are unchanged. The `--json` preset payload gains
+      no key: the restamp warning is a human stderr line only.
+  cli_commands:
+    action: manual_review
+    notes: >-
+      No command, flag or default changes. `charter activate --preset` keeps its
+      flags; the adapter now acquires the Source write window around
+      plan+apply+restamp and renders the two lock codes
+      (`CHARTER_SYNTHESIS_LOCK_HELD`, `CHARTER_SYNTHESIS_LOCK_UNAVAILABLE`) as
+      coded refusals with nothing written — the same posture the Source CLI's
+      `activation_write_window` has. `--resynthesize` stays a pre-mutation
+      refusal owned by the parent CLI dispatcher (not edited here). No root CLI
+      enum/dispatch arm is added.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      ADD only reference-shaped text: the exact Source restamp warning
+      (`Warning: the change was saved, but the synthesis manifest's bundle hash
+      was not refreshed: {reason}. The next activation change or synthesis run
+      will restamp it.`, with the two Source reason sentences) and a new
+      `RESTAMP_FAILED` refusal used only when the manifest cannot be read or
+      written after the activation write (the Source raises there instead; the
+      Native refuses with a code instead of a traceback). KEEP every existing
+      message byte-for-byte: the applied/no-op preset lines, the
+      `Wrote`/`Removed`/`Kept deactivated`/`Cleared exclusion` lines, all four
+      `PRESET_*` refusals and the `--resynthesize` refusal. No line claims
+      resynthesis, catalog recompilation or a parity verdict.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      NEW `cf34_*` tests: `crates/sk-charter/tests/cf34_bundle_restamp.rs`
+      (restamp semantics + lock warning + sibling namespace),
+      `crates/sk-doctrine/tests/cf34_preset_publication.rs` (publication,
+      no-op, force deny reread, lock ownership, corrupt manifest) and
+      `crates/sk-cli/tests/cf34_preset_lock_window.rs` (the CLI refusal under a
+      really-held lock, plus the unchanged success path). ONE existing cf29 test
+      is re-pointed, not weakened: `a_concurrent_edit_refuses_the_write_and_the
+      _retry_lands` asserted a stale-plan refusal through `apply_preset_plan`,
+      which the live Source does not do (probe receipt
+      `apply_after_concurrent_comment`: it applies and keeps the other writer's
+      comment). Its preimage assertion and comment-survival assertion are kept,
+      the Source-compatible outcome is asserted on `apply_preset_plan`, and the
+      original refusal is retained and strengthened as a new
+      `apply_preset_plan_observed` case.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric, event or telemetry key is added, renamed or removed. The
+      restamp writes no telemetry; its skip warning is the one stderr line above
+      and the domain modules write nothing to stdout/stderr.
+
+exceptions:
+  - path: crates/sk-charter/src/lib.rs
+    action: manual_review
+    reason: >-
+      One additive `pub mod bundle_restamp;` declaration only (the granted exact
+      declaration) plus the module's own doc bullet; no re-export list or
+      existing module line is touched.
+  - path: crates/sk-doctrine/src/preset_application.rs
+    action: manual_review
+    reason: >-
+      Owned file: the apply path gains the lock window, the fresh prepare and
+      the restamp; `PresetOutcome` gains one field; the strict observation
+      capability is renamed to `apply_preset_plan_observed`. Planning,
+      id resolution, deny partition and the refusal vocabulary are unchanged.
+  - path: crates/sk-cli/src/compat/charter/preset.rs
+    action: manual_review
+    reason: >-
+      Owned file: one lock window + two coded refusals + one stderr warning line.
+      Rendering of the plan/outcome is otherwise unchanged.
+  - path: crates/sk-doctrine/tests/cf29_preset_application.rs
+    action: manual_review
+    reason: >-
+      One test re-pointed with its old assertions preserved and strengthened
+      (the Native stale-plan policy was Source-incompatible); no other cf29
+      expectation is edited.

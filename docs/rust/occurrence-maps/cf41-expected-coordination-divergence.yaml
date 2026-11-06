@@ -1,0 +1,103 @@
+# PRE-EDIT occurrence classification for CF41 — expected coordination divergence
+# classifier + canonical Git commit-path history. No host Mission/Op, no
+# fabricated mission metadata: this is a lane map under docs/rust/, not a
+# kitty-specs/<mission>/occurrence_map.yaml.
+#
+# Additive lane: this port CREATES the Native classifier and the Native Git
+# history read. It renames, removes and deprecates nothing, so `operation` is
+# intentionally omitted (common standing order: omit it for additive changes).
+# The term below is the Source symbol this lane brings into Native; every one
+# of the eight risk surfaces is classified explicitly so an occurrence cannot
+# slip through unclassified.
+#
+# Inventory (pre-edit, `grep -rIn` over the repository with target/, .git/,
+# __pycache__/ and node_modules/ excluded; evidence label
+# `cf41-occurrence-inventory` in /tmp/cf41-e1):
+#   is_expected_coordination_divergence    25
+#   _changed_paths_for_commit               6
+#   commit_paths                          232
+#   kind_for_mission_file                 406
+#   is_primary_artifact_kind              304
+#   coord_only                             58
+#   coordination_divergence                33
+#   commit_history                          3
+#   ExpectedCoordinationDivergence          9
+#   first_parent                          109
+# Read the counts as blast-radius size, not as occurrences to rewrite: only the
+# NEW files below are edited by this lane, and no existing spelling changes.
+
+target:
+  term: "is_expected_coordination_divergence / COORD-partition expected-divergence classification + canonical first-parent commit-path history"
+  replacement: "sk_workspace::coordination_divergence + sk_git::commit_history, which name the same predicate and the same Git read in the Native authority"
+
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      ADDITIVE only: new public items are the classifier
+      (is_expected_coordination_divergence, ExpectedCoordinationDivergenceRequest,
+      ExpectedCoordinationDivergenceOutcome, ExpectedDivergenceCause,
+      is_coord_only_path) in sk-workspace, and the Git read
+      (commit_paths, CommitHistoryRange/ChangedPaths) in sk-git. No existing
+      symbol is renamed or removed: artifact.rs keeps MissionArtifactKind,
+      kind_for_mission_file, is_primary_artifact_kind, primary_kinds and
+      coord_kinds exactly as they are, and sk-git keeps merge_base,
+      branch tips, GitPath and Oid. The classifier consumes the ONE existing
+      partition authority instead of cloning or moving it, so the Source module
+      name (missions/_create.py, mission_runtime/artifacts.py) is NOT reproduced
+      as a second table in sk-mission/artifacts.rs (that file is task
+      publication, not a partition classifier).
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No dependency edge is added: sk-workspace already depends on sk-git, and
+      the new modules import only their own crate plus sk_git. The only
+      import-path edits are the exact `pub mod` declarations for the two new
+      modules in sk-workspace/src/lib.rs and sk-git/src/lib.rs, plus the exact
+      re-exports beside them. No manifest, lockfile, feature or external crate
+      change; no move of an existing module (no cycle).
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No Source, pack, pin, golden, corpus, migration or resource path changes.
+      Reads are ref/index/worktree-read-only; the classifier materializes
+      nothing and the Git read writes nothing. New test fixtures are fresh
+      mktemp/tempfile repositories only.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No JSON/YAML/TOML key, wire field, event schema or on-disk mission
+      artifact changes. No occurrence_map.yaml, meta.json, status or decision
+      record is written, and no path is transformed into a serialized identity.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command, subcommand, flag, alias, exit policy or registration. The
+      doctor/coordination CLI consumption belongs to the parent lane, which
+      wires the exemption after all helpers exist; this lane only exposes the
+      API it will call.
+  user_facing_strings:
+    action: do_not_change
+    notes: >-
+      No user-visible text, error code or doctor message is added or rewritten.
+      coordination_health.rs keeps COORDINATION_BRANCH_DIVERGED_VS_TARGET,
+      COORD_DIVERGED_VS_TARGET_HINT and the
+      UnavailableCheck::ExpectedCoordinationDivergence declaration untouched;
+      this lane does not emit a verdict.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      KEEP every existing test and fixture byte. ADD real-divergence fixture
+      suites only (cf41_*), built from actual git repositories: COORD-only
+      diverged history, a primary/unrecognised/other-mission path, target
+      COORD-path touches, a merge commit whose first-parent change is real, a
+      merge commit that is genuinely empty on its first parent, root commits,
+      empty commits, identical tips, unrelated histories, missing refs and
+      unreadable/shallow ranges. Package/binary plus PUA and noncharacter path
+      bytes are covered; all-2048 surrogate code points are NOT representable
+      in a Rust `&str` path and are declared, not faked.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No metric, log key, analytics event or telemetry label is added, renamed
+      or removed.

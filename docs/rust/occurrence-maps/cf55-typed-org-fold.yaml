@@ -1,0 +1,126 @@
+# CF55 ADDITIVE lane classification; no active host Mission/Op and not an approval.
+#
+# Scope: the NEW `crates/sk-doctrine/src/org_charter/fold.rs` typed cross-pack
+# fold owner; the typed load / typed document schema projection /
+# `org_required_stems` writer blocks in `crates/sk-doctrine/src/org_charter.rs`;
+# the exact `org_charter` re-exports in `crates/sk-doctrine/src/lib.rs`; ONE
+# additive `DoctrineError` variant in `crates/sk-doctrine/src/error.rs`; the NEW
+# test binary `crates/sk-doctrine/tests/cf55_typed_org_fold.rs`; and this map.
+#
+# No pre-existing identifier is renamed, removed or deprecated, so
+# `target.operation` is omitted (additive). Existing public functions keep their
+# names and signatures: `org_required_stems` keeps its exact signature and its
+# *implementation* moves from the raw walk onto the typed fold — that is the
+# intended behavior change (a typed-invalid pack no longer contributes its
+# already-valid `required_<kind>` lists), not a rename. The raw readers in
+# `org_charter/source.rs` and every `read_org_*` floor/selection/provenance/
+# namespace reader keep their behavior byte-for-byte; `source.rs` is READ-ONLY
+# in this lane (CF50's accessor and CF53's namespace fold are active there).
+target:
+  term: "CF55 canonical typed cross-pack org-policy fold and writer-facing floor"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      NEW public symbols only: `org_charter::fold` with `OrgCharterPolicyFold`
+      (+ `required_for`, `required_scalar`, `interview_default`, `packs`,
+      `contributing_packs`) and `fold_org_charter_policies`. `ActivationEntry`'s
+      `context` field changes from one scalar `PythonString` to the ordered exact
+      mapping `Vec<(PythonString, PythonString)>` the reference model declares
+      (`dict[str, str]`) — a shape correction inside the ONE typed schema owner,
+      not a new type model. EXISTING symbols keep their names: `OrgCharterPolicy`,
+      `load_org_charter_policy`, `org_required_stems`, `union_exact_tokens`,
+      `org_requirable_kinds`, `GovernancePolicy`, `ActivationEntry`,
+      `RequiredFloor`, `RequiringPack`. No canonical authority is cloned:
+      `ArtifactDocument`/`ObjectGraph`/`PythonString`/`strip_token`,
+      `sk_charter::{ArtifactKind, load_org_pack_registry, OrgPackConfig,
+      PathExpansion, Limits}`, `source::declared_org_packs`, `IdentityIndex` and
+      `stored_spelling_exact` stay the borrow-only owners. No second YAML reader,
+      schema, merge table or extends resolver is introduced: the reference's
+      `PackContext`/`_resolve_chain` typed path is NOT re-implemented here (no
+      public Rust `resolve_extends_order` authority exists yet) and is requested
+      from the parent instead.
+  import_paths:
+    action: manual_review
+    notes: >-
+      New internal module edge `org_charter -> org_charter::fold` only. The fold
+      borrows `crate::org_charter::source::declared_org_packs`,
+      `load_org_charter_policy`, `org_requirable_kinds`, `union_exact_tokens` and
+      `strip_token`. No new external crate, no `Cargo.toml`/`Cargo.lock` edit
+      (parent-owned).
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      `org-charter.yaml` (existing `ORG_CHARTER` const / `sk_kernel::pack_org_charter`
+      path authority), `.kittify/config.yaml` (via
+      `sk_charter::load_org_pack_registry`) and the configured pack roots (via
+      `OrgPackConfig::effective_root`) keep their exact spellings. Nothing is
+      created, renamed or adopted; the fold creates no directory and writes no file.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      Authored YAML keys are unchanged: `schema_version`, `extends`, `org_name`,
+      `interview_defaults`, `skill_namespace`, `governance_policies`,
+      `activations` and `required_<plural>` for every org-requirable kind. The
+      typed loader's accepted *value* shapes tighten to the reference model where
+      they previously accepted more (a Python `str`-typed field no longer accepts
+      an int; a `str | bool` field coerces `0`/`1` to `False`/`True`; unknown
+      governance/activation entry keys are refused; the retired activation field
+      `doctrine_pack_id` is refused). Those are refusals of Source-invalid
+      documents, not a key rename, and each one is pinned by a Source probe.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No CLI command, flag, subcommand or capability-matrix entry is added or
+      changed. The fold is a library capability; the existing consumers
+      (`sk-cli` `charter.rs`, `sk-doctrine` `include_access.rs`) call the same
+      `org_required_stems` signature they already call. Root CLI/catalogue/
+      registration remain parent-owned.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      ONE new refusal message for the retired activation field
+      (`org charter <path>: field '<field>' was removed. Replacement:
+      <replacement>. See <runbook>.`, the reference's `RETIRED_PACK_FIELD`
+      wording), plus the existing `InvalidOrgCharter` messages whose *conditions*
+      narrow to the reference model. No other message is rewritten and no
+      existing wording changes.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      KEEP unchanged and green: `crates/sk-doctrine/tests/org_floor_tokens_oracle.rs`,
+      `governance_oracle.rs`, `cf29_preset_application.rs`, `cf32_effective_include.rs`,
+      `cf48_raw_org_policy.rs`, `cf53_exact_skill_model.rs`, and the module tests
+      in `org_charter.rs` / `org_charter/source.rs`. NEW:
+      `crates/sk-doctrine/tests/cf55_typed_org_fold.rs` with real paired
+      Source/Native children (both re-executed under the repo's isolated
+      CWD/HOME/XDG/TMP/PYTHONPATH/packs protocol) plus structural controls. No
+      existing test is weakened or deleted; no fixture is rewritten.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log key, event, metric or telemetry field is added or renamed. The fold
+      is read-only: it takes no lock, appends no ledger entry, writes no file.
+      The "no unintended write" control in the new test binary snapshots the
+      fixture tree before and after the writer-facing call.
+exceptions:
+  - path: crates/sk-doctrine/src/error.rs
+    action: manual_review
+    reason: >-
+      ONE additive variant `DoctrineError::OrgCharterRetiredField { path, field,
+      replacement, runbook }` carries the reference's `RetiredPackFieldError`,
+      which its cross-pack fold RE-RAISES instead of skipping the pack. No
+      existing variant, code or message is changed. Parent owns shared error
+      enums, so this additive variant is a precise request for ratification, not
+      a claim of approval.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: >-
+      Same-item re-exports of the new `org_charter::fold` items only. No other
+      module export, ordering or grouping is touched.
+  - path: docs/rust/occurrence-maps/cf55-typed-org-fold.yaml
+    action: do_not_change
+    reason: This file records the additive pre-edit classification; it is not an approval.
+status:
+  reviewed_by: "CF55 implementer pre-edit classification (not independent approval)"
+  accepted: false

@@ -1,0 +1,86 @@
+target:
+  term: CF85 canonical Source fast plain-ID read, ordinary one-read transport, and private/canonical cache precedence
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Additive/mechanical only; no public rename. New private identity owner functions mirror the
+      reference `identity_index._fast_plain_id` semantics (`fast_plain_id`,
+      `has_foreign_document_marker`, `next_line_is_continuation`) and one private
+      `read_artifact_text` ordinary read; a new private `fast_ids` map on the existing
+      `IdentityIndex` holds only Source's private fast cache; `file_read` keeps its name/signature
+      and gains the canonical-before-fast lookup order; `ArtifactDocument` gains one
+      `from_text` constructor and `read` delegates to it (one transport/parser/constructor).
+      `declared_id` and `file_read` reuse the existing canonical `offering::id_field` authority
+      (visibility widened to `pub(crate)`) instead of a copied roster. No second YAML parser,
+      scanner, codec, pass or table authority; no public API/type/error surface change.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      Only existing crate edges and `std` items are used. `sk_kernel::python_utf8::decode_utf8`
+      (strict CPython decoder/error authority) and `sk_kernel::text_decode::normalize_newlines`
+      (TextIO universal-newline authority) are already public Kernel items. No dependency,
+      crate, manifest, lock, feature or module-export change.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No root, pack, pin, golden or fixture path change. New controls build fresh tempfile
+      trees; the Source-first probe uses an independent mktemp business tree with its own
+      CWD/HOME/all-seven-XDG/TMPDIR/TMP/TEMP and the pinned absolute PYTHONPATH/packs root.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No YAML/JSON wire shape, activation key or serialized field changes. The fast cache and
+      the canonical completed-read memo are in-process Rust state, never serialized.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No new command, flag, exit contract or output line. Existing CLI/offering consumers of
+      `IdentityIndex` keep the same rendered errors and the same repository admission.
+  user_facing_strings:
+    action: do_not_change
+    notes: >-
+      No new warning, prefix or Native label. The fast path produces the declared id the full
+      parse would produce when the file is well formed; unrelated malformed bodies keep the
+      reference's accepted divergence and are still rejected by the repository loader.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New named CF85 target with Source-first controls: unrelated malformed body plain-id
+      acceptance, canonical-before-fast precedence across a same-instance abort, private fast
+      and canonical completed-`None` retention, new-index freshness, repository admission that
+      still skips the malformed body, and a guarded independent actual Source/Native pair.
+      Existing CF84 recovery target + parent pair and CF81/CF82/CF83 controls stay unchanged.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No logging emission changes. The Source repository warning for a skipped malformed file
+      is unchanged; the identity fast path emits nothing.
+exceptions:
+  - path: crates/sk-doctrine/src/identity.rs
+    action: manual_review
+    reason: >-
+      The one identity read owner: add the pinned conservative plain-ID business recognizer,
+      the ordinary strict-UTF8/universal-newline read, the private `fast_ids` cache and the
+      reference lookup order (completed canonical read first, private fast second, then read and
+      probe, then seed only the canonical memo from the fallback). Preserve the CF84 `SuccessOnce`
+      table publication and `ScanPass` scan/`None` memos unchanged; add no lock.
+  - path: crates/sk-doctrine/src/offering/value.rs
+    action: manual_review
+    reason: >-
+      One canonical `ArtifactDocument::from_text(&str)` constructor so already-read text enters
+      the same transport/parse/construct/graph pipeline; `read` becomes bytes + strict decode +
+      that constructor. No duplicated parser, codec or graph.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: >-
+      Widen the existing canonical `id_field(kind)` kind/id-field authority to `pub(crate)` so the
+      identity reader reuses it; no second roster, no behaviour change.
+  - path: crates/sk-doctrine/tests/cf85_source_fast_id.rs
+    action: manual_review
+    reason: New named fast-ID target with real Source/Native business controls.
+  - path: docs/rust/occurrence-maps/cf85-source-fast-id.yaml
+    action: manual_review
+    reason: This PRE classification map for the lane.
+status:
+  accepted: false

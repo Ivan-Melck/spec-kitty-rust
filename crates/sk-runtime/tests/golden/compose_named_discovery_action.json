@@ -1,0 +1,84 @@
+{
+  "expected": {
+    "audit_steps": [],
+    "mission": {
+      "description": "",
+      "key": "m",
+      "name": "M",
+      "version": "1.0.0"
+    },
+    "steps": [
+      {
+        "agent_profile": null,
+        "contract_ref": null,
+        "depends_on": [],
+        "description": "Discover.",
+        "expected_output": null,
+        "id": "discovery",
+        "prompt": null,
+        "prompt_template": null,
+        "raci": null,
+        "raci_override_reason": null,
+        "requires_inputs": [],
+        "title": "Discovery"
+      },
+      {
+        "agent_profile": null,
+        "contract_ref": null,
+        "depends_on": [
+          "discovery"
+        ],
+        "description": "",
+        "expected_output": null,
+        "id": "specify",
+        "prompt": null,
+        "prompt_template": "specify.md",
+        "raci": null,
+        "raci_override_reason": null,
+        "requires_inputs": [],
+        "title": "Specify"
+      }
+    ]
+  },
+  "scenario": {
+    "kind": "compose",
+    "name": "compose_named_discovery_action",
+    "template": {
+      "audit_steps": [],
+      "mission": {
+        "description": "",
+        "key": "m",
+        "name": "M",
+        "version": "1.0.0"
+      },
+      "steps": [
+        {
+          "description": "d",
+          "id": "discovery",
+          "title": "Discovery"
+        }
+      ]
+    },
+    "workflow": {
+      "actions": [
+        {
+          "action_name": "discovery",
+          "description": "Discover.",
+          "next": [
+            "specify"
+          ]
+        },
+        {
+          "action_name": "specify",
+          "description": "",
+          "next": [],
+          "terminal": true
+        }
+      ],
+      "description": "A workflow.",
+      "initial": "discovery",
+      "version": 2,
+      "workflow_id": "custom"
+    }
+  }
+}

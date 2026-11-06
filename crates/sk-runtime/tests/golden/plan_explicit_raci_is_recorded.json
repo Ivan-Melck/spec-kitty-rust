@@ -1,0 +1,143 @@
+{
+  "expected": {
+    "decision": {
+      "context": {
+        "actor_context": {
+          "agent_id": "agent-1"
+        },
+        "expected_output": null,
+        "mission_key": "m",
+        "policy_snapshot": {
+          "default_route": "same_llm_context",
+          "extras": {},
+          "strictness": "medium"
+        },
+        "run_id": "run-1",
+        "step_description": "one",
+        "step_id": "s1",
+        "step_title": "S1"
+      },
+      "decision_id": null,
+      "input_key": null,
+      "kind": "step",
+      "mission_key": "m",
+      "options": null,
+      "prompt": "do",
+      "question": null,
+      "reason": null,
+      "run_id": "run-1",
+      "step_id": "s1",
+      "step_title": "S1"
+    },
+    "significance": null,
+    "snapshot": {
+      "blocked_reason": null,
+      "completed_steps": [],
+      "decisions": {
+        "raci:s1": {
+          "accountable": {
+            "actor_id": "owner-1",
+            "actor_type": "human"
+          },
+          "consulted": [
+            {
+              "actor_id": "human-in-charge",
+              "actor_type": "human"
+            }
+          ],
+          "inferred_rule": null,
+          "informed": [
+            {
+              "actor_id": "agent-1",
+              "actor_type": "llm"
+            }
+          ],
+          "override_reason": "explicit oversight",
+          "responsible": {
+            "actor_id": "claude",
+            "actor_type": "llm"
+          },
+          "source": "explicit",
+          "step_id": "s1"
+        }
+      },
+      "inputs": {},
+      "issued_step_id": null,
+      "mission_id": null,
+      "mission_key": "m",
+      "mission_slug": null,
+      "pending_decisions": {},
+      "policy_snapshot": {
+        "default_route": "same_llm_context",
+        "extras": {},
+        "strictness": "medium"
+      },
+      "run_id": "run-1",
+      "template_hash": "frozen-hash",
+      "template_path": "/nonexistent/runtime-golden/mission.yaml"
+    }
+  },
+  "scenario": {
+    "agent_id": "agent-1",
+    "current_template_hash": "frozen-hash",
+    "kind": "plan",
+    "name": "plan_explicit_raci_is_recorded",
+    "snapshot": {
+      "blocked_reason": null,
+      "completed_steps": [],
+      "decisions": {},
+      "inputs": {},
+      "issued_step_id": null,
+      "mission_id": null,
+      "mission_key": "m",
+      "mission_slug": null,
+      "pending_decisions": {},
+      "policy_snapshot": {
+        "default_route": "same_llm_context",
+        "extras": {},
+        "strictness": "medium"
+      },
+      "run_id": "run-1",
+      "template_hash": "frozen-hash",
+      "template_path": "/nonexistent/runtime-golden/mission.yaml"
+    },
+    "template": {
+      "mission": {
+        "description": "",
+        "key": "m",
+        "name": "M",
+        "version": "1.0.0"
+      },
+      "steps": [
+        {
+          "description": "one",
+          "id": "s1",
+          "prompt": "do",
+          "raci": {
+            "accountable": {
+              "actor_id": "owner-1",
+              "actor_type": "human"
+            },
+            "consulted": [
+              {
+                "actor_type": "human"
+              }
+            ],
+            "informed": [
+              {
+                "actor_id": "  ",
+                "actor_type": "llm"
+              }
+            ],
+            "responsible": {
+              "actor_id": "claude",
+              "actor_type": "llm"
+            }
+          },
+          "raci_override_reason": "explicit oversight",
+          "title": "S1"
+        }
+      ]
+    }
+  }
+}

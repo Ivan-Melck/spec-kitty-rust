@@ -1,0 +1,127 @@
+# CF39 ADDITIVE lane classification; no active host Mission/Op and no approval.
+#
+# Scope: the NEW canonical lane sparse-checkout policy + lane-worktree
+# recognizer domain (`crates/sk-workspace/src/coordination_sparse.rs`), the two
+# NEW canonical naming helpers (`parse_lane_worktree_dir`,
+# `lane_id_for_worktree_dir`) plus their byte-level twins in
+# `crates/sk-workspace/src/naming.rs`, the exact `pub mod coordination_sparse;`
+# declaration in `crates/sk-workspace/src/lib.rs`, and the new `cf39_*` tests.
+# No pre-existing identifier is renamed, removed or deprecated and no existing
+# grammar, builder or Git authority changes, so `target.operation` is omitted
+# (additive). This map is a PRE-edit classification record, not an approval, a
+# Mission event, or a gate waiver.
+#
+# Purely additive. The lane gives the two Source helpers named as
+# `UnavailableCheck::LaneSparseCheckoutDrift`'s missing owners
+# (`coordination.lane_sparse_checkout_patterns` and
+# `lanes.branch_naming.lane_id_for_worktree_dir`) one native home each, and the
+# read-only drift FACTS those helpers feed, so the parent can retire the
+# `lane-sparse-checkout-drift` unavailable declaration. It COMPOSES the existing
+# authorities: `naming::coord_mission_dir_name` (the verbatim, idempotent-suffix
+# coordination directory grammar), `naming::worktree_dir_name` (the one
+# lane-worktree builder) and `sk_git::GitRepository` (`worktrees`, `open`,
+# `sparse_pattern_file_text`) — no second prefix check, second regex/pattern
+# table, private Git command/parser or `startswith`-style recognition is
+# introduced. `coordination_health.rs`, `doctor.rs`, the CLI, coherence,
+# consolidation, artifact partition, Git and root exports stay PARENT-owned;
+# this lane only declares its module.
+target:
+  term: "new CF39 canonical lane sparse policy + lane-worktree recognizer identifiers (sk_workspace::coordination_sparse::*, sk_workspace::naming::parse_lane_worktree_dir / lane_id_for_worktree_dir)"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      NEW public symbols only, all inside the new module plus two additive
+      helpers per naming surface: `naming::parse_lane_worktree_dir`,
+      `naming::lane_id_for_worktree_dir`, their `*_bytes` twins, and
+      `coordination_sparse::{LaneSparsePolicy, LaneSparseDrift, LaneSparseScan,
+      LaneSparseError, lane_sparse_checkout_patterns, scan_lane_sparse_drift}`.
+      No existing symbol's meaning, signature or visibility changes.
+      `naming::worktree_dir_name` is REUSED unchanged for recomposition
+      (recognition by recompose-and-compare), `naming::coord_mission_dir_name`
+      is REUSED unchanged for the mission directory, and the pattern read is
+      `sk_git::GitRepository::sparse_pattern_file_text` (the existing bounded
+      no-follow per-worktree read) — the same single Git authority, never a
+      private `git rev-parse`/sparse parser.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No dependency edge, manifest, lockfile, feature or registry change: the
+      module uses only `std`, `serde_json`-free in-memory types, `sk_kernel::
+      python_text` (already a dependency: `splitlines`/`is_whitespace`),
+      `sk_git` and `crate::naming`/`crate::error`, all already declared. The
+      only path-level change is the additive `pub mod coordination_sparse;`
+      declaration in the crate root.
+  filesystem_paths:
+    action: manual_review
+    notes: >-
+      NEW paths created: `crates/sk-workspace/src/coordination_sparse.rs`, the
+      new `crates/sk-workspace/tests/cf39_*.rs` files, and this map. Every path
+      the domain INSPECTS is the Source spelling and nothing is created,
+      renamed, adopted, materialized or deleted:
+      `<repo>/.worktrees/<slug>-<lane_id>` iteration, the per-worktree
+      `info/sparse-checkout` file resolved by Git, and the emitted pattern
+      strings `/*`, `!kitty-specs/<dir>/status.events.jsonl`,
+      `!kitty-specs/<dir>/status.json` which must stay byte-identical (they are
+      the isolation contract that makes the event log unopenable in a lane).
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      Nothing is serialized: the drift facts are typed in-memory values the
+      parent maps onto Source's `severity`/`message`/`next_step`/`error_code`/
+      `extra` finding payload (including the `missing_patterns` extra key). No
+      existing serialized key is renamed, and this lane adds no JSON writer,
+      report model or wire schema of its own.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No CLI flag, command or refusal code changes. `doctor coordination`
+      wiring, the IMPLEMENTED_LEAVES/REFUSED_LEAVES arrays, capability catalogues
+      and the `--fix` refusal stay PARENT-owned; this lane is library-only and
+      performs no registration.
+  user_facing_strings:
+    action: do_not_change
+    notes: >-
+      No user-facing string is introduced. Source's finding messages, the
+      `spec-kitty doctor workspaces --fix` remedy and the
+      `LANE_SPARSE_CHECKOUT_DRIFT` code are the parent renderer's business; the
+      typed facts carry only the lane path and the sorted missing patterns. The
+      one module-local `Display` text belongs to a developer-facing typed error
+      for a probe that could not run, not to a doctor finding.
+  tests_fixtures:
+    action: do_not_change
+    notes: >-
+      NEW `crates/sk-workspace/tests/cf39_*.rs` plus module-local `#[cfg(test)]`
+      cases only. Every fixture is a fresh `tempfile` root with a real
+      `git init`, real `git worktree add` linked lane worktrees (real
+      per-worktree gitdir/common-dir/index/ref binding) and real
+      `info/sparse-checkout` files. No existing test, fixture or expectation is
+      edited, weakened or reclassified, and no fabricated OID/time/readiness
+      value is written.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log key, ledger record, metric, event or telemetry field is added or
+      renamed. The domain prints nothing and opens no Mission/Op record.
+exceptions:
+  - path: crates/sk-workspace/src/naming.rs
+    action: manual_review
+    reason: >-
+      The file gains the two canonical recognizer helpers (and their byte-level
+      twins) that Source keeps beside `worktree_dir_name` in
+      `lanes/branch_naming.py`. No existing function, constant or grammar in
+      the file changes; the helpers delegate to the existing
+      `worktree_dir_name` builder for recomposition instead of re-deriving a
+      prefix rule.
+  - path: crates/sk-workspace/src/lib.rs
+    action: manual_review
+    reason: >-
+      Exactly one additive line (`pub mod coordination_sparse;`). No `pub use`
+      re-export, no root export edit and no CLI/catalogue change; the parent
+      owns whether the new symbols are re-exported at the crate root.
+  - path: docs/rust/occurrence-maps/cf39-lane-sparse.yaml
+    action: do_not_change
+    reason: This file records the additive classification; it is not an approval.
+status:
+  reviewed_by: "CF39 implementer pre-edit classification (not independent approval)"
+  accepted: false

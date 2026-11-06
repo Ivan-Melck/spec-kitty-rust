@@ -1,0 +1,2478 @@
+{
+ "applied_at": "2026-11-02T00:00:00+00:00",
+ "baseline": "9aed3a8012cb5eb22c0128b14d525039f95fea7a",
+ "cases": [
+  {
+   "after": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     false,
+     ".specify/ directory does not exist"
+    ]
+   },
+   "case": "no-specify",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.2.0_specify_to_kittify",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".kittify/memory/MEMORY.md": "m\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Renamed <project>/.specify to <project>/.kittify"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".specify/memory/MEMORY.md": "m\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "specify-only",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.2.0_specify_to_kittify",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".kittify/memory/MEMORY.md": "m\n",
+     "kitty-specs/one/spec.md": "# spec\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Renamed <project>/.specify to <project>/.kittify",
+     "Renamed <project>/specs to <project>/kitty-specs"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".specify/memory/MEMORY.md": "m\n",
+     "specs/one/spec.md": "# spec\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "specify-and-specs",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.2.0_specify_to_kittify",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".kittify/config.yaml": "agents: {}\n",
+     ".specify/one.md": "one\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": null,
+   "before": {
+    "files": {
+     ".kittify/config.yaml": "agents: {}\n",
+     ".specify/one.md": "one\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     false,
+     ".kittify/ already exists - manual merge required"
+    ]
+   },
+   "case": "kittify-exists",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": true
+   },
+   "id": "0.2.0_specify_to_kittify",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".specify/one.md": "one\n",
+     "kitty-specs/b/spec.md": "b\n",
+     "specs/a/spec.md": "a\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": null,
+   "before": {
+    "files": {
+     ".specify/one.md": "one\n",
+     "kitty-specs/b/spec.md": "b\n",
+     "specs/a/spec.md": "a\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     false,
+     "Both /specs/ and /kitty-specs/ exist - manual merge required"
+    ]
+   },
+   "case": "both-spec-dirs",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": true
+   },
+   "id": "0.2.0_specify_to_kittify",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".kittify/config.yaml": "agents: {}\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": [
+     "No .kittify/active-mission found (already migrated or new project)"
+    ]
+   },
+   "before": {
+    "files": {
+     ".kittify/config.yaml": "agents: {}\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "absent",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.8.0_remove_active_mission",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".kittify/config.yaml": "agents: {}\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Removed deprecated .kittify/active-mission",
+     "  -> Missions are now selected per-feature during /spec-kitty.specify",
+     "  -> Existing features will use 'software-dev' mission by default"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".kittify/active-mission": "software-dev\n",
+     ".kittify/config.yaml": "agents: {}\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "retired-file",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.8.0_remove_active_mission",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".kittify/config.yaml": "agents: {}\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Removed deprecated .kittify/active-mission",
+     "  -> Missions are now selected per-feature during /spec-kitty.specify",
+     "  -> Existing features will use 'software-dev' mission by default"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".kittify/active-mission": "\u0000symlink:gone",
+     ".kittify/config.yaml": "agents: {}\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "dangling-symlink",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.8.0_remove_active_mission",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "\n# AI Agent directories (added by Spec Kitty CLI)\n# These contain auth tokens and should NEVER be committed\n.claude/\n.codex/\n.opencode/\n.windsurf/\n.gemini/\n.cursor/\n.qwen/\n.kilocode/\n.augment/\n.roo/\n.amazonq/\n.github/copilot/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added 12 agent directories to .gitignore"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "no-file",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.4.8_gitignore_agents",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n# operator note\n\n# AI Agent directories (added by Spec Kitty CLI)\n# These contain auth tokens and should NEVER be committed\n.claude/\n.codex/\n.opencode/\n.windsurf/\n.gemini/\n.cursor/\n.qwen/\n.kilocode/\n.augment/\n.roo/\n.amazonq/\n.github/copilot/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added 12 agent directories to .gitignore"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n# operator note\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "existing-operator-entry",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.4.8_gitignore_agents",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "# operator note\n\n# AI Agent directories (added by Spec Kitty CLI)\n# These contain auth tokens and should NEVER be committed\n.claude/\n.codex/\n.opencode/\n.windsurf/\n.gemini/\n.cursor/\n.qwen/\n.kilocode/\n.augment/\n.roo/\n.amazonq/\n.github/copilot/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "All agent directories already in .gitignore"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "# operator note\n\n# AI Agent directories (added by Spec Kitty CLI)\n# These contain auth tokens and should NEVER be committed\n.claude/\n.codex/\n.opencode/\n.windsurf/\n.gemini/\n.cursor/\n.qwen/\n.kilocode/\n.augment/\n.roo/\n.amazonq/\n.github/copilot/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "all-present",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.4.8_gitignore_agents",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n.claude/\n.codex/\n\n# AI Agent directories (added by Spec Kitty CLI)\n# These contain auth tokens and should NEVER be committed\n.opencode/\n.windsurf/\n.gemini/\n.cursor/\n.qwen/\n.kilocode/\n.augment/\n.roo/\n.amazonq/\n.github/copilot/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added 10 agent directories to .gitignore"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\r\n.claude/\r\n.codex/\r\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "crlf-partial",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.4.8_gitignore_agents",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": ".claude/settings.json\n\n# AI Agent directories (added by Spec Kitty CLI)\n# These contain auth tokens and should NEVER be committed\n.codex/\n.opencode/\n.windsurf/\n.gemini/\n.cursor/\n.qwen/\n.kilocode/\n.augment/\n.roo/\n.amazonq/\n.github/copilot/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added 11 agent directories to .gitignore"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": ".claude/settings.json\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "substring-present",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.4.8_gitignore_agents",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "# Added by Spec Kitty CLI (auto-managed)\n.kittify/runtime/\n.kittify/merge-state.json\n.kittify/events/\n.kittify/dossiers/\nkitty-specs/**/.kittify/dossiers/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added runtime state entries to .gitignore: .kittify/runtime/, .kittify/merge-state.json, .kittify/events/, .kittify/dossiers/, kitty-specs/**/.kittify/dossiers/"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "no-file",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "2.0.9_state_gitignore",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n# operator note\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/runtime/\n.kittify/merge-state.json\n.kittify/events/\n.kittify/dossiers/\nkitty-specs/**/.kittify/dossiers/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added runtime state entries to .gitignore: .kittify/runtime/, .kittify/merge-state.json, .kittify/events/, .kittify/dossiers/, kitty-specs/**/.kittify/dossiers/"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n# operator note\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "existing-operator-entry",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "2.0.9_state_gitignore",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/runtime/\n.kittify/merge-state.json\n.kittify/events/\n.kittify/dossiers/\nkitty-specs/**/.kittify/dossiers/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "All runtime state entries already present in .gitignore"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/runtime/\n.kittify/merge-state.json\n.kittify/events/\n.kittify/dossiers/\nkitty-specs/**/.kittify/dossiers/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "all-present",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "2.0.9_state_gitignore",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\r\n.kittify/runtime/\r\n\r\n# Added by Spec Kitty CLI (auto-managed)\r\n.kittify/merge-state.json\r\n.kittify/events/\r\n.kittify/dossiers/\r\nkitty-specs/**/.kittify/dossiers/\r\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added runtime state entries to .gitignore: .kittify/runtime/, .kittify/merge-state.json, .kittify/events/, .kittify/dossiers/, kitty-specs/**/.kittify/dossiers/"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\r\n.kittify/runtime/\r\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "crlf-partial",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "2.0.9_state_gitignore",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "# Added by Spec Kitty CLI (auto-managed)\n.kittify/sync-state.json\n.kittify/encoding-provenance/\nkitty-ops/ops-index.jsonl\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added gitignore entries: .kittify/sync-state.json, .kittify/encoding-provenance/, kitty-ops/ops-index.jsonl"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "no-repo-missing",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.0rc35_kittify_runtime_git_hygiene",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/sync-state.json\n.kittify/encoding-provenance/\nkitty-ops/ops-index.jsonl\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "gitignore entries already present"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/sync-state.json\n.kittify/encoding-provenance/\nkitty-ops/ops-index.jsonl\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "no-repo-clean",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.0rc35_kittify_runtime_git_hygiene",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/sync-state.json\n.kittify/encoding-provenance/\nkitty-ops/ops-index.jsonl\n",
+     ".kittify/charter/context-state.json": "state\n",
+     ".kittify/encoding-provenance/global.jsonl": "state\n",
+     "kitty-ops/ops-index.jsonl": "state\n"
+    },
+    "git": true,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added gitignore entries: .kittify/sync-state.json, .kittify/encoding-provenance/, kitty-ops/ops-index.jsonl",
+     "Untracked local runtime file: .kittify/charter/context-state.json",
+     "Untracked local runtime file: .kittify/encoding-provenance/global.jsonl",
+     "Untracked local runtime file: kitty-ops/ops-index.jsonl"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n",
+     ".kittify/charter/context-state.json": "state\n",
+     ".kittify/encoding-provenance/global.jsonl": "state\n",
+     "kitty-ops/ops-index.jsonl": "state\n"
+    },
+    "git": true,
+    "tracked": [
+     ".kittify/charter/context-state.json",
+     ".kittify/encoding-provenance/global.jsonl",
+     "kitty-ops/ops-index.jsonl"
+    ]
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "repo-tracked-runtime",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.0rc35_kittify_runtime_git_hygiene",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/sync-state.json\n.kittify/encoding-provenance/\nkitty-ops/ops-index.jsonl\n"
+    },
+    "git": true,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "gitignore entries already present"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/sync-state.json\n.kittify/encoding-provenance/\nkitty-ops/ops-index.jsonl\n"
+    },
+    "git": true,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "repo-clean",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.0rc35_kittify_runtime_git_hygiene",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "# Added by Spec Kitty CLI (auto-managed)\n.kittify/sync-state.json\n.kittify/encoding-provenance/\nkitty-ops/ops-index.jsonl\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added gitignore entries: .kittify/sync-state.json, .kittify/encoding-provenance/, kitty-ops/ops-index.jsonl"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "no-repo-missing",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.3_encoding_provenance_gitignore_backfill",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/sync-state.json\n.kittify/encoding-provenance/\nkitty-ops/ops-index.jsonl\n",
+     ".kittify/encoding-provenance/global.jsonl": "{}\n"
+    },
+    "git": true,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "gitignore entries already present",
+     "Untracked local runtime file: .kittify/encoding-provenance/global.jsonl"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/sync-state.json\n.kittify/encoding-provenance/\nkitty-ops/ops-index.jsonl\n",
+     ".kittify/encoding-provenance/global.jsonl": "{}\n"
+    },
+    "git": true,
+    "tracked": [
+     ".kittify/encoding-provenance/global.jsonl"
+    ]
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "repo-tracked-provenance",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.3_encoding_provenance_gitignore_backfill",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "# Added by Spec Kitty CLI (auto-managed)\n.kittify/derived/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added gitignore entry: .kittify/derived/"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "no-file",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.4_derived_mission_views_gitignore_backfill",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/derived\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "gitignore entry already present"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/derived\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "slashless-present",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.4_derived_mission_views_gitignore_backfill",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/derived/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "gitignore entry already present"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/derived/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "all-present",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.4_derived_mission_views_gitignore_backfill",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "# Added by Spec Kitty CLI (auto-managed)\n.kittify/migrations/\n.kittify/logs/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added gitignore entries: .kittify/migrations/, .kittify/logs/"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "no-file",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.4_runtime_dirs_gitignore_backfill",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/migrations\n.kittify/logs\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "gitignore entries already present"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/migrations\n.kittify/logs\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "slashless-present",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.4_runtime_dirs_gitignore_backfill",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/migrations/\n.kittify/logs/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added gitignore entries: .kittify/logs/"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/migrations/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "one-missing",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.4_runtime_dirs_gitignore_backfill",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "# Added by Spec Kitty CLI (auto-managed)\n.kittify/lint-report.json\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added gitignore entry: .kittify/lint-report.json"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "no-file",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.6rc3_lint_report_gitignore_backfill",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/lint-report.json\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "gitignore entry already present"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/lint-report.json\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "present",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.6rc3_lint_report_gitignore_backfill",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n# operator note\n\n# Added by Spec Kitty CLI (auto-managed)\n.kittify/lint-report.json\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added gitignore entry: .kittify/lint-report.json"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n# operator note\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "operator-entry-only",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.6rc3_lint_report_gitignore_backfill",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "# Added by Spec Kitty CLI (auto-managed)\n.worktrees/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added gitignore entry: .worktrees/"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "no-repo-missing",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.6rc3_worktrees_gitignore_backfill",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.worktrees/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "gitignore entry already present"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n\n# Added by Spec Kitty CLI (auto-managed)\n.worktrees/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "no-repo-present",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.6rc3_worktrees_gitignore_backfill",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "# Added by Spec Kitty CLI (auto-managed)\n.worktrees/\n"
+    },
+    "git": true,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added gitignore entry: .worktrees/"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {},
+    "git": true,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "repo-missing",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.6rc3_worktrees_gitignore_backfill",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": ".worktrees/\n!.worktrees/keep/\n\n# Added by Spec Kitty CLI (auto-managed)\n.worktrees/\n"
+    },
+    "git": true,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Added gitignore entry: .worktrees/"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": ".worktrees/\n!.worktrees/keep/\n"
+    },
+    "git": true,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "repo-negation",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.6rc3_worktrees_gitignore_backfill",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n",
+     ".worktrees/lane-01/README.md": "tracked\n"
+    },
+    "git": true,
+    "tracked": [
+     ".worktrees/lane-01/README.md"
+    ]
+   },
+   "apply": {
+    "changes": [],
+    "errors": [
+     "Tracked paths exist under .worktrees; .gitignore cannot protect tracked files. Review them, then untrack with `git rm -r --cached -- .worktrees` and rerun `spec-kitty upgrade` (or `spec-kitty init` during initialization)."
+    ],
+    "exception": null,
+    "success": false,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n",
+     ".worktrees/lane-01/README.md": "tracked\n"
+    },
+    "git": true,
+    "tracked": [
+     ".worktrees/lane-01/README.md"
+    ]
+   },
+   "can_apply": {
+    "value": [
+     false,
+     "Tracked paths exist under .worktrees; .gitignore cannot protect tracked files. Review them, then untrack with `git rm -r --cached -- .worktrees` and rerun `spec-kitty upgrade` (or `spec-kitty init` during initialization)."
+    ]
+   },
+   "case": "repo-tracked-under-root",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": true
+   },
+   "id": "3.2.6rc3_worktrees_gitignore_backfill",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "No .gitignore file found"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "no-file",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.12.1_remove_kitty_specs_from_gitignore",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n# specs are tracked\nkitty-specs/**/tasks/*.md\n/.kitty-specs/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Removed 1 blocking entries from .gitignore",
+     "Line 3: Removed 'kitty-specs/'"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n# specs are tracked\nkitty-specs/\nkitty-specs/**/tasks/*.md\n/.kitty-specs/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "blocking",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.12.1_remove_kitty_specs_from_gitignore",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "kitty-specs/**/tasks/*.md\nkitty-specs/*/tasks/*.md\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "No blocking kitty-specs/ entries found in .gitignore"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "kitty-specs/**/tasks/*.md\nkitty-specs/*/tasks/*.md\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "subpath-only",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.12.1_remove_kitty_specs_from_gitignore",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n/tasks/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Removed 1 blocking entries from .gitignore",
+     "Line 2: Removed 'kitty-specs'"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\r\nkitty-specs\r\n/tasks/\r\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "mixed-crlf",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.12.1_remove_kitty_specs_from_gitignore",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "\u0000symlink:target.txt",
+     "target.txt": "node_modules/\nkitty-specs/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [],
+    "errors": [
+     ".gitignore is a symlink to 'target.txt'; refusing to follow it"
+    ],
+    "exception": null,
+    "success": false,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "\u0000symlink:target.txt",
+     "target.txt": "node_modules/\nkitty-specs/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     false,
+     ".gitignore is a symlink to 'target.txt'; refusing to follow it"
+    ]
+   },
+   "case": "symlink",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": true
+   },
+   "id": "0.12.1_remove_kitty_specs_from_gitignore",
+   "reason_comparable": false
+  },
+  {
+   "after": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "No .gitignore file found"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "no-file",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "2.0.0a5_remove_wp_status_gitignore_rule",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "keep/\n\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Removed 3 stale WP status ignore entries from .gitignore",
+     "Line 1: Removed '# Block WP status files during merges'",
+     "Line 2: Removed 'kitty-specs/**/tasks/*.md'",
+     "Line 3: Removed 'kitty-specs/*/tasks/*.md'"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "# Block WP status files during merges\nkitty-specs/**/tasks/*.md\nkitty-specs/*/tasks/*.md\nkeep/\n\n\n\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "rules-and-heading",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "2.0.0a5_remove_wp_status_gitignore_rule",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "kitty-specs/**/tasks/notes.md\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "No stale WP status ignore entries found in .gitignore"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "kitty-specs/**/tasks/notes.md\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "subpath-clean",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "2.0.0a5_remove_wp_status_gitignore_rule",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "keep/\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Removed 1 stale WP status ignore entries from .gitignore",
+     "Line 2: Removed 'kitty-specs/**/tasks/*.md'"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "keep/\r\nkitty-specs/**/tasks/*.md\r\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "mixed-crlf",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "2.0.0a5_remove_wp_status_gitignore_rule",
+   "reason_comparable": true
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "\u0000symlink:target.txt",
+     "target.txt": "kitty-specs/**/tasks/*.md\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [],
+    "errors": [
+     ".gitignore is a symlink to 'target.txt'; refusing to follow it"
+    ],
+    "exception": null,
+    "success": false,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "\u0000symlink:target.txt",
+     "target.txt": "kitty-specs/**/tasks/*.md\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     false,
+     ".gitignore is a symlink to 'target.txt'; refusing to follow it"
+    ]
+   },
+   "case": "symlink",
+   "detect": {
+    "value": true
+   },
+   "detect_after": {
+    "value": true
+   },
+   "id": "2.0.0a5_remove_wp_status_gitignore_rule",
+   "reason_comparable": false
+  },
+  {
+   "after": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": [
+     "Superseded by 0.9.0_residue_safe_frontmatter_only_lanes"
+    ]
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     false,
+     "Superseded by 0.9.0_residue_safe_frontmatter_only_lanes"
+    ]
+   },
+   "case": "empty-project",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.9.0_frontmatter_only_lanes",
+   "reason_comparable": true,
+   "superseded_by": "Superseded by 0.9.0_residue_safe_frontmatter_only_lanes"
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n",
+     ".kittify/config.yaml": "agents:\n  available:\n  - claude\n",
+     ".kittify/metadata.yaml": "spec_kitty:\n  version: 4.0.0rc8\n",
+     "kitty-specs/one/spec.md": "# spec\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": [
+     "Superseded by 0.9.0_residue_safe_frontmatter_only_lanes"
+    ]
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n",
+     ".kittify/config.yaml": "agents:\n  available:\n  - claude\n",
+     ".kittify/metadata.yaml": "spec_kitty:\n  version: 4.0.0rc8\n",
+     "kitty-specs/one/spec.md": "# spec\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     false,
+     "Superseded by 0.9.0_residue_safe_frontmatter_only_lanes"
+    ]
+   },
+   "case": "populated-project",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.9.0_frontmatter_only_lanes",
+   "reason_comparable": true,
+   "superseded_by": "Superseded by 0.9.0_residue_safe_frontmatter_only_lanes"
+  },
+  {
+   "after": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Skipped: command templates removed in WP10; shim generation replaces them"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     false,
+     "WP10: Command templates were removed. Shim generation replaces template-based commands."
+    ]
+   },
+   "case": "empty-project",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.10.9_repair_templates",
+   "reason_comparable": true,
+   "superseded_by": ""
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n",
+     ".kittify/config.yaml": "agents:\n  available:\n  - claude\n",
+     ".kittify/metadata.yaml": "spec_kitty:\n  version: 4.0.0rc8\n",
+     "kitty-specs/one/spec.md": "# spec\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Skipped: command templates removed in WP10; shim generation replaces them"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n",
+     ".kittify/config.yaml": "agents:\n  available:\n  - claude\n",
+     ".kittify/metadata.yaml": "spec_kitty:\n  version: 4.0.0rc8\n",
+     "kitty-specs/one/spec.md": "# spec\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     false,
+     "WP10: Command templates were removed. Shim generation replaces template-based commands."
+    ]
+   },
+   "case": "populated-project",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.10.9_repair_templates",
+   "reason_comparable": true,
+   "superseded_by": ""
+  },
+  {
+   "after": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": [
+     "Superseded by charter-rename"
+    ]
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     false,
+     "Superseded by charter-rename migration"
+    ]
+   },
+   "case": "empty-project",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.10.12_charter_cleanup",
+   "reason_comparable": true,
+   "superseded_by": ""
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n",
+     ".kittify/config.yaml": "agents:\n  available:\n  - claude\n",
+     ".kittify/metadata.yaml": "spec_kitty:\n  version: 4.0.0rc8\n",
+     "kitty-specs/one/spec.md": "# spec\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": [
+     "Superseded by charter-rename"
+    ]
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n",
+     ".kittify/config.yaml": "agents:\n  available:\n  - claude\n",
+     ".kittify/metadata.yaml": "spec_kitty:\n  version: 4.0.0rc8\n",
+     "kitty-specs/one/spec.md": "# spec\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     false,
+     "Superseded by charter-rename migration"
+    ]
+   },
+   "case": "populated-project",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "0.10.12_charter_cleanup",
+   "reason_comparable": true,
+   "superseded_by": ""
+  },
+  {
+   "after": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Already complete (no-op)"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "empty-project",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "2.0.0_historical_status_migration",
+   "reason_comparable": true,
+   "superseded_by": ""
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n",
+     ".kittify/config.yaml": "agents:\n  available:\n  - claude\n",
+     ".kittify/metadata.yaml": "spec_kitty:\n  version: 4.0.0rc8\n",
+     "kitty-specs/one/spec.md": "# spec\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [
+     "Already complete (no-op)"
+    ],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": []
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n",
+     ".kittify/config.yaml": "agents:\n  available:\n  - claude\n",
+     ".kittify/metadata.yaml": "spec_kitty:\n  version: 4.0.0rc8\n",
+     "kitty-specs/one/spec.md": "# spec\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     true,
+     ""
+    ]
+   },
+   "case": "populated-project",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "2.0.0_historical_status_migration",
+   "reason_comparable": true,
+   "superseded_by": ""
+  },
+  {
+   "after": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": [
+     "Superseded by 4.0.0rc8_narrow_agent_gitignore"
+    ]
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     false,
+     "Superseded by 4.0.0rc8_narrow_agent_gitignore"
+    ]
+   },
+   "case": "empty-project",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.5_agents_skills_gitignore_backfill",
+   "reason_comparable": true,
+   "superseded_by": "Superseded by 4.0.0rc8_narrow_agent_gitignore"
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n",
+     ".kittify/config.yaml": "agents:\n  available:\n  - claude\n",
+     ".kittify/metadata.yaml": "spec_kitty:\n  version: 4.0.0rc8\n",
+     "kitty-specs/one/spec.md": "# spec\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": [
+     "Superseded by 4.0.0rc8_narrow_agent_gitignore"
+    ]
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n",
+     ".kittify/config.yaml": "agents:\n  available:\n  - claude\n",
+     ".kittify/metadata.yaml": "spec_kitty:\n  version: 4.0.0rc8\n",
+     "kitty-specs/one/spec.md": "# spec\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     false,
+     "Superseded by 4.0.0rc8_narrow_agent_gitignore"
+    ]
+   },
+   "case": "populated-project",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "3.2.5_agents_skills_gitignore_backfill",
+   "reason_comparable": true,
+   "superseded_by": "Superseded by 4.0.0rc8_narrow_agent_gitignore"
+  },
+  {
+   "after": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": [
+     "Superseded by the charter-pack cutover"
+    ]
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     false,
+     "Superseded by the charter-pack cutover"
+    ]
+   },
+   "case": "empty-project",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "normalize_activation_absence",
+   "reason_comparable": true,
+   "superseded_by": "Superseded by the charter-pack cutover"
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n",
+     ".kittify/config.yaml": "agents:\n  available:\n  - claude\n",
+     ".kittify/metadata.yaml": "spec_kitty:\n  version: 4.0.0rc8\n",
+     "kitty-specs/one/spec.md": "# spec\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": [
+     "Superseded by the charter-pack cutover"
+    ]
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n",
+     ".kittify/config.yaml": "agents:\n  available:\n  - claude\n",
+     ".kittify/metadata.yaml": "spec_kitty:\n  version: 4.0.0rc8\n",
+     "kitty-specs/one/spec.md": "# spec\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     false,
+     "Superseded by the charter-pack cutover"
+    ]
+   },
+   "case": "populated-project",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "normalize_activation_absence",
+   "reason_comparable": true,
+   "superseded_by": "Superseded by the charter-pack cutover"
+  },
+  {
+   "after": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": [
+     "Superseded by 4.0.0rc8_promote_interview_selections"
+    ]
+   },
+   "before": {
+    "files": {},
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     false,
+     "Superseded by 4.0.0rc8_promote_interview_selections"
+    ]
+   },
+   "case": "empty-project",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "unify_charter_activation_promote_answers",
+   "reason_comparable": true,
+   "superseded_by": "Superseded by 4.0.0rc8_promote_interview_selections"
+  },
+  {
+   "after": {
+    "files": {
+     ".gitignore": "node_modules/\n",
+     ".kittify/config.yaml": "agents:\n  available:\n  - claude\n",
+     ".kittify/metadata.yaml": "spec_kitty:\n  version: 4.0.0rc8\n",
+     "kitty-specs/one/spec.md": "# spec\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "apply": {
+    "changes": [],
+    "errors": [],
+    "exception": null,
+    "success": true,
+    "warnings": [
+     "Superseded by 4.0.0rc8_promote_interview_selections"
+    ]
+   },
+   "before": {
+    "files": {
+     ".gitignore": "node_modules/\n",
+     ".kittify/config.yaml": "agents:\n  available:\n  - claude\n",
+     ".kittify/metadata.yaml": "spec_kitty:\n  version: 4.0.0rc8\n",
+     "kitty-specs/one/spec.md": "# spec\n"
+    },
+    "git": false,
+    "tracked": []
+   },
+   "can_apply": {
+    "value": [
+     false,
+     "Superseded by 4.0.0rc8_promote_interview_selections"
+    ]
+   },
+   "case": "populated-project",
+   "detect": {
+    "value": false
+   },
+   "detect_after": {
+    "value": false
+   },
+   "id": "unify_charter_activation_promote_answers",
+   "reason_comparable": true,
+   "superseded_by": "Superseded by 4.0.0rc8_promote_interview_selections"
+  }
+ ],
+ "cli_version": "4.0.0rc8",
+ "generator": "crates/sk-install/tests/fixtures/migrations/generate_migration_oracle.py",
+ "python": "3.11.15"
+}

@@ -1,0 +1,49 @@
+target:
+  term: Source project-governance resolver, typed GovernanceResolution and live compact summary
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Add one Doctrine project_governance owner; factor context.rs charter-config/directive collectors; no renamed existing public symbol.
+  import_paths:
+    action: manual_review
+    notes: New crate-private module plus same-item re-exports; context.rs and compat/charter.rs consume the shared owner.
+  filesystem_paths:
+    action: manual_review
+    notes: Canonical charter read root stays distinct from activation repo root; fresh independent fixtures only, no production root change.
+  serialized_keys:
+    action: do_not_change
+    notes: No JSON/serialized contract key is added or renamed in this lane; compact text lines keep their existing spellings.
+  cli_commands:
+    action: do_not_change
+    notes: No new CLI flag, command or routing; compact rails gain their already-advertised resolved body only.
+  user_facing_strings:
+    action: manual_review
+    notes: Source diagnostic/provenance text is carried; direct and compact error text keeps Source's unresolved/unavailable/retired distinctions.
+  tests_fixtures:
+    action: manual_review
+    notes: New Source-first small controls and paired compact CLI children; existing fixtures untouched.
+  logs_telemetry:
+    action: manual_review
+    notes: Preserve every probe/exit and the genuine pre-change compact-summary red; no retroactive or fabricated evidence.
+exceptions:
+  - path: crates/sk-doctrine/src/project_governance.rs
+    action: manual_review
+    reason: New single project-governance owner (model, resolution, typed error, catalogue read, compact summary preparation).
+  - path: crates/sk-doctrine/src/context.rs
+    action: manual_review
+    reason: Exact charter-config/directive collector factoring into the shared owner; action-graph delivery held.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Same-item additive re-exports for the new owner.
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: Compact/non-bootstrap summary plumbing at the existing stage/read/catch/mark position only.
+  - path: crates/sk-doctrine/tests/cf72_project_governance.rs
+    action: manual_review
+    reason: New focused policy tests including explicit empty/absent, deny, tools, template and retired cases.
+  - path: crates/sk-cli/tests/cf72_compact_governance_cli.rs
+    action: manual_review
+    reason: New paired Source/Native compact-summary children with independent isolated fixtures.
+status:
+  accepted: false
+  phase: prospective pre-edit classification

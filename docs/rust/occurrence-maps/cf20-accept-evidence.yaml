@@ -1,0 +1,134 @@
+# CF20 PRE-edit occurrence classification for the acceptance evidence/attestation lane.
+# Written BEFORE any edit in this task. No invented Mission/Op metadata and no
+# acceptance claim: this map classifies the identifiers THIS task touches. Every
+# declared change is ADDITIVE (new module, new fields, new flags, new additive
+# reader) so no `operation` is declared; nothing is renamed, removed or
+# deprecated for an operator. It does not approve any other producer's edits, nor
+# the parent's registration/manifest work.
+# Scope: crates/sk-cli/src/compat/acceptance.rs, crates/sk-cli/src/compat/acceptance/**,
+# the AcceptArgs + accept-only portions of crates/sk-cli/src/compat/lifecycle.rs,
+# crates/sk-workspace/src/acceptance_source.rs (+ its non_wp_runtime submodule),
+# crates/sk-mission/src/expected_artifacts.rs (additive origin-carrying reader),
+# the four existing AcceptArgs literal sites in CLI tests, the new cf20_* tests,
+# and this map.
+target:
+  term: "accept success without implementation-evidence/attestation gates"
+  replacement: "Source ordered implemented/review evidence gate + operator attestation; no operator-facing rename"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      ADDITIVE: `sk_cli::compat::acceptance::evidence` (evidence axis: codes,
+      window, owned change, independence, refusal assembly, attestation
+      reader) and `sk_cli::compat::acceptance::attest` (validate + record the
+      operator attestation through the canonical status writer), the
+      `AcceptArgs::{attest_no_implementation,attest_reason}` fields,
+      `sk_workspace::acceptance_source::RequiredArtifactsOrigin` +
+      `collect_source_acceptance_facts_with_origin`,
+      `NonWpAcceptanceFacts::required_artifacts_source`, and
+      `sk_mission::expected_artifacts::load_expected_artifacts_with_origin`.
+      Existing items keep their names and meanings; `accept` stays the one entry
+      point and the deletion of the Native `evaluate_acceptance_with` call
+      happened in CF7, not here. No second policy, codec, writer, parser or Git
+      process is introduced: the evidence axis reads Git through `sk_git`, the
+      status log through `sk_status`, ownership through `sk_mission`, and
+      identity through `sk_status::actor_identities_independent`.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No module move and no dependency edge added. The new submodules live under
+      the predeclared `sk_cli::compat::acceptance` module; the workspace reader
+      stays in the predeclared `sk_workspace::acceptance_source`; the additive
+      expected-artifacts reader stays in the predeclared
+      `sk_mission::expected_artifacts`.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No authored data path moves. The evidence window reads existing Git refs
+      (`planning_commit_sha`, lane/mission/target branch names), `lanes.json`,
+      `tasks/WP*.md` frontmatter and `status.events.jsonl` where they already
+      are. No new on-disk artifact is created by the gate; the attestation is an
+      appended status event in the existing log.
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      No authored key changes and no event-schema change. The attestation event
+      reuses the existing `policy_metadata.attestation` key with Source's
+      `no_implementation` value, and the existing `evidence.review` /
+      `reason_source` slots. The `accept --json` payload keeps every current key
+      and gains additive `evidence` fields (`blocked`, `codes`,
+      `lifted_work_packages`, `attested_work_packages`) plus the corrected
+      `required_artifacts_source` value; `matrix_verdict`, `acceptance_ok`,
+      `mutation_performed`, `diagnose`, `no_commit` are unchanged.
+  cli_commands:
+    action: manual_review
+    notes: >-
+      `spec-kitty accept` keeps its name, existing flags, exit codes and
+      ordering. Two Source flags are added with real behaviour and no default
+      success: `--attest-no-implementation <WP>` (repeatable) and
+      `--attest-reason "<why>"`. They are refused (exit 2, nothing recorded) in
+      a read-only mode and without a non-blank reason, exactly as Source does.
+      No command registration, catalogue entry or agent-surface change is made
+      here (parent-owned); the root dispatch already routes to
+      `lifecycle::accept`.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      The gate's refusal text, its four neutral codes (`IMPLEMENTATION_MISSING`,
+      `REVIEW_NOT_INDEPENDENT`, `IMPLEMENTATION_UNREADABLE`,
+      `EVIDENCE_WINDOW_UNCOMPUTABLE`), their per-code recovery lines and the
+      single_branch aliases are reproduced from Source, not invented. The
+      attestation notices and the `--attest-*` requirement texts are Source's.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New Native-only tests (`crates/sk-cli/tests/cf20_accept_evidence.rs`) build
+      fresh `mktemp` Git repositories with real commits, real `lanes.json`,
+      real authored WP frontmatter and a real status log. The four existing
+      `AcceptArgs` literal sites gain the two new fields at Source defaults
+      (empty list, absent reason); no assertion, fixture semantic or unrelated
+      line is changed.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log/metric/identity label changes and no performance or parity claim.
+      Event timestamps come from the Kernel clock inside the canonical writer,
+      never from a fabricated value.
+exceptions:
+  - path: crates/sk-cli/src/compat/lifecycle.rs
+    action: manual_review
+    reason: >-
+      Accept-only portion: `AcceptArgs` gains the two Source attestation fields
+      with doc comments. Review/consolidate/merge code is untouched.
+  - path: crates/sk-cli/src/compat/acceptance.rs
+    action: manual_review
+    reason: >-
+      The adapter now runs Source's order (validate request -> verify merge
+      commit -> origin gate -> record attestation -> evidence gate -> collect),
+      reads the work-package-only status rows lazily on the WP path, and reports
+      the artifact manifest it actually selected.
+  - path: crates/sk-workspace/src/acceptance_source.rs
+    action: manual_review
+    reason: >-
+      Additive origin-carrying collection entry point (the existing function
+      delegates to it) so the adapter can disclose the selected manifest without
+      inferring it from the skip reason.
+  - path: crates/sk-mission/src/expected_artifacts.rs
+    action: manual_review
+    reason: >-
+      Additive reader that returns the selected manifest WITH its origin (tier
+      label or file path); the existing loader delegates to it unchanged.
+structural_targets:
+  - path: crates/sk-cli/src/compat/acceptance/*.rs
+    reason: >-
+      New submodules (evidence axis + attestation) under the owned acceptance
+      adapter; the previous state had no evidence/attestation surface at all.
+  - path: crates/sk-cli/tests/cf20_*.rs
+    reason: >-
+      New end-to-end tests for the ported gate: valid implementation + independent
+      review, missing implementation, same reviewer/implementer, explicit
+      attestation, read-only diagnose/no-commit, non-WP unconsulted-WP-state
+      tolerance, and no pre-gate matrix writes.
+status:
+  phase: producer pre-edit implementation
+  accepted: false

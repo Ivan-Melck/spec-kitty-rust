@@ -1,0 +1,190 @@
+{
+ "_provenance": "Recorded by the pinned Source (CPython 3.11.15, .venv-rust-oracle) running the ACTUAL migrations m_3_2_7_heal_provenance_paths and m_4_0_0rc5_heal_template_set_provenance on the fixture trees recorded here. Placeholders: $PACKS (packs root), $PROJECT, $CURRENT, $UNPROVABLE, $FORMER (a real git checkout), $FORMERPROJECT. Regenerate with /tmp/sk-a4/probe_provenance.py.",
+ "packs": {
+  "built-in/agent_profiles/analyst-annie.agent.yaml": "profile-id: analyst-annie\n",
+  "built-in/agent_profiles/portable.agent.yaml": "profile-id: portable\n",
+  "built-in/directives/001-architectural-integrity-standard.directive.yaml": "id: DIRECTIVE_001\n",
+  "built-in/missions/research/mission.yaml": "name: research\n",
+  "built-in/missions/software-dev/mission.yaml": "name: software-dev\n",
+  "built-in/pack.yaml": "name: built-in\n"
+ },
+ "provenance": {
+  "after": {
+   ".kittify/agent_profiles_manifest.json": {
+    "kind": "file",
+    "sha256": "0439cd5a092f8b5c922ffa568b411061d7567f661c89c89f540a12ef7ad34c1e",
+    "text": "{\n  \"entries\": [\n    {\n      \"file_hash\": \"aaaa\",\n      \"format\": \"claude-agent\",\n      \"output_path\": \".claude/agents/analyst-annie.md\",\n      \"profile_urn\": \"agent_profile:analyst-annie\",\n      \"projection_version\": 1,\n      \"source_hash\": \"bbbb\",\n      \"source_layer\": \"built-in\",\n      \"source_path\": \"${SPEC_KITTY_PACKS_ROOT}/built-in/agent_profiles/analyst-annie.agent.yaml\",\n      \"tool_key\": \"claude\"\n    },\n    {\n      \"file_hash\": \"cccc\",\n      \"format\": \"claude-agent\",\n      \"output_path\": \".claude/agents/local-analyst.md\",\n      \"profile_urn\": \"agent_profile:local-analyst\",\n      \"projection_version\": 1,\n      \"source_hash\": \"dddd\",\n      \"source_layer\": \"project\",\n      \"source_path\": \"/opt/local-support/agent_profiles/local-analyst.agent.yaml\",\n      \"tool_key\": \"claude\"\n    },\n    {\n      \"file_hash\": \"eeee\",\n      \"format\": \"codex-agent\",\n      \"output_path\": \".codex/agents/portable.md\",\n      \"profile_urn\": \"agent_profile:portable\",\n      \"projection_version\": 1,\n      \"source_hash\": \"ffff\",\n      \"source_layer\": \"built-in\",\n      \"source_path\": \"${SPEC_KITTY_PACKS_ROOT}/built-in/agent_profiles/portable.agent.yaml\",\n      \"tool_key\": \"codex\"\n    }\n  ],\n  \"schema_version\": 1\n}\n"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "34ad37a44aba159326185f22f954be1b8845bd953b479b71b856b4b9b27a92cf",
+    "text": "governance:\n  charter:\n    selected_directives:\n    - 001-architectural-integrity-standard\ncatalog:\n  mission: software-dev\n  template_set: software-dev-default\n  languages: []\n  references:\n  - id: DIRECTIVE:001-architectural-integrity-standard\n    kind: directive\n    title: Architectural integrity\n    source_path: ${SPEC_KITTY_PACKS_ROOT}/built-in/directives/001-architectural-integrity-standard.directive.yaml\n  - id: TEMPLATE_SET:software-dev-default\n    kind: template_set\n    title: Software development\n    source_path: $PACKS/built-in/missions/software-dev/mission.yaml\n  - id: DIRECTIVE:local-support\n    kind: directive\n    title: Local support override\n    source_path: /opt/local-support/directives/local-support.directive.yaml\n  - id: DIRECTIVE:relative-source\n    kind: directive\n    title: Relative source\n    source_path: directives/relative-source.directive.yaml\nmetadata:\n  generated_at: '2026-01-01T00:00:00+00:00'\n  bundle_schema_version: 2\n"
+   }
+  },
+  "before": {
+   ".kittify/agent_profiles_manifest.json": {
+    "kind": "file",
+    "sha256": "930a40319ed79be3732f5557b1461b2d26093d07ee076cdb6248408f76476767",
+    "text": "{\n  \"entries\": [\n    {\n      \"file_hash\": \"aaaa\",\n      \"format\": \"claude-agent\",\n      \"output_path\": \".claude/agents/analyst-annie.md\",\n      \"profile_urn\": \"agent_profile:analyst-annie\",\n      \"projection_version\": 1,\n      \"source_hash\": \"bbbb\",\n      \"source_layer\": \"built-in\",\n      \"source_path\": \"$PACKS/built-in/agent_profiles/analyst-annie.agent.yaml\",\n      \"tool_key\": \"claude\"\n    },\n    {\n      \"file_hash\": \"cccc\",\n      \"format\": \"claude-agent\",\n      \"output_path\": \".claude/agents/local-analyst.md\",\n      \"profile_urn\": \"agent_profile:local-analyst\",\n      \"projection_version\": 1,\n      \"source_hash\": \"dddd\",\n      \"source_layer\": \"project\",\n      \"source_path\": \"/opt/local-support/agent_profiles/local-analyst.agent.yaml\",\n      \"tool_key\": \"claude\"\n    },\n    {\n      \"file_hash\": \"eeee\",\n      \"format\": \"codex-agent\",\n      \"output_path\": \".codex/agents/portable.md\",\n      \"profile_urn\": \"agent_profile:portable\",\n      \"projection_version\": 1,\n      \"source_hash\": \"ffff\",\n      \"source_layer\": \"built-in\",\n      \"source_path\": \"${SPEC_KITTY_PACKS_ROOT}/built-in/agent_profiles/portable.agent.yaml\",\n      \"tool_key\": \"codex\"\n    }\n  ],\n  \"schema_version\": 1\n}\n"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "afb60bd1da22520bbc6bd1f49e10922c2c6e77b7506458afcea81cc7d609766a",
+    "text": "governance:\n  charter:\n    selected_directives:\n    - 001-architectural-integrity-standard\ncatalog:\n  mission: software-dev\n  template_set: software-dev-default\n  languages: []\n  references:\n  - id: DIRECTIVE:001-architectural-integrity-standard\n    kind: directive\n    title: Architectural integrity\n    source_path: $PACKS/built-in/directives/001-architectural-integrity-standard.directive.yaml\n  - id: TEMPLATE_SET:software-dev-default\n    kind: template_set\n    title: Software development\n    source_path: $PACKS/built-in/missions/software-dev/mission.yaml\n  - id: DIRECTIVE:local-support\n    kind: directive\n    title: Local support override\n    source_path: /opt/local-support/directives/local-support.directive.yaml\n  - id: DIRECTIVE:relative-source\n    kind: directive\n    title: Relative source\n    source_path: directives/relative-source.directive.yaml\nmetadata:\n  generated_at: '2026-01-01T00:00:00+00:00'\n  bundle_schema_version: 2\n"
+   }
+  },
+  "can_apply": [
+   true,
+   ""
+  ],
+  "detect": true,
+  "result": {
+   "changes_made": [
+    "charter.yaml catalog[DIRECTIVE:001-architectural-integrity-standard].source_path: $PACKS/built-in/directives/001-architectural-integrity-standard.directive.yaml -> ${SPEC_KITTY_PACKS_ROOT}/built-in/directives/001-architectural-integrity-standard.directive.yaml",
+    "agent_profiles_manifest.json[agent_profile:analyst-annie/claude].source_path: $PACKS/built-in/agent_profiles/analyst-annie.agent.yaml -> ${SPEC_KITTY_PACKS_ROOT}/built-in/agent_profiles/analyst-annie.agent.yaml"
+   ],
+   "errors": [],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": []
+  },
+  "second_run": {
+   "changes_made": [],
+   "errors": [],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": []
+  }
+ },
+ "template_set": {
+  "current_root": {
+   "after": {
+    ".kittify/charter/charter.yaml": {
+     "kind": "file",
+     "sha256": "b2cb13ead88ce0d2a318c367cf7b3911d90d3f15c1fe82ac5f68609e57cfe465",
+     "text": "catalog:\n  mission: software-dev\n  template_set: software-dev-default\n  references:\n  - id: TEMPLATE_SET:software-dev-default\n    kind: template_set\n    source_path: ${SPEC_KITTY_PACKS_ROOT}/built-in/missions/software-dev/mission.yaml\n  - id: TEMPLATE_SET:other-set\n    kind: template_set\n    source_path: /srv/elsewhere/packs/built-in/missions/software-dev/mission.yaml\n  - id: DIRECTIVE:001-architectural-integrity-standard\n    kind: directive\n    source_path: /srv/elsewhere/packs/built-in/directives/001.directive.yaml\nmetadata:\n  bundle_schema_version: 2\n"
+    }
+   },
+   "ambiguities": [],
+   "before": {
+    ".kittify/charter/charter.yaml": {
+     "kind": "file",
+     "sha256": "e56006e2a1c6e02fc72df70040ce9b74bcf98beb2ca30a337236ff567741d817",
+     "text": "catalog:\n  mission: software-dev\n  template_set: software-dev-default\n  references:\n  - id: TEMPLATE_SET:software-dev-default\n    kind: template_set\n    source_path: $PACKS/built-in/missions/software-dev/mission.yaml\n  - id: TEMPLATE_SET:other-set\n    kind: template_set\n    source_path: /srv/elsewhere/packs/built-in/missions/software-dev/mission.yaml\n  - id: DIRECTIVE:001-architectural-integrity-standard\n    kind: directive\n    source_path: /srv/elsewhere/packs/built-in/directives/001.directive.yaml\nmetadata:\n  bundle_schema_version: 2\n"
+    }
+   },
+   "can_apply": [
+    true,
+    ""
+   ],
+   "detect": true,
+   "leaks": [
+    "charter.yaml catalog[TEMPLATE_SET:software-dev-default].source_path='$PACKS/built-in/missions/software-dev/mission.yaml'"
+   ],
+   "result": {
+    "changes_made": [
+     "charter.yaml catalog[TEMPLATE_SET:software-dev-default].source_path: $PACKS/built-in/missions/software-dev/mission.yaml -> ${SPEC_KITTY_PACKS_ROOT}/built-in/missions/software-dev/mission.yaml"
+    ],
+    "errors": [],
+    "manual_review_required": false,
+    "preserved_paths": [],
+    "success": true,
+    "warnings": []
+   },
+   "second_run": {
+    "changes_made": [],
+    "errors": [],
+    "manual_review_required": false,
+    "preserved_paths": [],
+    "success": true,
+    "warnings": []
+   }
+  },
+  "former_checkout": {
+   "after": {
+    ".kittify/charter/charter.yaml": {
+     "kind": "file",
+     "sha256": "b2cb13ead88ce0d2a318c367cf7b3911d90d3f15c1fe82ac5f68609e57cfe465",
+     "text": "catalog:\n  mission: software-dev\n  template_set: software-dev-default\n  references:\n  - id: TEMPLATE_SET:software-dev-default\n    kind: template_set\n    source_path: ${SPEC_KITTY_PACKS_ROOT}/built-in/missions/software-dev/mission.yaml\n  - id: TEMPLATE_SET:other-set\n    kind: template_set\n    source_path: /srv/elsewhere/packs/built-in/missions/software-dev/mission.yaml\n  - id: DIRECTIVE:001-architectural-integrity-standard\n    kind: directive\n    source_path: /srv/elsewhere/packs/built-in/directives/001.directive.yaml\nmetadata:\n  bundle_schema_version: 2\n"
+    }
+   },
+   "ambiguities": [],
+   "before": {
+    ".kittify/charter/charter.yaml": {
+     "kind": "file",
+     "sha256": "63c6a2848fb3c6c88ddaa8a9b4260dd40c5da1d2f370acc7be9a2d086027a5a9",
+     "text": "catalog:\n  mission: software-dev\n  template_set: software-dev-default\n  references:\n  - id: TEMPLATE_SET:software-dev-default\n    kind: template_set\n    source_path: $FORMER/packs/built-in/missions/software-dev/mission.yaml\n  - id: TEMPLATE_SET:other-set\n    kind: template_set\n    source_path: /srv/elsewhere/packs/built-in/missions/software-dev/mission.yaml\n  - id: DIRECTIVE:001-architectural-integrity-standard\n    kind: directive\n    source_path: /srv/elsewhere/packs/built-in/directives/001.directive.yaml\nmetadata:\n  bundle_schema_version: 2\n"
+    }
+   },
+   "can_apply": [
+    true,
+    ""
+   ],
+   "detect": true,
+   "leaks": [
+    "charter.yaml catalog[TEMPLATE_SET:software-dev-default].source_path='$FORMER/packs/built-in/missions/software-dev/mission.yaml'"
+   ],
+   "result": {
+    "changes_made": [
+     "charter.yaml catalog[TEMPLATE_SET:software-dev-default].source_path: $FORMER/packs/built-in/missions/software-dev/mission.yaml -> ${SPEC_KITTY_PACKS_ROOT}/built-in/missions/software-dev/mission.yaml"
+    ],
+    "errors": [],
+    "manual_review_required": false,
+    "preserved_paths": [],
+    "success": true,
+    "warnings": []
+   },
+   "second_run": {
+    "changes_made": [],
+    "errors": [],
+    "manual_review_required": false,
+    "preserved_paths": [],
+    "success": true,
+    "warnings": []
+   }
+  },
+  "unprovable": {
+   "after": {
+    ".kittify/charter/charter.yaml": {
+     "kind": "file",
+     "sha256": "42fc368fcf57785c70a79c4629fdf9a63bd7082d43ef573450f831fb19c2c51a",
+     "text": "catalog:\n  mission: software-dev\n  template_set: software-dev-default\n  references:\n  - id: TEMPLATE_SET:software-dev-default\n    kind: template_set\n    source_path: /srv/elsewhere/packs/built-in/missions/software-dev/mission.yaml\n  - id: TEMPLATE_SET:other-set\n    kind: template_set\n    source_path: /srv/elsewhere/packs/built-in/missions/software-dev/mission.yaml\n  - id: DIRECTIVE:001-architectural-integrity-standard\n    kind: directive\n    source_path: /srv/elsewhere/packs/built-in/directives/001.directive.yaml\nmetadata:\n  bundle_schema_version: 2\n"
+    }
+   },
+   "ambiguities": [
+    "ambiguous template-set provenance (checkout identity cannot be verified; path not healed and left unchanged): charter.yaml catalog[TEMPLATE_SET:software-dev-default].source_path='/srv/elsewhere/packs/built-in/missions/software-dev/mission.yaml'"
+   ],
+   "before": {
+    ".kittify/charter/charter.yaml": {
+     "kind": "file",
+     "sha256": "42fc368fcf57785c70a79c4629fdf9a63bd7082d43ef573450f831fb19c2c51a",
+     "text": "catalog:\n  mission: software-dev\n  template_set: software-dev-default\n  references:\n  - id: TEMPLATE_SET:software-dev-default\n    kind: template_set\n    source_path: /srv/elsewhere/packs/built-in/missions/software-dev/mission.yaml\n  - id: TEMPLATE_SET:other-set\n    kind: template_set\n    source_path: /srv/elsewhere/packs/built-in/missions/software-dev/mission.yaml\n  - id: DIRECTIVE:001-architectural-integrity-standard\n    kind: directive\n    source_path: /srv/elsewhere/packs/built-in/directives/001.directive.yaml\nmetadata:\n  bundle_schema_version: 2\n"
+    }
+   },
+   "can_apply": [
+    false,
+    "no stale built-in template_set source_path found in charter.yaml"
+   ],
+   "detect": false,
+   "leaks": [],
+   "result": {
+    "changes_made": [],
+    "errors": [],
+    "manual_review_required": false,
+    "preserved_paths": [],
+    "success": true,
+    "warnings": []
+   },
+   "second_run": {
+    "changes_made": [],
+    "errors": [],
+    "manual_review_required": false,
+    "preserved_paths": [],
+    "success": true,
+    "warnings": []
+   }
+  }
+ }
+}

@@ -1,0 +1,24 @@
+{
+  "case": "2_1_3_fix_planning_repository_terminology",
+  "meta": {
+    "can_apply": [
+      true,
+      ""
+    ],
+    "changes": [
+      ".claude/commands/spec-kitty.specify.md"
+    ],
+    "detect": true,
+    "error": null,
+    "success": true,
+    "warnings": []
+  },
+  "tree": {
+    ".claude/": "DIR",
+    ".claude/commands/": "DIR",
+    ".claude/commands/spec-kitty.specify.md": "1274d72b9f869fdf0cf830ca6cdbda68e37fad8877ff0cffb85982008ee0bea9",
+    ".kittify/": "DIR",
+    ".kittify/config.yaml": "8651825cb7451bc86266533190d6b1672500d8e23825eebf8bba0b4de89b732c",
+    ".kittify/metadata.yaml": "b971bb8541fce2b073582d78ca9c0aa3a1c5f78b928075c1c6d2f0cc52356a35"
+  }
+}

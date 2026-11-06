@@ -1,0 +1,138 @@
+target:
+  term: CF90 fallible canonical graph str/repr for eager Source integer-conversion errors
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      PRE census (standard8 KEEP/tests/docs included) at published 8867d1f before any
+      edit: python_str 48 (sk-kernel/src) / 85 (sk-doctrine/src) / 3 (sk-kernel/tests) /
+      25 (sk-doctrine/tests) / 132 (other crates) / 34 (docs/rust); python_repr 71 / 41 /
+      21 / 2 / 159 / 15; IntTextError 10 (sk-kernel/src) / 1 / 1 outside; parse_text 5/4/3/2/1;
+      environment_integer_digits 4/1/3; source_integer_digit_limit 6/4/1;
+      SOURCE_DEFAULT_INTEGER_DIGITS 3/1/2; prevalidate 3 (sk-doctrine/src) / 1 outside;
+      NativeOfferingFailure 33 (sk-doctrine/src) / 12 (tests) / 12 (docs);
+      ConstructorAbort 79 / 2 / 18; OfferingLoadError 63 / 5 / 16; try_python_str 0
+      everywhere (the new name is unused). KEEP unchanged: ObjectGraph, NodeRef,
+      GraphDocument, ArtifactDocument, ConstructorAbort, OfferingLoadError,
+      NativeOfferingFailure and every existing python_str/python_repr call site.
+      ADDED at the one canonical integer-text owner (python_int.rs): IntDecimalError
+      (INT->TEXT ValueError) and format_decimal; the existing IntTextError stays the
+      TEXT->INT error and both share one private digit-limit message builder, because the
+      Source messages really differ (measured). ADDED at the graph text authority:
+      ObjectGraph::try_repr/try_python_str and NodeRef::try_repr/try_python_str, one
+      factored renderer; the pre-existing infallible repr/python_str stay as an explicit
+      non-Source unlimited inspection facade over the same renderer. ADDED in
+      offering/prevalidation.rs: a fallible eager-id render fed by the existing
+      python_json::environment_integer_digits() authority. ADDED exactly one
+      NativeOfferingFailure variant (IntegerTextPolicy) for an invalid
+      PYTHONINTMAXSTRDIGITS start-up policy. No second renderer, integer formatter,
+      policy default, env parser, kind roster or serializer.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No new crate, module, dependency or re-export path. Kernel additions live in the
+      existing python_int / python_yaml::graph / python_yaml::view modules; Doctrine
+      reuses sk_kernel::python_json::{environment_integer_digits, PythonJsonError},
+      sk_kernel::python_int::IntDecimalError and the existing offering
+      ConstructorAbort/NativeOfferingFailure/OfferingLoadError channel.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No new discovery path, glob, root, fixture directory or output rewriting. Evidence
+      rows are written under each child's own independent CWD with identical relative
+      paths (builtin/<plural>/row-<label>.<kind>.yaml), as in CF89.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No YAML/JSON key, wire field or serialized name changes. The eager id spelling is
+      rendered text, not a serialized key; Source YAML keys and the
+      InlineReferenceRejectedError message shape are untouched.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No CLI flag, command, envelope, count or registration change. The existing
+      offering-load abort/native channel simply stops reporting a healthy skip where the
+      pinned Source aborts.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      The new abort message is the MEASURED CPython 3.11.15 int->str text
+      "Exceeds the limit ({limit} digits) for integer string conversion; use
+      sys.set_int_max_str_digits() to increase the limit" - it deliberately has NO
+      ": value has N digits" clause, unlike the existing int(str) parse message. Class is
+      ValueError. No wording is invented, softened or shared with the parse error.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New tiny named target crates/sk-doctrine/tests/cf90_fallible_graph_text.rs following
+      the cf89_shared_prevalidation pattern: two independent actual children (pinned
+      Source and this test binary), each asserting its own fresh CWD/HOME/all 7
+      XDG/TMPDIR/TMP/TEMP, independent absolute expected Source/PYTHONPATH/packs/module
+      origin/PYTHONHASHSEED, real filesystem/stdout/stderr codecs and the pinned
+      3.11.15/exact-53 oracle proof before business reads; identical relative arguments,
+      raw messages, no shared fixture, no root/output rewriting. Rows cover shallow
+      hexadecimal ids at the default 4300 boundary, list/dict nesting, demand order,
+      sign/leading-zero canonical counting, a cycle control, small-int/skip controls, the
+      two Procedure eager renders, plus configured 640 and 0/unlimited children. Not one
+      pair per row; the Native-only cache/retry control is not a pair. The quarantined
+      CF88 producer target and its ignored controls are not run.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No warning, traceback, logging or global-wire parity claim. Only the repository
+      construction abort class/message and the Native typed start-up failure are added;
+      per-file skip warnings stay out of scope.
+exceptions:
+  - path: crates/sk-kernel/src/python_int.rs
+    action: manual_review
+    reason: >-
+      The canonical integer-text owner gains the missing INT->TEXT conversion result and
+      the one shared digit-limit message builder; text->int parsing bytes and behaviour
+      are unchanged.
+  - path: crates/sk-kernel/src/python_yaml/graph.rs
+    action: manual_review
+    reason: >-
+      Factor the existing repr traversal into one fallible renderer that honours the
+      interpreter ceiling, add try_repr/try_python_str, and keep the infallible
+      repr/python_str as an explicitly unlimited inspection facade over the same walker.
+  - path: crates/sk-kernel/src/python_yaml/view.rs
+    action: manual_review
+    reason: >-
+      Add the two NodeRef delegating wrappers so typed consumers reach the one renderer
+      without a private walker; no new authority.
+  - path: crates/sk-doctrine/src/offering/value.rs
+    action: manual_review
+    reason: >-
+      Add fallible python_str/python_repr adapters over the graph authority; existing
+      infallible adapters remain for the non-Source inspection call sites.
+  - path: crates/sk-doctrine/src/offering/prevalidation.rs
+    action: manual_review
+    reason: >-
+      Make the eager str(data.get("id","?")) render fallible at both Source call points
+      and map the typed Kernel conversion failure to the existing ConstructorAbort /
+      OfferingLoadError channel; no new exception hierarchy.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: >-
+      Exactly one additive NativeOfferingFailure variant (IntegerTextPolicy) for an
+      invalid PYTHONINTMAXSTRDIGITS start-up policy, retaining the canonical
+      PythonJsonError cause.
+  - path: crates/sk-doctrine/tests/cf90_fallible_graph_text.rs
+    action: manual_review
+    reason: >-
+      New tiny named target: Source-first currentAPI negative (Native healthy skip where
+      Source aborts) plus the independent guarded Source/Native plan and the Native
+      fail->retry / warm controls.
+  - path: crates/sk-doctrine/tests/cf89_shared_prevalidation.rs
+    action: do_not_change
+    reason: >-
+      Directly affected existing consumer; must stay green unchanged (not edited, not
+      re-run as new proof unless the focused receipt says so).
+  - path: crates/sk-kernel/src/python_json/reader.rs
+    action: do_not_change
+    reason: >-
+      source_integer_digit_limit/environment_integer_digits/SOURCE_DEFAULT_INTEGER_DIGITS
+      are the reused authority; their bytes are unchanged.
+status:
+  accepted: false
+  phase: prospective CF90 fallible graph text

@@ -1,0 +1,25 @@
+{
+ "files": {
+  ".kittify/charter/charter.yaml": "# authored header comment\nmetadata:\n  charter_hash: sha256:abc\n  bundle_schema_version: 2\ngovernance:\n  zeta: 1\n  alpha: 2\n",
+  ".kittify/charter/provenance/directive-project-intent-directive.yaml": "artifact_kind: directive\nartifact_slug: project-intent-directive\ncorpus_snapshot_id: (none)\ngenerated_at: '2026-10-01T00:00:00+00:00'\nsource_urns:\n- urn:a\n- urn:b\nschema_version: '2'\nsynthesizer_version: (pre-phase7-migration)\nsynthesis_run_id: (pre-phase7-migration)\nproduced_at: '2023-11-14T22:13:20+00:00'\nsource_input_ids:\n- urn:a\n- urn:b\n",
+  ".kittify/charter/synthesis-manifest.yaml": "adapter_id: fixture\nadapter_version: 1.0.0\nartifacts: []\ncreated_at: '2026-10-01T00:00:00+00:00'\nmanifest_hash: d89cce1e876eda7abb70cc5f5e78555c62d20839984b9b176ce3b285d99f40f6\nrun_id: 01JA\nschema_version: '2'\nsynthesizer_version: (pre-phase7-migration)\nmission_id:\nbuilt_in_only: false\n"
+ },
+ "inputs": {
+  "charter_yaml": "# authored header comment\nmetadata:\n  charter_hash: sha256:abc\ngovernance:\n  zeta: 1\n  alpha: 2\n",
+  "fixed_mtime": 1700000000,
+  "manifest_v1": "adapter_id: fixture\nadapter_version: 1.0.0\nartifacts: []\ncreated_at: '2026-10-01T00:00:00+00:00'\nmanifest_hash: zzz\nrun_id: 01JA\nschema_version: '1'\n",
+  "pre_v2_manifest": "adapter_id: fixture\nadapter_version: 1.0.0\nartifacts: []\ncreated_at: '2026-10-01T00:00:00+00:00'\nmanifest_hash: 534fa7487a904d63241547d0c7dd0a24a78a9c96de838ce6d66ac4ac1f7316b1\nmission_id:\nrun_id: 01JA\nschema_version: '2'\nsynthesizer_version: 3.2.0rc30\n",
+  "sidecar_v1": "artifact_kind: directive\nartifact_slug: project-intent-directive\ncorpus_snapshot_id:\ngenerated_at: '2026-10-01T00:00:00+00:00'\nsource_urns:\n- urn:a\n- urn:b\nschema_version: '1'\n"
+ },
+ "migration_changes": [
+  "/tmp/sk-cont-f3/versioning-work2/.kittify/charter/provenance/directive-project-intent-directive.yaml",
+  "/tmp/sk-cont-f3/versioning-work2/.kittify/charter/synthesis-manifest.yaml",
+  "/tmp/sk-cont-f3/versioning-work2/.kittify/charter/charter.yaml"
+ ],
+ "migration_errors": [],
+ "repair_changes": [
+  "/tmp/sk-cont-f3/versioning-work2/.kittify/charter/synthesis-manifest.yaml"
+ ],
+ "repair_errors": [],
+ "repaired_manifest": "adapter_id: fixture\nadapter_version: 1.0.0\nartifacts: []\ncreated_at: '2026-10-01T00:00:00+00:00'\nmanifest_hash: b8c138d4248cc16a2d6e5fd43fce3df2344516bed08f57180c2054d115206e4c\nmission_id:\nrun_id: 01JA\nschema_version: '2'\nsynthesizer_version: 3.2.0rc30\nbuilt_in_only: false\n"
+}

@@ -1,0 +1,34 @@
+target:
+  term: Independent pinned Source full-domain uppercase execution control
+categories:
+  code_symbols:
+    action: do_not_change
+    notes: Existing uppercase/normalizer/generator owners unchanged; new proof only.
+  import_paths:
+    action: manual_review
+    notes: Reuse Kernel upper_codepoints and canonical content_digest, no second table/hash/type.
+  filesystem_paths:
+    action: manual_review
+    notes: Two independent actual business child roots, Source oracle supplied absolute, no shared fixtures or real root mutation.
+  serialized_keys:
+    action: manual_review
+    notes: Test-only deterministic length-framed codepoint stream hash, not product wire.
+  cli_commands:
+    action: do_not_change
+    notes: No root CLI flags or registration.
+  user_facing_strings:
+    action: do_not_change
+    notes: No product strings or parser/normalization policy changes.
+  tests_fixtures:
+    action: manual_review
+    notes: Authorized uppercase data-domain control over all1114112 includingCs, actual guarded Source/Native children; no new fake pre-edit red.
+  logs_telemetry:
+    action: manual_review
+    notes: Dataset proof separate from workflow/platform/performance and producer whole-library scope slip.
+exceptions:
+  - path: crates/sk-kernel/tests/cf76_parent_upper_domain.rs
+    action: manual_review
+    reason: New one full-domain uppercase execution comparison using independent child environments and canonical hash primitive.
+status:
+  accepted: false
+  phase: prospective parent bounded data control

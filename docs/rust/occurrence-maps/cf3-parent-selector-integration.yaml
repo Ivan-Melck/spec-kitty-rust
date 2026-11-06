@@ -1,0 +1,62 @@
+# Parent-only PRE-edit classification, actual inventory .RNnC9T.
+# No host Mission/Op. Does not retrospectively approve CF3 producer edits or
+# its foreign lib.rs insertion. Source/packs/pins/history unchanged.
+target:
+  term: "activation::selection"
+  replacement: "activation_selection"
+  operation: rename
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Move nested selector module to canonical public crate root, same exact
+      type/function authority. Add optional observed activation source: a missing
+      config returns false before ANY source lookup, so its evidence is None,
+      not a fabricated Ledger source. Remove unused RawMapping path/getter rather
+      than retain a dead-code suppression. Boolean policy unchanged.
+  import_paths:
+    action: manual_review
+    notes: >-
+      KEEP existing external sk_doctrine::activation_selection::* path stable;
+      remove temporary path-attribute nested module and re-export workaround.
+      Add same-item root reexports for actual consumers, no wrappers or duplicates.
+  filesystem_paths:
+    action: do_not_change
+    notes: No file move or data path change; same activation_selection.rs source.
+  serialized_keys:
+    action: do_not_change
+    notes: Existing authored config/ledger keys unchanged. New evidence carrier is Rust-only, not a published JSON schema.
+  cli_commands:
+    action: do_not_change
+    notes: No command/flag/registration or unsupported-success promotion.
+  user_facing_strings:
+    action: manual_review
+    notes: Correct documentation for unconsulted source evidence; keep Source reason messages unchanged.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      Update new CF3 source evidence assertions for Option; add missing-config
+      None check and preserve all boolean truth-table/identity tests. Native-only
+      smoke clearly distinguished from any actual Source pairing.
+  logs_telemetry:
+    action: do_not_change
+    notes: No log/metric/identity labels or false performance/equivalence claim.
+exceptions:
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Parent canonical module declaration and same-item root reexports only, preserve other concurrent root insertions.
+  - path: crates/sk-doctrine/src/activation.rs
+    action: manual_review
+    reason: Remove completed producer's nested path-module workaround; activation behavior untouched.
+  - path: crates/sk-doctrine/src/activation_selection.rs
+    action: manual_review
+    reason: Honest optional source evidence and dead member removal; existing selector authority/policy retained.
+  - path: crates/sk-doctrine/tests/cf3_offering_lazy_spdd.rs
+    action: manual_review
+    reason: Option source assertions, no weakening of real boolean requirements.
+structural_targets:
+  - path: crates/sk-doctrine/src/activation_selection.rs
+    reason: Optional source evidence reflects actual early-return phase, not a string substitution.
+status:
+  phase: parent pre-edit implementation integration
+  accepted: false

@@ -1,0 +1,119 @@
+# CF58 ADDITIVE lane classification; no active host Mission/Op and not an approval.
+#
+# Scope: the NEW `crates/sk-doctrine/src/activation_context.rs` canonical
+# activation selector / trigger / mission registry facade; the typed
+# ACTIVATION CONTEXT VALIDATION branch in `crates/sk-doctrine/src/org_charter.rs`
+# (and nothing else in that file — CF57 owns the typed scalar field/carrier/
+# union/governance/schema_version/exact-JSON blocks concurrently); the exact
+# `activation_context` re-exports in `crates/sk-doctrine/src/lib.rs`; the NEW
+# test binary `crates/sk-doctrine/tests/cf58_activation_admission.rs`; and this
+# map.
+#
+# No pre-existing identifier is renamed, removed or deprecated: the whole change
+# is additive, so `target.operation` is omitted. The typed loader's accepted
+# *value* space narrows exactly where the reference model narrows it
+# (`activation_context.mission_type` / `.action`), which is a Source-validity
+# refusal, not a key/name change.
+target:
+  term: "CF58 canonical activation selector/trigger/mission registry and typed-org admission gate"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      NEW public symbols only, in the new module: `ActivationSelectorRegistry`
+      (`canonical`, `from_built_in_root`, `allowed_mission_types`,
+      `admits_mission_type`, `validate_context`), `ActivationContextRejection`
+      (`field`, `value`, `message`), `admits_action`, `matches_context`,
+      `canonical_built_in_root`, and the constants `ALLOWED_ACTIONS`,
+      `FINE_GRAINED_TRIGGERS`, `REGISTERED_TRIGGERS`, `ACTION_WILDCARDS`. No
+      existing symbol changes name or signature: `load_org_charter_policy`,
+      `OrgCharterPolicy`, `ActivationEntry`, `fold_org_charter_policies`,
+      `org_required_stems` and every `read_org_*` reader keep theirs.
+      No canonical authority is cloned: the mission roster is read from the
+      existing `org_charter::built_in_search` (the one built-in pack search) and
+      the existing schema-validating `scan_mission_types_dir`; the artifact-kind
+      universe stays `sk_charter::ArtifactKind`. `BOOTSTRAP_ACTIONS` is NOT
+      reused as the operator action vocabulary (it lacks the four fine-grained
+      triggers) and is not changed.
+  import_paths:
+    action: manual_review
+    notes: >-
+      New internal module edge `crate -> activation_context`, plus
+      `org_charter -> activation_context` for the validation branch. The module
+      borrows `crate::org_charter::built_in_search`, `crate::offering::
+      scan_mission_types_dir` and `sk_kernel::python_repr`. No new external
+      crate; no `Cargo.toml`/`Cargo.lock` edit (parent-owned).
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      The only paths read are the existing ones: the built-in pack root (the same
+      `SPEC_KITTY_PACKS_ROOT`/packaged search every other read uses) and
+      `<built-in>/missions/mission_types/*.yaml`, the location the reference's
+      `builtin_mission_type_id_set()` derives `ALLOWED_MISSION_TYPES` from.
+      `org-charter.yaml`, `.kittify/config.yaml` and the configured org pack
+      roots keep their spellings. Nothing is created, renamed or written.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      Authored YAML keys are unchanged, including the two validated value slots
+      `activation_context.mission_type` and `activation_context.action` and the
+      already-validated `artifact_kind`/`charter_pack_id`/`artifact_id` keys. The
+      admitted *values* narrow to the reference's closed vocabularies; no key is
+      added, renamed or removed.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No CLI command, flag, subcommand or capability-matrix entry is added or
+      changed. The gate is a library capability reached through the existing
+      typed org-charter loader; root CLI/catalogue/registration stay
+      parent-owned.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      ONE new refusal sentence shape on the existing `InvalidOrgCharter`
+      carrier, mirroring the reference's model-validator text:
+      `activation_context.mission_type='<value>' is not in
+      ALLOWED_MISSION_TYPES=['any', 'documentation', 'generic', 'plan',
+      'research', 'software-dev']` and
+      `activation_context.action='<value>' is not in REGISTERED_TRIGGERS=[...]
+      and is not one of the wildcards ['any', 'generic']`. Values render through
+      the one canonical CPython `repr` formatter (`PythonString::repr` /
+      `sk_kernel::python_repr`). No existing message is rewritten.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      KEEP unchanged and green: `cf55_typed_org_fold.rs`, `cf48_raw_org_policy.rs`,
+      `org_floor_tokens_oracle.rs`, `governance_oracle.rs`,
+      `cf53_exact_skill_model.rs` and the `org_charter` module tests. NEW:
+      `crates/sk-doctrine/tests/cf58_activation_admission.rs` with real paired
+      Source/Native children (both re-executed under the repository's isolated
+      CWD/HOME/7-XDG/TMP/PYTHONPATH/packs/hashseed protocol) plus structural
+      controls. No existing test is weakened or deleted; no fixture is rewritten.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log key, event, metric or telemetry field is added or renamed. The gate
+      is read-only: no lock, ledger append or file write, proved by the
+      no-unintended-write control in the new test binary.
+exceptions:
+  - path: crates/sk-doctrine/src/org_charter.rs
+    action: manual_review
+    reason: >-
+      ONLY the typed activation-context validation branch inside the `activations`
+      loop, plus the registry construction immediately above that loop. The typed
+      scalar field/carrier/union/governance/`schema_version`/exact-JSON helper
+      blocks and whole-file formatting are CF57's concurrent lane and are not
+      touched here. `org_charter/source.rs`, the raw readers and the namespace
+      fold keep their bytes.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: >-
+      Same-item re-exports of the new `activation_context` items and one
+      `pub mod activation_context;` declaration. No other module export, ordering
+      or grouping is touched.
+  - path: docs/rust/occurrence-maps/cf58-activation-admission.yaml
+    action: do_not_change
+    reason: This file records the additive pre-edit classification; it is not an approval.
+status:
+  reviewed_by: "CF58 implementer pre-edit classification (not independent approval)"
+  accepted: false

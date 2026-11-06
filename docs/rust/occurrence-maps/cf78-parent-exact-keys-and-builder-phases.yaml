@@ -1,0 +1,40 @@
+target:
+  term: Exact activation ledger key metadata Source legacy coercion and validation phases
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Generic core includes unknown/ignored key metadata; views retain exact text; known-field L2 then unknown-key L1 then unknown-deny L2, Source legacy str coercion via canonical graph.
+  import_paths:
+    action: do_not_change
+    notes: Same Kernel YAML graph/PythonString/python_str, one ledger builder/algebra, no private parser/model.
+  filesystem_paths:
+    action: manual_review
+    notes: Existing canonical exact reader for legacy list data, no writer/lock/placement changes.
+  serialized_keys:
+    action: manual_review
+    notes: Preserve actual Cs unknown deny keys instead of repr-as-key; unknown null metadata retained but null values absent as Source.
+  cli_commands:
+    action: do_not_change
+    notes: No root flags/count changes.
+  user_facing_strings:
+    action: manual_review
+    notes: Source validation failure order; checked scalar key projection error not Source invalidity.
+  tests_fixtures:
+    action: manual_review
+    notes: New Source-first existingAPI exact-key/legacy/phase/null controls, no fake absentAPI red.
+  logs_telemetry:
+    action: manual_review
+    notes: Representative scope not full rt/legacyprobe/reporting/writer proof.
+exceptions:
+  - path: crates/sk-doctrine/src/ledger.rs
+    action: manual_review
+    reason: One generic core/builder/view exact key and Source phase correctness.
+  - path: crates/sk-doctrine/tests/cf78_parent_key_and_phase.rs
+    action: manual_review
+    reason: Focused Source-derived public API negatives and all2048Cs metadata control.
+  - path: crates/sk-doctrine/tests/cf78_exact_activation_core.rs
+    action: manual_review
+    reason: Mechanical expected-key literal projection to exact type; no expectation weakening.
+status:
+  accepted: false
+  phase: prospective parent exact-core correction

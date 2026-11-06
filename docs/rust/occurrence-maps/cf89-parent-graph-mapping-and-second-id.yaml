@@ -1,0 +1,40 @@
+target:
+  term: CF89 canonical graph mapping membership and Procedure second eager id render
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Existing NodeRef as_mapping accepts Map/OrderedDict; use canonical lookup/sequence/member views instead of tagged tree projection. Procedure Source renders id in both helpers.
+  import_paths:
+    action: manual_review
+    notes: Existing Kernel Graph/NodeRef authority only, no new parser/type exports or isinstance roster.
+  filesystem_paths:
+    action: do_not_change
+    notes: Preserve existing independent relative-path fixture/reader/discovery behavior.
+  serialized_keys:
+    action: manual_review
+    notes: Source omap top-level and step mapping must reach prevalidation before later model admission; steps pairs remain list-of-tuples with no dict steps.
+  cli_commands:
+    action: do_not_change
+    notes: No CLI flags/root/count/registration.
+  user_facing_strings:
+    action: do_not_change
+    notes: Existing canonical message/typed error rendering unchanged.
+  tests_fixtures:
+    action: manual_review
+    notes: Add currentAPI Source-first ordered-root/ordered-step failures and pairs control to existing tiny independent raw-message plan.
+  logs_telemetry:
+    action: do_not_change
+    notes: No warning/traceback/global wire parity claim.
+exceptions:
+  - path: crates/sk-doctrine/src/offering/prevalidation.rs
+    action: manual_review
+    reason: Canonical graph map/sequence/lookup and second Procedure id call before steps guard; not a cloned type system.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: Existing pre-hook nonmapping checks must consult canonical graph Mapping semantics, including OrderedDict, not tagged serde projection.
+  - path: crates/sk-doctrine/tests/cf89_shared_prevalidation.rs
+    action: manual_review
+    reason: Add ordinary/omap/pairs Source phase controls; no output rewriting or fake business red.
+status:
+  accepted: false
+  phase: prospective parent graph domain and eager-order correction

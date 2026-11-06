@@ -1,0 +1,331 @@
+{
+  "meta": {
+    "friendly_name": "demo io",
+    "mid8": "01M6GC7E",
+    "mission_id": "01M6GC7EV7RY46WMHMXYWS6XZM",
+    "mission_number": null,
+    "mission_slug": "demo-io-01M6GC7E",
+    "mission_type": "demo-io",
+    "slug": "demo-io-01M6GC7E",
+    "target_branch": "main",
+    "topology": "lanes"
+  },
+  "provenance": {
+    "generator": "crates/sk-run-store/tests/oracle/generate_next_fixtures.py",
+    "normalized": [
+      "run_id",
+      "template_path",
+      "timestamp",
+      "answered_at",
+      "requested_at"
+    ],
+    "python": "3.11.15",
+    "source_baseline": "9aed3a8012cb5eb22c0128b14d525039f95fea7a",
+    "spec_kitty_version": "4.0.0rc8"
+  },
+  "steps": [
+    {
+      "decision": {
+        "action": null,
+        "agent": "claude",
+        "decision_id": "input:owner",
+        "guard_failure_paths": {},
+        "guard_failures": [],
+        "input_key": "owner",
+        "is_query": false,
+        "kind": "decision_required",
+        "mission": "demo-io",
+        "mission_number": "",
+        "mission_slug": "demo-io-01M6GC7E",
+        "mission_state": "specify",
+        "mission_type": "demo-io",
+        "options": null,
+        "origin": {
+          "mission_path": "unknown",
+          "mission_tier": "unknown"
+        },
+        "preview_step": null,
+        "progress": null,
+        "prompt_file": "/tmp/sk-run-store-oracle-143yak4z/home/.spec-kitty/spec-kitty-prompts/b06ee527e78840c6/spec-kitty-next-claude-demo-io-01M6GC7E-decision.md",
+        "question": "Input required before step 'specify': provide value for 'owner'.",
+        "reason": "missing_required_input",
+        "run_id": "<RUN_ID>",
+        "step_id": "specify",
+        "timestamp": "<TIMESTAMP>",
+        "workspace_path": null,
+        "wp_id": null
+      },
+      "events": [
+        {
+          "event_type": "MissionRunStarted",
+          "payload": {
+            "actor": {
+              "actor_id": "system",
+              "actor_type": "service",
+              "display_name": "",
+              "model": null,
+              "provider": null,
+              "tool": null
+            },
+            "mission_id": null,
+            "mission_slug": null,
+            "mission_type": "demo-io",
+            "run_id": "<RUN_ID>"
+          },
+          "timestamp": "<TIMESTAMP>"
+        },
+        {
+          "event_type": "DecisionInputRequested",
+          "payload": {
+            "actor": {
+              "actor_id": "claude",
+              "actor_type": "llm",
+              "display_name": "",
+              "model": null,
+              "provider": null,
+              "tool": null
+            },
+            "decision_id": "input:owner",
+            "input_key": "owner",
+            "mission_id": null,
+            "mission_slug": null,
+            "options": [],
+            "question": "Input required before step 'specify': provide value for 'owner'.",
+            "run_id": "<RUN_ID>",
+            "step_id": "specify"
+          },
+          "timestamp": "<TIMESTAMP>"
+        }
+      ],
+      "invocation": [
+        "next",
+        "--agent",
+        "claude",
+        "--result",
+        "success",
+        "--json"
+      ],
+      "state": {
+        "blocked_reason": null,
+        "completed_steps": [],
+        "decisions": {},
+        "inputs": {
+          "mission_slug": "demo-io-01M6GC7E"
+        },
+        "issued_step_id": null,
+        "mission_id": null,
+        "mission_key": "demo-io",
+        "mission_slug": null,
+        "pending_decisions": {
+          "input:owner": {
+            "decision_id": "input:owner",
+            "options": [],
+            "question": "Input required before step 'specify': provide value for 'owner'.",
+            "requested_at": "<TIMESTAMP>",
+            "requested_by": {
+              "actor_id": "claude",
+              "actor_type": "llm",
+              "display_name": "",
+              "model": null,
+              "provider": null,
+              "tool": null
+            },
+            "step_id": "specify"
+          }
+        },
+        "policy_snapshot": {
+          "default_route": "same_llm_context",
+          "extras": {},
+          "strictness": "medium"
+        },
+        "run_id": "<RUN_ID>",
+        "template_hash": "0ec15f4414cde806dac95ce8f7571b7003fbb64d2eae9a6aad27a1c07013aa07",
+        "template_path": "<TEMPLATE_PATH>"
+      }
+    },
+    {
+      "decision": {
+        "action": "specify",
+        "agent": "claude",
+        "answer": "alice",
+        "answered": "input:owner",
+        "decision_id": null,
+        "guard_failure_paths": {},
+        "guard_failures": [],
+        "input_key": null,
+        "is_query": false,
+        "kind": "step",
+        "mission": "demo-io",
+        "mission_number": "",
+        "mission_slug": "demo-io-01M6GC7E",
+        "mission_state": "specify",
+        "mission_type": "demo-io",
+        "options": null,
+        "origin": {
+          "mission_path": "unknown",
+          "mission_tier": "unknown"
+        },
+        "preview_step": null,
+        "progress": null,
+        "prompt_file": "/tmp/sk-run-store-oracle-143yak4z/home/.spec-kitty/spec-kitty-prompts/b06ee527e78840c6/spec-kitty-step-specify-vti327f3.md",
+        "question": null,
+        "reason": null,
+        "run_id": "<RUN_ID>",
+        "step_id": "specify",
+        "timestamp": "<TIMESTAMP>",
+        "warnings": [
+          "Decision log commit failed for mission demo-io-01M6GC7E; /tmp/sk-run-store-oracle-143yak4z/kitty-specs/demo-io-01M6GC7E/decisions.events.jsonl may contain uncommitted decision events."
+        ],
+        "workspace_path": null,
+        "wp_id": null
+      },
+      "events": [
+        {
+          "event_type": "MissionRunStarted",
+          "payload": {
+            "actor": {
+              "actor_id": "system",
+              "actor_type": "service",
+              "display_name": "",
+              "model": null,
+              "provider": null,
+              "tool": null
+            },
+            "mission_id": null,
+            "mission_slug": null,
+            "mission_type": "demo-io",
+            "run_id": "<RUN_ID>"
+          },
+          "timestamp": "<TIMESTAMP>"
+        },
+        {
+          "event_type": "DecisionInputRequested",
+          "payload": {
+            "actor": {
+              "actor_id": "claude",
+              "actor_type": "llm",
+              "display_name": "",
+              "model": null,
+              "provider": null,
+              "tool": null
+            },
+            "decision_id": "input:owner",
+            "input_key": "owner",
+            "mission_id": null,
+            "mission_slug": null,
+            "options": [],
+            "question": "Input required before step 'specify': provide value for 'owner'.",
+            "run_id": "<RUN_ID>",
+            "step_id": "specify"
+          },
+          "timestamp": "<TIMESTAMP>"
+        },
+        {
+          "event_type": "DecisionInputAnswered",
+          "payload": {
+            "actor": {
+              "actor_id": "claude",
+              "actor_type": "human",
+              "display_name": "",
+              "model": null,
+              "provider": null,
+              "tool": null
+            },
+            "answer": "alice",
+            "decision_id": "input:owner",
+            "mission_id": null,
+            "mission_slug": null,
+            "run_id": "<RUN_ID>"
+          },
+          "timestamp": "<TIMESTAMP>"
+        },
+        {
+          "event_type": "NextStepIssued",
+          "payload": {
+            "actor": {
+              "actor_id": "claude",
+              "actor_type": "llm",
+              "display_name": "",
+              "model": null,
+              "provider": null,
+              "tool": null
+            },
+            "agent_id": "claude",
+            "mission_id": null,
+            "mission_slug": null,
+            "run_id": "<RUN_ID>",
+            "step_id": "specify"
+          },
+          "timestamp": "<TIMESTAMP>"
+        }
+      ],
+      "invocation": [
+        "next",
+        "--agent",
+        "claude",
+        "--answer",
+        "alice",
+        "--result",
+        "success",
+        "--json"
+      ],
+      "state": {
+        "blocked_reason": null,
+        "completed_steps": [],
+        "decisions": {
+          "input:owner": {
+            "actor_id": "claude",
+            "actor_type": "human",
+            "answer": "alice",
+            "answered_at": "<TIMESTAMP>",
+            "answered_by": {
+              "actor_id": "claude",
+              "actor_type": "human",
+              "display_name": "",
+              "model": null,
+              "provider": null,
+              "tool": null
+            },
+            "authority_role": "human",
+            "decision_id": "input:owner",
+            "rationale_linkage": null
+          },
+          "raci:specify": {
+            "accountable": {
+              "actor_id": "human-in-charge",
+              "actor_type": "human"
+            },
+            "consulted": [],
+            "inferred_rule": "prompt_default",
+            "informed": [],
+            "override_reason": null,
+            "responsible": {
+              "actor_id": "claude",
+              "actor_type": "llm"
+            },
+            "source": "inferred",
+            "step_id": "specify"
+          }
+        },
+        "inputs": {
+          "mission_slug": "demo-io-01M6GC7E",
+          "owner": "alice"
+        },
+        "issued_step_id": "specify",
+        "mission_id": null,
+        "mission_key": "demo-io",
+        "mission_slug": null,
+        "pending_decisions": {},
+        "policy_snapshot": {
+          "default_route": "same_llm_context",
+          "extras": {},
+          "strictness": "medium"
+        },
+        "run_id": "<RUN_ID>",
+        "template_hash": "0ec15f4414cde806dac95ce8f7571b7003fbb64d2eae9a6aad27a1c07013aa07",
+        "template_path": "<TEMPLATE_PATH>"
+      }
+    }
+  ],
+  "template": "mission:\n  key: demo-io\n  name: Demo IO\n  version: \"1.0\"\nsteps:\n  - id: specify\n    title: Specify\n    description: Write the specification\n    prompt: \"Write the specification for this mission.\"\n    requires_inputs: [owner]\n  - id: plan\n    title: Plan\n    depends_on: [specify]\n    prompt: \"Write the plan.\"\n"
+}

@@ -1,0 +1,445 @@
+{
+  "baseline": "9aed3a8012cb5eb22c0128b14d525039f95fea7a",
+  "claim_policy_metadata": {
+    "agent": "claude",
+    "shell_pid": 4242,
+    "shell_pid_created_at": ""
+  },
+  "inner_state": [
+    {
+      "canonical": {
+        "agent": "claude",
+        "shell_pid": 4242,
+        "shell_pid_created_at": "2026-11-02T09:00:00Z"
+      },
+      "input": {
+        "agent": "claude",
+        "shell_pid": "4242",
+        "shell_pid_created_at": "2026-11-02T09:00:00Z"
+      },
+      "is_empty": false
+    },
+    {
+      "canonical": {
+        "assignee": "  ",
+        "shell_pid": 4242
+      },
+      "input": {
+        "agent": "",
+        "assignee": "  ",
+        "shell_pid": 4242.9
+      },
+      "is_empty": false
+    },
+    {
+      "canonical": {
+        "subtasks": {
+          "T001": "skipped",
+          "T002": "done",
+          "T003": "planned"
+        }
+      },
+      "input": {
+        "subtasks": {
+          "T001": "not_applicable",
+          "T002": "done",
+          "T003": "planned"
+        }
+      },
+      "is_empty": false
+    },
+    {
+      "canonical": {
+        "note": "",
+        "tracker_refs": [],
+        "tracker_refs_replace": [
+          "#1"
+        ]
+      },
+      "input": {
+        "note": "",
+        "tracker_refs": [],
+        "tracker_refs_replace": [
+          "#1"
+        ]
+      },
+      "is_empty": false
+    },
+    {
+      "canonical": {
+        "review": {
+          "actor": "alice",
+          "at": "2026-11-02T09:00:00Z",
+          "reason": "arbiter",
+          "wp_id": "WP01"
+        }
+      },
+      "input": {
+        "review": {
+          "actor": "alice",
+          "at": "2026-11-02T09:00:00Z",
+          "reason": "arbiter",
+          "wp_id": "WP01"
+        }
+      },
+      "is_empty": false
+    },
+    {
+      "canonical": {
+        "review": {
+          "actor": "",
+          "at": "",
+          "reason": "",
+          "wp_id": ""
+        }
+      },
+      "input": {
+        "review": {
+          "actor": "",
+          "at": "",
+          "reason": "",
+          "wp_id": ""
+        }
+      },
+      "is_empty": false
+    },
+    {
+      "canonical": {
+        "release_runtime_claim": true
+      },
+      "input": {
+        "release_runtime_claim": true
+      },
+      "is_empty": false
+    },
+    {
+      "canonical": {},
+      "input": {
+        "release_runtime_claim": 0
+      },
+      "is_empty": true
+    },
+    {
+      "canonical": {
+        "agent_profile_version": "2",
+        "role": "reviewer",
+        "shell_pid": 1
+      },
+      "input": {
+        "agent_profile_version": "2",
+        "role": "reviewer",
+        "shell_pid": true
+      },
+      "is_empty": false
+    }
+  ],
+  "lifecycle": {
+    "FollowUpRecorded": {
+      "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+      "follow_up_type": "commit",
+      "mission_id": "01K9M0R3W00000000000000000",
+      "mission_slug": "034-mutation-fixture",
+      "pr_number": null,
+      "recorded_at": "2026-11-02T09:00:00Z",
+      "recorded_by": "alice"
+    },
+    "MissionCreated": {
+      "actor": "cli",
+      "created_at": "2026-11-02T09:00:00Z",
+      "friendly_name": "034 mutation fixture",
+      "mission_id": "01K9M0R3W00000000000000000",
+      "mission_number": null,
+      "mission_slug": "034-mutation-fixture",
+      "mission_type": "software-dev",
+      "purpose_context": "This mission advances 034 mutation fixture on main so stakeholders can track the work from mission creation onward.",
+      "purpose_tldr": "034 mutation fixture",
+      "target_branch": "main",
+      "wp_count": 1
+    },
+    "MissionReopened": {
+      "cleared_merge": null,
+      "mission_id": "01K9M0R3W00000000000000000",
+      "mission_slug": "034-mutation-fixture",
+      "reason": "operator reopened",
+      "reopened_at": "2026-11-02T09:00:00Z",
+      "reopened_by": "alice"
+    },
+    "PlanCompleted": {
+      "actor": "cli",
+      "artifact_path": "kitty-specs/034-mutation-fixture/plan.md",
+      "at": "2026-11-02T09:00:00Z",
+      "mission_number": null,
+      "mission_slug": "034-mutation-fixture",
+      "summary": "Plan ready"
+    },
+    "PlanStarted": {
+      "actor": "cli",
+      "at": "2026-11-02T09:00:00Z",
+      "mission_number": null,
+      "mission_slug": "034-mutation-fixture"
+    },
+    "ProjectInitialized": {
+      "actor": "cli",
+      "initialized_at": "2026-11-02T09:00:00Z",
+      "project_slug": "contract-vectors",
+      "project_uuid": "1f8bca14-6f1b-4a1c-9a6c-1d6f0f0b2c3d",
+      "runtime_version": "4.1.0"
+    },
+    "ReviewerSelfApproval": {
+      "failure_reason": "reviewer unavailable",
+      "fallback_approved": true,
+      "implementing_actor": "claude",
+      "intended_reviewer": "alice",
+      "mission_slug": "034-mutation-fixture",
+      "timestamp": "2026-11-02T09:00:00Z",
+      "wp_id": "WP01"
+    },
+    "SpecifyCompleted": {
+      "actor": "cli",
+      "artifact_path": "kitty-specs/034-mutation-fixture/spec.md",
+      "at": "2026-11-02T09:00:00Z",
+      "mission_number": null,
+      "mission_slug": "034-mutation-fixture",
+      "summary": "Spec ready"
+    },
+    "SpecifyStarted": {
+      "actor": "cli",
+      "at": "2026-11-02T09:00:00Z",
+      "mission_number": null,
+      "mission_slug": "034-mutation-fixture"
+    },
+    "TasksCompleted": {
+      "actor": "cli",
+      "artifact_path": "kitty-specs/034-mutation-fixture/tasks.md",
+      "at": "2026-11-02T09:00:00Z",
+      "mission_number": null,
+      "mission_slug": "034-mutation-fixture",
+      "summary": "Tasks ready",
+      "wp_count": 1
+    },
+    "TasksStarted": {
+      "actor": "cli",
+      "at": "2026-11-02T09:00:00Z",
+      "mission_number": null,
+      "mission_slug": "034-mutation-fixture"
+    },
+    "WPCreated": {
+      "actor": "cli",
+      "created_at": "2026-11-02T09:00:00Z",
+      "depends_on": [
+        "WP00"
+      ],
+      "mission_number": null,
+      "mission_slug": "034-mutation-fixture",
+      "wp_id": "WP01",
+      "wp_path": "kitty-specs/034-mutation-fixture/tasks/WP01.md",
+      "wp_title": "Contract vectors work package"
+    }
+  },
+  "lifecycle_derivation": {
+    "abandoned_after_days": 30,
+    "active_wp_count": 0,
+    "age_days": 0,
+    "blocked_wp_count": 0,
+    "completion_pct": 100.0,
+    "event_count": 2,
+    "has_event_log": true,
+    "last_activity_at": "2026-11-02T09:00:00+00:00",
+    "last_follow_up_at": "2026-11-02T09:00:00+00:00",
+    "last_transition_at": "2026-11-02T09:00:00+00:00",
+    "mission_id": "01K9M0R3W00000000000000000",
+    "mission_number": null,
+    "mission_slug": "034-mutation-fixture",
+    "mission_type": "software-dev",
+    "post_mission_events": [
+      {
+        "aggregate_id": "01K9M0R3W00000000000000000",
+        "aggregate_type": "Mission",
+        "event_id": "01K9M0R3WJ8V6Q1Y4T7B2N5C0A",
+        "event_type": "FollowUpRecorded",
+        "payload": {
+          "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+          "follow_up_type": "commit",
+          "mission_id": "01K9M0R3W00000000000000000",
+          "mission_slug": "034-mutation-fixture",
+          "pr_number": null,
+          "recorded_at": "2026-11-02T09:00:00Z",
+          "recorded_by": "alice"
+        },
+        "project_slug": null,
+        "project_uuid": null,
+        "schema_version": "5.0.0",
+        "timestamp": "2026-11-03T10:14:50.568982+00:00"
+      },
+      {
+        "aggregate_id": "01K9M0R3W00000000000000000",
+        "aggregate_type": "Mission",
+        "event_id": "01K9M0R3WK9W7R2Z5V8C3P6D1B",
+        "event_type": "MissionReopened",
+        "payload": {
+          "cleared_merge": null,
+          "mission_id": "01K9M0R3W00000000000000000",
+          "mission_slug": "034-mutation-fixture",
+          "reason": "operator reopened",
+          "reopened_at": "2026-11-02T09:00:00Z",
+          "reopened_by": "alice"
+        },
+        "project_slug": null,
+        "project_uuid": null,
+        "schema_version": "5.0.0",
+        "timestamp": "2026-11-03T10:14:50.576719+00:00"
+      }
+    ],
+    "reason": "Mission was re-opened after merge and is actionable again.",
+    "review_wp_count": 0,
+    "stale_after_days": 14,
+    "state": "reopened",
+    "surface_state": "reopened",
+    "terminal_wp_count": 1,
+    "total_wps": 1
+  },
+  "lifecycle_derivation_inputs": {
+    "lifecycle_envelopes": [
+      {
+        "aggregate_id": "01K9M0R3W00000000000000000",
+        "aggregate_type": "Mission",
+        "event_id": "01K9M0R3WJ8V6Q1Y4T7B2N5C0A",
+        "event_type": "FollowUpRecorded",
+        "payload": {
+          "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+          "follow_up_type": "commit",
+          "mission_id": "01K9M0R3W00000000000000000",
+          "mission_slug": "034-mutation-fixture",
+          "pr_number": null,
+          "recorded_at": "2026-11-02T09:00:00Z",
+          "recorded_by": "alice"
+        },
+        "project_slug": null,
+        "project_uuid": null,
+        "schema_version": "5.0.0",
+        "timestamp": "2026-11-03T10:14:50.568982+00:00"
+      },
+      {
+        "aggregate_id": "01K9M0R3W00000000000000000",
+        "aggregate_type": "Mission",
+        "event_id": "01K9M0R3WK9W7R2Z5V8C3P6D1B",
+        "event_type": "MissionReopened",
+        "payload": {
+          "cleared_merge": null,
+          "mission_id": "01K9M0R3W00000000000000000",
+          "mission_slug": "034-mutation-fixture",
+          "reason": "operator reopened",
+          "reopened_at": "2026-11-02T09:00:00Z",
+          "reopened_by": "alice"
+        },
+        "project_slug": null,
+        "project_uuid": null,
+        "schema_version": "5.0.0",
+        "timestamp": "2026-11-03T10:14:50.576719+00:00"
+      }
+    ],
+    "status_rows": [
+      {
+        "actor": "cli",
+        "at": "2026-11-02T09:00:00Z",
+        "event_id": "01K9M0R3WJ8V6Q1Y4T7B2N5C0A",
+        "evidence": null,
+        "execution_mode": "worktree",
+        "force": false,
+        "from_lane": "genesis",
+        "mission_id": "01K9M0R3W00000000000000000",
+        "mission_slug": "034-mutation-fixture",
+        "policy_metadata": null,
+        "reason": null,
+        "review_ref": null,
+        "to_lane": "planned",
+        "wp_id": "WP01"
+      },
+      {
+        "actor": "cli",
+        "at": "2026-11-02T09:00:00Z",
+        "event_id": "01K9M0R3WK9W7R2Z5V8C3P6D1B",
+        "evidence": {
+          "review": {
+            "reference": "PR#1",
+            "reviewer": "alice",
+            "verdict": "approved"
+          }
+        },
+        "execution_mode": "worktree",
+        "force": true,
+        "from_lane": "planned",
+        "mission_id": "01K9M0R3W00000000000000000",
+        "mission_slug": "034-mutation-fixture",
+        "policy_metadata": null,
+        "reason": "fixture completion",
+        "review_ref": null,
+        "to_lane": "done",
+        "wp_id": "WP01"
+      }
+    ]
+  },
+  "lifecycle_derivation_now": "2026-11-02T12:00:00+00:00",
+  "lifecycle_refusals": [
+    {
+      "event_type": "ProjectInitialized",
+      "oracle_error": "ValidationError",
+      "payload": {
+        "actor": "a",
+        "hostname": "builder",
+        "project_uuid": "u"
+      }
+    },
+    {
+      "event_type": "ProjectInitialized",
+      "oracle_error": "ValidationError",
+      "payload": {
+        "actor": "",
+        "project_uuid": "u"
+      }
+    },
+    {
+      "event_type": "WPCreated",
+      "oracle_error": "ValidationError",
+      "payload": {
+        "actor": "a",
+        "depends_on": [
+          1
+        ],
+        "mission_slug": "m",
+        "wp_id": "WP01",
+        "wp_title": "t"
+      }
+    },
+    {
+      "event_type": "TasksCompleted",
+      "oracle_error": "ValidationError",
+      "payload": {
+        "actor": "a",
+        "artifact_path": "tasks.md",
+        "mission_slug": "m",
+        "wp_count": -1
+      }
+    },
+    {
+      "event_type": "MissionCreated",
+      "oracle_error": "ValidationError",
+      "payload": {
+        "friendly_name": "M",
+        "mission_number": null,
+        "mission_slug": "m",
+        "mission_type": "software-dev",
+        "purpose_context": "C",
+        "purpose_tldr": "M",
+        "target_branch": "main",
+        "unexpected": true,
+        "wp_count": 1
+      }
+    }
+  ],
+  "oracle": {
+    "generation_command": "PYTHONPATH=src .venv-rust-oracle/bin/python crates/sk-status/tests/fixtures/mutation/generate_contract_vectors.py",
+    "python": "3.11.15",
+    "spec_kitty_events": "11.3.0"
+  }
+}

@@ -1,0 +1,42 @@
+# Parent PRE-EDIT actual review: reports + .dvLLEj/.up6nM5/.GONnjn, Source
+# tasks_finalize.py430..644 and Native apply functions. No host Mission/Op.
+target:
+  term: "Source finalize partial-failure contract and bounded capability descriptions"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Remove implicit write-ledger rollback from actual finalize-tasks compatibility path; preserve canonical explicit Native recovery APIs elsewhere. Reuse single existing apply engine, keep exact own-byte notifications.
+  import_paths:
+    action: manual_review
+    notes: Remove now-unused Arc import only; no authority/module/dependency relocation.
+  filesystem_paths:
+    action: do_not_change
+    notes: Source/packs/pins/goldens/data/lock/output paths unchanged.
+  serialized_keys:
+    action: manual_review
+    notes: No fabricated rolled_back_writes/restore outcome on Source finalize failure; retain actual error rather than guessed rollback. Other wire fields remain qualified pending next functional slice.
+  cli_commands:
+    action: do_not_change
+    notes: Existing finalize route only; no added flags or static registration.
+  user_facing_strings:
+    action: manual_review
+    notes: Remove claim that rollback is an authorized Source strengthening. Only summary-key serializer exception is authorized. Capabilities remain PARTIAL and name actual new functionality and actual remaining gaps.
+  tests_fixtures:
+    action: manual_review
+    notes: Existing failure fixture must assert Source leaves completed prompt/lanes writes, exact corrupt-log/foreign-file preservation and failed exit. Do not change input or relax failure/content assertions.
+  logs_telemetry:
+    action: do_not_change
+    notes: No whole-workflow/fidelity/performance/formal inventory promotion; prior receipts remain.
+exceptions:
+  - path: crates/sk-cli/src/compat/mission.rs
+    action: manual_review
+    reason: Correct unauthorized rollback policy in Source adapter only; no create/setup-plan changes or coordination approximation.
+  - path: crates/sk-cli/tests/cf15_finalize_tasks.rs
+    action: manual_review
+    reason: Same real injected failure, assert actual Source partial-write contract instead of Native-only rollback assumption.
+  - path: crates/sk-cli/src/compat/capabilities.rs
+    action: manual_review
+    reason: Update accept/charter/doctor/finalize local partial descriptions, retain known coordination/glob/error/owned-evidence gaps.
+status:
+  accepted: false
+  phase: parent pre-edit Source failure correction and truthful local coverage

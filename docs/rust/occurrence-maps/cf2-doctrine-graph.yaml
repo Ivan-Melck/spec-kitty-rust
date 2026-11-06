@@ -1,0 +1,100 @@
+# PRE-EDIT standard8 occurrence classification for CF2 (Doctrine profile
+# validation on the canonical graph). No host Mission/Op exists for this
+# rewrite and no approval is claimed; the parent owns publication.
+#
+# The change is additive: the profile / JSON-schema / model read surface moves
+# from a projected `serde_yaml_ng` tree to the canonical Kernel object graph
+# (`GraphDocument` / `NodeRef` / `ObjectGraph`). No repository identifier,
+# serialized key, path, CLI surface or user-visible string is renamed, so the
+# optional `operation` is omitted (allowed for additive changes). The legacy
+# tree accessors on `ProfileBody` remain as thin canonical adapters so existing
+# callers keep compiling unchanged.
+target:
+  term: "ProfileBody-sourced schema and model validation"
+  replacement: "canonical Kernel object-graph validation (NodeRef views)"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      `profile_schema::agent_profile_schema_errors` and
+      `profile_model::normalize` take a borrowed graph view
+      (`profile_schema::graph::Values`, a stack of `NodeRef`s) instead of
+      `&ProfileBody`; both stay `pub(crate)`, so no public signature moves.
+      New `profile_model::normalize_body` / `normalize_overlay` are the only
+      entry points for a constructed body and for the layer overlay; the
+      previous private `deep_merge`/`deep_merge_mapping` pair is replaced by a
+      read-time layer stack (`Values::merged`/`Values::field`) that reproduces
+      `_merge_profiles` (recursive nested-mapping merge, every other value
+      replaced). `ProfileBody` keeps `shadow`/`markers`/`exact_string`/`get`/
+      `list`/`strings`/`keys`/`shadow_keys`/`scalar_projection`/`from_parts`
+      unchanged and gains `graph` (built by the one canonical constructor) plus
+      `root()`. `AgentProfile`, `ProfileRepository`, `SkippedProfile`,
+      `ExactInteger` and every accessor are untouched. Removed: the private
+      `python_document_type` helper (graph `type_name()` replaces it) and the
+      now-unused `is_constructed_timestamp`/`untag_constructed` re-exports in
+      `profile_construct` (no other caller in the workspace). No identifier
+      renamed, no second validator/coercion authority, no private scalar or
+      repr walker: `Values` delegates every accessor to `NodeRef`/`Object` and
+      diagnostics use the Kernel `repr()`.
+  import_paths:
+    action: manual_review
+    notes: >-
+      `sk-doctrine` imports `sk_kernel::python_yaml::{GraphDocument, NodeRef,
+      ObjectGraph}`; the existing `sk-kernel` dependency edge is reused. No new
+      dependency, manifest, lock or pin change. `profile_text`/`profile_construct`
+      stay the one transport/construction adapter names for the crate.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      Profile search roots, layer order, `*.agent.yaml` suffix, the project
+      `agent_profiles/` directory and every ledger/config path are unchanged.
+      New fixtures are fresh `tempfile` directories only.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      `model_dump(by_alias=True)` / `exclude_unset` keys, the transport marker
+      scheme, `skip` summaries' field paths and the scalar-JSON view keep their
+      exact spellings. Authored surrogates stay exact code points (never a
+      marker, a replacement character or a Debug spelling).
+  cli_commands:
+    action: do_not_change
+    notes: No CLI command, flag, alias, exit policy or registration change.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Every schema/skip message is preserved, now rendered through the Kernel
+      graph `repr()` (the reference's own CPython spelling). Two deliberate
+      consequences: a constructed timestamp reports CPython's `datetime.date(...)`
+      / `datetime.datetime(...)` repr instead of a quoted string, and a
+      `!!pairs` value in a list position is reported as "not a list" rather than
+      as a per-item string error (Source refuses both; only the wording differs
+      and only for an already-refused document). No new success/refusal label.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New `crates/sk-doctrine/tests/cf2_doctrine_graph_profile.rs` (ordinary
+      valid profile, ignored cycle, required cycle refusal at the model phase,
+      anchored sharing, exact surrogate, layer overlay). `profile_schema`'s own
+      unit tests are re-pointed at the graph entry point with the same expected
+      strings; the one new case asserts that an undeclared cyclic nested key is
+      only the reference's "Additional properties" diagnostic, never a cycle
+      refusal. No assertion was weakened and the pinned-source oracle suites
+      (`profile_semantics_oracle`, `profile_transport_oracle`,
+      `profile_constructed_lineage_oracle`, `profile_merge_oracle`,
+      `profile_yaml_kinds_oracle`) still pass unchanged.
+  logs_telemetry:
+    action: do_not_change
+    notes: No log, metric or event key change and no new telemetry.
+exceptions:
+  - path: crates/sk-doctrine/src/profile.rs
+    action: manual_review
+  - path: crates/sk-doctrine/src/profile_model.rs
+    action: manual_review
+  - path: crates/sk-doctrine/src/profile_schema.rs
+    action: manual_review
+  - path: crates/sk-doctrine/src/profile_schema/graph.rs
+    action: manual_review
+  - path: crates/sk-doctrine/src/profile_construct.rs
+    action: manual_review
+  - path: crates/sk-doctrine/tests/cf2_doctrine_graph_profile.rs
+    action: manual_review

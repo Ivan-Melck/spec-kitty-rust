@@ -1,0 +1,18 @@
+{
+  "created_at": "2026-11-02T10:00:00Z",
+  "flattened": false,
+  "friendly_name": "Demo Mission",
+  "mid8": "01KZ6G6H",
+  "mission_id": "01KZ6G6H4R8Y9J2N4Q7V3B6M1F",
+  "mission_number": null,
+  "mission_slug": "demo-mission-01KZ6G6H",
+  "mission_type": "research",
+  "pr_bound": true,
+  "purpose_context": "Research context.",
+  "purpose_tldr": "Research Mission",
+  "retain_branches": true,
+  "retain_worktrees": true,
+  "slug": "demo-mission-01KZ6G6H",
+  "target_branch": "main",
+  "topology": "lanes"
+}

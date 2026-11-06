@@ -1,0 +1,109 @@
+# CF47 PRE-EDIT occurrence classification (DIRECTIVE_035).
+#
+# This change is ADDITIVE in shape (new composed checks + new native APIs) but it
+# re-scopes a PUBLIC refusal code that CF35 emitted unconditionally:
+# `UNSUPPORTED_DOCTOR_COORDINATION_INCOMPLETE` now fires only when a requested
+# check genuinely could not run, instead of always. That is the string whose
+# blast radius this map classifies. No `operation` is declared because nothing is
+# renamed: the code keeps its spelling and narrows its emission condition.
+#
+# Written BEFORE any source edit. All eight standard categories are present.
+# This map is NOT an approval, a Mission record, or a gate decision.
+
+target:
+  term: "UNSUPPORTED_DOCTOR_COORDINATION_INCOMPLETE"
+  replacement: null
+
+categories:
+  code_symbols:
+    action: manual_review
+    note: >-
+      The constant keeps its spelling. New symbols are additive
+      (`UnavailableCheck` variants, `CoordStatusReadError`, snake-case hygiene
+      helpers). Each site is reviewed by hand so no `pub` name collides with an
+      existing owner.
+  import_paths:
+    action: do_not_change
+    note: >-
+      No crate/module path moves. New modules are additive only where the
+      order allocates them; existing `pub mod` lines stay byte-identical.
+  filesystem_paths:
+    action: do_not_change
+    note: >-
+      Runtime path shapes (`.kittify/runtime/merge/<id>/state.json`,
+      `.worktrees/<slug>-<mid8>-coord`, `kitty-specs/<dir>/status.events.jsonl`)
+      are canonical-owner strings and must not change.
+  serialized_keys:
+    action: do_not_change
+    note: >-
+      The finding payload keys (`severity`, `message`, `next_step`,
+      `error_code`, `extra`) and every `extra` key the reference emits
+      (`meta_path`, `recovery_args`, `mission_slug`, `mid8`, `coord_branch`,
+      `tracked`, `tracked_count`, `truncated`, `detected`, `mission_id`,
+      `coord_ref`, `captured_sha`, `coord_worktree`, `candidate_wps`,
+      `stranded_wp_ids`, `strand_shas`, `missing_patterns`, `handle`) are
+      external contracts and stay byte-identical.
+  cli_commands:
+    action: do_not_change
+    note: >-
+      `doctor coordination` flags (`--json`, `--fix`, `--check-staleness`,
+      `--mission`) are unchanged. `--fix` stays refused; no new flag is added.
+  user_facing_strings:
+    action: manual_review
+    note: >-
+      Every previously emitted finding message/next_step stays byte-identical.
+      Newly emitted messages copy the pinned reference text verbatim and are
+      reviewed one by one against the Source string.
+  tests_fixtures:
+    action: manual_review
+    note: >-
+      New `cf47_*` tests add the refusal code only as an assertion target; no
+      existing assertion is weakened, skipped or deleted.
+  logs_telemetry:
+    action: do_not_change
+    note: >-
+      Every `error_code` value is a stable telemetry key
+      (`LANE_SPARSE_CHECKOUT_DRIFT`, `COORDINATION_STRANDED_COORD_REVERT*`,
+      `COORDINATION_RECONCILE_*`, `COORDINATION_BRANCH_DIVERGED_VS_TARGET`, …)
+      and keeps its exact spelling.
+
+exceptions:
+  - path: "crates/sk-workspace/src/coordination_health.rs"
+    action: manual_review
+    reason: >-
+      The one composition owner: the refusal-coverage array and the check order
+      are edited here. Reviewed against the pinned reference check-by-check.
+  - path: "crates/sk-workspace/src/coord.rs"
+    action: manual_review
+    reason: >-
+      Narrow additive facade (`read_status_events_at_ref`) so the committed-DONE
+      reducer stops composing its own ref/blob pipeline. No existing owner is
+      moved or re-implemented.
+  - path: "crates/sk-workspace/src/coherence/done.rs"
+    action: manual_review
+    reason: >-
+      Composition-only change: the raw committed-ref pipeline is replaced by the
+      canonical `coord` facade, and the Source decode/error phases are preserved.
+  - path: "crates/sk-workspace/src/consolidation/state.rs"
+    action: manual_review
+    reason: >-
+      Caught-vs-escaped classification for the marker sweep only; no new model,
+      parser, coercion or default.
+  - path: "crates/sk-cli/src/compat/doctor/coordination_health.rs"
+    action: manual_review
+    reason: >-
+      SERVICE ADAPTER only: renders the complete report and keeps the dynamic
+      incomplete/`--fix` refusals. No root dispatch, capability array or count.
+  - path: "docs/rust/occurrence-maps/cf47-coordination-health-composition.yaml"
+    action: do_not_change
+    reason: >-
+      This classification artifact itself; it is the map, not an occurrence of
+      the target term in product code.
+
+status:
+  accepted: false
+  approval: "not requested"
+  note: >-
+    Pre-edit classification written by the implementation lane. It records
+    decisions; it does not approve the change, open a Mission, or claim a gate
+    result.

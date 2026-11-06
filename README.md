@@ -1,3 +1,21 @@
+# Spec Kitty Rust — rewrite in progress
+
+This fork is building a native Rust implementation, not a Python launcher or a file-for-file translation. **It is not yet a complete replacement for Spec Kitty.** The Python code and documentation below remain the upstream reference during migration.
+
+- Rust code: [`crates/`](crates/)
+- Architecture and safety decisions: [`docs/rust/DECISIONS.md`](docs/rust/DECISIONS.md)
+- Scope and remaining work: [`docs/rust/STATUS.md`](docs/rust/STATUS.md)
+- Build: `cargo build --release -p sk-cli`
+- Verify: `cargo test --workspace --locked`
+
+The build produces `spec-kitty-rust` (the original inspection interface) and `spec-kitty` (the evolving upstream-shaped compatibility interface). Building does not replace your installed Python CLI. **The compatibility interface includes real, partial mutations and is not release-ready**; use isolated fixtures while review and workflow gates remain open. See each binary's `--help`, `spec-kitty capabilities --json`, and the [CLI contract](crates/sk-cli/README.md).
+
+Charter inspection fails closed if declared packs are missing. This checkout pins pack sources without bundling them; use the upstream pack-sync tooling to provision verified inputs (offline sync is supported when cached). Inspection never fetches implicitly; native installer acquisition is an explicit, still-incomplete interface.
+
+---
+
+## Upstream reference README
+
 <div align="center">
     <img src="https://github.com/spec-kitty/spec-kitty/raw/main/docs/assets/logo_small.webp" alt="Spec Kitty logo"/>
     <h1>Spec Kitty</h1>

@@ -1,0 +1,121 @@
+# CF61 occurrence classification — lazy progressive record delivery and typed execution failures.
+#
+# PRE-EDIT classification: written before the first production edit of this lane
+# (after the Source/Native reads recorded in the evidence root). Standard eight
+# categories are all classified; KEEP entries name the borrowed owners this lane
+# does not change.
+target:
+  term: "the Option-collapsing ActionRecords record source (payload/body/title/summary via .ok()/Option) that reports setup/repository/payload failures as a healthy empty record"
+  replacement: "a lazy progressive record view: one selected-field/model-property projection over the existing schema/graph for metadata, a separate requested inline exact_payload Result for the body, and typed Result<Option<_>> propagation through action entry assembly"
+  # No `operation:` key: the lane is ADDITIVE (a typed selected-field view, a
+  # typed phase error carrier, and result-typed helpers). No existing public
+  # symbol is renamed, removed or deprecated.
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      ADDED: `sk_doctrine::body::exact::selected_text_field` (one schema-backed
+      selected-field projection over the existing `schema`/`Field`/`Spec` walker);
+      `sk_doctrine::context::ProgressiveDeliveryError` (one narrow typed carrier
+      for setup/repository/payload/native-boundary phases) plus the additive
+      `DoctrineError::ProgressiveDelivery { source }` variant.
+      CHANGED RESULT TYPES (crate-private): `ActionRecords::{payload,body,meta}`,
+      `artifact_payload`, `artifact_entry`, `exact_text_field` become
+      `Result<Option<_>, _>` so a real phase failure is never a healthy miss.
+      KEEP unchanged: `CanonicalOfferingService`/`MergedArtifact::exact_root`
+      (`crates/sk-doctrine/src/offering.rs`), `IncludeAccess`,
+      `crate::body::schema`/`Field`/`Spec`, `PayloadError`/`PayloadFailure`,
+      `canonical_artifact_body_exact*`, CF57's `org_charter` block and
+      `context.rs` ORG_CHARTER scalar projection, CF58 activation validator,
+      CF59 Status stream, CF60 stable sort.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No manifest, dependency edge, pin or module path change. The new items are
+      re-exported from the existing `body.rs` / `lib.rs` blocks beside the
+      CF38/CF43/CF51 entries; no new module or crate.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No authored YAML, pack, pin, golden, Source path or catalogue entry is
+      touched. Test fixtures are fresh temporary directories.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      The `charter context --json` top-level key set/order and the per-entry key
+      set/order are unchanged: `id, source, title?, summary?, references,
+      delivery, body?`. This lane only changes WHEN `body` is evaluated and HOW
+      a failure is reported; no key is added, renamed or dropped.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command, subcommand, flag or alias change. The CLI is not edited by this
+      lane; the parent owns console/live-stdout/state composition and any
+      envelope/wire acceptance.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      A failed progressive delivery now carries a typed message naming the phase
+      (setup, repository load, native projection boundary, or the reference's
+      payload cause) instead of silently omitting body/title/summary. No
+      renderable artifact text, heading, indentation or fetch stanza changes.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      ADDED only: `crates/sk-doctrine/tests/cf61_progressive_record_delivery.rs`
+      (paired Source/Native children exercising a lazy `suggests`-delivered
+      styleguide whose unrequested `structural_lint_config` cannot be
+      JSON-serialized, the same record inline under include_all, a true missing
+      id, and merged/inherited metadata/body). KEEP with no edit: cf50, cf51,
+      cf38, cf43, cf26/cf32 include suites, `governance_oracle`,
+      `baseline_fixtures`, `cf8_context_render`, and CF57–CF60 test surfaces.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No event, metric or telemetry identity changes; no readiness, approval,
+      acceptance or performance status is written by this lane.
+exceptions:
+  - path: crates/sk-doctrine/src/context.rs
+    action: manual_review
+    reason: >-
+      ActionRecords/record-derived entry assembly/build error propagation only:
+      replace the `.ok()??`/`Option` record source with typed
+      `Result<Option<_>>`; metadata comes from the selected-field view and the
+      body is evaluated only when the entry is inline. Does NOT touch the
+      CF57-owned ORG_CHARTER block/scalar projection or the whole shared
+      formatter.
+  - path: crates/sk-doctrine/src/body/exact.rs
+    action: manual_review
+    reason: >-
+      Add one selected-field projection over the existing `schema`/`Field`/`Spec`
+      walker; no new schema, parser, model, field table, key codec or serializer.
+      The requested inline body continues to use `exact_payload`/`PayloadFailure`.
+  - path: crates/sk-doctrine/src/error.rs
+    action: manual_review
+    reason: >-
+      Additive declaration/display only: ONE boxed `ProgressiveDelivery`
+      variant carrying `ProgressiveDeliveryError`. No global error rewrite,
+      no other variant change.
+  - path: crates/sk-doctrine/src/body.rs
+    action: manual_review
+    reason: >-
+      Same-item re-export of `selected_text_field` beside the CF38/CF51 exact
+      entry points; the `Field`/`Spec` schema table is untouched.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: >-
+      Same-item re-exports of `ProgressiveDeliveryError` and
+      `selected_text_field` in the existing blocks; no root routing or
+      catalogue change.
+  - path: crates/sk-doctrine/tests/cf61_progressive_record_delivery.rs
+    action: manual_review
+    reason: >-
+      NEW paired Source/Native test file; fixtures are fresh and exclusive.
+  - path: /tmp/sk-cf61-progressive-record-delivery-report.md
+    action: do_not_change
+    reason: >-
+      Task report (provisional preserved externally); not a repository artifact.
+  - path: docs/rust/occurrence-maps/cf61-progressive-record-delivery.yaml
+    action: do_not_change
+    reason: >-
+      This classification map itself; additive.

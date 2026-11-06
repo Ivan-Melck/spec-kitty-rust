@@ -1,0 +1,97 @@
+target:
+  term: >-
+    The offering ActivationGate becomes the ONE exact Source-composition service gate:
+    it reads the canonical exact activation ledger once, calls source_denied::load_denied
+    with the supplied exact ledger and supplied org roots, uses deny_by_kind / ExactDenySet
+    membership without a scalar projection, applies the Source pending-kind strict floor and
+    the absent/null activated_skills org-required default, resolves allow tokens through the
+    canonical fallible exact identity queries, and caches the exact (kind, DenySet) resolved
+    IDs per gate/service with Source publication timing. Production filter aborts propagate as
+    ConstructorAbort through OfferingLoadError and ServiceKeys::Aborted instead of becoming a
+    healthy unresolved/admitted key.
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      ActivationGate 23 hits/5 files; its existing from_project signature stays as an explicitly
+      checked String compatibility facade. A new try_from_project carries ActivationReadError.
+      filter changes from Vec to Result<Vec, ConstructorAbort>; its actual callers in offering.rs
+      (load_profiles, load_documents, artifact_with_gate, profile_with_gate) propagate through the
+      existing OfferingLoadError. identity.rs gains try_knows_exact and try_activation_id_exact
+      (0 current hits; try_* authority exists) delegating to the existing exact lookup/scan and
+      making the total exact lookups delegate to them. source_denied::load_denied (65/11),
+      ExactDenySet (27/6), effective_deny_exact (4/3), deny_by_kind, and read_org_required_ids_exact
+      (13/4) are reused, not copied. No second ledger, deny algebra, identity roster or cache.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No module path, crate dependency, Cargo.toml, Cargo.lock, pin or registry change. The gate
+      imports existing crate-level ledger, source_denied, identity and org readers.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No path, resolver, cache-key file, stat/probe rule, pointer spelling, writer target or root
+      flag changes. The deny identity is built fresh inside load_denied from supplied org roots;
+      no caller service identity is passed into it. Allow identity keeps the existing resolved
+      offering roots.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No activation-ledger key, deny key/value, three-state absent/null/[] rule, unknown-key
+      order, pack/config schema or output wire changes. The gate reads the existing exact
+      ActivationLedger allow/deny fields and the existing org required-token readers.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No flag, route, refusal code, envelope or exit policy. The actual CLI/context consumer
+      keeps its existing service-construction and effective-set surfaces.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      No new user-facing message. A constructor abort retains its existing Python class/message
+      through ActivationReadError/OfferingLoadError; a scalar gate-construction failure keeps the
+      existing String rendering via the checked from_project facade.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      One new named Doctrine integration target (cf81_exact_service_gate.rs) plus the existing
+      in-module gate/identity unit tests. Fixtures are fresh temporary trees; the Source/Native
+      pair uses independently materialized guarded children. Frozen packs/Source/pins/goldens
+      are not edited.
+  logs_telemetry:
+    action: manual_review
+    notes: >-
+      Source _gated `_LOGGER.warning` collection is inspected and recorded. Native has no
+      logging transport owner for unknown activation tokens; returning a warning field is not
+      delivery. The exact gate membership is implemented, but warning delivery remains a
+      required documented gap rather than a new logger pipeline or a CF79 warning-latch reuse.
+exceptions:
+  - path: crates/sk-doctrine/src/offering/gate.rs
+    action: manual_review
+    reason: >-
+      The ONE owner of the exact gate construction, exact deny membership, Source floor/default
+      boundaries, exact allow resolution, fallible filter and per-gate resolved-ID cache.
+  - path: crates/sk-doctrine/src/identity.rs
+    action: manual_review
+    reason: >-
+      Mechanical exact fallible query factoring: try_knows_exact / try_activation_id_exact over
+      the existing try_table authority; total exact lookups delegate to avoid a second correct
+      try API while production keeps the old total API.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: >-
+      Actual production consumers propagate gate filter aborts through the existing
+      OfferingLoadError::from_abort / ServiceKeys::Aborted seam; no new error variant.
+  - path: crates/sk-doctrine/src/effective_set.rs
+    action: manual_review
+    reason: >-
+      Only if the small service-context gate seam is needed to keep the typed ActivationReadError
+      construction cause; no broad root/CLI/error redesign.
+  - path: crates/sk-doctrine/tests/cf81_exact_service_gate.rs
+    action: manual_review
+    reason: >-
+      New named target: Source-first exact gate cases, real identity abort reds, cache
+      publication, and at least one actual CanonicalOfferingService / EffectiveSet consumer.
+  - path: docs/rust/occurrence-maps/cf81-exact-service-gate.yaml
+    action: manual_review
+    reason: This PRE-edit occurrence classification (docs/rust lane map convention).

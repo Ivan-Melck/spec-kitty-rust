@@ -1,0 +1,36 @@
+# Supplemental PRE-EDIT test-only review after actual .g7PdZa failure.
+# Original registration map predates this newly identified stale expectation.
+target:
+  term: "registered preview availability expectation"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Test must verify all actually pending ids resolve in the canonical registry, not assume newly registered callbacks remain missing.
+  import_paths:
+    action: do_not_change
+    notes: Existing sk-install dependency, no new authority/dependency.
+  filesystem_paths:
+    action: do_not_change
+    notes: Same fresh fixture and no-write ledger assertion retained.
+  serialized_keys:
+    action: do_not_change
+    notes: Product JSON schema unchanged; existing ALLOW/state/schema/pending-row assertions retained.
+  cli_commands:
+    action: do_not_change
+    notes: Same upgrade --json --dry-run invocation.
+  user_facing_strings:
+    action: manual_review
+    notes: Correct false every-declared-id-pending comment; adoption selection has already settled older history.
+  tests_fixtures:
+    action: manual_review
+    notes: Expected exit becomes0 when all selected callbacks now exist, assert their actual registry membership and new rename presence; no input/guard/no-write assertion weakened.
+  logs_telemetry:
+    action: do_not_change
+    notes: Preserve original failed receipt and no global success promotion.
+exceptions:
+  - path: crates/sk-cli/tests/upgrade_admin_routes.rs
+    action: manual_review
+    reason: Correct obsolete incomplete-subset exit expectation after real six callback registration, strengthen actual pending-id membership checks.
+status:
+  accepted: false
+  phase: parent pre-edit stale preview test correction, not Source parity approval

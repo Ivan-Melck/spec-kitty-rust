@@ -1,0 +1,13 @@
+# Spec Kitty glossary seed — scope: mission_local
+terms:
+
+  - surface: workspace
+    definition: Mission-local Git worktree created for the current work package
+    confidence: 0.98
+    status: active
+    introduced_in_mission: 041-mission-glossary-semantic-integrity
+
+  - surface: lane
+    definition: Mission-local execution lane that owns one work package
+    confidence: 0.9
+    status: active

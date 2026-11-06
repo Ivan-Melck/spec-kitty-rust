@@ -1,0 +1,167 @@
+//! The cutover's removed-skill names and shipped per-file hashes, generated
+//! from the pinned Source.
+//!
+//! DO NOT EDIT BY HAND. Regenerate with
+//! `/tmp/sk-a5/source-probe.sh /tmp/sk-a5/generate_cutover_skills.py`.
+//!
+//! Source of truth: `src/specify_cli/upgrade/migrations/_charter_pack_cutover_skills.py`
+//! at the pin (sha256 `e868ee2a155e1ecc4f989dba721043f459262ceaf6a976e275f429804c7b2339`, 285 lines). Every hash is the
+//! sha256 of the shipped `src/charter/offering/skills/<name>/<file>` source,
+//! which an installed copy is a byte copy of.
+
+/// Skill names FR-008 removes (plus `spec-kitty-constitution-doctrine`, ruling FI-S4).
+pub const REMOVED_SKILL_NAMES: [&str; 13] = [
+    "spk-doctrine-charter",
+    "spk-doctrine-glossary",
+    "spk-doctrine-profile-load",
+    "spk-doctrine-spdd-reasons",
+    "spk-doctrine-bulk-edit",
+    "spk-doctrine-semantic-compression",
+    "spk-doctrine-show-me",
+    "spec-kitty-charter-doctrine",
+    "spec-kitty-glossary-context",
+    "spec-kitty-bulk-edit-classification",
+    "spec-kitty-spdd-reasons",
+    "ad-hoc-profile-load",
+    "spec-kitty-constitution-doctrine",
+];
+
+/// Skill name -> (member path relative to the skill directory, sha256 hex).
+pub static SHIPPED_SKILL_HASHES: [(&str, &[(&str, &str)]); 12] = [
+    (
+        "ad-hoc-profile-load",
+        &[(
+            "SKILL.md",
+            "b2de95a2b9c07d1a954fb9311c2ad58f219579c7b74a2fd225eb6aa8a098064e",
+        )],
+    ),
+    (
+        "spec-kitty-bulk-edit-classification",
+        &[(
+            "SKILL.md",
+            "a28a15446fa4423b8ac4127f7987c578d774298bc9d24475bba04f403a7c9559",
+        )],
+    ),
+    (
+        "spec-kitty-charter-doctrine",
+        &[
+            (
+                "SKILL.md",
+                "6d87424832376a26fdd47cc33e1764061340f725675c3751ec5f5757ea12447f",
+            ),
+            (
+                "references/charter-command-map.md",
+                "2bc9dfd0401a3b578548ae2226196277e8591e6281f5a6de480b3958bb0957ce",
+            ),
+            (
+                "references/doctrine-artifact-structure.md",
+                "1cec564371e30ba896eb6d071c9c77636eb29ae1ffc609d915ad4e58e06b27c0",
+            ),
+        ],
+    ),
+    (
+        "spec-kitty-glossary-context",
+        &[
+            (
+                "SKILL.md",
+                "ae7ebc18de82f72cec93bc9ba0ed5ce194ba7a8648223c1a680a9e2946086b55",
+            ),
+            (
+                "references/glossary-field-guide.md",
+                "9cddfccd64773976cf97450fa983dc8cc3aa7354a6002d763a7fa3ac65ff9ace",
+            ),
+            (
+                "references/semantic-drift-examples.md",
+                "d2df36b399316d12d05b10b36dab19a3eb330ed9c502b9b0fa2bb35ecf8341c4",
+            ),
+        ],
+    ),
+    (
+        "spec-kitty-spdd-reasons",
+        &[(
+            "SKILL.md",
+            "eaebcad4f682073a52ea49e89fb10b2f15e641bdfae18778e323618395e2b726",
+        )],
+    ),
+    (
+        "spk-doctrine-bulk-edit",
+        &[(
+            "SKILL.md",
+            "6ff391973da8c312833a25b2f47cc9a7ac16ab7ae3e90f61e0eb4e20eb24b243",
+        )],
+    ),
+    (
+        "spk-doctrine-charter",
+        &[(
+            "SKILL.md",
+            "4aa5bacce79f17941a5b6f659c743bb47a1836a483d4c5fb8b0930555946de62",
+        )],
+    ),
+    (
+        "spk-doctrine-glossary",
+        &[(
+            "SKILL.md",
+            "a5034728033c4defb6de4601dd05d612143ca6e7ea932b531decdfea34d4adbc",
+        )],
+    ),
+    (
+        "spk-doctrine-profile-load",
+        &[
+            (
+                "SKILL.md",
+                "2bee21c977e783fd6bac653c4ff498a89b0b310c55fad2bd443882871a599f78",
+            ),
+            (
+                "references/profile-load-mechanics.md",
+                "bd7f57248ff69db931f95408e223129c1ba657ffc09caebbee70731986707e1c",
+            ),
+        ],
+    ),
+    (
+        "spk-doctrine-semantic-compression",
+        &[(
+            "SKILL.md",
+            "396e0c56e4adf6ef27008a5bcf758dc8efdca9a5b13acaf351ba3992ca9adcfb",
+        )],
+    ),
+    (
+        "spk-doctrine-show-me",
+        &[
+            (
+                "SKILL.md",
+                "2543980c699fa3291c6adef1d5b04da0170d082770206e31a7b34c259bb57782",
+            ),
+            (
+                "assets/MERMAID_DIAGRAMMING.md",
+                "ec87bcad76c3d2d1beaabcdbc0bfe631ac6ad5f6999d5204852a4b9471740bf4",
+            ),
+            (
+                "assets/PLANTUML_DIAGRAMMING.md",
+                "2abe26ed70df8a2d71d02eb80e7037a1282005be3693c5e2df4db411056cec34",
+            ),
+            (
+                "assets/mermaid-theme-bluegray-conversation-template.md",
+                "d0dfd495ed1aaa11ad638e6c07c5487163d0f52bf4de64a969514ecf1134f5ef",
+            ),
+            (
+                "assets/mermaid-theme-common-template.md",
+                "15aee12ab3d7302c88db47a31f2c3d0d865cb016be10138d3eeb0fa62ebaf645",
+            ),
+            (
+                "references/humanlayer-origin-and-license.md",
+                "fc0909ee648e1af31555305c40d66ca12367e87100d1481c59604bd6445a4a32",
+            ),
+            (
+                "references/spec-kitty-diagram-sources.md",
+                "d9f6216f0270fb768ae1b94580d087bdf96158a7c1775c743d0764a16527e2fe",
+            ),
+        ],
+    ),
+    (
+        "spk-doctrine-spdd-reasons",
+        &[(
+            "SKILL.md",
+            "9edcd544867d95d3de98cc884e1e2d3d9e61b4d24cf8468f5cb586772794eb94",
+        )],
+    ),
+];

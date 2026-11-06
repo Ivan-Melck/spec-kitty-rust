@@ -1,0 +1,187 @@
+# PRE-EDIT occurrence classification for CF22 — actual `doctor ops --close-stale` sweep.
+#
+# Written BEFORE any Source/Native edit in this lane, from the pinned Source
+# (`src/specify_cli/doctor/ops.py`, `src/specify_cli/cli/commands/doctor.py`
+# `_run_ops_sweep`/`ops`, `src/specify_cli/invocation/executor.py`
+# `complete_invocation`/`_close_on_spine`/`_record_op_commit`) and the current
+# Native tree (`crates/sk-invocation`, `crates/sk-workspace/src/doctor/ops.rs`,
+# `crates/sk-cli/src/compat/doctor.rs`). No host Mission/Op, no invented mission
+# metadata, no approval implied by this file.
+#
+# Inventory: pre-edit `grep -rIFn` over `crates docs src tests` (target/, .git,
+# __pycache__, .venv-rust-oracle excluded). Receipts in the CF22 evidence root:
+#   cf22-pre-edit-occurrence-inventory.3lMSfv.log   (per-term counts)
+#   cf22-pre-edit-occurrence-sites2.bY9YBZ.log      (exact sites listed below)
+#
+#   UNSUPPORTED_DOCTOR_OPS_CLOSE_STALE   2  -> compat/doctor.rs:520 (refusal code),
+#                                             tests/cf14_...rs:530 (other lane's test)
+#   close_stale                         14  native sites: compat/doctor.rs
+#                                             173,294,296,514,515,518,845 (CLI field
+#                                             + refusal branch + usage guard + test),
+#                                             tests/cf14_...rs:512,541;
+#                                             docs/rust/inventory/{python-surface,coverage}.json
+#                                             are generated Source inventories (immutable)
+#   close-stale                         60  -> Source + generated inventories only; the
+#                                             Native clap flag spelling is unchanged
+#   SWEEP_COMMIT_SKIPPED_PREFIX          5  Source-only (0 Native before this lane)
+#   skipped_fresh                       13  Source + Source tests only (0 Native)
+#   op-closures.jsonl                   44  cross-cutting; Native constant already exists
+#   OP_CLOSURES_FILENAME                24  existing Native owner constant (reused)
+#   DoctorSweep                         17  Native: record.rs, executor.rs:1406,
+#                                             op_commit.rs:328/719 + existing tests that
+#                                             build the event directly (unchanged)
+#   non_record_op_files                  3  compat/doctor.rs helper + its 2 assertions
+#   ops_sweep                            2  Source `_run_ops_sweep` only (0 Native)
+#   OpsSweep                             0  (new)
+#
+# The change is ADDITIVE for every identifier: no existing Rust symbol, serialized
+# key, filesystem path or CLI flag is renamed or removed. `operation` is therefore
+# omitted deliberately (DIRECTIVE_035: additive work may omit it), EXCEPT for the
+# one real removal below, which is a user-visible refusal code and is classified
+# explicitly instead of being smuggled in under "additive".
+target:
+  term: "`spec-kitty doctor ops --close-stale [--threshold HOURS]` is a named refusal; the executor's doctor-sweep close has no caller, and `ClosedBy::DoctorSweep` still appends to the byte-frozen per-record file"
+  replacement: "the actual Source sweep through the canonical executor: per-op staleness decision, `abandoned` close recorded on the append-only closure spine, closed_by=doctor_sweep, per-entry commit outcome, continuation on per-op failure, Source's exit rule"
+
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      New public surface is confined to ONE new module in the Invocation owner:
+      `sk-invocation/src/ops_sweep.rs` (`SweepOpEntry`, `SweepReport`,
+      `close_stale_ops`, `SWEEP_COMMIT_SKIPPED_PREFIX`,
+      `DEFAULT_SWEEP_THRESHOLD_HOURS`, `OpsSweepError`, `non_record_op_files`).
+      Granted root change is exactly `pub mod ops_sweep;` in
+      `sk-invocation/src/lib.rs`; no other export, no root facade.
+      Narrow extensions to existing owners only where the canonical primitive is
+      genuinely missing: `executor::ProfileInvocationExecutor::complete_invocation`
+      must route a `ClosedBy::DoctorSweep` close to the spine (Source #4397), and
+      `writer` gains one crate-private spine-close primitive. No renamed existing
+      symbol; `ClosedBy`/`OpClosedBy::DoctorSweep` variants keep their spelling.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      `sk-invocation` already depends on `sk-workspace` (protection-policy reader),
+      so the existing read-only detector is reached through the CURRENT
+      Invocation->Workspace edge; the reverse edge would be a cycle and is not
+      added. No new crate dependency, no manifest/lock edit, no `#[path]` module
+      alias, no duplicate doctor root.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      `kitty-ops/`, `kitty-ops/*.jsonl` per-record files, `kitty-ops/ops-index.jsonl`
+      and `kitty-ops/op-closures.jsonl` keep their names and owners. The sweep
+      MUST NOT write a per-record file (Source's byte-frozen archive rule); only
+      the spine is appended. Source/packs/pins/goldens untouched.
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      New keys are additive and Source-declared, in Source's `to_dict` order:
+      `open_ops` (entry keys `invocation_id`, `profile_id`, `started_at`,
+      `age_hours`, `action_taken`, then the conditional `parse_warning`, `error`,
+      `commit`), `swept`, `skipped_fresh`, `threshold_hours`, `closure_spine`.
+      The existing `completed`/closure line shape and every existing Op/status key
+      stay byte-identical: the closure written here is the SAME
+      `OpCompletedEvent` v2 shape, rendered by the existing writer, with
+      `closed_by="doctor_sweep"` and `outcome="abandoned"`. No escaped/fake ids.
+  cli_commands:
+    action: rename_if_user_visible
+    notes: >-
+      Leaf name `ops` and flags `--json`, `--close-stale`, `--threshold` keep
+      their exact spelling and position; only their behaviour changes from
+      "refused before any write" to "executes the Source sweep". `--threshold`
+      without `--close-stale` stays a usage error (exit 2). The ONE removal is the
+      refusal code `UNSUPPORTED_DOCTOR_OPS_CLOSE_STALE` (2 sites; one is another
+      lane's cf14 test, so its removal is a parent integration step, not mine).
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Removed: `UNSUPPORTED_DOCTOR_OPS_CLOSE_STALE` message + coverage list.
+      Added, Source-verbatim where Source fixes the text: the sweep summary line
+      ("Ops sweep — threshold {h}h: {n} closed as abandoned, {m} fresh (skipped)"),
+      the per-entry table headers ("Invocation ID", "Profile", "Started At",
+      "Age (h)", "Action", "Closure commit"), the three closure-commit summaries
+      (skipped / refused / committed), the fresh-Op remedy line ("Fresh open Ops
+      remain — close them with spec-kitty profile-invocation complete, or re-run
+      with --threshold 0."), and the parse warning "unparseable started_at
+      {repr}; treated as stale". Rich markup is not reproduced (disclosed, as in
+      CF14): the Native human surface is not byte-pinned.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      KEEP every existing test; none is weakened, skipped or re-baselined. New
+      `cf22_*` fixtures use fresh `tempfile` dirs with a REAL temporary git
+      repository and real `write_started`/`complete_invocation` product APIs —
+      never hand-written fake closures, ids, timestamps or OIDs. The existing
+      `writer_filesystem`/`lock_contention`/`op_admission_commit` tests that build
+      a `ClosedBy::DoctorSweep` event directly call `append_op_closure` and are
+      unaffected. cf14's `ops_close_stale_is_refused_before_any_write` (and the
+      compat inline mutating-flag test) WILL go red when the parent wires the
+      leaf; that edit belongs to the parent (named in the dispatch request).
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No logging/telemetry schema. The sweep reports per-op failures through the
+      report entry and the exit code, never by inventing success. No credentials,
+      no network, no SaaS propagation (the Native propagator does not exist).
+
+exceptions:
+  - path: crates/sk-cli/src/compat/doctor.rs
+    action: manual_review
+    reason: >-
+      NOT owned by this lane (CF17 is active there). This lane only supplies the
+      adapter file `compat/doctor/ops_sweep.rs` plus the exact parent patch: one
+      `mod` declaration, one dispatch arm replacing the close-stale refusal, the
+      module-doc table row, the `refuse()` Ops message, and the two inline test
+      rows that assert the old refusal.
+  - path: crates/sk-cli/tests/cf14_doctor_record_diagnostics.rs
+    action: manual_review
+    reason: >-
+      Another lane's delivered test. Its `ops_close_stale_is_refused_before_any_write`
+      rows become false once the leaf executes; removing those rows is a parent
+      integration step, listed in the dispatch request. Not edited here.
+  - path: crates/sk-invocation/src/executor.rs
+    action: manual_review
+    reason: >-
+      Allowed ONLY as the exact canonical close-path extension for
+      `ClosedBy::DoctorSweep` (spine instead of per-record file). No other
+      executor behaviour, message or ordering changes.
+  - path: crates/sk-invocation/src/writer.rs
+    action: manual_review
+    reason: >-
+      Allowed ONLY as a narrow crate-private primitive: pre-check the per-record
+      file (unreadable / already-completed refusal) then append the spine. Existing
+      public writer API unchanged.
+  - path: docs/rust/occurrence-maps/cf22-stale-op-sweep.yaml
+    action: manual_review
+    reason: This PRE-edit map itself; a NEW uniquely-named file, no posthoc rewrite.
+
+structural_validation:
+  categories_present: 8
+  every_category_has_explicit_action: true
+  actions_used: [manual_review, do_not_change, rename_if_user_visible]
+  operation: omitted (additive), except the one named removal of a refusal code
+  schema_check: >-
+    Every new serialized key above is read from the pinned Source `to_dict` and
+    from `contracts/doctor-ops-close-stale.md` (kitty-specs
+    do-dispatch-open-op-lifecycle-01KTSJ2H), not invented; the JSON document keeps
+    Source's declaration order and is rendered by the canonical Kernel
+    `PythonJsonValue` encoder at `indent=2` (Python `json.dumps` semantics,
+    including `NaN`/`Infinity` and ASCII escaping).
+  removals_check: >-
+    Exactly one existing user-visible string is removed
+    (`UNSUPPORTED_DOCTOR_OPS_CLOSE_STALE`), with both sites enumerated above; no
+    other removal, no silent drop of a valid-input refusal.
+  admissibility:
+    no_fabricated_mission_metadata: true
+    no_dependency_or_manifest_change: true
+    no_source_pin_or_golden_change: true
+    foreign_files_left_untouched: >-
+      compat/doctor.rs, compat/doctor/facts.rs, compat/doctor/render.rs,
+      cf14_* tests, Workspace doctor/fold modules, root CLI/capabilities/errors,
+      manifests/locks, docs accounting.
+
+status:
+  accepted: false
+  phase: lane pre-edit classification
+  host_mission_or_op: none (rewrite lane; not a host governance record)

@@ -1,0 +1,26 @@
+[package]
+name = "sk-workspace"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Workspace, lane allocation, artifact placement, and owned-checkout facts for the Rust Spec Kitty implementation"
+
+[dependencies]
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+thiserror.workspace = true
+sk-charter = { path = "../sk-charter" }
+sk-git = { path = "../sk-git" }
+sk-kernel = { path = "../sk-kernel" }
+sk-mission = { path = "../sk-mission" }
+sk-status = { path = "../sk-status" }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

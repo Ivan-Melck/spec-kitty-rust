@@ -1,0 +1,37 @@
+target:
+  term: "Progressive speech DTO uses Python nonempty truth, not whitespace stripping"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Existing canonical entry_text helper follows Source title/name intent/purpose bool semantics; no alternate formatter/model.
+  import_paths:
+    action: do_not_change
+    notes: Existing exact carrier/projection/serving only.
+  filesystem_paths:
+    action: do_not_change
+    notes: Fresh test roots, Source state/write behavior not changed.
+  serialized_keys:
+    action: manual_review
+    notes: Keep authored whitespace-only but nonempty summaries in actual DTO and raw context text; no new fields.
+  cli_commands:
+    action: do_not_change
+    notes: No flags routes counts or doctor admission.
+  user_facing_strings:
+    action: manual_review
+    notes: Actual Source artifact_to_dict and named row retain nonempty whitespace strings, so no silent stripping.
+  tests_fixtures:
+    action: manual_review
+    notes: New real action JSON before-fix control with unchanged Source-valid authored data.
+  logs_telemetry:
+    action: do_not_change
+    notes: Source-only code/primitive observation not a new paired proof, all attempts retained.
+exceptions:
+  - path: crates/sk-doctrine/src/context.rs
+    action: manual_review
+    reason: Presence helper only, progressive carrier and metadata/body laziness preserved.
+  - path: crates/sk-cli/tests/cf505253_parent_delivery.rs
+    action: manual_review
+    reason: New Source-valid whitespace summary real consumer check.
+status:
+  accepted: false
+  phase: parent prospective Source speech-presence correction

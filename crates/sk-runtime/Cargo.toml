@@ -1,0 +1,21 @@
+[package]
+name = "sk-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pure mission-runtime planning, template and workflow schemas for the Rust Spec Kitty implementation"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+thiserror.workspace = true
+sk-kernel = { path = "../sk-kernel" }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

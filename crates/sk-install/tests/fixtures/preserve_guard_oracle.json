@@ -1,0 +1,22 @@
+{
+  "case_kittify_archive": {
+    "backup_path_rel": ".kittify/.backup-20261104T213831Z/.kittify/retired-release-skill.md",
+    "candidate_exists": false,
+    "diagnostic": "Preserved .kittify/retired-release-skill.md; not package-owned \u2014 archived to .kittify/.backup-20261104T213831Z/.kittify/retired-release-skill.md before parent removal",
+    "owned": false,
+    "reason": "not package-owned",
+    "tree": {
+      ".backup-20261104T213831Z/": "",
+      ".backup-20261104T213831Z/.kittify/": "",
+      ".backup-20261104T213831Z/.kittify/retired-release-skill.md": "operator content\n"
+    }
+  },
+  "provenance": {
+    "command": "bash /tmp/sk-c4/oracle-env.sh <probe> <sandbox-root> (repo .venv-rust-oracle CPython 3.11.15/53, asserted temporary CWD+HOME+all XDG+TMP)",
+    "evidence_log": "/tmp/sk-c4/oracle-guard-2.mefrb7.log",
+    "note": "Source has NO path/backup-parent relation test; a `.kittify/` candidate with backup_parent `.kittify/` is archived, not preserved.",
+    "probe": "crates/sk-install/tests/fixtures/preserve_guard_oracle_probe.py",
+    "recorded_utc": "2026-11-04T21:38:31Z",
+    "source": "spec-kitty/spec-kitty@9aed3a8012cb5eb22c0128b14d525039f95fea7a src/specify_cli/asset_preservation/guard.py:guard_destructive_removal"
+  }
+}

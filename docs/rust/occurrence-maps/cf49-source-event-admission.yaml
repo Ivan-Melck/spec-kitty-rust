@@ -1,0 +1,111 @@
+# CF49 PRE-EDIT occurrence classification (DIRECTIVE_035).
+#
+# This change is ADDITIVE: it adds the missing canonical Source event-store/model
+# admission owner and points ONE committed consumer (the stranded-coord DONE
+# derivation) at it. Nothing is renamed, so no `operation` is declared.
+#
+# The terms whose blast radius this map classifies are the admission seam's own
+# symbols and the two existing consumer refusal buckets its phase mapping moves
+# into (`MalformedLog`, `UndecodableDiary`). The buckets keep their spelling; only
+# which admission phase emits them changes (a model-admission failure is now
+# `UndecodableDiary`, a JSON/row-syntax failure stays `MalformedLog`).
+#
+# Written BEFORE any source edit. All eight standard categories are present.
+# This map is NOT an approval, a Mission record, or a gate decision.
+
+target:
+  term: "read_source_event_stream_from_text"
+  replacement: null
+
+categories:
+  code_symbols:
+    action: manual_review
+    note: >-
+      New symbols only (`SourceEventLogError`, `SourceEventStream`,
+      `read_source_event_stream_from_text`, `read_source_transitions_from_text`,
+      `resolve_legacy_mission_id`). Two existing row decoders in `replay.rs`
+      (`parse_status_event`, `parse_annotation`) widen from private to
+      `pub(crate)` so the admission owner reuses them instead of authoring a
+      second model/validator table. No name is renamed or removed; each site is
+      reviewed by hand for collision with an existing owner.
+  import_paths:
+    action: do_not_change
+    note: >-
+      No crate or module path moves. The admission owner lives in the already
+      declared `sk_status::replay` module, so `crates/sk-status/src/lib.rs`
+      (a parent-owned module root) is not touched at all.
+  filesystem_paths:
+    action: do_not_change
+    note: >-
+      The runtime path shapes stay canonical-owner strings:
+      `kitty-specs/<mission>/status.events.jsonl` (read at a committed ref) and
+      the sibling `<kitty-specs>/<slug>/meta.json` the legacy mission-id resolver
+      reads. No new on-disk artifact is introduced.
+  serialized_keys:
+    action: manual_review
+    note: >-
+      The only serialized key this change writes is the legacy back-fill of
+      `mission_id` into an already-authored row before decoding, exactly as the
+      reference's `_resolve_mission_id_from_dict` does. Every existing event key
+      (`event_id`, `mission_slug`, `wp_id`, `from_lane`, `to_lane`, `at`, `actor`,
+      `force`, `execution_mode`, `reason`, `reason_source`, `review_ref`,
+      `evidence`, `review_result`, `policy_metadata`, `mission_id`, `kind`,
+      `delta`, `event_type`, `event_name`, `type`) keeps its spelling and
+      meaning. No row is ever re-serialized onto disk by this lane (read-only).
+  cli_commands:
+    action: do_not_change
+    note: >-
+      No CLI surface changes. No flag, command, option or exit code is added,
+      removed or renamed; the consumer is a library derivation.
+  user_facing_strings:
+    action: manual_review
+    note: >-
+      The four admission refusal messages reproduce the reference's own text
+      byte-for-byte (`Invalid JSON on line N: …`,
+      `Invalid event structure on line N: expected JSON object`,
+      `Invalid event structure on line N: …`,
+      `Unknown event kind '…' on line N`). The one Native-only message (a
+      container-valued identity field) is authored here and reviewed to state
+      that the reference admits the row and its fold raises, never that the
+      reference refuses it.
+  tests_fixtures:
+    action: manual_review
+    note: >-
+      New `cf49_*` tests add fixtures only as new files. No existing assertion is
+      weakened, skipped, deleted or re-pointed; `cf40_*` and `cf47_*`
+      expectations keep passing unchanged because the two refusal buckets keep
+      their spelling.
+  logs_telemetry:
+    action: do_not_change
+    note: >-
+      No telemetry key, error code, finding code or diagnostic id is added or
+      changed. The refusal buckets are library error variants, not emitted
+      codes; the doctor's own codes remain parent-owned.
+
+exceptions:
+  - path: "crates/sk-status/src/replay.rs"
+    action: manual_review
+    reason: >-
+      The canonical parse/model owner. This change adds an admission section and
+      widens two existing row decoders to `pub(crate)`; it does not touch the
+      fold, ordering, dedupe, arbitration, ranking, snapshot or projection
+      semantics in this file.
+  - path: "crates/sk-workspace/src/coherence/done.rs"
+    action: manual_review
+    reason: >-
+      Consumer composition only: the raw `parse_log_rows` + `parse_diary`
+      pipeline is replaced by the canonical admission seam, and the two existing
+      refusal buckets are re-mapped to the reference's own phases.
+  - path: "docs/rust/occurrence-maps/cf49-source-event-admission.yaml"
+    action: do_not_change
+    reason: >-
+      This classification artifact itself; it is the map, not an occurrence of
+      the target term in product code.
+
+status:
+  accepted: false
+  approval: "not requested"
+  note: >-
+    Pre-edit classification written by the implementation lane. It records
+    decisions; it does not approve the change, open a Mission, or claim a gate
+    result.

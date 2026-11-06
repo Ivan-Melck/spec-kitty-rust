@@ -1,0 +1,175 @@
+{
+  "assertions": "all passed",
+  "cases": {
+    "agents_absent_setting_top_false": {
+      "auto_commit": false,
+      "available": [
+        "claude"
+      ],
+      "default_auto_commit": false,
+      "explicit_agent_list": true,
+      "outcome": "ok"
+    },
+    "agents_available_int": {
+      "error": "Invalid agents.available in config.yaml: expected a list of agent keys. Fix .kittify/config.yaml, then check the agent list with `spec-kitty agent config list`.",
+      "error_type": "AgentConfigError",
+      "outcome": "error"
+    },
+    "agents_available_null": {
+      "error": "Invalid agents.available in config.yaml: expected a list of agent keys. Fix .kittify/config.yaml, then check the agent list with `spec-kitty agent config list`.",
+      "error_type": "AgentConfigError",
+      "outcome": "error"
+    },
+    "agents_empty_list": {
+      "auto_commit": true,
+      "available": [],
+      "default_auto_commit": true,
+      "explicit_agent_list": true,
+      "outcome": "ok"
+    },
+    "agents_empty_tools_false": {
+      "auto_commit": false,
+      "available": [
+        "claude"
+      ],
+      "default_auto_commit": false,
+      "explicit_agent_list": true,
+      "outcome": "ok"
+    },
+    "agents_false": {
+      "auto_commit": false,
+      "available": [
+        "claude"
+      ],
+      "default_auto_commit": false,
+      "explicit_agent_list": true,
+      "outcome": "ok"
+    },
+    "agents_int_one": {
+      "auto_commit": true,
+      "available": [
+        "claude"
+      ],
+      "default_auto_commit": true,
+      "explicit_agent_list": true,
+      "outcome": "ok"
+    },
+    "agents_int_zero": {
+      "auto_commit": true,
+      "available": [
+        "claude"
+      ],
+      "default_auto_commit": true,
+      "explicit_agent_list": true,
+      "outcome": "ok"
+    },
+    "agents_null_setting_top_false": {
+      "auto_commit": false,
+      "available": [
+        "claude"
+      ],
+      "default_auto_commit": false,
+      "explicit_agent_list": true,
+      "outcome": "ok"
+    },
+    "agents_null_setting_top_true": {
+      "auto_commit": true,
+      "available": [
+        "claude"
+      ],
+      "default_auto_commit": true,
+      "explicit_agent_list": true,
+      "outcome": "ok"
+    },
+    "agents_null_tools_false": {
+      "auto_commit": false,
+      "available": [
+        "claude"
+      ],
+      "default_auto_commit": false,
+      "explicit_agent_list": true,
+      "outcome": "ok"
+    },
+    "agents_sequence": {
+      "error": "Invalid config shape in /tmp/sk-c6-oracle.1BhtzX/cfg/agents_sequence/.kittify/config.yaml: expected a YAML mapping for agents, got CommentedSeq. Fix .kittify/config.yaml, then check the agent list with `spec-kitty agent config list`.",
+      "error_type": "AgentConfigError",
+      "outcome": "error"
+    },
+    "agents_setting_no_available_tools": {
+      "auto_commit": false,
+      "available": [],
+      "default_auto_commit": false,
+      "explicit_agent_list": false,
+      "outcome": "ok"
+    },
+    "agents_string_false": {
+      "auto_commit": true,
+      "available": [
+        "claude"
+      ],
+      "default_auto_commit": true,
+      "explicit_agent_list": true,
+      "outcome": "ok"
+    },
+    "agents_wins_over_tools": {
+      "auto_commit": false,
+      "available": [
+        "claude"
+      ],
+      "default_auto_commit": false,
+      "explicit_agent_list": true,
+      "outcome": "ok"
+    },
+    "empty_file": {
+      "auto_commit": true,
+      "available": [],
+      "default_auto_commit": true,
+      "explicit_agent_list": false,
+      "outcome": "ok"
+    },
+    "legacy_tools_true": {
+      "auto_commit": true,
+      "available": [
+        "claude"
+      ],
+      "default_auto_commit": true,
+      "explicit_agent_list": true,
+      "outcome": "ok"
+    },
+    "no_file": {
+      "auto_commit": true,
+      "available": [],
+      "default_auto_commit": true,
+      "explicit_agent_list": false,
+      "outcome": "ok"
+    },
+    "tools_scalar_available": {
+      "auto_commit": false,
+      "available": [
+        "claude"
+      ],
+      "default_auto_commit": false,
+      "explicit_agent_list": true,
+      "outcome": "ok"
+    },
+    "top_only_false": {
+      "auto_commit": false,
+      "available": [],
+      "default_auto_commit": false,
+      "explicit_agent_list": false,
+      "outcome": "ok"
+    },
+    "top_scalar": {
+      "error": "Invalid config shape in /tmp/sk-c6-oracle.1BhtzX/cfg/top_scalar/.kittify/config.yaml: expected a YAML mapping at the top level, got str. Fix .kittify/config.yaml, then check the agent list with `spec-kitty agent config list`.",
+      "error_type": "AgentConfigError",
+      "outcome": "error"
+    },
+    "unknown_agent": {
+      "error": "Unknown agent key(s) in config.yaml: not-an-agent. Valid agents: antigravity, auggie, claude, codex, copilot, cursor, gemini, kilocode, kiro, letta, llxprt, opencode, pi, q, qwen, vibe, windsurf. Fix .kittify/config.yaml, then check the agent list with `spec-kitty agent config list`.",
+      "error_type": "AgentConfigError",
+      "outcome": "error"
+    }
+  },
+  "probe": "c6-agent-config",
+  "python": "3.11.15"
+}

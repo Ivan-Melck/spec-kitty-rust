@@ -1,0 +1,136 @@
+# CF54 PRE-EDIT occurrence classification (DIRECTIVE_035).
+#
+# This change is ADDITIVE: it introduces the ONE canonical Source-valued status
+# event model, its admission reader, its fold and the committed DONE consumer
+# migration. Nothing is renamed or removed, so no `operation` is declared.
+#
+# The classified term is the new Source-value event authority's primary symbol.
+# The blast radius is the `sk-status` replay/parse/model surface it absorbs, the
+# one committed consumer that must now consume Source-valued lanes, the one
+# missing lower Kernel comparison facade it needs, and their tests/docs.
+#
+# Written BEFORE any source edit. All eight standard categories are present.
+# This map is NOT an approval, a Mission record, or a gate decision.
+
+target:
+  term: "SourceStatusEvent"
+  replacement: null
+
+categories:
+  code_symbols:
+    action: manual_review
+    note: >-
+      New symbols only: `sk_status::source_event::{SourceStatusEvent,
+      SourceEventStream, SourceEventLogError, SourceFoldError, SourceSnapshot,
+      SourceWpState, reduce_source_diary, read_source_event_stream_from_text,
+      read_source_transitions_from_text}`; Kernel
+      `python_json::{python_json_lt, python_json_le, python_json_tuple_lt,
+      python_json_key_equal, python_json_hashable, python_json_tuple_hashable,
+      python_json_str, python_json_truthy, python_json_stable_sort_by_key,
+      PythonJsonCompareError}`. Existing `sk_status::replay::{SourceEventLogError,
+      SourceEventStream, SourceStatusEvent, read_*}` become re-exports of the one
+      owner (same names, no rename). `replay::reduce_diary` keeps its public
+      signature and delegates to the same fold. Every call site is reviewed for
+      collision with an existing authority.
+  import_paths:
+    action: manual_review
+    note: >-
+      One new module declaration `pub mod source_event;` in
+      `crates/sk-status/src/lib.rs` (explicitly allowed: exact status lib
+      exports). The Kernel comparison facade lives in the already-declared
+      `python_json` module tree, re-exported from `python_json.rs`; no other
+      crate root or manifest changes.
+  filesystem_paths:
+    action: do_not_change
+    note: >-
+      No runtime path shape changes. The committed log remains
+      `kitty-specs/<mission>/status.events.jsonl`; the legacy mission-id
+      resolver still reads the sibling `<kitty-specs>/<slug>/meta.json` through
+      the canonical no-follow reader and containment guard.
+  serialized_keys:
+    action: do_not_change
+    note: >-
+      No event key is added, renamed or removed. The Source model preserves the
+      authored keys and values of every row (`event_id`, `mission_slug`,
+      `feature_slug`, `wp_id`, `from_lane`, `to_lane`, `at`, `actor`, `force`,
+      `execution_mode`, `reason`, `reason_source`, `review_ref`, `evidence`,
+      `review_result`, `policy_metadata`, `mission_id`, `kind`, `delta`,
+      `event_type`, `event_name`, `type`). The only serialized shape the new
+      fold constructs is the reference's own `StatusEvent.to_dict()` projection,
+      used exclusively as the reconstruction-seed canonical tie-break key — never
+      written to disk.
+  cli_commands:
+    action: do_not_change
+    note: >-
+      No CLI command, flag, option or exit code changes. The work is a library
+      model/fold and one library consumer.
+  user_facing_strings:
+    action: manual_review
+    note: >-
+      Admission refusal text stays the reference's own for the phases it
+      already matched. The NEW messages are fold-phase `TypeError` /
+      `AttributeError` texts reproducing CPython's (`unhashable type: 'list'`,
+      `'<' not supported between instances of 'int' and 'str'`,
+      `'list' object has no attribute 'get'`), plus typed Native diagnostics
+      naming the same offending value. They are reviewed so no message claims the
+      reference refuses a row it actually admits.
+  tests_fixtures:
+    action: manual_review
+    note: >-
+      New `cf54_*` tests only. Existing `cf49_*` expectations change in exactly
+      one direction: the three declared `NarrowedHere` controls (5-key actor,
+      non-bool `force`, non-string `event_id`) move to the reference's actual
+      `Folded` class, and the container identity rows move from admission
+      refusal to admitted-then-fold-failure. No passing valid-input baseline is
+      weakened, skipped or deleted.
+  logs_telemetry:
+    action: do_not_change
+    note: >-
+      No telemetry key, diagnostic code, finding code or emitted id is added or
+      changed. The new fold errors are library variants, not emitted codes;
+      doctor/capability/count ownership stays with the parent.
+
+exceptions:
+  - path: "crates/sk-status/src/replay.rs"
+    action: manual_review
+    reason: >-
+      The canonical parse/model owner. The CF49 per-field narrowing checks are
+      removed from the Source admission path and the Source model/admission
+      implementation moves to the new submodule, while `replay` keeps the
+      re-exports and the finite typed diary view. The reducer body is factored so
+      ONE fold implementation serves both the Source-valued stream and the
+      legacy typed view.
+  - path: "crates/sk-status/src/source_event.rs"
+    action: manual_review
+    reason: >-
+      NEW file; the one canonical Source-valued model/admission/fold authority.
+  - path: "crates/sk-kernel/src/python_json.rs"
+    action: manual_review
+    reason: >-
+      Adds the one missing lower Python comparison/hashability/str/truthiness
+      facade and its module declaration. Existing parser, renderer, equality and
+      hash policies are unchanged; no second numeric-equality table is copied.
+  - path: "crates/sk-kernel/src/python_json/order.rs"
+    action: manual_review
+    reason: >-
+      NEW file; the unique pure comparison facade. It reuses the existing
+      numeric/equality decisions rather than restating them.
+  - path: "crates/sk-workspace/src/coherence/done.rs"
+    action: manual_review
+    reason: >-
+      Consumer composition only: the committed DONE derivation consumes the
+      Source-valued stream + Source fold (lane read) instead of first projecting
+      to the finite typed diary.
+  - path: "docs/rust/occurrence-maps/cf54-source-event-values.yaml"
+    action: do_not_change
+    reason: >-
+      This classification artifact itself; it is the map, not an occurrence of
+      the target term in product code.
+
+status:
+  accepted: false
+  approval: "not requested"
+  note: >-
+    Pre-edit classification written by the implementation lane. It records
+    decisions; it does not approve the change, open a Mission, or claim a gate
+    result.

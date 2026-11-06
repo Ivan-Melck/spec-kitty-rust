@@ -1,0 +1,46 @@
+target:
+  term: Canonical ArtifactKind Source enum member identity and eager include default evaluation
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Move Python enum member names to existing canonical kind owner and derive body metadata from ALL; evaluate include model-str default before property lookup as Source does.
+  import_paths:
+    action: do_not_change
+    notes: Existing charter ArtifactKind import reused, no second schema/parser/primitive.
+  filesystem_paths:
+    action: do_not_change
+    notes: No read placement, writer, Source/packs/pins or dependencies changed.
+  serialized_keys:
+    action: do_not_change
+    notes: Existing canonical kind values/JSON/default/null behavior unchanged.
+  cli_commands:
+    action: do_not_change
+    notes: No new flags/root admission.
+  user_facing_strings:
+    action: do_not_change
+    notes: Same Source repr spelling, generated from canonical kind metadata rather than a second roster.
+  tests_fixtures:
+    action: manual_review
+    notes: Tiny actual Source member/phase observations and named Native model/consumer checks; no fabricated absent-new-API red.
+  logs_telemetry:
+    action: manual_review
+    notes: Structural duplication and Source phase inspection not mislabeled as business red; retain producer broad library/report chronology slips.
+exceptions:
+  - path: crates/sk-charter/src/kind.rs
+    action: manual_review
+    reason: Add Source member identity to the one kind authority.
+  - path: crates/sk-doctrine/src/body.rs
+    action: manual_review
+    reason: Remove duplicated ArtifactKind roster, derive metadata array from canonical ALL and names.
+  - path: crates/sk-doctrine/src/context_render.rs
+    action: manual_review
+    reason: Source eagerly evaluates str(step) default before getattr title, unlike lazy profile or chain.
+  - path: crates/sk-doctrine/src/offering/model.rs
+    action: manual_review
+    reason: Reuse the canonical EnumClass member set for ActorRole/Enforcement/StyleguideScope admission instead of separate literal rosters.
+  - path: crates/sk-doctrine/src/body/model_view.rs
+    action: manual_review
+    reason: Enum property normalization and admission share one exact EnumClass lookup.
+status:
+  accepted: false
+  phase: prospective parent canonical-owner and phase correction

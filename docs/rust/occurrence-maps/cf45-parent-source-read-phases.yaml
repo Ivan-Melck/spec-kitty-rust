@@ -1,0 +1,46 @@
+target:
+  term: "Source sparse exists-before-read phases and accurate Git capability documentation"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Keep public signatures; Source sparse text facade reuses canonical Kernel source_path_exists and ordinary read owner before existing UTF8/newline decoder. Native bounded reader unchanged.
+  import_paths:
+    action: manual_review
+    notes: Existing sk_kernel dependency only; no new parser or dependency.
+  filesystem_paths:
+    action: manual_review
+    notes: Fresh temp Git fixtures and existing per-worktree path resolver; ordinary Source streams follow symlinks and remain unbounded.
+  serialized_keys:
+    action: do_not_change
+    notes: No wire fields model schemas or marker encodings change.
+  cli_commands:
+    action: do_not_change
+    notes: No argv flags root route registration or health count promotion.
+  user_facing_strings:
+    action: manual_review
+    notes: Correct documentation to plain resolved-path substring and explicit status_entries untracked None; no new Source compatibility claim. Distinct stat versus read IO contexts.
+  tests_fixtures:
+    action: manual_review
+    notes: New focused tests for ENOTDIR ELOOP absence and directory decode ordinary reads; preserve before-fix failures. Actual Source observation separate from Native tests not a pair.
+  logs_telemetry:
+    action: do_not_change
+    notes: Retain all original producer failures broad gates and bootstrap fallback gaps. New receipts append only; no reconstructed original evidence.
+exceptions:
+  - path: crates/sk-git/src/sparse.rs
+    action: manual_review
+    reason: Source facade only checks canonical exists then reads; late read failures do not become absence.
+  - path: crates/sk-git/src/status.rs
+    action: manual_review
+    reason: Documentation distinguishes Source default normal from doctor explicit config selection.
+  - path: crates/sk-git/src/source_observations.rs
+    action: manual_review
+    reason: Correct raw-text registration paraphrase without changing Git argv or status read policy.
+  - path: crates/sk-git/src/worktree.rs
+    action: manual_review
+    reason: Correct Source substring semantics in API documentation; raw observation unchanged.
+  - path: crates/sk-git/tests/cf45_parent_source_sparse_phase.rs
+    action: manual_review
+    reason: New focused actual public API tests before Source phase correction.
+status:
+  accepted: false
+  phase: parent pre-edit actual Source read-phase correction

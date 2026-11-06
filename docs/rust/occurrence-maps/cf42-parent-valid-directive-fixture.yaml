@@ -1,0 +1,34 @@
+target:
+  term: "Source-valid required-enforcement Directive include fixture"
+categories:
+  code_symbols:
+    action: do_not_change
+    notes: No production symbols or model admission changes.
+  import_paths:
+    action: do_not_change
+    notes: Existing canonical Directive service and model only.
+  filesystem_paths:
+    action: do_not_change
+    notes: Existing fixture file and paths retained.
+  serialized_keys:
+    action: manual_review
+    notes: Add Source-required enforcement to SHARED_DIRECTIVE fixture only; no new schema key or output envelope.
+  cli_commands:
+    action: do_not_change
+    notes: No routes flags or capability promotions.
+  user_facing_strings:
+    action: do_not_change
+    notes: Keep all title rendering ambiguity and refusal assertions unchanged.
+  tests_fixtures:
+    action: manual_review
+    notes: The former declaring-document fallback admitted an invalid Directive; Source model requires enforcement and required is a valid enum. Preserve existing failing receipt and all assertions.
+  logs_telemetry:
+    action: do_not_change
+    notes: Keep producer regression failure and actual first preservation mFnaZD; no reconstructed green or Source pair claim.
+exceptions:
+  - path: crates/sk-doctrine/tests/cf26_context_include.rs
+    action: manual_review
+    reason: Add enforcement required only to SHARED_DIRECTIVE after actual Source model review.
+status:
+  accepted: false
+  phase: parent pre-edit Source-valid fixture correction

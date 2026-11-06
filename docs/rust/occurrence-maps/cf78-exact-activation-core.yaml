@@ -1,0 +1,81 @@
+target:
+  term: Canonical exact Source activation-ledger / deny read data core with typed fallible identity escapes
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Factor the existing Doctrine ledger declaration/builder/deny algebra into ONE
+      exact-capable core instantiated for exact and checked scalar tokens; add the exact
+      ledger read, exact DenySet, fallible identity seam and the exact source deny reader.
+      No second ledger/deny model, parser, normalizer, roster or JSON bridge.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      Reuse the existing sk-kernel PythonString/codepoint and python_yaml RuamelSafe12 read
+      primitives, sk-charter ArtifactKind, and the Doctrine identity/org/ledger authorities.
+      No new dependency, Cargo, lock or pin change.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      Only .kittify/config.yaml, the pointed charter.yaml and .kittify/charter/activation.yaml
+      are read through the existing resolver/probe authority. No writer target, root, cache
+      directory, pack placement or provenance scope changes.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      Every ledger allow/deny/unknown-deny key, the three-state absent/null/empty semantics and
+      the write schema stay exactly as they are. The exact read adds no key and no write path.
+  cli_commands:
+    action: do_not_change
+    notes: No flag, route, refusal code or admission surface changes.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Existing typed refusal texts are reused for every Source-invalid document. A new
+      typed source-reader error names a Native identity-scan abort or scalar-projection limit
+      without presenting it as Source invalidity or as an operator policy sentence.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      One new named exact-core test target plus filtered unit checks; fresh temporary trees
+      only, no Source/pack/golden edit. Two existing CF77 test helpers receive mechanical
+      type-alias ripple only, with unchanged assertions.
+  logs_telemetry:
+    action: manual_review
+    notes: >-
+      Source-first probes precede the code; failed attempts and the remaining reporting /
+      round-trip / rt-dialect gaps are recorded as data, not as invented health.
+exceptions:
+  - path: crates/sk-doctrine/src/ledger.rs
+    action: manual_review
+    reason: >-
+      The ONE canonical ledger declaration/builder plus the exact read view, exact DenySet
+      instantiations and the fallible/checked identity seam; existing scalar writers and the
+      scalar model remain source-compatible through the default token parameter.
+  - path: crates/sk-doctrine/src/source_denied.rs
+    action: manual_review
+    reason: >-
+      The canonical reader switches to the exact ledger, the exact raw floor, the exact deny
+      algebra and the fallible identity phase, with a typed local source-reader error.
+  - path: crates/sk-doctrine/src/project_governance.rs
+    action: manual_review
+    reason: >-
+      The actual governance selection consumer takes the exact deny map and matches exact
+      tokens; its read phases are unchanged.
+  - path: crates/sk-doctrine/src/reference_catalog.rs
+    action: manual_review
+    reason: >-
+      denied_by_kind delegates to the one canonical reader instead of composing a second
+      typed floor; the deny read error variant follows the reader's typed cause.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Export the exact ledger, exact deny type, exact loader and typed reader error.
+  - path: crates/sk-doctrine/tests/cf78_exact_activation_core.rs
+    action: manual_review
+    reason: New named exact-core and actual-consumer controls.
+  - path: crates/sk-doctrine/tests/cf77_source_denied_reader.rs
+    action: manual_review
+    reason: Mechanical exact-type ripple of two helper signatures; assertions unchanged.
+status:
+  accepted: false
+  phase: prospective lane classification (recorded before any CF78 repository edit)

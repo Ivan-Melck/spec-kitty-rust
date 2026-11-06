@@ -1,0 +1,40 @@
+target:
+  term: CF86 canonical ruamel byte read and getattr-default property exception phase
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Existing Kernel read_document_text policy, one effective-set property adapter swallows only real AttributeError at getattr boundary; raw repository still raises.
+  import_paths:
+    action: do_not_change
+    notes: No new parser/codec/exception roster; reuse canonical Kernel profile dialect and typed Source abort metadata.
+  filesystem_paths:
+    action: manual_review
+    notes: Source yaml.load(path) Reader admits UTF16 BOM; independent fresh Source and Native business/env trees and all TEMP/7XDG/codec guards.
+  serialized_keys:
+    action: manual_review
+    notes: Profile membership for UTF16 files and effective nonmapping result receipts, no root wire changes.
+  cli_commands:
+    action: do_not_change
+    notes: No flags/count/registration changes.
+  user_facing_strings:
+    action: manual_review
+    notes: Canonical ReaderError source owns decode classification; don't render a second private Reader diagnostic using Rust Debug path.
+  tests_fixtures:
+    action: manual_review
+    notes: Source first actual UTF16 admission/AttributeError swallow plus existingAPI negatives; producer shared fixture and missing guards not retrospectively qualified.
+  logs_telemetry:
+    action: manual_review
+    notes: Raw direct errors differ from getattr-default projection; unsupported stricter Native fatal not an exception allowance.
+exceptions:
+  - path: crates/sk-doctrine/src/profile.rs
+    action: manual_review
+    reason: Replace private strictUTF8 profile Reader emulation with existing canonical ruamel byte-reader policy, preserve catches.
+  - path: crates/sk-doctrine/src/effective_set.rs
+    action: manual_review
+    reason: One property-getattr adapter used in strict and fallback service mapping reads, real AttributeError becomes NoMapping only here.
+  - path: crates/sk-doctrine/tests/cf86_profile_failure_propagation.rs
+    action: manual_review
+    reason: Prospective actual independent children/codec/origin guards and new Source-first UTF16 membership/nonmapping effective controls.
+status:
+  accepted: false
+  phase: prospective parent Reader/getattr boundary correction

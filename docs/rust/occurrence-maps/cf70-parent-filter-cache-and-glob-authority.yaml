@@ -1,0 +1,46 @@
+target:
+  term: Source pointer filter boundaries cache identity and canonical glob error policy
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Fix word-at-EOF panic, use exact modular offset and Source component cache key; share ONE OSError ignore authority.
+  import_paths:
+    action: manual_review
+    notes: Existing PythonString/path/codec/errno authorities only; no parser or dependencies.
+  filesystem_paths:
+    action: manual_review
+    notes: Preserve double-root and dot constructor identity; do not resolve aliases or refresh cached indices; avoid lossy native glob-name projection.
+  serialized_keys:
+    action: do_not_change
+    notes: SelectedReference and catalogue/context wire fields unchanged.
+  cli_commands:
+    action: do_not_change
+    notes: Existing live consumer and root/count/state execution held.
+  user_facing_strings:
+    action: manual_review
+    notes: Correct false exactness/overflow/ignore comments, no invented Source exceptions.
+  tests_fixtures:
+    action: manual_review
+    notes: Source-first malformed scope/cache-root/errno observations before current API negatives, tiny focused controls.
+  logs_telemetry:
+    action: manual_review
+    notes: Panic is genuine product failure; chronology and Source-only vs paired controls explicit.
+exceptions:
+  - path: crates/sk-doctrine/src/reference_pointers.rs
+    action: manual_review
+    reason: Existing fixed Source regex boundary, arithmetic and cache identity, no new selector/model.
+  - path: crates/sk-kernel/src/paths.rs
+    action: manual_review
+    reason: Expose OSError-only ignore policy from same existing errno authority; Path.exists ValueError distinction preserved.
+  - path: crates/sk-kernel/src/source_glob.rs
+    action: manual_review
+    reason: Reuse canonical ignored errno policy and remove lossy nonUnix name projection; same candidate walk.
+  - path: crates/sk-doctrine/tests/cf70_parent_filter_cache.rs
+    action: manual_review
+    reason: Fresh real Source-derived scope and independently cached POSIX-root controls on current APIs.
+  - path: docs/rust/dependencies/cpython-pathlib-rglob-reference.md
+    action: manual_review
+    reason: Correct broad stat/Windows/dedupe claims after parent implementation correction; retain PSF custody and explicit race/audit/recursion limits.
+status:
+  accepted: false
+  phase: prospective parent filter cache and glob correction

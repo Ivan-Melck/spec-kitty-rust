@@ -1,0 +1,92 @@
+{
+  "expected": {
+    "available": [
+      "our-team-design-first",
+      "software-dev-default"
+    ],
+    "path_suffix": "workflows/software-dev-default.workflow.yaml",
+    "workflow": {
+      "actions": [
+        {
+          "action_name": "specify",
+          "agent_profile": null,
+          "description": "Create a mission specification",
+          "human_in_the_loop": null,
+          "integration": null,
+          "next": [
+            "plan"
+          ],
+          "outputs": {},
+          "terminal": false
+        },
+        {
+          "action_name": "plan",
+          "agent_profile": null,
+          "description": "Create an implementation plan",
+          "human_in_the_loop": null,
+          "integration": null,
+          "next": [
+            "tasks"
+          ],
+          "outputs": {},
+          "terminal": false
+        },
+        {
+          "action_name": "tasks",
+          "agent_profile": null,
+          "description": "Decompose plan into work packages",
+          "human_in_the_loop": null,
+          "integration": null,
+          "next": [
+            "implement"
+          ],
+          "outputs": {},
+          "terminal": false
+        },
+        {
+          "action_name": "implement",
+          "agent_profile": null,
+          "description": "Execute a work package implementation",
+          "human_in_the_loop": null,
+          "integration": null,
+          "next": [
+            "review"
+          ],
+          "outputs": {},
+          "terminal": false
+        },
+        {
+          "action_name": "review",
+          "agent_profile": null,
+          "description": "Review a work package implementation",
+          "human_in_the_loop": null,
+          "integration": null,
+          "next": [
+            "merge"
+          ],
+          "outputs": {},
+          "terminal": false
+        },
+        {
+          "action_name": "merge",
+          "agent_profile": null,
+          "description": "Merge a completed mission",
+          "human_in_the_loop": null,
+          "integration": null,
+          "next": [],
+          "outputs": {},
+          "terminal": true
+        }
+      ],
+      "description": "Default software-dev mission workflow. Byte-stable to spec-kitty's\npre-Slice-F hardcoded sequence (C-008 binding).\n",
+      "initial": "specify",
+      "integrations": {},
+      "version": 1,
+      "workflow_id": "software-dev-default"
+    }
+  },
+  "scenario": {
+    "kind": "workflow_discovery",
+    "name": "workflow_shipped_default"
+  }
+}

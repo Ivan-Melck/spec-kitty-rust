@@ -1,0 +1,46 @@
+# Parent PRE-EDIT registration review .nbIMQa/.JUcL0h + actual table/tests/report.
+# No host Mission/Op. Registration means callable Native capability, NOT Source
+# equivalence/whole effect completion: known wire/model/provider/phase debt retained.
+target:
+  term: "six charter synthesis migration callback reachability"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Add six existing same-item callbacks to ONE NATIVE_MIGRATIONS array (55 to61); lookup/selection/order/flags remain canonical catalogue-owned. Four rescue callbacks remain withheld.
+  import_paths:
+    action: do_not_change
+    notes: No module duplication, model/parser/writer/Git/dependency authority move.
+  filesystem_paths:
+    action: do_not_change
+    notes: Source/packs/pins/goldens/data paths unchanged. Only fresh real-Git test fixtures.
+  serialized_keys:
+    action: do_not_change
+    notes: No upgrade JSON planner or migration payload schema changed; known Source mismatches remain defects, not authorized exceptions.
+  cli_commands:
+    action: manual_review
+    notes: Existing upgrade route reaches these actual callbacks through canonical runner; local capability explicitly PARTIAL, never registration=counted parity.
+  user_facing_strings:
+    action: manual_review
+    notes: Update outdated unreachable test docs and unsupported upgrade row; preserve failure/error family mismatch as open issue, not intentional approved divergence.
+  tests_fixtures:
+    action: manual_review
+    notes: Existing CF16 per-step tests use real registered lookup; add scoped real runner preview/no-write/apply and unique registration/scope checks. Keep existing Source fixtures/assertions, no expected mismatch success.
+  logs_telemetry:
+    action: do_not_change
+    notes: No formal inventory/workflow/performance/accounting promotion or missing receipt reconstruction.
+exceptions:
+  - path: crates/sk-install/src/upgrade.rs
+    action: manual_review
+    reason: Six references to existing implementations in the central array only; no evaluator/policy edit.
+  - path: crates/sk-install/tests/cf16_migration_preview_and_failure.rs
+    action: manual_review
+    reason: Replace own-module fallback lookup with canonical registered lookup, retain all behavioral assertions.
+  - path: crates/sk-install/tests/cf16_parent_registered_charter.rs
+    action: manual_review
+    reason: New actual runner reachability and no-write preview on real Git fixture.
+  - path: crates/sk-cli/src/compat/capabilities.rs
+    action: manual_review
+    reason: Replace stale unsupported upgrade row with truthful partial route/callback description and named gaps.
+status:
+  accepted: false
+  phase: parent pre-edit Native callback integration, final equivalence not approved

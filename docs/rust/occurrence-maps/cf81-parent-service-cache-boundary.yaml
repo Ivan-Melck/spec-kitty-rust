@@ -1,0 +1,43 @@
+target:
+  term: CF81 per-service cache boundary and actual independent child Source codec guards
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Gate runtime reset at actual CanonicalOfferingService construction, no ledger or context reread; same identity owner fresh unscanned roots.
+  import_paths:
+    action: do_not_change
+    notes: Existing exact gate and identity/cache authorities only.
+  filesystem_paths:
+    action: manual_review
+    notes: Independent materialized actual children retained; explicit expected Source root and actual Native filesystem codec asserted before reads.
+  serialized_keys:
+    action: manual_review
+    notes: One bounded receipt for a new service over an already-used context, no wire change.
+  cli_commands:
+    action: do_not_change
+    notes: No root or flag changes.
+  user_facing_strings:
+    action: do_not_change
+    notes: Membership/cache controls, no claim of warning transport correctness.
+  tests_fixtures:
+    action: manual_review
+    notes: Source first per-service constructor trace and existingAPI Native negative with newly added directive; no absent API red.
+  logs_telemetry:
+    action: manual_review
+    notes: Producer missing Native codec and independent Source-origin assertions remain historical limitation; logger and iteration remain required.
+exceptions:
+  - path: crates/sk-doctrine/src/offering/gate.rs
+    action: manual_review
+    reason: Reset service-owned resolved IDs and lazy identity snapshots without rereading context/ledger/deny.
+  - path: crates/sk-doctrine/src/effective_set.rs
+    action: manual_review
+    reason: Narrow context runtime reset delegation, no root/error policy changes.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: Source constructor boundary starts service runtime caches fresh even with previously used context.
+  - path: crates/sk-doctrine/tests/cf81_exact_service_gate.rs
+    action: manual_review
+    reason: Guarded independent Source and Native new-service receipt plus explicit Source root/Native codec checks.
+status:
+  accepted: false
+  phase: prospective parent service-cache and actual child-guard correction

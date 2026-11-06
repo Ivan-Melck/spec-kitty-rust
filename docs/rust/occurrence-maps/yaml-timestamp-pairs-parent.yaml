@@ -1,0 +1,73 @@
+# PRE-EDIT parent inventory .jShEUl.log; narrow semantic repair, not a rename.
+# No host Mission/Op/approval. L5 frozen subject .ljcARj.log retained.
+target:
+  term: "timestamp_hash and constructed Pairs member semantics"
+  replacement: "CPython packed/timedelta hash and real tuple pair members"
+  operation: rename
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Replace ONLY private fabricated timestamp tuple mixing with pinned CPython
+      date/naive raw-storage hash or aware normalized timedelta tuple hash.
+      Add narrow shared constructor storage accessor using existing timestamp
+      parser, not another parser. Pairs keeps its public Vec<(key,value)> domain;
+      private tagged semantic rows become real tuples; ruamel shallow list-key
+      conversion handles Pairs too. No PythonValue enum/API/type identity moves.
+  import_paths:
+    action: do_not_change
+    notes: Shared Kernel authority and all Mission/Doctrine re-exports stay fixed; no dependency changes.
+  filesystem_paths:
+    action: do_not_change
+    notes: Source YAML paths, packages, pinned data and parser module paths unchanged; only new evidence/tests.
+  serialized_keys:
+    action: do_not_change
+    notes: No Source YAML/model/JSON/receipt key rename; exact PS keys retained. No pseudo-identity or tuple-as-string.
+  cli_commands:
+    action: do_not_change
+    notes: No CLI wiring/flags/aliases/registrations or SourceFaithful success label.
+  user_facing_strings:
+    action: manual_review
+    notes: Remove only now-obsolete named hash/pairs open claims after actual proof; graph/NaN/depth/mark domains remain explicitly open.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      Add Source-cause-first date/datetime/tz/set and pairs-key cases; Source
+      assertions inside the actual oracle child, plus all seven XDG roots on
+      both legs. Existing float/tuple/profile/mission/transport proofs stay,
+      only private Pairs row unit expectation strengthens to actual tuple type.
+      No expected divergence promoted to parity. Fresh NaN mismatch stays real.
+  logs_telemetry:
+    action: do_not_change
+    notes: No event/metric identity changes or invented publication/approval/performance status.
+exceptions:
+  - path: crates/sk-kernel/src/python_yaml/construct.rs
+    action: manual_review
+    reason: Narrow shared timestamp storage helper, typed tuple rows and Source shallow conversion; no second parser.
+  - path: crates/sk-kernel/src/python_yaml/set_order.rs
+    action: manual_review
+    reason: Exact Source hash algorithm using existing SipHash/tuple authority; no numeric guessed mix.
+  - path: crates/sk-kernel/src/python_yaml.rs
+    action: manual_review
+    reason: Truthful open-case/doc updates only after proof; NaN object-identity remains open, no broad fidelity label.
+  - path: crates/sk-kernel/tests/python_yaml_source.rs
+    action: manual_review
+    reason: New Source-original-byte cases and both-leg all-seven-XDG/root assertions; no weak receipt normalizer.
+  - path: crates/sk-kernel/tests/oracle/python_yaml.py
+    action: manual_review
+    reason: Assert actual Source-child environment/version/cause before Native; no runtime Source adapter.
+  - path: crates/sk-doctrine/**
+    action: do_not_change
+    reason: Existing shared aliases/getters transparently access tuple rows; regressions required, not caller copies.
+  - path: crates/sk-mission/**
+    action: do_not_change
+    reason: Public PythonValue/Pairs domain and model API unchanged; retain old consumer tests.
+  - path: src/**
+    action: do_not_change
+    reason: Pinned Source remains oracle.
+  - path: crates/sk-kernel/src/source_writer*
+    action: do_not_change
+    reason: Live W1 scope, no foreign repair or hidden policy change.
+status:
+  reviewed_by: "parent pre-edit classification; not independent approval"
+  accepted: false

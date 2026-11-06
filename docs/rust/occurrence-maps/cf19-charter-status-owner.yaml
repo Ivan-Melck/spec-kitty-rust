@@ -1,0 +1,191 @@
+# CF19 occurrence classification — real charter-status provenance / bundle-gate /
+# org-layer / governance-reference owners.
+#
+# PRE-EDIT classification: this file was authored BEFORE the code edits it
+# describes, from the grep counts recorded in the evidence root
+# (`cf19-0027-pre-edit-occurrence-counts`, `grep -rn` over
+# `crates/sk-cli/src`, `crates/sk-charter/src`, `crates/sk-doctrine/src`).
+#
+# The change is ADDITIVE at its core (new owners + new call sites) with a
+# bounded REMOVE of four "collector not ported" degradation constants whose
+# subject is exactly what this lane implements. Per-entry `operation` is
+# therefore recorded per category instead of once at `target:`.
+#
+# Pre-edit counts (files are named per entry below):
+#   ORG_LAYER_GAP                2  (const decl + its single use)     -> REMOVE
+#   GOVERNANCE_REFERENCES_GAP    2  (const decl + its single use)     -> REMOVE
+#   PROVENANCE_GAP               2  (const decl + its single use)     -> REMOVE
+#   EVIDENCE_GAP                 2  (const decl + its single use)     -> KEEP (not in scope)
+#   "not implemented natively"   2  single-line hits inside those
+#                                   constants; the same phrase also appears
+#                                   wrapped across lines in the other two
+#                                   constants (grep is line-based)     -> 3 of 4 removed
+#   fn collect_org_layer         1                                    -> KEEP name, real body
+#   fn collect_governance_references 1                                -> KEEP name, real body
+#   fn collect_provenance_status 1                                    -> KEEP name, real body
+#   fn collect_evidence          1                                    -> KEEP as disclosed gap
+#   status_payload               1  (public seam; signature unchanged) -> KEEP
+#   has_built_in                 5  (`status.rs` + `sk-charter`/`sk-doctrine`
+#                                   unrelated uses)                   -> KEEP key
+#   collision_warnings           1  (payload key)                     -> KEEP key, now populated
+#   governance_references       22  (4 files; `context.rs` owns the model) -> KEEP
+#   parsed_count                 4                                    -> KEEP key, now real
+#   generation_state             6                                    -> KEEP
+#   CHARTER_STATUS_FAILED        0                                    -> ADD (bundle gate)
+#   bundle_schema_version        6  (`sk-doctrine/src/context.rs`)     -> do_not_change
+#
+# No `sed`, no bulk rewrite, no second authority: each occurrence is either
+# analysed in place or left alone. Public JSON keys, CLI flags and error codes
+# keep their exact spellings; only their *values* become consulted facts.
+#
+# Schema note: `schema_version` is the map contract version. There is NO
+# `mission:` key — this rewrite lane has no host Mission (the host has none for
+# it, and inventing mission metadata is forbidden), so the field is omitted
+# rather than fabricated, matching the CF12/CF15/CF16 lane maps beside this one.
+
+schema_version: "1.0"
+
+target:
+  term: "charter status 'collector not implemented natively' degradation constants (ORG_LAYER_GAP, GOVERNANCE_REFERENCES_GAP, PROVENANCE_GAP)"
+  # `rename` (not `remove`): the schema requires `replacement: null` for
+  # `remove`, and this migration REPLACES the placeholder with real consulted
+  # facts at the same sites. The per-category `operation: remove` entries below
+  # scope the literal deletions (the three constants and their sentences).
+  operation: rename
+  replacement: "real Source-grounded org-layer, governance-reference and provenance-sidecar facts read through the canonical Native owners"
+
+categories:
+  code_symbols:
+    operation: remove
+    action: manual_review
+    notes: >-
+      REMOVE the three gap constants (2 literal sites each, all in
+      `crates/sk-cli/src/compat/charter/status.rs`) together with the ternary
+      that was their only effect (`unread` in `collect_provenance_status`).
+      KEEP `EVIDENCE_GAP` and every public symbol: `CharterCommand`, `run`,
+      `StatusArgs` (no new field this lane), `charter::status_payload(root,
+      provenance)` (same signature — the CF8-style payload seam). ADD (new
+      symbols, no collision): `sk_charter::provenance::sidecar::{ProvenanceEntry,
+      load_provenance}`, `sk_charter::bundle_compat::{BundleCompatibility,
+      BundleCompatibilityStatus, check_bundle_compatibility,
+      get_bundle_schema_version}`, `sk_doctrine::org_status::{OrgLayerStatus,
+      OrgPackStatus, OrgCollisionWarning, org_layer_status,
+      org_layer_status_with_packs_root}` and
+      `sk_doctrine::context::collect_governance_reference_status`.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No new crate, manifest, lockfile, feature or dependency edge. The new
+      modules consume owners that already exist: `sk-charter`
+      (`load_project_config`, `load_org_pack_registry`, `OrgPackConfig`,
+      `PathExpansion`, `PackRoots`, `BuiltInSearch`, `Limits`, `CHARTER_YAML`,
+      `io::{read_bounded, parse_yaml_mapping, field}`), `sk-doctrine`
+      (`org::{load_org_pack, ORG_FRAGMENT}`, `merge_three_layers`,
+      `MergeConflict`, `validate::validate_dangling_references`,
+      `loader::load_graph_or_dir`, `org_charter::{built_in_search,
+      normalize_packs_root}`, the existing `context::GovernanceReferenceStatus`)
+      and `sk-kernel` only as already imported. `sk-charter` may not depend on
+      `sk-doctrine` and vice versa; the direction is unchanged.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      Read-only. Same reference paths as CF12 (`.kittify/config.yaml`,
+      `.kittify/charter/{charter.yaml,charter.md,metadata.yaml,
+      activation.yaml,synthesis-manifest.yaml,provenance/*.yaml,generated/}`,
+      `.kittify/charter-packs/…`, configured org pack roots) plus the built-in
+      pack root, which is read only when at least one org pack is configured —
+      exactly the reference's ordering (`if not fragments: return`). No file,
+      directory, cache or fixture inside a project is created, written,
+      repaired or deleted; new tests use fresh `tempfile` fixtures.
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      The `charter status --json` contract is the reference payload and no key is
+      renamed, dropped or reordered by intent: `org_layer.packs[]` gains its real
+      rows (`name`, `source_kind`, `source_ref`, `layer_index`, `fetched`,
+      `node_count`, `edge_count`), `org_layer.collision_warnings[]` its real rows
+      (`kind`, `target_id`, `conflicting_layers`, `resolution`),
+      `governance_references.references[]` its real
+      `{path,exists,safe,warning}` rows, and `synthesis.provenance.entries[]` its
+      real `{path,kind,slug,artifact_urn,adapter_id,adapter_version,
+      synthesizer_version,produced_at,corpus_snapshot_id,evidence_bundle_hash,
+      generated_at}` rows. `available`, `warnings`, `count`, `parsed_count`,
+      `manifest_artifact_count`, `missing_for_manifest_count`,
+      `corpus_snapshot_ids`, `adapters`, `errors`, `has_built_in` keep their
+      spellings and types. `CHARTER_STATUS_FAILED` is a pre-existing reference
+      error code that had no Native emission site; it gains one. serde_json's
+      sorted key order stays the workspace-wide property (reference insertion
+      order remains a disclosed divergence).
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No root CLI enum, dispatch arm, capability row, help text or flag is
+      edited. `charter status [--json] [--provenance]` already exists and keeps
+      its exact surface; `--provenance` simply starts returning the rows the
+      reference returns.
+  user_facing_strings:
+    operation: remove
+    action: manual_review
+    notes: >-
+      REMOVE the three "collector … is not implemented natively" sentences and
+      the one "no org pack was consulted … not a verified-clean organisation
+      layer" sentence (their subject no longer exists). KEEP `EVIDENCE_GAP` word
+      for word (the evidence/corpus collector is still not ported, and saying so
+      stays the honest line). ADD only reference-shaped text the reference itself
+      emits: the bundle-compatibility messages from `charter/offering/
+      versioning.py`, the `Org pack {name!r} configured at {path!r} not found.
+      Either fetch the pack …` org-pack message, the
+      `org-DRG hard failure: …` error line, and the existing governance-reference
+      warnings. No line claims healthy/synced/promoted/ready for an unconsulted
+      section.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New `cf19_*` tests only (`crates/sk-cli/tests/cf19_charter_status_owner.rs`
+      plus in-module `#[cfg(test)]` units in the four owned crate files). Two
+      existing CF12 assertions pinned the removed constants verbatim
+      (`cf12_charter_status.rs:185` and `:422`, both `.contains("not implemented
+      natively")`) and are re-pointed at the real fact they were guarding — the
+      same property (no fabricated clean/promoted claim) asserted against a real
+      consulted value. Nothing is skipped, deleted or loosened; no other test in
+      the workspace references these strings (pre-edit grep: 2 sites). Fixtures
+      stay fresh `tempfile` directories.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric, event or telemetry key. The readers emit nothing; the
+      command's only output is its payload/text and its coded error.
+
+exceptions:
+  - path: crates/sk-cli/src/compat/charter/status.rs
+    action: manual_review
+    reason: >-
+      Owns the three REMOVE constants, the four `collect_*` bodies and the text
+      renderer; the pre-edit counts above are the complete literal occurrence
+      set for each of them in this file.
+  - path: crates/sk-cli/tests/cf12_charter_status.rs
+    action: manual_review
+    reason: >-
+      Two assertions name the removed constants' wording. They are re-pointed
+      at the consulted fact (blank org layer for a repo with no org packs; a
+      real per-sidecar validation warning), not weakened or removed.
+  - path: crates/sk-charter/src/lib.rs
+    action: manual_review
+    reason: >-
+      One additive `pub mod bundle_compat;` declaration only (the granted
+      bounded root grant). `provenance` is already declared `pub mod`, so the
+      new `provenance/sidecar.rs` subtree needs no root change.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: >-
+      One additive `pub mod org_status;` declaration only. `context.rs` and
+      `org.rs` are already declared.
+  - path: crates/sk-doctrine/src/context.rs
+    action: manual_review
+    reason: >-
+      Additive only: the existing private governance-reference validator is
+      factored into one private helper and a public
+      `collect_governance_reference_status` is added on top of it. The existing
+      `governance_reference_status` caller keeps its exact behaviour (same
+      reference-status DTO, same warnings, same empty-on-invalid-governance
+      rule), so the `charter context --json` payload is unchanged.

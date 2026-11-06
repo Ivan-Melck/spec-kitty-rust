@@ -1,0 +1,34 @@
+target:
+  term: "CF31 paired child's seven XDG assertions"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Test-local extra-root assertions only; no production model/body/admission signatures change while CF32 integrates.
+  import_paths:
+    action: do_not_change
+    notes: Keep canonical existing isolated/oracle helpers and actual child reexec.
+  filesystem_paths:
+    action: manual_review
+    notes: Fresh fixture config-dirs and data-dirs inside the same exclusive mktemp tree; no real user roots or cleanup.
+  serialized_keys:
+    action: do_not_change
+    notes: Payload fields and four model-dump comparisons unchanged, no fabricated receipt.
+  cli_commands:
+    action: do_not_change
+    notes: Test-only, no command mutation or registration.
+  user_facing_strings:
+    action: manual_review
+    notes: Paired assertion claim must name actual seven XDG variables; original producer asserted only five despite prose.
+  tests_fixtures:
+    action: manual_review
+    notes: Add XDG_CONFIG_DIRS and XDG_DATA_DIRS to BOTH actual Source and Native environments and in-child assertions. Keep all nine previous roots and document/output comparisons. Does not establish admission/merged/inline/end-to-end parity.
+  logs_telemetry:
+    action: do_not_change
+    notes: Original five-XDG paired run remains as originally executed; later expanded gate not retroactive approval. Preserve unwrapped attempts and foreign transient failures.
+exceptions:
+  - path: crates/sk-doctrine/tests/cf31_canonical_include_models.rs
+    action: manual_review
+    reason: Only local fixture creation/environments/in-child assertion strengthening, no shared helper or CF32 work.
+status:
+  accepted: false
+  phase: parent pre-edit harness scope correction

@@ -1,0 +1,67 @@
+# Parent PRE-EDIT classification from .dXuQB5/.ZZt8oR and actual Source call bodies.
+# No host Mission/Op; producer three-one-line recipe was not adopted blindly.
+target:
+  term: "project rendering context propagation"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Bind InitRequest.effective_templates result to its actual project (including
+      explicitly supplied templates, explicit boolean still wins). Command-skill
+      installer binds its existing local source. Add one project-aware legacy
+      render_prompt wrapper over the ONE renderer, preserve no-project Source
+      inactive branch explicitly rather than guessing CWD. Retain selector's
+      original typed cause through InstallError, no ConfigInvalid fake path.
+  import_paths:
+    action: do_not_change
+    notes: No crate/dependency/parser/renderer authority move or replacement.
+  filesystem_paths:
+    action: do_not_change
+    notes: No file/lock/pack/data paths change. Real project root is an argument, never inferred from assets or CWD.
+  serialized_keys:
+    action: do_not_change
+    notes: Config/activation/manifest keys and existing encodings unchanged; only conditional output content follows Source.
+  cli_commands:
+    action: do_not_change
+    notes: No CLI registration/options or central migration callback count changes.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Preserve exact selector body/typed error; correct capability docs. Source
+      no-project helper is INACTIVE, Native TemplateSource pure capability remains
+      separately active; don't label these the same contract.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New focused init explicit-template/project/override tests, typed activation
+      cause, ordinary project/no-project caller tests; existing CF6 controls remain.
+      Source update-planning-templates intentionally omits repo_root: KEEP it on
+      the no-project inactive path even for an active project.
+  logs_telemetry:
+    action: do_not_change
+    notes: No metrics/log identity or performance/fidelity success promotion.
+exceptions:
+  - path: crates/sk-install/src/init.rs
+    action: manual_review
+    reason: Bind final effective source, not only the asset fallback constructor.
+  - path: crates/sk-install/src/migrations/completion_modern/commands_install.rs
+    action: manual_review
+    reason: Bind install_command_skills local source to actual project; KEEP update-planning Source omitted-root call inactive.
+  - path: crates/sk-install/src/migrations/completion_legacy/agent_commands.rs
+    action: manual_review
+    reason: Distinguish Source omitted project and supplied project, delegate same canonical render_asset.
+  - path: crates/sk-install/src/migrations/completion_legacy/skills_pack.rs
+    action: manual_review
+    reason: Restore-prompts Source explicitly passes project_root; use new exact-context wrapper.
+  - path: crates/sk-install/src/render.rs
+    action: manual_review
+    reason: Preserve typed selector cause without fabricating config path; marker fastpath/explicit precedence unchanged.
+  - path: crates/sk-install/src/error.rs
+    action: manual_review
+    reason: Add typed transparent SpddActivation variant/code, not guessed IO class.
+  - path: crates/sk-install/tests/cf6_parent_project_rendering.rs
+    action: manual_review
+    reason: New functional smoke using fresh project/template fixtures.
+status:
+  accepted: false
+  phase: parent pre-edit functional project/no-project composition

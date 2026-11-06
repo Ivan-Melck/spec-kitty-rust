@@ -1,0 +1,100 @@
+target:
+  term: CF89 remaining Source artifact pre-validation hooks (Tactic, Paradigm, Styleguide, Toolguide, Procedure incl. nested steps)
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      PRE census (standard8 KEEP/tests/docs included). KEEP unchanged: ArtifactKind
+      (sk-charter kind.rs canonical/operator_token/glob_pattern) remains the only kind
+      authority; FORBIDDEN_INLINE_REFERENCE_FIELDS stays the one top-level tuple and keeps
+      its agent-profile reader (crates/sk-doctrine/src/profile.rs); ConstructorAbort,
+      NativeOfferingFailure, OfferingLoadError, ArtifactDocument, NodeRef and
+      ObjectGraph::python_str are reused unchanged. RENAMED module-private helpers inside
+      prevalidation.rs only: reject_directive_inline_refs becomes the generic
+      reject_inline_refs(kind, ...); no public API, no second kind/tuple/roster/enum.
+      ADDED module-private FORBIDDEN_PROCEDURE_STEP_FIELDS ("tactic_refs",
+      "paradigm_refs") and reject_procedure_step_refs, plus pub(crate) visibility for the
+      existing loader.rs FRAGMENT_SUFFIX (".graph.yaml") so the migration-hint filename is
+      derived, not copied. Tests/fixtures: new crates/sk-doctrine/tests/
+      cf89_shared_prevalidation.rs only; the existing cf88_parent_diagnostic_phase.rs stays
+      as its own direct-consumer control. Docs: this map only.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No new crate/module path or dependency. Reuses sk_charter::ArtifactKind,
+      sk_kernel::PythonString/source_path_text/OsEncodingContext, super::{ConstructorAbort,
+      NativeOfferingFailure, OfferingLoadError} and crate::loader's fragment suffix.
+  filesystem_paths:
+    action: manual_review
+    notes: >-
+      Diagnostic file paths are the repository's own paths (relative under an independent
+      child CWD), unchanged in shape; the migration hint names
+      packs/built-in/<canonical-kind>.graph.yaml, derived from ArtifactKind::canonical()
+      plus the existing fragment suffix. No new discovery path, glob, root or fixture path
+      is introduced; no output/root rewriting in evidence.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      The scanned YAML keys stay the Source tuples (top level tactic_refs/paradigm_refs/
+      applies_to; procedure steps tactic_refs/paradigm_refs). No serializer, codec or wire
+      key changes.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No CLI flag/command/envelope/count/registration change. Only the existing
+      offering-load error channel gains its already-defined Source abort for more kinds.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      The InlineReferenceRejectedError message text is factored once and parameterized by
+      canonical kind token, Source field tuple order and id. Directive message bytes are
+      preserved exactly; the four other top-level kinds gain the same shape with their own
+      kind token, and Procedure gains its step-field message. No new wording, no
+      "safer refusal", no lossy path display.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New tiny named target crates/sk-doctrine/tests/cf89_shared_prevalidation.rs using the
+      cf88_parent_diagnostic_phase pattern: two independent actual children (pinned Source
+      and this test binary) with independently supplied CWD/HOME/all 7 XDG/TMPDIR/TMP/TEMP,
+      absolute expected Source, PYTHONPATH, packs root, PYTHONHASHSEED=0 and real
+      fs/stdout/stderr codec assertions plus pinned 3.11.15/exact53 verification. Identical
+      relative business arguments, raw messages compared, no shared fixture and no
+      root/output rewriting. The quarantined cf88 producer target is not run or reused.
+      Agent-profile inline-reference skip policy is NOT changed.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No warning/traceback/global-wire parity claim. Only the repository-construction abort
+      class/message is compared; skip warnings remain out of scope.
+exceptions:
+  - path: crates/sk-doctrine/src/offering/prevalidation.rs
+    action: manual_review
+    reason: >-
+      Generic top-level hook for the six Source kinds plus the Procedure nested-step scan,
+      one message builder and one eager `str(data.get("id", "?"))` ordering; reuses the
+      canonical tuple/kind/abort/native failures and keeps every unhooked kind a no-op.
+  - path: crates/sk-doctrine/src/loader.rs
+    action: manual_review
+    reason: >-
+      Widen the existing FRAGMENT_SUFFIX (".graph.yaml") to pub(crate) so the migration-hint
+      graph filename is derived from the one fragment-naming authority instead of a cloned
+      path literal. No loader behaviour change.
+  - path: crates/sk-doctrine/tests/cf89_shared_prevalidation.rs
+    action: manual_review
+    reason: >-
+      New tiny named target: Source-first currentAPI negative (Native currently healthy
+      where Source aborts) and the independent guarded Source/Native plan for the five
+      kinds plus Procedure precedence/non-list/non-dict/applies_to and eager-id controls.
+  - path: crates/sk-doctrine/tests/cf88_parent_diagnostic_phase.rs
+    action: do_not_change
+    reason: >-
+      Directly affected existing consumer; must stay green unchanged (no edits planned).
+  - path: crates/sk-doctrine/src/profile.rs
+    action: do_not_change
+    reason: >-
+      Agent-profile policy is a separate caught skip; it only reads the shared top-level
+      tuple and stays non-fatalized.
+status:
+  accepted: false
+  phase: prospective CF89 shared pre-validation hooks

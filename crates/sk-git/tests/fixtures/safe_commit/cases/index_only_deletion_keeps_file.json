@@ -1,0 +1,256 @@
+{
+  "after": {
+    "branch": "lane",
+    "committed_paths": [
+      "c.md"
+    ],
+    "custom_index": null,
+    "files": [
+      {
+        "path": "a.txt",
+        "sha256": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+        "text": "one\n"
+      },
+      {
+        "path": "c.md",
+        "sha256": "75d6ed9413cc938addb585f41b520cdd3bfcfff5b8a5df4298ac0596ec6e53b5",
+        "text": "c.md\n"
+      },
+      {
+        "path": "d.md",
+        "sha256": "1ef2e686ccbf7f486684a2a2e37c3390c0f616897cea1ac424c0eec80bc14f15",
+        "text": "d.md\noperator unstaged\n"
+      },
+      {
+        "path": "other.txt",
+        "sha256": "99de567653f9e2b8d78b1ab4f7dc76d0749dc217a90030bc2a09263668e7c78b",
+        "text": "operator staged\n"
+      },
+      {
+        "path": "partial.txt",
+        "sha256": "67117a01b0c95df8867b8077878b5bfa42eb68710b69305b9a11789ec91feaad",
+        "text": "p0\np1\np2\n"
+      },
+      {
+        "path": "seed.txt",
+        "sha256": "4a6689419b00b11700c9b6246bcfa8936c8f5e1e824db3a7e57030e2d1c1a684",
+        "text": "seed\n"
+      }
+    ],
+    "head": "ab5ff79283073b3e19f1355a7b8c843da163ecfd",
+    "index": [
+      "100644 5626abf0f72e58d7a153368ba57db4c673c0e171 0 a.txt",
+      "100644 38febebeb91c66941e8ce07dabf1613bd57c529a 0 d.md",
+      "100644 5aaa3b4bcec4f9390aeed15910a8976e3fe1ac56 0 other.txt",
+      "100644 2ebfd8e28731959dd720d01f8eaae04f68f1e793 0 partial.txt",
+      "100644 e31de1f3a235fd5e8f97207b8e43cd2aa06a6417 0 seed.txt"
+    ],
+    "index_flags": [
+      "H a.txt",
+      "H d.md",
+      "H other.txt",
+      "H partial.txt",
+      "H seed.txt"
+    ],
+    "message": "diff: index deletion\n",
+    "message_sha256": "3dd108da3ceef32b35afaaaf07b60e600190df951da6563db034ce6965dfc820",
+    "parents": [
+      "a619c65b227477a8f675d7126749048504abc8f1"
+    ],
+    "reflog": [
+      "ab5ff79283073b3e19f1355a7b8c843da163ecfd|commit: diff: index deletion",
+      "a619c65b227477a8f675d7126749048504abc8f1|commit (initial): initial"
+    ],
+    "refs": [
+      "refs/heads/lane ab5ff79283073b3e19f1355a7b8c843da163ecfd"
+    ],
+    "status": [
+      " M d.md",
+      "M  other.txt",
+      "?? c.md"
+    ],
+    "tree": "7cbc2ea16b4a7cb5d10b5e17d085c2d9369ae350"
+  },
+  "before": {
+    "branch": "lane",
+    "committed_paths": [
+      "a.txt",
+      "c.md",
+      "d.md",
+      "other.txt",
+      "partial.txt",
+      "seed.txt"
+    ],
+    "custom_index": null,
+    "files": [
+      {
+        "path": "a.txt",
+        "sha256": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+        "text": "one\n"
+      },
+      {
+        "path": "c.md",
+        "sha256": "75d6ed9413cc938addb585f41b520cdd3bfcfff5b8a5df4298ac0596ec6e53b5",
+        "text": "c.md\n"
+      },
+      {
+        "path": "d.md",
+        "sha256": "1ef2e686ccbf7f486684a2a2e37c3390c0f616897cea1ac424c0eec80bc14f15",
+        "text": "d.md\noperator unstaged\n"
+      },
+      {
+        "path": "other.txt",
+        "sha256": "99de567653f9e2b8d78b1ab4f7dc76d0749dc217a90030bc2a09263668e7c78b",
+        "text": "operator staged\n"
+      },
+      {
+        "path": "partial.txt",
+        "sha256": "67117a01b0c95df8867b8077878b5bfa42eb68710b69305b9a11789ec91feaad",
+        "text": "p0\np1\np2\n"
+      },
+      {
+        "path": "seed.txt",
+        "sha256": "4a6689419b00b11700c9b6246bcfa8936c8f5e1e824db3a7e57030e2d1c1a684",
+        "text": "seed\n"
+      }
+    ],
+    "head": "a619c65b227477a8f675d7126749048504abc8f1",
+    "index": [
+      "100644 5626abf0f72e58d7a153368ba57db4c673c0e171 0 a.txt",
+      "100644 876f190136c7e400159b4e00f776202a6ddec9ee 0 c.md",
+      "100644 38febebeb91c66941e8ce07dabf1613bd57c529a 0 d.md",
+      "100644 5aaa3b4bcec4f9390aeed15910a8976e3fe1ac56 0 other.txt",
+      "100644 2ebfd8e28731959dd720d01f8eaae04f68f1e793 0 partial.txt",
+      "100644 e31de1f3a235fd5e8f97207b8e43cd2aa06a6417 0 seed.txt"
+    ],
+    "index_flags": [
+      "H a.txt",
+      "H c.md",
+      "H d.md",
+      "H other.txt",
+      "H partial.txt",
+      "H seed.txt"
+    ],
+    "message": "initial\n",
+    "message_sha256": "da68f54607d5f5644954096ce1597c006c5bb9f2497e07441bf064b81003ef8a",
+    "parents": [],
+    "reflog": [
+      "a619c65b227477a8f675d7126749048504abc8f1|commit (initial): initial"
+    ],
+    "refs": [
+      "refs/heads/lane a619c65b227477a8f675d7126749048504abc8f1"
+    ],
+    "status": [
+      " M d.md",
+      "M  other.txt"
+    ],
+    "tree": "d534181b22f3e0ce5c7eed43037b432be0beaa7f"
+  },
+  "description": "An index-only deletion is committed from the private index and the file stays on disk.",
+  "detail_tokens": [],
+  "divergence": null,
+  "expectation": "match",
+  "hooks": [],
+  "name": "index_only_deletion_keeps_file",
+  "native": {
+    "landed_kind": null,
+    "variant": null
+  },
+  "oracle": {
+    "commit": "ab5ff79283073b3e19f1355a7b8c843da163ecfd",
+    "error_detail": null,
+    "facts": [],
+    "landed_kind": null,
+    "outcome": "ok",
+    "refusal_class": null,
+    "warnings": []
+  },
+  "oracle_environment": {
+    "baseline": "9aed3a8012cb5eb22c0128b14d525039f95fea7a",
+    "git": "git version 2.43.0",
+    "python": "3.11.15",
+    "verify_oracle_ok": true
+  },
+  "request": {
+    "capability": "standard",
+    "custom_index": false,
+    "expected_parent": null,
+    "index_deletions": [
+      "c.md"
+    ],
+    "message": "diff: index deletion",
+    "paths": [
+      "a.txt"
+    ],
+    "protection": null,
+    "wait_for_sentinel": false
+  },
+  "route": "index_deletions",
+  "setup": {
+    "branch": "lane",
+    "files": [
+      {
+        "content": "seed\n",
+        "path": "seed.txt"
+      },
+      {
+        "content": "one\n",
+        "path": "a.txt"
+      },
+      {
+        "content": "base\n",
+        "path": "other.txt"
+      },
+      {
+        "content": "p0\np1\np2\n",
+        "path": "partial.txt"
+      },
+      {
+        "content": "c.md\n",
+        "path": "c.md"
+      },
+      {
+        "content": "d.md\n",
+        "path": "d.md"
+      }
+    ],
+    "hooks": [],
+    "steps": [
+      {
+        "argv": [
+          "git",
+          "add",
+          "-A"
+        ]
+      },
+      {
+        "argv": [
+          "git",
+          "commit",
+          "-q",
+          "-m",
+          "initial"
+        ]
+      },
+      {
+        "write": {
+          "content": "operator staged\n",
+          "path": "other.txt"
+        }
+      },
+      {
+        "argv": [
+          "git",
+          "add",
+          "other.txt"
+        ]
+      },
+      {
+        "write": {
+          "content": "d.md\noperator unstaged\n",
+          "path": "d.md"
+        }
+      }
+    ]
+  }
+}

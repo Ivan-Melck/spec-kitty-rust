@@ -1,0 +1,162 @@
+# PRE-EDIT occurrence classification for CF24 (canonical finalize status
+# publication + branch-ref dry-run read surface).
+#
+# Written BEFORE any source/test edit in this lane. The counts below come from
+# evidence label `cf24-occurrence-inventory` (Rust workspace `crates/**/*.rs`;
+# "Source" is the pinned Python reference `src/`, counted for contrast only).
+#
+#   term                          Rust hits/files   Source hits
+#   bootstrap_canonical_state        4 /   1            29
+#   emit_status_transition          62 /  18            78
+#   status_read_dir                  2 /   1            19
+#   initialized_wp_ids               2 /   1             4
+#   status_commit_message            6 /   4             0
+#   establish_write_location         6 /   2             0
+#   status_write_location            2 /   1             0
+#   read_coordination_surface       16 /   8             0
+#   coordination_branch_ref          3 /   2             8
+#   EventLogReadContract             0 /   0            29
+#   coord_status_lock                0 /   0             9
+#   plan_safe_commit                74 /  19             0
+#   apply_safe_commit               23 /  11             0
+#   normalize_safe_commit_path      20 /   9             0
+#   SafeCommitRequest               76 /  30             0
+#   ProtectedBranches              113 /  33             0
+#   CommitGuardCapability           64 /  18             0
+#   capture_rollback_point          26 /  10            12
+#   rollback_status_artifacts       15 /   7             9
+#   StatusHeadCommittedProbe        19 /   7             0
+#   "canonical bootstrap"           27 /  10             5
+#   status.events.jsonl            287 / 107           391
+#
+# This lane is ADDITIVE in behaviour and ADDITIVE in symbols:
+#
+#  * it ADDS a read-only coordination status-surface accessor plus a
+#    branch-ref event-log reader in the owning workspace coordination module
+#    (`sk_workspace::coord`), reusing the canonical `sk_git` ref/blob reader and
+#    the canonical probe — no second probe, no hand-built `git show`;
+#  * it ADDS the per-seed status publication on this route: each
+#    `genesis -> planned` seed is committed through the SAME canonical Git
+#    commit authority `move-task`/`mark-status` use (`sk_git`
+#    `plan_safe_commit`/`apply_safe_commit` + `sk_status::mutation_commit::
+#    status_commit_message` + `sk_workspace::ProtectionPolicy`), under the same
+#    Mission lock and the same verified rollback authority;
+#  * it REPLACES two private CLI helpers with wider ones
+#    (`status_read_dir` -> `status_read_surface`, `status_write_location`
+#    widened to carry the publication target). Both are private to
+#    `crates/sk-cli/src/compat/mission.rs`; no public symbol is renamed,
+#    removed or re-signatured.
+target:
+  term: "finalize-tasks seeds status rows without publishing them and its --validate-only dry run cannot read a branch-ref-only coordination log"
+  replacement: "finalize-tasks publishes each genesis->planned seed through the one canonical status/Git commit authority (per-seed commit on the coordination branch, Mission lock held across emit+commit, verified rollback of this seed's own tail on a provably unlanded commit), and its --validate-only dry run reads the real initialized WP ids from the canonical coordination worktree OR the coordination branch ref without materializing, locking, or writing"
+categories:
+  code_symbols:
+    operation: rename
+    action: manual_review
+    notes: >-
+      ADDED: `sk_workspace::coord::{CoordStatusRead, read_status_surface,
+      read_status_events_at_branch_ref}` (read-only; the accessor answers the
+      reference's event-log read contract and the reader returns the exact
+      `status.events.jsonl` bytes at the coordination branch ref). ADDED
+      private items in `crates/sk-cli/src/compat/mission.rs`:
+      `StatusWriteLocation`, `StatusSeedTarget`, `status_read_surface`,
+      `read_initialized_wp_ids`, `initialized_ids_from_rows`, `seed_request`,
+      `emit_seed`, `seed_and_publish`, `publish_status_seed`,
+      `collect_bootstrap_wp_ids`, `classify_wp_ids`, `preview_canonical_state`
+      and the `BOOTSTRAP_REASON` constant.
+      RE-SIGNATURED (private only): `status_write_location` now returns
+      `StatusWriteLocation`; `bootstrap_canonical_state` takes the write
+      location; `initialized_wp_ids` takes a read surface. `status_read_dir`
+      is replaced by `status_read_surface`. No public Rust symbol is renamed or
+      removed: `finalize_tasks`, `FinalizePhase`, `FinalizeFailure`,
+      `BootstrapResult`, `branch_context`, `CoordWriteLocation`,
+      `establish_write_location`, `read_coordination_surface`,
+      `bootstrap_coordination` keep their exact contracts.
+  import_paths:
+    action: manual_review
+    notes: >-
+      New `use` items only, all already public in crates `sk-cli` already
+      depends on: `sk_git::{BranchName, CommitGuardCapability, GitPath,
+      GitRepository, ProtectedBranches, StartPoint, SafeCommitRequest,
+      normalize_safe_commit_path}`, `sk_status::mutation::{acquire_mission_lock,
+      capture_rollback_point, rollback_status_artifacts,
+      status_commit_message}`, `sk_status::mutation_log::parse_log_rows`,
+      `sk_workspace::{ProtectionPolicy, TopologySurface}`. No `Cargo.toml`,
+      `Cargo.lock`, pin, pack or dependency change; no new crate edge.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No path moves and no new repository path. The runtime footprint is
+      unchanged in *location*: `kitty-specs/<slug>-<mid8>/status.events.jsonl`
+      and `status.json` inside the coordination worktree (the Source write
+      location), now additionally **committed** to the coordination branch
+      instead of left untracked. The dry run reads
+      `<coord-branch>:kitty-specs/<slug>-<mid8>/status.events.jsonl` and writes
+      nothing.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No payload, event-row or snapshot key is added, removed or renamed. The
+      seed rows keep Source's exact keys (`reason: "canonical bootstrap"`, the
+      structured `{role: system, tool: finalize-tasks}` actor) and the machine
+      payload keeps the CF18-corrected Source key set (no `committed`).
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command, flag, alias, default or exit code changes. `--validate-only`
+      and `--json` keep their semantics; `--validate-only` still performs no
+      materialize/seed/lock/ref/commit, and now reports the real
+      `already_initialized`/`would_seed` split for a branch-ref-only surface.
+  user_facing_strings:
+    action: rename_if_user_visible
+    notes: >-
+      No user-facing string is reworded. Two refusal shapes gain reachable
+      text on this route, both new-and-additive and named after the real
+      operation: the per-seed publication failure (`the seeded status row for
+      <WP> was written but its commit did not land ...` /
+      `... but the commit outcome is unknown ...`) and the rollback note. Both
+      describe actual evidence; neither reports success.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New `crates/sk-cli/tests/cf24_finalize_status_publication.rs` over fresh
+      `mktemp` + real `git init` fixtures only. No existing test is deleted,
+      weakened or re-pinned to a foreign lane's behaviour; the CF18 suite is
+      expected to keep passing unchanged (assertions about prompt/lanes/log
+      bytes are unaffected by an additional commit on the coordination
+      branch).
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric or telemetry key added or renamed. The commit message is
+      the existing canonical `chore(spec-kitty): status transition <dir>`
+      (`sk_status::mutation_commit::status_commit_message`), i.e. the string
+      `move-task`/`mark-status` already emit — no new commit vocabulary and no
+      `ceremony`/`status-writing` term.
+exceptions:
+  - path: crates/sk-workspace/src/coord.rs
+    action: manual_review
+    reason: >-
+      Narrow owner extension granted by the orders: read-surface/accessor APIs
+      needed for the actual branch-ref-only dry run, reusing the canonical
+      `sk_git` ref reader. The prefix classifier and every unrelated
+      coordination policy are untouched; the new code is read-only and takes no
+      lock, materializes nothing and writes nothing.
+  - path: crates/sk-cli/src/compat/mission.rs
+    action: manual_review
+    reason: >-
+      Owned finalization/bootstrap/read-surface portion only. `create`,
+      `specify`, `plan` and `branch_context` are untouched, the public
+      `finalize_tasks` signature is unchanged, and no lifecycle/migrate/doctor/
+      charter file, manifest, shared root or error enum is edited.
+  - path: crates/sk-cli/tests/cf24_finalize_status_publication.rs
+    action: manual_review
+    reason: >-
+      New lane-owned test file. It asserts Git facts (commit count, parents,
+      commit message, author/committer identity, tree contents at the ref) and
+      the dry-run footprint, not invented success fields.
+  - path: docs/rust/occurrence-maps/cf24-finalize-status-publication.yaml
+    action: manual_review
+    reason: >-
+      This map: the lane's own PRE-edit classification record, named uniquely
+      for this lane and carrying no Mission metadata.

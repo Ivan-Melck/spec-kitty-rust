@@ -1,0 +1,54 @@
+# Parent PRE-EDIT actual Source/code/report review. No Mission/Op metadata.
+# First originals .lwVLJG; route/test/restamp census .xe8oa6.
+target:
+  term: "runtime cutover preset and registry session diagnostic integration"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Root dispatch two existing registry runners; correct superseded research-gap test and add actual session findings checks. Reuse existing owner APIs; no new parser/model/writer/version policy.
+  import_paths:
+    action: do_not_change
+    notes: Existing module-qualified registries and session diagnostic owners; no dependency, export sweeps or CF30 edits.
+  filesystem_paths:
+    action: do_not_change
+    notes: Existing Source registry/preset/mission paths stay fixed; new temporary fixtures only. No cleanup of producer stray evidence directories.
+  serialized_keys:
+    action: manual_review
+    notes: Keep registry payload fields; capability counts reflect reachable13/refused6, not approval. New migrate route stays partial. No fabricated Source error-body equivalence or extra evidence fields.
+  cli_commands:
+    action: manual_review
+    notes: Same names/options; shim-registry/contracts now execute real read-only runners. All unsupported repair modes remain explicit. Preset/runtime cutover already wired by producers, do not duplicate root registration.
+  user_facing_strings:
+    action: manual_review
+    notes: Update stale refusal/coverage text and truthful partial capability evidence/gaps. Preserve Source wire/error/encoding/force-race/restamp defects as debts, not strengthening exceptions.
+  tests_fixtures:
+    action: manual_review
+    notes: Replace obsolete shim-registry refusal row with still-refused leaf; plugin-manifest remains research-gap test alone, add real missing context/hooks/rule assertions rather than delete coverage. Keep existing controls and check real binary overdue/empty/config cases, no-write footprint.
+  logs_telemetry:
+    action: do_not_change
+    notes: Retain prior producer overscoped suite/invalid map/unwrapped/ordinal evidence. No paired-conformance promotion before both children checked, no global accounting/release/perf approval.
+exceptions:
+  - path: crates/sk-cli/src/compat/doctor.rs
+    action: manual_review
+    reason: Two dispatch arms, exhaustive internal fallback,13/6 lists/doc row and old refusal-test entry only.
+  - path: crates/sk-cli/src/compat/capabilities.rs
+    action: manual_review
+    reason: Correct callable migrate/preset/registry/session functionality and remaining defects; all rows partial, no automatic template CF30 claim.
+  - path: crates/sk-cli/src/compat/doctor/tool_surfaces.rs
+    action: manual_review
+    reason: Refresh stale session-probe coverage sentence only; repairs remain refused.
+  - path: crates/sk-cli/tests/cf9_doctor_command.rs
+    action: manual_review
+    reason: Change obsolete registry refusal case to an actually unsupported leaf, retaining exit/code/coverage assertions.
+  - path: crates/sk-cli/tests/cf23_tool_surface_diagnostics.rs
+    action: manual_review
+    reason: Preserve plugin gap and positively assert real session missing classifications using established Source/Native fixtures.
+  - path: crates/sk-cli/tests/compat.rs
+    action: manual_review
+    reason: Update exact doctor reachability counts13/6 with partial/mutating assertions retained; no blanket green.
+  - path: crates/sk-cli/tests/cf25272829_parent_routes.rs
+    action: manual_review
+    reason: New real binary registry success/finding/config and read-only footprint, plus current partial capability observations.
+status:
+  accepted: false
+  phase: parent pre-edit bounded route integration only

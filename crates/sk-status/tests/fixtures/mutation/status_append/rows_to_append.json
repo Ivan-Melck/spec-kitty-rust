@@ -1,0 +1,35 @@
+[
+  {
+    "actor": "claude",
+    "at": "2026-11-02T09:00:03+00:00",
+    "event_id": "01K9M0R3WPCFZVAWC8YBF6S9GX",
+    "evidence": null,
+    "execution_mode": "worktree",
+    "force": false,
+    "from_lane": "claimed",
+    "mission_id": "01K9M0R3W00000000000000000",
+    "mission_slug": "034-mutation-fixture",
+    "policy_metadata": null,
+    "reason": null,
+    "review_ref": null,
+    "to_lane": "in_progress",
+    "wp_id": "WP01"
+  },
+  {
+    "actor": "operator",
+    "at": "2026-11-02T09:00:04+00:00",
+    "event_id": "01K9M0R3WQDGZVBWD9ZCG7T0H5",
+    "evidence": null,
+    "execution_mode": "worktree",
+    "force": true,
+    "from_lane": "planned",
+    "mission_id": "01K9M0R3W00000000000000000",
+    "mission_slug": "034-mutation-fixture",
+    "policy_metadata": null,
+    "reason": "operator canceled",
+    "reason_source": "operator",
+    "review_ref": null,
+    "to_lane": "canceled",
+    "wp_id": "WP02"
+  }
+]

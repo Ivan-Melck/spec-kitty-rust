@@ -1,0 +1,59 @@
+name: Rust workspace
+
+on:
+  push:
+    branches: [rust/rewrite]
+    paths: ['crates/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'pyproject.toml', 'uv.lock', 'scripts/rust/**', '.github/workflows/rust.yml', 'tests/status/fsm_parity_baseline.jsonl']
+  pull_request:
+    paths: ['crates/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'pyproject.toml', 'uv.lock', 'scripts/rust/**', '.github/workflows/rust.yml', 'tests/status/fsm_parity_baseline.jsonl']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_INCREMENTAL: 0
+      CARGO_TERM_COLOR: always
+      UV_PROJECT_ENVIRONMENT: .venv-rust-oracle
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Install pinned toolchain
+        run: rustup show active-toolchain
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Provision lock-exact development oracle
+        run: uv sync --frozen --no-dev --python 3.11
+      - name: Verify oracle dependency closure
+        run: uv run --no-sync python scripts/rust/verify_oracle.py
+      - name: Sync verified oracle assets
+        uses: ./.github/actions/sync-packs
+      - name: Oracle and completion-checker regression tests
+        run: uv run --no-sync python -m unittest discover -s scripts/rust/tests -p "test_*.py"
+      - name: Formatting
+        run: cargo fmt --all -- --check
+      - name: Lint
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Tests
+        run: cargo test --workspace --locked
+      - name: Release build
+        run: cargo build --release -p sk-cli --locked
+      - name: Release smoke tests
+        run: |
+          ./target/release/spec-kitty-rust capabilities --json
+          ./target/release/spec-kitty-rust project root --json
+          ./target/release/spec-kitty-rust mission list --json
+          ./target/release/spec-kitty-rust glossary lookup mission --json
+          ./target/release/spec-kitty-rust git inspect --json
+          ./target/release/spec-kitty-rust transition check planned claimed --actor ci --json

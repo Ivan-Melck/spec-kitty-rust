@@ -1,0 +1,21 @@
+[package]
+name = "sk-git"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Bounded Git lifecycle adapter for Spec Kitty Rust"
+publish = false
+
+[dependencies]
+thiserror.workspace = true
+tempfile.workspace = true
+same-file.workspace = true
+sk-kernel = { path = "../sk-kernel" }
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

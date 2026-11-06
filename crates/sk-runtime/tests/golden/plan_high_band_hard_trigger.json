@@ -1,0 +1,257 @@
+{
+  "expected": {
+    "decision": {
+      "context": null,
+      "decision_id": "audit:review_gate",
+      "input_key": null,
+      "kind": "decision_required",
+      "mission_key": "m",
+      "options": [
+        "approve",
+        "reject"
+      ],
+      "prompt": null,
+      "question": "Audit checkpoint: Review Gate. Approve to continue?",
+      "reason": null,
+      "run_id": "run-1",
+      "step_id": "review_gate",
+      "step_title": "Review Gate"
+    },
+    "significance": {
+      "actor": {
+        "actor_id": "runtime",
+        "actor_type": "service"
+      },
+      "decision_id": "audit:review_gate",
+      "effective_band": "high",
+      "hard_trigger_classes": [
+        "security_privacy_access_control"
+      ],
+      "run_id": "run-1",
+      "significance_score": {
+        "band": {
+          "max_score": 6,
+          "min_score": 0,
+          "name": "low"
+        },
+        "composite": 0,
+        "dimensions": [
+          {
+            "description": "",
+            "name": "architectural_system_impact",
+            "score": 0
+          },
+          {
+            "description": "",
+            "name": "cross_team_blast_radius",
+            "score": 0
+          },
+          {
+            "description": "",
+            "name": "data_security_compliance_impact",
+            "score": 0
+          },
+          {
+            "description": "",
+            "name": "financial_commercial_impact",
+            "score": 0
+          },
+          {
+            "description": "",
+            "name": "operational_reliability_impact",
+            "score": 0
+          },
+          {
+            "description": "",
+            "name": "user_customer_impact",
+            "score": 0
+          }
+        ],
+        "effective_band": {
+          "max_score": 18,
+          "min_score": 12,
+          "name": "high"
+        },
+        "hard_trigger_classes": [
+          {
+            "class_id": "security_privacy_access_control",
+            "description": "Security/privacy/access-control changes"
+          }
+        ]
+      },
+      "step_id": "review_gate"
+    },
+    "snapshot": {
+      "blocked_reason": null,
+      "completed_steps": [
+        "lead_in"
+      ],
+      "decisions": {
+        "raci:review_gate": {
+          "accountable": {
+            "actor_id": "owner-1",
+            "actor_type": "human"
+          },
+          "consulted": [],
+          "inferred_rule": "audit_blocking",
+          "informed": [],
+          "override_reason": null,
+          "responsible": {
+            "actor_id": "owner-1",
+            "actor_type": "human"
+          },
+          "source": "inferred",
+          "step_id": "review_gate"
+        },
+        "significance:audit:review_gate": {
+          "band": {
+            "max_score": 6,
+            "min_score": 0,
+            "name": "low"
+          },
+          "composite": 0,
+          "dimensions": [
+            {
+              "description": "",
+              "name": "architectural_system_impact",
+              "score": 0
+            },
+            {
+              "description": "",
+              "name": "cross_team_blast_radius",
+              "score": 0
+            },
+            {
+              "description": "",
+              "name": "data_security_compliance_impact",
+              "score": 0
+            },
+            {
+              "description": "",
+              "name": "financial_commercial_impact",
+              "score": 0
+            },
+            {
+              "description": "",
+              "name": "operational_reliability_impact",
+              "score": 0
+            },
+            {
+              "description": "",
+              "name": "user_customer_impact",
+              "score": 0
+            }
+          ],
+          "effective_band": {
+            "max_score": 18,
+            "min_score": 12,
+            "name": "high"
+          },
+          "hard_trigger_classes": [
+            {
+              "class_id": "security_privacy_access_control",
+              "description": "Security/privacy/access-control changes"
+            }
+          ]
+        }
+      },
+      "inputs": {
+        "mission_owner_id": "owner-1"
+      },
+      "issued_step_id": null,
+      "mission_id": null,
+      "mission_key": "m",
+      "mission_slug": null,
+      "pending_decisions": {},
+      "policy_snapshot": {
+        "default_route": "same_llm_context",
+        "extras": {},
+        "strictness": "medium"
+      },
+      "run_id": "run-1",
+      "template_hash": "frozen-hash",
+      "template_path": "/nonexistent/runtime-golden/mission.yaml"
+    }
+  },
+  "scenario": {
+    "agent_id": "agent-1",
+    "current_template_hash": "frozen-hash",
+    "kind": "plan",
+    "name": "plan_high_band_hard_trigger",
+    "snapshot": {
+      "blocked_reason": null,
+      "completed_steps": [
+        "lead_in"
+      ],
+      "decisions": {},
+      "inputs": {
+        "mission_owner_id": "owner-1"
+      },
+      "issued_step_id": null,
+      "mission_id": null,
+      "mission_key": "m",
+      "mission_slug": null,
+      "pending_decisions": {},
+      "policy_snapshot": {
+        "default_route": "same_llm_context",
+        "extras": {},
+        "strictness": "medium"
+      },
+      "run_id": "run-1",
+      "template_hash": "frozen-hash",
+      "template_path": "/nonexistent/runtime-golden/mission.yaml"
+    },
+    "template": {
+      "audit_steps": [
+        {
+          "audit": {
+            "enforcement": "blocking",
+            "trigger_mode": "manual"
+          },
+          "depends_on": [
+            "lead_in"
+          ],
+          "description": "gate",
+          "id": "review_gate",
+          "significance": {
+            "dimensions": {
+              "architectural_system_impact": 0,
+              "cross_team_blast_radius": 0,
+              "data_security_compliance_impact": 0,
+              "financial_commercial_impact": 0,
+              "operational_reliability_impact": 0,
+              "user_customer_impact": 0
+            },
+            "hard_triggers": [
+              "security_privacy_access_control"
+            ]
+          },
+          "title": "Review Gate"
+        }
+      ],
+      "mission": {
+        "description": "",
+        "key": "m",
+        "name": "M",
+        "version": "1.0.0"
+      },
+      "steps": [
+        {
+          "description": "lead",
+          "id": "lead_in",
+          "prompt": "Run it.",
+          "title": "Lead-in"
+        },
+        {
+          "depends_on": [
+            "review_gate"
+          ],
+          "description": "follow",
+          "id": "follow_up",
+          "prompt": "Follow.",
+          "title": "Follow-up"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "case": "0_10_0_python_only",
+  "meta": {
+    "can_apply": [
+      true,
+      ""
+    ],
+    "changes": [
+      "Updated: specify.md (1 replacements)",
+      "Total templates updated: 1"
+    ],
+    "detect": true,
+    "error": null,
+    "success": true,
+    "warnings": [
+      "Preserved .kittify/scripts/bash/common.sh; not package-owned (name is not ownership proof) \u2014 left in place",
+      "Preserved 1 unprovable script(s); left in place (no ownership signal)"
+    ]
+  },
+  "tree": {
+    ".kittify/": "DIR",
+    ".kittify/config.yaml": "8651825cb7451bc86266533190d6b1672500d8e23825eebf8bba0b4de89b732c",
+    ".kittify/metadata.yaml": "b971bb8541fce2b073582d78ca9c0aa3a1c5f78b928075c1c6d2f0cc52356a35",
+    ".kittify/scripts/": "DIR",
+    ".kittify/scripts/bash/": "DIR",
+    ".kittify/scripts/bash/common.sh": "6e1563705c2debc409d017053efd9273606e7e9714c7e19a9dac487fe720b6aa",
+    ".kittify/templates/": "DIR",
+    ".kittify/templates/command-templates/": "DIR",
+    ".kittify/templates/command-templates/specify.md": "7520c1636bea255bd95100715e66061a14841475316a159072f305afbdced9d8"
+  }
+}

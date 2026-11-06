@@ -1,0 +1,49 @@
+target:
+  term: Canonical Source effective-deny reader (load_denied) and its governance selection consumer
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Add the Source load_denied/ledger_may_hold_deny reader seam in the existing Doctrine ledger owner; consume it from governance_charter_selection. No second deny model, parser, roster or policy.
+  import_paths:
+    action: do_not_change
+    notes: Existing sk-charter ArtifactKind, Doctrine ledger/identity/org authority and Kernel PythonString reused; no new dependency, Cargo or pin.
+  filesystem_paths:
+    action: do_not_change
+    notes: Only .kittify/config.yaml, the pointed charter.yaml and .kittify/charter/activation.yaml are read, through the existing source-resolution and probe authority. No writer, root, cache directory or pack placement changed.
+  serialized_keys:
+    action: do_not_change
+    notes: Ledger keys, values, unknown deny keys and the deny write schema are unchanged; the reader adds no key.
+  cli_commands:
+    action: do_not_change
+    notes: No flag, route or admission change.
+  user_facing_strings:
+    action: manual_review
+    notes: Existing typed refusal texts are reused (config/YAML/ledger errors); the reader adds no new operator-facing policy sentence and no fabricated warning.
+  tests_fixtures:
+    action: manual_review
+    notes: New named reader/consumer target plus filtered unit checks; fixtures are fresh temporary business trees, no Source/pack/golden edit.
+  logs_telemetry:
+    action: manual_review
+    notes: Source-first probe controls precede the implementation; the one existing-API red is a real URN-spelling divergence, and legacy deny/probe phases stay data plus the existing Native reporting gap (no invented emitter).
+exceptions:
+  - path: crates/sk-doctrine/src/source_denied.rs
+    action: manual_review
+    reason: The new canonical reader seam (options, phases, sorted plural result); reuses the ledger, probe, identity, floor and DenySet authorities.
+  - path: crates/sk-doctrine/src/ledger.rs
+    action: manual_review
+    reason: Export the cached top-level key probe and ledger_may_hold_deny in the existing ledger owner; factor the legacy path rule and spell unresolved directive URNs through artifact_to_urn.
+  - path: crates/sk-doctrine/src/project_governance.rs
+    action: manual_review
+    reason: Replace the partial all-kind ActivationState reconstruction and ad-hoc strict guard with the canonical reader at the Source phase.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Export the reader and its options; export ledger_may_hold_deny.
+  - path: crates/sk-doctrine/src/language_vocabulary.rs
+    action: manual_review
+    reason: Widen two existing catalogue-root helpers to crate visibility so the reader reuses the one built-in/project root authority.
+  - path: crates/sk-doctrine/tests/cf77_source_denied_reader.rs
+    action: manual_review
+    reason: Named reader and actual-consumer controls mirroring the Source truth table.
+status:
+  accepted: false
+  phase: prospective lane classification (recorded after the first reader edits; not backdated as PRE)

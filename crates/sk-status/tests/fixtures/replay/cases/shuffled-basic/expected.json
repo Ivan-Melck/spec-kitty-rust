@@ -1,0 +1,57 @@
+{
+  "event_count": 7,
+  "last_event_id": "01J00000000000000000000007",
+  "materialized_at": "2026-01-01T00:00:07Z",
+  "mission_number": "42",
+  "mission_slug": "900-shuffled-basic",
+  "mission_type": "software-dev",
+  "schema_version": 2,
+  "summary": {
+    "approved": 0,
+    "blocked": 0,
+    "canceled": 0,
+    "claimed": 1,
+    "done": 1,
+    "for_review": 0,
+    "in_progress": 0,
+    "in_review": 0,
+    "planned": 0
+  },
+  "work_packages": {
+    "WP01": {
+      "actor": "merge",
+      "agent": "impl-alice",
+      "agent_profile": "implementer-ivan",
+      "force_count": 0,
+      "implementer_of_record": "impl-alice",
+      "lane": "done",
+      "last_event_id": "01J00000000000000000000007",
+      "last_transition_at": "2026-01-01T00:00:07Z",
+      "model": "m1",
+      "notes": [
+        "started"
+      ],
+      "provider": "p1",
+      "review_result": {
+        "reference": "review-cycle://900/WP01/1",
+        "reviewer": "reviewer-renata",
+        "verdict": "approved"
+      },
+      "role": "implementer",
+      "shell_pid": 100,
+      "shell_pid_created_at": "100.5",
+      "subtasks": {
+        "T001": "done"
+      }
+    },
+    "WP02": {
+      "actor": "impl-bob",
+      "agent": "impl-bob",
+      "force_count": 0,
+      "lane": "claimed",
+      "last_event_id": "01J00000000000000000000008",
+      "last_transition_at": "2026-01-01T00:00:01Z",
+      "shell_pid": 200
+    }
+  }
+}

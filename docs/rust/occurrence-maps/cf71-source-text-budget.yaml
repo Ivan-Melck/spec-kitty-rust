@@ -1,0 +1,49 @@
+# CF71 pre-edit occurrence classification (additive NEW capability; no rename).
+# No active Mission metadata or runtime Bulk Edit Gate pass is fabricated.
+target:
+  term: "crates/sk-doctrine/src/text_budget.rs"
+  replacement: "crates/sk-doctrine/src/text_budget.rs"
+categories:
+  code_symbols: {action: manual_review}
+  import_paths: {action: manual_review}
+  filesystem_paths: {action: manual_review}
+  serialized_keys: {action: do_not_change}
+  cli_commands: {action: do_not_change}
+  user_facing_strings: {action: do_not_change}
+  tests_fixtures: {action: manual_review}
+  logs_telemetry: {action: do_not_change}
+exceptions:
+  - path: crates/sk-doctrine/src/text_budget.rs
+    action: manual_review
+    reason: >-
+      NEW module only. Adds the missing Source descriptor/outcome model
+      (RenderedSection/BudgetOutcome), apply_token_budget, enforce_token_budget,
+      warning/length policy, candidate splitting and selection bookkeeping over
+      exact sk_kernel::PythonString. No existing identifier is renamed, moved or
+      removed here.
+  - path: crates/sk-doctrine/src/context_render.rs
+    action: manual_review
+    reason: >-
+      Precisely factor the EXISTING fetch_stanza_lines owner so one exact
+      composition (shlex quoting, scoped flags, when-clause normalization) is the
+      only authority, and add the bootstrap budget boundary over the
+      once-rendered critical-section block. Existing scalar helpers stay checked
+      adapters; no second fetch authority or critical roster is introduced.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Declare the new text_budget module beside the existing context_render module.
+  - path: crates/sk-doctrine/tests/cf71_text_budget.rs
+    action: manual_review
+    reason: >-
+      NEW named focused test: Source-first paired budget semantics (Source child
+      runs the pinned token_budget/fetch modules, Native child runs this API) with
+      isolated CWD/HOME/all-XDG/TMP/hashseed and independently supplied Source.
+  - path: crates/sk-cli/tests/cf71_budget_bootstrap_cli.rs
+    action: manual_review
+    reason: >-
+      NEW named focused test: the real `charter context` CLI applies the budget to
+      an oversized action-critical section before the first-load mark, paired
+      against the actual Source CLI.
+  - path: docs/rust/occurrence-maps/cf71-source-text-budget.yaml
+    action: do_not_change
+    reason: This pre-edit classification artifact itself.

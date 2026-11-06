@@ -1,0 +1,69 @@
+# PRE-EDIT inventory .0L41LS; original W2 subject .HDkV3p preserved before changes.
+# No host Mission/Op/approval. This is type/API/guard repair, not blanket rename.
+target:
+  term: "WriteContextGuard and BoundWriteContext execution invariants"
+  replacement: "thread-affine guards and fallible context-bound polling"
+  operation: rename
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Make scope guards thread-affine (real TLS ownership), remove exact own
+      frame rather than popping a foreign inner frame on out-of-order drop,
+      mark the implicit root entered, and apply ContextBusy to bound polls too.
+      Bound future Output becomes Result<F::Output,WriteContextError>, avoiding
+      panic/silent concurrent entry. Preserve Source token out-of-order resets
+      (different from scope drop), callback chain/value snapshots and all writers.
+  import_paths:
+    action: manual_review
+    notes: Exact additive parent root re-export of verified shared service; no module move/parser/new dependencies.
+  filesystem_paths:
+    action: do_not_change
+    notes: No production path, temp filename or Source/pack/pin change; generated-write path finding remains separate.
+  serialized_keys:
+    action: manual_review
+    notes: Test receipts add real before/after timestamps; no production wire/IDs/model keys change or fake time.
+  cli_commands:
+    action: do_not_change
+    notes: No CLI/runtime fanout/ledger/callback registration or readiness promotion.
+  user_facing_strings:
+    action: manual_review
+    notes: Context entry remains typed RuntimeError-class, not panic; heap-address prose OPEN, no Debug wire.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New guard/poll regression and compile-fail thread-affinity proof. Adapt
+      existing future Ready values to actual typed success, not weakening checks.
+      Actual observer children gain missing two XDG_DIRS, exact repo/pack asserts
+      and raw exit files; historical weaker receipts not upgraded. Generated
+      replacement only guarantees publication/inode and bytes/mode, not changed
+      timestamp. Record real before/after metadata; untouched/foreign/preview
+      mtimes must remain exact, no time restoration or fabricated ticking.
+  logs_telemetry:
+    action: do_not_change
+    notes: No log/event/metric identity or false unsupported-success label.
+exceptions:
+  - path: crates/sk-kernel/src/source_writer/write_observer.rs
+    action: manual_review
+    reason: Narrow execution lifetime/entry invariants and fallible future API only, one authority.
+  - path: crates/sk-kernel/src/lib.rs
+    action: manual_review
+    reason: Parent-confirmed additive requested re-export, not a new registry.
+  - path: crates/sk-kernel/tests/write_observer_context.rs
+    action: manual_review
+    reason: Stronger invariants/all7roots/raw statuses and typed future outcomes.
+  - path: crates/sk-kernel/tests/oracle/write_observer_context.py
+    action: manual_review
+    reason: Actual Source child missing2root and exact-resource assertions; no Source runtime implementation.
+  - path: crates/sk-install/tests/charter_writer_source.rs
+    action: manual_review
+    reason: Replace false changed-mtime premise only for proven generated replacements, retain real metadata and untouched invariants.
+  - path: crates/sk-install/tests/oracle/charter_writer.py
+    action: manual_review
+    reason: Source replacement vs untouched facts and raw metadata before Native; no authored-data masking.
+  - path: src/**
+    action: do_not_change
+    reason: Pinned Source remains oracle.
+status:
+  reviewed_by: "parent pre-edit classification, not independent approval"
+  accepted: false

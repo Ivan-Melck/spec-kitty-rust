@@ -1,0 +1,42 @@
+# Parent PRE-EDIT map: actual Source wp_evidence.py lane_evidence_window/_scan_lane,
+# actual CF20/24 reports and existing fixture/capability bodies inspected.
+target:
+  term: "acceptance evidence-window fixture and finalize capability followthrough"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Test fixture captures an actual commit and creates a real canonical lane branch, no product guard changes.
+  import_paths:
+    action: do_not_change
+    notes: Reuse sk_workspace::lane_branch_name; no dependency or owner clone.
+  filesystem_paths:
+    action: do_not_change
+    notes: Existing fixture paths only, fresh temporary Git repositories. No Source/pack/pin/golden path change.
+  serialized_keys:
+    action: manual_review
+    notes: Set planning_commit_sha to an actual observed Git OID instead of null in fixture. Product schemas unchanged; capability evidence/gaps remain partial.
+  cli_commands:
+    action: do_not_change
+    notes: Same actual accept/upgrade/finalize routes. Reachability is not Source equivalence.
+  user_facing_strings:
+    action: manual_review
+    notes: Capabilities describe actual CF18/24 placement/globs/per-seed commit/ref read and retain published/E2, ambiguous probe and error-order/commit/recovery debts.
+  tests_fixtures:
+    action: manual_review
+    notes: Correct CF7 premise by planning pin and a real owned-file lane change after it; all four existing assertions unchanged. Obsolete upgrade unsupported assertion replaced by partial reachable upgrade plus explicit absence from unsupported and doctor partial/mutating checks; no weakener to execution guards.
+  logs_telemetry:
+    action: do_not_change
+    notes: Producer and parent failed receipts retained. No aggregate/global accounting, readiness or performance claim.
+exceptions:
+  - path: crates/sk-cli/tests/cf7_acceptance_flow.rs
+    action: manual_review
+    reason: Shared fixture only, no assertion deletion/relaxation; use actual canonical branch and Git commits, no fabricated OID.
+  - path: crates/sk-cli/tests/compat.rs
+    action: manual_review
+    reason: Upgrade is already callable partial; strengthen current state and real doctor mutation metadata rather than expecting obsolete unsupported entry.
+  - path: crates/sk-cli/src/compat/capabilities.rs
+    action: manual_review
+    reason: Correct finalization implementation/gaps text only after actual CF18/24 functionality; explicit partial status retained.
+status:
+  accepted: false
+  phase: parent pre-edit Source-valid premise and partial capability integration

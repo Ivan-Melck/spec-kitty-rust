@@ -1,0 +1,665 @@
+{
+  "cases": {
+    "case1": {
+      "skills": [
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "adversarial-squad",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spec-kitty",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md",
+            "references/git-operations-matrix.md"
+          ],
+          "name": "spec-kitty-git-workflow",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md",
+            "references/agent-dispatch-matrix.md",
+            "references/rejection-loop-checklist.md"
+          ],
+          "name": "spec-kitty-implement-review",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md",
+            "references/mission-review-fr-trace-guide.md"
+          ],
+          "name": "spec-kitty-mission-review",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md",
+            "references/mission-comparison-matrix.md"
+          ],
+          "name": "spec-kitty-mission-system",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md",
+            "references/host-boundary-rules.md",
+            "references/orchestrator-api-contract.md"
+          ],
+          "name": "spec-kitty-orchestrator-api-operator",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spec-kitty-program-orchestrate",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md",
+            "references/blocked-state-recovery.md",
+            "references/runtime-result-taxonomy.md"
+          ],
+          "name": "spec-kitty-runtime-next",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md",
+            "references/review-checklist.md"
+          ],
+          "name": "spec-kitty-runtime-review",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md",
+            "references/agent-path-matrix.md",
+            "references/common-failure-signatures.md"
+          ],
+          "name": "spec-kitty-setup-doctor",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-admin-agent-config",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-admin-git-workflow",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-admin-setup-doctor",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-admin-upgrade",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md",
+            "references/glossary-field-guide.md",
+            "references/glossary-workflow.md",
+            "references/semantic-drift-examples.md"
+          ],
+          "name": "spk-charter-glossary",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md",
+            "references/charter-artifact-structure.md",
+            "references/charter-command-map.md",
+            "references/charter-governance-workflow.md"
+          ],
+          "name": "spk-charter-governance",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md",
+            "references/profile-load-mechanics.md"
+          ],
+          "name": "spk-charter-profile-load",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md",
+            "references/reasons-canvas-workflow.md"
+          ],
+          "name": "spk-charter-spdd-reasons",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-gate-accept",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-gate-consolidate",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-gate-mission-review",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-gate-retrospective",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-integrate-orchestrator-api",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-meta-skill-authoring",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md",
+            "references/spk-skill-map.md"
+          ],
+          "name": "spk-meta-skill-map",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-mission-documentation",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-mission-plan",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-mission-research",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-mission-specify",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-mission-tasks",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-mission-types",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md",
+            "references/bulk-edit-workflow.md"
+          ],
+          "name": "spk-practice-bulk-edit",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-practice-semantic-compression",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md",
+            "references/humanlayer-origin-and-license.md",
+            "references/spec-kitty-diagram-sources.md",
+            "assets/MERMAID_DIAGRAMMING.md",
+            "assets/PLANTUML_DIAGRAMMING.md",
+            "assets/mermaid-theme-bluegray-conversation-template.md",
+            "assets/mermaid-theme-common-template.md"
+          ],
+          "name": "spk-practice-show-me",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-run-blocked-recovery",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-run-implement-review",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-run-next",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-run-program-orchestrate",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-run-review-wp",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-run-verdict-capture",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-start-agent-surface",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md",
+            "references/command-map.md"
+          ],
+          "name": "spk-start-command-map",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-start-first-feature",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "spk-start-here",
+          "origin": "builtin",
+          "source_hash": "",
+          "source_ref": ""
+        },
+        {
+          "files": [
+            "SKILL.md"
+          ],
+          "name": "acme-deploy-helper",
+          "origin": "pack",
+          "source_hash": "sha256:297bb5fe70d179059a459cc0fcac897d3479aa43c76f7320f4cbb8e821800147",
+          "source_ref": "/tmp/sk-c4-oracle.D7v1bv/case1/pack/skills/deploy-helper.skill.yaml"
+        }
+      ],
+      "staging": {
+        "acme-deploy-helper/": "",
+        "acme-deploy-helper/SKILL.md": "sha256:babbbffb9793cd9bfa9135a8d4dc42cf5a7d8842a2dd65907e9d35c8b1632b69"
+      },
+      "staging_mode": {
+        ".kittify/runtime/pack-skills/acme-deploy-helper/SKILL.md": "0o644"
+      },
+      "staging_text": {
+        ".kittify/runtime/pack-skills/acme-deploy-helper/SKILL.md": "---\nname: \"acme-deploy-helper\"\ndescription: \"Ships the release. Triggers: ship it, say \\\"go\\\".\"\nuser-invocable: true\n---\n\n<!-- Generated by spec-kitty from a charter pack skill. A local edit is kept and reported as drift; to change this skill, edit its pack source and re-run the activation. -->\n\n# Deploy helper\n\n## Governing context\n\nBefore acting, load the doctrine this skill depends on:\n\n- `spec-kitty charter context --include procedure:release-proc`\n\n## Instructions\n\nRun deploy-helper: $ARGUMENTS\n"
+      }
+    },
+    "case10": {
+      "project_skills_dir": false,
+      "shipped_names": [
+        "adversarial-squad",
+        "spec-kitty",
+        "spec-kitty-git-workflow",
+        "spec-kitty-implement-review",
+        "spec-kitty-mission-review",
+        "spec-kitty-mission-system",
+        "spec-kitty-orchestrator-api-operator",
+        "spec-kitty-program-orchestrate",
+        "spec-kitty-runtime-next",
+        "spec-kitty-runtime-review",
+        "spec-kitty-setup-doctor",
+        "spk-admin-agent-config",
+        "spk-admin-git-workflow",
+        "spk-admin-setup-doctor",
+        "spk-admin-upgrade",
+        "spk-charter-glossary",
+        "spk-charter-governance",
+        "spk-charter-profile-load",
+        "spk-charter-spdd-reasons",
+        "spk-gate-accept",
+        "spk-gate-consolidate",
+        "spk-gate-mission-review",
+        "spk-gate-retrospective",
+        "spk-integrate-orchestrator-api",
+        "spk-meta-skill-authoring",
+        "spk-meta-skill-map",
+        "spk-mission-documentation",
+        "spk-mission-plan",
+        "spk-mission-research",
+        "spk-mission-specify",
+        "spk-mission-tasks",
+        "spk-mission-types",
+        "spk-practice-bulk-edit",
+        "spk-practice-semantic-compression",
+        "spk-practice-show-me",
+        "spk-run-blocked-recovery",
+        "spk-run-implement-review",
+        "spk-run-next",
+        "spk-run-program-orchestrate",
+        "spk-run-review-wp",
+        "spk-run-verdict-capture",
+        "spk-start-agent-surface",
+        "spk-start-command-map",
+        "spk-start-first-feature",
+        "spk-start-here"
+      ]
+    },
+    "case1_hash_inputs": {
+      "body": "Run deploy-helper: $ARGUMENTS\n",
+      "canonical_json": "{\"record\": {\"body_path\": \"deploy-helper.skill.md\", \"description\": \"Ships   the  release.\", \"enhances\": null, \"expands_to\": null, \"form\": \"prompt\", \"id\": \"deploy-helper\", \"invocation\": {\"model_invocable\": true, \"side_effects\": [], \"user_invocable\": true}, \"maintainers\": [], \"overrides\": null, \"parameters\": [], \"schema_version\": \"1.0\", \"title\": \"Deploy helper\", \"tools\": [\"*\"], \"triggers\": [\"ship it\", \"say \\\"go\\\"\"], \"version\": \"1.0.0\"}, \"rendered_name\": \"acme-deploy-helper\", \"requires\": [\"procedure:release-proc\"]}"
+    },
+    "case2_warm_stable": true,
+    "case3": {
+      "skills": [
+        "adversarial-squad",
+        "spec-kitty",
+        "spec-kitty-git-workflow",
+        "spec-kitty-implement-review",
+        "spec-kitty-mission-review",
+        "spec-kitty-mission-system",
+        "spec-kitty-orchestrator-api-operator",
+        "spec-kitty-program-orchestrate",
+        "spec-kitty-runtime-next",
+        "spec-kitty-runtime-review",
+        "spec-kitty-setup-doctor",
+        "spk-admin-agent-config",
+        "spk-admin-git-workflow",
+        "spk-admin-setup-doctor",
+        "spk-admin-upgrade",
+        "spk-charter-glossary",
+        "spk-charter-governance",
+        "spk-charter-profile-load",
+        "spk-charter-spdd-reasons",
+        "spk-gate-accept",
+        "spk-gate-consolidate",
+        "spk-gate-mission-review",
+        "spk-gate-retrospective",
+        "spk-integrate-orchestrator-api",
+        "spk-meta-skill-authoring",
+        "spk-meta-skill-map",
+        "spk-mission-documentation",
+        "spk-mission-plan",
+        "spk-mission-research",
+        "spk-mission-specify",
+        "spk-mission-tasks",
+        "spk-mission-types",
+        "spk-practice-bulk-edit",
+        "spk-practice-semantic-compression",
+        "spk-practice-show-me",
+        "spk-run-blocked-recovery",
+        "spk-run-implement-review",
+        "spk-run-next",
+        "spk-run-program-orchestrate",
+        "spk-run-review-wp",
+        "spk-run-verdict-capture",
+        "spk-start-agent-surface",
+        "spk-start-command-map",
+        "spk-start-first-feature",
+        "spk-start-here"
+      ],
+      "staging": {}
+    },
+    "case4": {
+      "project_tree_unchanged": true,
+      "skills": [
+        "adversarial-squad",
+        "spec-kitty",
+        "spec-kitty-git-workflow",
+        "spec-kitty-implement-review",
+        "spec-kitty-mission-review",
+        "spec-kitty-mission-system",
+        "spec-kitty-orchestrator-api-operator",
+        "spec-kitty-program-orchestrate",
+        "spec-kitty-runtime-next",
+        "spec-kitty-runtime-review",
+        "spec-kitty-setup-doctor",
+        "spk-admin-agent-config",
+        "spk-admin-git-workflow",
+        "spk-admin-setup-doctor",
+        "spk-admin-upgrade",
+        "spk-charter-glossary",
+        "spk-charter-governance",
+        "spk-charter-profile-load",
+        "spk-charter-spdd-reasons",
+        "spk-gate-accept",
+        "spk-gate-consolidate",
+        "spk-gate-mission-review",
+        "spk-gate-retrospective",
+        "spk-integrate-orchestrator-api",
+        "spk-meta-skill-authoring",
+        "spk-meta-skill-map",
+        "spk-mission-documentation",
+        "spk-mission-plan",
+        "spk-mission-research",
+        "spk-mission-specify",
+        "spk-mission-tasks",
+        "spk-mission-types",
+        "spk-practice-bulk-edit",
+        "spk-practice-semantic-compression",
+        "spk-practice-show-me",
+        "spk-run-blocked-recovery",
+        "spk-run-implement-review",
+        "spk-run-next",
+        "spk-run-program-orchestrate",
+        "spk-run-review-wp",
+        "spk-run-verdict-capture",
+        "spk-start-agent-surface",
+        "spk-start-command-map",
+        "spk-start-first-feature",
+        "spk-start-here",
+        "acme-deploy-helper"
+      ],
+      "staged_outside_project": true
+    },
+    "case5": {
+      "pack_skills": [
+        {
+          "name": "acme-release-wrapper",
+          "origin": "pack",
+          "source_hash": "sha256:d501f0b288852a9ff0c234b6162b9bf5cd278f3e87bd941e7a2e940f801ceabb",
+          "text": "---\nname: \"acme-release-wrapper\"\ndescription: \"Runs the canonical consolidate command.\"\nuser-invocable: true\n---\n\n<!-- Generated by spec-kitty from a charter pack skill. A local edit is kept and reported as drift; to change this skill, edit its pack source and re-run the activation. -->\n\n# Release wrapper\n\n## Governing context\n\nBefore acting, load the doctrine this skill depends on:\n\n- `spec-kitty charter context --include procedure:release-proc`\n\n## Instructions\n\nInvoke the `spec-kitty-consolidate` command skill. Pass these arguments: `$ARGUMENTS`.\n"
+        }
+      ],
+      "staging": {
+        "acme-release-wrapper/": "",
+        "acme-release-wrapper/SKILL.md": "sha256:1c6a1512ccc3f30ce2aea04014312349d5d966813b1574530232aa465cfe37ae"
+      }
+    },
+    "case6_no_namespace": {
+      "message_fragment": "org-tier skill 'deploy-helper' has no skill namespace to render under",
+      "project_unchanged": true,
+      "refused": true
+    },
+    "case7_hostile_namespace": {
+      "message_fragment": "skill namespace '../x' is not valid: it must be lowercase ASCII kebab-case (lett",
+      "project_unchanged": true,
+      "refused": true
+    },
+    "case8_builtin_collision": {
+      "message_fragment": "pack skill 'deploy-helper' renders as 'acme-deploy-helper', which is the name of",
+      "project_unchanged": true,
+      "refused": true
+    },
+    "case9_project_namespace": {
+      "message_fragment": "org-tier skill 'deploy-helper' has no skill namespace to render under",
+      "project_unchanged": true,
+      "refused": true
+    }
+  },
+  "oracle": {
+    "distributions": 53,
+    "python": "3.11.15"
+  },
+  "provenance": {
+    "command": "bash /tmp/sk-c4/oracle-env.sh <probe> <sandbox-root>  (repo .venv-rust-oracle, CPython 3.11.15, 53 distributions, asserted temporary CWD+HOME+all XDG+TMP, PYTHONPATH=<repo>/src, SPEC_KITTY_PACKS_ROOT=<repo>/packs)",
+    "evidence_log": "/tmp/sk-c4/oracle-pack-10.HFL8XC.log",
+    "note": "source_ref values are absolute paths inside the ephemeral sandbox; the test compares the pack-relative suffix.",
+    "probe": "crates/sk-install/tests/fixtures/pack_skill_oracle_probe.py",
+    "recorded_utc": "2026-11-04T21:17:30Z",
+    "source": "spec-kitty/spec-kitty@9aed3a8012cb5eb22c0128b14d525039f95fea7a src/specify_cli/skills/catalog.py:resolve_project_skill_catalog"
+  },
+  "repo": "/home/exedev/.t3/scratch/2026-11-02-pull-current-spec-kitty-from-442fd12a/spec-kitty-rust/src"
+}

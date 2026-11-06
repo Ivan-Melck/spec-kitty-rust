@@ -1,0 +1,76 @@
+[
+  {
+    "name": "three_supported_formats",
+    "tasks_md": "## WP01 - Foundation\n\nSubtasks: T001, T002\n\n## WP02 - API\n\nDepends on WP01\n\n## WP03 - UI\n\n**Dependencies**: WP01, WP02\n",
+    "expected": {
+      "WP01": [],
+      "WP02": [
+        "WP01"
+      ],
+      "WP03": [
+        "WP01",
+        "WP02"
+      ]
+    }
+  },
+  {
+    "name": "bullet_list_and_duplicate_order",
+    "tasks_md": "## Work Package 1 — Foundation\n\nDeliver T001.\n\n### Dependencies\n- WP02 (contract)\n- WP01\n- WP02\n",
+    "expected": {
+      "WP01": [
+        "WP02",
+        "WP01"
+      ]
+    }
+  },
+  {
+    "name": "final_section_stops_at_non_wp_heading",
+    "tasks_md": "## WP01 - Foundation\nDepends on WP02\n\n## WP02 - API\nDepends on WP01\n\n## Notes\n\nDepends on WP03 (prose, not part of WP02)\n",
+    "expected": {
+      "WP01": [
+        "WP02"
+      ],
+      "WP02": [
+        "WP01"
+      ]
+    }
+  },
+  {
+    "name": "none_and_empty_declarations",
+    "tasks_md": "## WP01 - Foundation\n**Dependencies**: None\n\n## WP02 - API\n**Dependencies**: []\n\n## WP03 - UI\n**Dependencies**: No dependencies\n",
+    "expected": {
+      "WP01": [],
+      "WP02": [],
+      "WP03": []
+    }
+  },
+  {
+    "name": "pipe_table_dependency_cell",
+    "tasks_md": "## WP01 - Foundation\n\n| Field | Value |\n|---|---|\n| **Dependencies**: WP02 | note |\n\n## WP02 - API\n\n| **Dependencies**: WP01 |\n",
+    "expected": {
+      "WP01": [
+        "WP02"
+      ],
+      "WP02": [
+        "WP01"
+      ]
+    }
+  },
+  {
+    "name": "pipe_table_dependency_later_cell",
+    "tasks_md": "## WP01 - Foundation\n\n| Field | Value |\n|---|---|\n| Task | **Dependencies**: WP02 |\n",
+    "expected": {
+      "WP01": [
+        "WP02"
+      ]
+    }
+  },
+  {
+    "name": "table_row_and_heading_owner",
+    "tasks_md": "## WP01 - Foundation\n\n| Task | Owner |\n|---|---|\n| T001 | WP01 |\n\n## WP02 - API\n\n- [ ] T002 deliver API\n",
+    "expected": {
+      "WP01": [],
+      "WP02": []
+    }
+  }
+]

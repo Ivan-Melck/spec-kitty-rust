@@ -1,0 +1,146 @@
+{
+ "_provenance": "Recorded by the pinned Source (CPython 3.11.15, .venv-rust-oracle) running the ACTUAL m_4_0_0rc8_promote_interview_selections and m_4_0_0rc8_project_intent_directive_rename migrations: (1) `settled_dry` \u2014 the superseded promotion is recorded `success`, so the DRY RUN reports the preview line (not the real run's already-promoted line) and writes nothing; (2) `rename_refused` \u2014 the legacy directive would move onto an existing target, so the reference CATCHES LegacyRenameRefusedError and returns a FAILED result whose single error is the refusal text, changing nothing. Regenerate with /tmp/sk-cf11/probe_carrier_and_branches.py through /tmp/sk-a5/source-probe.sh and /tmp/sk-cf11/build_fixture2.py.",
+ "rename_refused": {
+  "after": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/directive": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/directive/001-mission-type-scope-directive.directive.yaml": {
+    "kind": "file",
+    "sha256": "5f7f60d09ceba6a470ac3e9c1e84379d67cad541b4780671f3d999440301aae0",
+    "text": "id: PROJECT_001\nkind: directive\nslug: mission-type-scope-directive\nbody: authored legacy body\n"
+   },
+   ".kittify/charter-packs/directive/001-project-intent-directive.directive.yaml": {
+    "kind": "file",
+    "sha256": "7f0fd120c41cee05b530ae30b1f751dc666dce8809b1b2f4ffb73ac71e131b59",
+    "text": "id: PROJECT_001\nkind: directive\nslug: project-intent-directive\nbody: something else\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "65854816fe10e1e55be219f5f49245ba204f749ed4ceaf054c26cd41419f5bcb",
+    "text": "agents:\n  available:\n  - claude\ncharter: .kittify/charter/charter.yaml\n"
+   }
+  },
+  "before": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/directive": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/directive/001-mission-type-scope-directive.directive.yaml": {
+    "kind": "file",
+    "sha256": "5f7f60d09ceba6a470ac3e9c1e84379d67cad541b4780671f3d999440301aae0",
+    "text": "id: PROJECT_001\nkind: directive\nslug: mission-type-scope-directive\nbody: authored legacy body\n"
+   },
+   ".kittify/charter-packs/directive/001-project-intent-directive.directive.yaml": {
+    "kind": "file",
+    "sha256": "7f0fd120c41cee05b530ae30b1f751dc666dce8809b1b2f4ffb73ac71e131b59",
+    "text": "id: PROJECT_001\nkind: directive\nslug: project-intent-directive\nbody: something else\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "65854816fe10e1e55be219f5f49245ba204f749ed4ceaf054c26cd41419f5bcb",
+    "text": "agents:\n  available:\n  - claude\ncharter: .kittify/charter/charter.yaml\n"
+   }
+  },
+  "can_apply": [
+   true,
+   ""
+  ],
+  "detect": true,
+  "result": {
+   "changes_made": [],
+   "errors": [
+    "Refused to rename the legacy 'mission-type-scope-directive' directive to 'project-intent-directive': .kittify/charter-packs/directive/001-project-intent-directive.directive.yaml already exists, so .kittify/charter-packs/directive/001-mission-type-scope-directive.directive.yaml cannot move onto it. Nothing was changed. Resolve the above and re-run."
+   ],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": false,
+   "warnings": []
+  }
+ },
+ "settled_dry": {
+  "after": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "73d92211c6ec341438f3063488d0da0efc088efa07ad7462ce5b8bf1c3b1121a",
+    "text": "governance:\n  charter:\n    selected_directives: []\ncatalog:\n  references: []\nmetadata:\n  bundle_schema_version: 2\nactivated_directives:\n- 024-locality-of-change\n"
+   },
+   ".kittify/charter/interview": {
+    "kind": "dir"
+   },
+   ".kittify/charter/interview/answers.yaml": {
+    "kind": "file",
+    "sha256": "5736e275845ec6d8dbe5cffdc5367d9ee30ae8c234e65ee69567e97639200f43",
+    "text": "mission: software-dev\nselected_directives:\n- DIRECTIVE_001\n- DIRECTIVE_010\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "65854816fe10e1e55be219f5f49245ba204f749ed4ceaf054c26cd41419f5bcb",
+    "text": "agents:\n  available:\n  - claude\ncharter: .kittify/charter/charter.yaml\n"
+   },
+   ".kittify/migration-ledger.jsonl": {
+    "kind": "file",
+    "sha256": "f6f48a88c1f75919413f38c0ff0fb0a5b8800b98ec3c4e48a6f80b88859ba770",
+    "text": "{\"applied_at\": \"2026-01-01T00:00:00+00:00\", \"cli_version\": \"4.0.0rc5\", \"content_hash\": \"sha256:seed\", \"id\": \"unify_charter_activation_promote_answers\", \"identity\": \"unify_charter_activation_promote_answers\", \"result\": \"success\"}\n"
+   }
+  },
+  "before": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "73d92211c6ec341438f3063488d0da0efc088efa07ad7462ce5b8bf1c3b1121a",
+    "text": "governance:\n  charter:\n    selected_directives: []\ncatalog:\n  references: []\nmetadata:\n  bundle_schema_version: 2\nactivated_directives:\n- 024-locality-of-change\n"
+   },
+   ".kittify/charter/interview": {
+    "kind": "dir"
+   },
+   ".kittify/charter/interview/answers.yaml": {
+    "kind": "file",
+    "sha256": "5736e275845ec6d8dbe5cffdc5367d9ee30ae8c234e65ee69567e97639200f43",
+    "text": "mission: software-dev\nselected_directives:\n- DIRECTIVE_001\n- DIRECTIVE_010\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "65854816fe10e1e55be219f5f49245ba204f749ed4ceaf054c26cd41419f5bcb",
+    "text": "agents:\n  available:\n  - claude\ncharter: .kittify/charter/charter.yaml\n"
+   },
+   ".kittify/migration-ledger.jsonl": {
+    "kind": "file",
+    "sha256": "f6f48a88c1f75919413f38c0ff0fb0a5b8800b98ec3c4e48a6f80b88859ba770",
+    "text": "{\"applied_at\": \"2026-01-01T00:00:00+00:00\", \"cli_version\": \"4.0.0rc5\", \"content_hash\": \"sha256:seed\", \"id\": \"unify_charter_activation_promote_answers\", \"identity\": \"unify_charter_activation_promote_answers\", \"result\": \"success\"}\n"
+   }
+  },
+  "dry_result": {
+   "changes_made": [
+    "dry-run: nothing would be promoted"
+   ],
+   "errors": [],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": []
+  }
+ }
+}

@@ -1,0 +1,38 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT"
+repository = "https://github.com/Ivan-Melck/spec-kitty-rust"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["arbitrary_precision"] }
+serde_yaml_ng = "0.10"
+thiserror = "2"
+chrono = { version = "0.4", features = ["serde"] }
+ulid = { version = "1", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "v5"] }
+toml_edit = "0.25"
+pep440_rs = "0.7"
+sha2 = "0.10"
+fs2 = "0.4"
+same-file = "=1.0.6"
+tempfile = "3"
+clap = { version = "4", features = ["derive"] }
+proptest = "1"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

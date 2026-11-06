@@ -1,0 +1,100 @@
+target:
+  term: CF86 typed profile read/constructor/Native failure propagation through the offering and effective-set seam
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      No public rename. `profile::ProfileLoadAbort` keeps its name but its erased
+      `exception`/`message` strings become one typed `ProfileLoadAbortCause`
+      (`Source(ConstructorAbort)` | `Native(NativeOfferingFailure)`), reusing the
+      canonical CF83 carriers instead of a second exception roster or a class-string map.
+      `DoctrineError::ProfileLoadAborted` keeps its variant name and path, and carries the
+      same typed cause (boxed) with `Error.source`; its old `exception`/`message` fields
+      become checked `Display` output, not the data authority. `ProfileRepository::load_one`
+      and `read_failure` keep their names; `CanonicalOfferingService::profile_repository`
+      stops flattening the typed cause with `OfferingLoadError::new(error.to_string())` and
+      maps it to the existing `from_abort`/`from_native`. `ServiceKeys`, `EffectiveSetError`
+      and the strict/fallback phases are unchanged. No new error hierarchy, no panic, no
+      string-prefix classification.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      Only existing crate edges and already-public Kernel items are used
+      (`sk_kernel::python_utf8::decode_utf8`, `sk_kernel::text_decode::normalize_newlines`,
+      `sk_kernel::python_yaml::HashSeedError`). No dependency, crate, manifest, lock,
+      feature, module-export or registry change.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No root, pack, pin, golden or fixture path change. New controls build fresh tempfile
+      trees; the Source control uses an independent mktemp business tree with its own
+      CWD/HOME/all-seven-XDG/TMPDIR/TMP/TEMP and the pinned absolute PYTHONPATH/packs root.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No YAML/JSON wire shape, activation key or serialized field changes. The typed cause
+      lives in process memory only; the profile YAML/JSON model and `model_dump` views are
+      untouched.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No new command, flag, exit contract or output line. CLI consumers of
+      `profile_repository()` keep their existing `Ok`/`Err` handling; only the `Err`
+      payload's cause becomes typed.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      The `ProfileLoadAborted` rendered text keeps the `path: class: message` shape. The
+      profile *decode* skip diagnostic changes from Rust's `stream did not contain valid
+      UTF-8` to the reference's measured `ReaderError`-shaped
+      `unacceptable character #x00ff: invalid start byte ... position N`; measurement shows
+      the reference catches that decode failure per file (skip), so the effect class is
+      unchanged. No new warning prefix or Native label is invented.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New named CF86 target with Source-first controls: real `!!int` ValueError, `!!bool`
+      KeyError, `!!timestamp` ValueError, non-mapping AttributeError at the repository
+      layer, YAML-syntax/schema/OS-error/invalid-UTF8 skips, a typed Native `HashSeed`
+      cause, the real `CanonicalOfferingService::profile_repository` /
+      `ids_for("activated_agent_profiles")` and `resolve_effective_sets` strict+fallback
+      consumers, same-instance fail→fix→retry, warm skipped snapshot, fresh-service fix,
+      and one guarded independent actual Source/Native business pair. Existing CF84
+      parent-pair/recovery and CF83 targets stay unchanged.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No logging emission change. The reference's debug log for an unresolved effective
+      set is unchanged; the typed Native cause is rendered, never logged as a fake Python
+      class.
+exceptions:
+  - path: crates/sk-doctrine/src/profile.rs
+    action: manual_review
+    reason: >-
+      The one profile read/load owner: keep the typed Source `ConstructorAbort` and typed
+      Native `NativeOfferingFailure` causes from the canonical Kernel reader, and read
+      through the canonical strict decoder/universal-newline owners so the decode phase is
+      explicit and measured (the reference's Reader catches the decode error per file).
+  - path: crates/sk-doctrine/src/error.rs
+    action: manual_review
+    reason: >-
+      The existing `ProfileLoadAborted` DoctrineError arm now retains the typed cause
+      instead of two strings, preserving `Error.source`; no new global hierarchy, CLI
+      envelope or exit change.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: >-
+      `profile_repository` maps the existing DoctrineError profile arm onto the existing
+      `OfferingLoadError::from_abort`/`from_native`; no new carrier, no message-only
+      fallback.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Re-export the new typed cause beside the existing `ProfileLoadAbort`.
+  - path: crates/sk-doctrine/tests/cf86_profile_failure_propagation.rs
+    action: manual_review
+    reason: New named target with the real service/strict/fallback consumers.
+  - path: docs/rust/occurrence-maps/cf86-profile-failure-propagation.yaml
+    action: manual_review
+    reason: This PRE classification map for the lane.
+status:
+  accepted: false

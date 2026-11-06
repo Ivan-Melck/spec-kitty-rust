@@ -1,0 +1,70 @@
+# PRE-EDIT compatibility adaptation, not a semantic/global identifier rename.
+# No host Mission exists: this standalone schema-valid map is NOT runtime gate approval.
+# Inventory: migration-result-preedit-occurrences-and-primitives.ctnJk1.log;
+# precise AST literal preview: migration-result-ast-preview-cached-syn3.IJH32Y.log.
+# Old successful literals retain their Native semantics via explicit defaults;
+# this does NOT certify that every old callback matches Source failure semantics.
+target:
+  term: MigrationOutcome
+  replacement: MigrationOutcome with complete Source result fields
+  operation: deprecate
+categories:
+  code_symbols:
+    action: manual_review
+    scope: Add success, errors, manual-review/preserved/predicted/partial-write data; retain names.
+  import_paths:
+    action: manual_review
+    scope: Export the one result and partial-write types from the existing Install authority.
+  filesystem_paths: {action: do_not_change}
+  serialized_keys:
+    action: manual_review
+    scope: Existing keys remain; expose Source result keys only at their real Source boundary.
+  cli_commands: {action: do_not_change}
+  user_facing_strings:
+    action: manual_review
+    scope: Preserve report JSON and Source errors, never replace failed results with success/warnings.
+  tests_fixtures:
+    action: manual_review
+    scope: New Source-first result/failure regressions; original Source/pins/goldens unchanged.
+  logs_telemetry: {action: do_not_change}
+exceptions:
+  - path: crates/sk-install/src/upgrade.rs
+    action: manual_review
+    reason: Canonical result/defaults/full result aggregation and per-row executor; no second runner.
+  - path: crates/sk-install/src/lib.rs
+    action: manual_review
+    reason: Canonical result/partial-write exports, not another nominal model.
+  - path: crates/sk-install/src/migrations/**/*.rs
+    action: manual_review
+    reason: AST-classified existing success literals get explicit struct-update defaults; failed doors separately port Source payloads.
+  - path: crates/sk-install/src/migrations/completion_legacy.rs
+    action: manual_review
+    reason: Existing top-level legacy success literal compatibility adapter.
+  - path: crates/sk-install/src/render/shim.rs
+    action: manual_review
+    reason: Existing Source result literal compatibility adapter only; no renderer behavior change.
+  - path: crates/sk-cli/src/compat/upgrade.rs
+    action: manual_review
+    reason: Source result aggregation/wire consumption, including failed payloads, not a Source schema change.
+  - path: crates/sk-cli/src/compat/upgrade/upgrade_worktrees.rs
+    action: manual_review
+    reason: Consume complete canonical result and distinct failed/errored flags, no copied callback loop.
+  - path: crates/sk-install/tests/*.rs
+    action: manual_review
+    reason: Native API/result and Source-first phase/footprint tests, not historical expectation weakening.
+  - path: src/**
+    action: do_not_change
+    reason: Pinned Source is immutable authority.
+  - path: packs/**
+    action: do_not_change
+    reason: Pinned authored pack and generated Source corpus stay fixed.
+  - path: benchmarks/**
+    action: do_not_change
+    reason: No registration/result-shape change promotes coverage/performance evidence.
+moves: []
+status:
+  mode: standalone-pre-edit-classification
+  host_mission: absent
+  runtime_gate_approval: not-claimed
+  original_names_and_routes: retained
+  default_adapter_policy: existing Native success literals only, not a Source parity waiver

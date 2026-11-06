@@ -1,0 +1,83 @@
+target:
+  term: CF84 Source same-instance constructor-failure recovery and success-only identity/repository publication
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Additive/mechanical only, no public rename. `KindSlot` stops carrying the abort: it is
+      repurposed to `OnceLock<KindTable>`, published only by a completed scan. A new private
+      `ScanPass` holds the reference `ResolutionPass`'s partial caches (the per-kind layer
+      file list and each completed per-file id read, `None` included). `CanonicalOfferingService`
+      fields `profiles`/`skills` change from `OnceCell<Result<..>>` to success-published
+      `OnceLock<..>`, and `MappingCache`/`ItemCache` stop storing `Err` values. `try_table`,
+      `table`, `build_table`, `scan`, `ids_for`, `document_items`, `skill_repository` and
+      `profile_repository` keep their names and signatures; only their bodies and the private
+      field/value types change. No second table, cache, parser or error hierarchy appears.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      Only existing crate edges and `std` items (`OnceLock`, `RefCell`, `BTreeMap`) are used.
+      No dependency, crate, manifest, lock or feature change.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No root, pack, pin, golden or fixture path change. New controls build fresh tempfile
+      trees; the Source-first probe uses an independent mktemp business tree with its own
+      CWD/HOME/all-seven-XDG/TMPDIR/TMP/TEMP and the pinned absolute PYTHONPATH/packs root.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No YAML/JSON wire shape, activation key or serialized field changes. The caches are
+      in-process Rust state and are never serialized.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No new command, flag, exit contract or output line. Existing CLI consumers of
+      `CanonicalOfferingService`/`IdentityIndex` keep the same rendered errors; only the
+      retry/lifetime behaviour of an already-failed construction changes.
+  user_facing_strings:
+    action: do_not_change
+    notes: >-
+      The constructor abort and repository-load messages keep their existing text (the real
+      Python exception class and message). No new warning, prefix or native label is added,
+      and no Source warning is suppressed or restored.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New named CF84 target with Source-first same-instance controls (identity retry,
+      retained completed reads/scan boundary, caught-`None` retention, success warmth, new
+      instance freshness) plus the real `CanonicalOfferingService` consumer variants
+      (failed construction repaired and retried, successful skipped repository staying warm,
+      rebuilt repository seeing a birth). CF81 gate/cache reset, CF82 logging and CF83 typed
+      Native/no-cache controls stay unchanged.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No logging emission changes. A repository that skipped a caught-invalid file still
+      emits its one Source warning per constructor call and stays cached once successful; a
+      failed constructor emits nothing beyond the warnings it already produced before the
+      abort, exactly as the reference's eager `_load()` does.
+exceptions:
+  - path: crates/sk-doctrine/src/identity.rs
+    action: manual_review
+    reason: >-
+      The one identity table authority: publish only a completed `KindTable`; retain the
+      reference `ResolutionPass` partial caches (layer file list, completed per-file reads
+      including caught `None`, never the aborting read) across a failed scan; a new index
+      starts a fresh pass. No cloned scanner, parser or second pass authority.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: >-
+      The one offering repository/mapping publication authority: assign the mapping/items/
+      profile/skill success values only after construction returns, mirroring the reference's
+      lazy service properties (`self._cache[key] = Repository(...)`); a failed construction is
+      retried on the same instance and never poisons it.
+  - path: crates/sk-doctrine/tests/cf84_same_instance_recovery.rs
+    action: manual_review
+    reason: New named recovery target with real service consumers and independent guards.
+  - path: docs/rust/occurrence-maps/cf84-same-instance-recovery.yaml
+    action: manual_review
+    reason: This PRE classification map for the lane.
+status:
+  accepted: false
+  phase: prospective CF84 same-instance constructor recovery and success-only publication

@@ -1,0 +1,22 @@
+[package]
+name = "sk-status"
+description = "Spec Kitty lane FSM, typed diary inspection, and canonical status replay/materialization"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+uuid.workspace = true
+ulid.workspace = true
+thiserror.workspace = true
+sk-kernel = { path = "../sk-kernel" }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

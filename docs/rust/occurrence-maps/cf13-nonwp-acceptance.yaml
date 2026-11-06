@@ -1,0 +1,130 @@
+# CF13 PRE-edit occurrence classification for the non-WP acceptance / sparse
+# registered mission-type lane.
+#
+# No invented Mission/Op metadata and no acceptance claim: this map classifies
+# the identifiers THIS task touches. Every declared change is ADDITIVE (new
+# module/fields/variant/accessor, one thin composition), so no `operation` is
+# declared; nothing is renamed, removed or deprecated for an operator. It does
+# not approve any other producer's edits, nor the parent's manifest,
+# registration, catalogue or publication work.
+#
+# Scope: crates/sk-workspace/src/acceptance_source.rs (+ its new
+# non_wp_runtime.rs submodule), crates/sk-status/src/acceptance/source.rs (one
+# additive fact variant), crates/sk-run-store/src/store.rs (one additive
+# read-only accessor), crates/sk-cli/src/compat/acceptance.rs (+ its new
+# providers.rs submodule), the new cf13_* tests, and this map.
+target:
+  term: "work-package-only acceptance + unregistered-looking sparse mission types"
+  replacement: >-
+    non-WP (`plan`-family) acceptance judged from the recorded runtime and the
+    mission type's DECLARED blocking artifacts, plus an activated sparse
+    `mission_types/<id>.yaml` registration resolved through the canonical
+    Doctrine roster; no operator-facing identifier is renamed.
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      ADDITIVE: `sk_workspace::acceptance_source::non_wp_runtime`
+      (`NonWpRuntimeFacts`, `NonWpRuntimeFactsProvider`, `NonWpRuntimeRequest`,
+      `NonWpAcceptanceFacts`, `collect_non_wp_runtime_facts`,
+      `is_artifact_only_acceptance`, `non_wp_skip_reason`),
+      `AcceptanceCollectionOptions::non_wp_runtime`, the
+      `LanesManifestFacts::NotRequired { skip_reason, activity_issues }` fact,
+      `sk_run_store::RunStore::read_run_template`, and the private CLI
+      composition `sk_cli::compat::acceptance::providers`
+      (`CompositionMissionProviders`, `RunStoreRuntimeFacts`). Existing public
+      names, signatures and behaviour of `collect_source_acceptance_facts_with`,
+      `evaluate_source_acceptance`, `lifecycle::accept` and every
+      `LanesManifestFacts` variant are unchanged; no second policy, guard table,
+      parser, writer, model or Git process is introduced.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No module move and no new dependency edge: the new reader reuses
+      `sk_kernel`'s YAML graph authority, `sk_mission`'s one PyYAML-safe decoder
+      and expected-artifacts reader, and `sk_doctrine`'s existing activation
+      ledger/roster scans (already a dependency of `sk-cli`). `sk-workspace`
+      gains no dependency: the run store is reached through the composition-root
+      port instead.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No authored data path moves. The runtime store keeps
+      `.kittify/runtime/{feature-runs.json,runs/<id>/{state.json,
+      mission_template_frozen.yaml}}`, the expected-artifacts manifest keeps
+      `<root>/missions/<type>/expected-artifacts.yaml`, mission-type
+      registrations keep `<root>/mission_types/<id>.yaml` and
+      `.kittify/missions/mission_types/<id>.yaml`, and the acceptance matrix
+      keeps its coordination-aware location.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No authored key changes: `state.json`, `run.events.jsonl`,
+      `feature-runs.json`, `meta.json`, the matrix document and the
+      `accept --json` payload keep every key (the payload's
+      `acceptance_matrix_path`/`matrix_verdict` simply stay null for a non-WP
+      Mission, because no matrix exists).
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      `spec-kitty accept` keeps its name, flags and exit policy. No command,
+      subcommand, flag or catalogue entry is added, moved or renamed; the two
+      cross-surface providers are composed inside the existing accept adapter.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      New diagnostics are Source's own text, not invented: "Plan runtime has no
+      review action; acceptance refused", "Non-WP runtime is not complete;
+      remaining steps: …", "Non-WP runtime has no declared blocking artifacts;
+      acceptance refused", "Mission type does not match its recorded runtime;
+      acceptance refused", "Cannot read canonical mission runtime for
+      acceptance; no state was changed", plus the roster refusal text under the
+      `ACTIVATION_STORE_ERROR` / `MISSION_TYPE_ROSTER_INVALID` codes.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New Native-only tests: `crates/sk-workspace/tests/cf13_non_wp_acceptance.rs`
+      (12 cases), `crates/sk-cli/tests/cf13_non_wp_accept_flow.rs` (6 cases) and
+      `crates/sk-cli/tests/cf13_sparse_registered_type.rs` (3 cases), all on
+      fresh mktemp Git repositories with a REAL recorded run created through
+      `RunStore::start`. No existing test was edited, skipped or weakened.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log/metric/identity label changes and no performance or parity claim.
+      No time, OID, readiness or runtime-completion value is fabricated
+      anywhere on this path.
+exceptions:
+  - path: crates/sk-status/src/acceptance/source.rs
+    action: manual_review
+    reason: >-
+      SCOPED EXPANSION (declared): one additive `LanesManifestFacts::NotRequired
+      { skip_reason, activity_issues }` variant plus three guarded branches
+      (branch-issue seeding, canonical-state skip, `unchecked_tasks = []`). It is
+      required because the Source policy is a pure function of collected facts
+      and had no fact that says "the lane-gate chain does not run for this
+      Mission"; every existing variant's behaviour is unchanged and no other
+      file matches the enum exhaustively.
+  - path: crates/sk-run-store/src/store.rs
+    action: manual_review
+    reason: >-
+      SCOPED EXPANSION (declared): one additive read-only accessor
+      `RunStore::read_run_template` that reuses the existing private
+      `read_state` / `verify_frozen_hash` / `load_frozen_template` helpers in
+      Source's order. `sk-workspace` cannot depend on the run store, and
+      `RunStore::query` is stricter than Source's fact read (it reconciles the
+      journal and refuses an unhealthy run), so neither a new dependency nor
+      the strict query could serve this read without changing behaviour.
+structural_targets:
+  - path: crates/sk-workspace/src/acceptance_source/non_wp_runtime.rs
+    reason: >-
+      New module porting Source `acceptance.non_wp_runtime` plus the `plan`
+      guard chain and the vocabulary-scoped presence read.
+  - path: crates/sk-cli/src/compat/acceptance/providers.rs
+    reason: >-
+      New composition-root providers: runtime facts over the canonical run
+      store, and the activated sparse registration over the canonical Doctrine
+      activation ledger + layered roster scan.
+status:
+  phase: producer pre-edit implementation
+  accepted: false

@@ -1,0 +1,142 @@
+# CF52 PRE-EDIT occurrence classification (additive lane; no rename/remove/deprecate).
+#
+# Written BEFORE any Source/Native code edit, from the actual pre-edit inventory
+# in /tmp/sk-cf52-ev/ (command-log-index.tsv, labels 42/50/51) and from reading
+#   crates/sk-cli/src/compat/charter/context_include.rs
+#   crates/sk-cli/src/compat/mod.rs
+#   crates/sk-kernel/src/python_utf8.rs
+#   crates/sk-invocation/src/python_os_encoding.rs
+#   crates/sk-invocation/src/lib.rs
+#   src/specify_cli/cli/commands/charter/context.py (the Source emitter)
+# plus the real Source stream probes (labels 30/31/32/40/41/44/45).
+# No host Mission/Op/approval is invented by this map.
+target:
+  term: "the include emitter's physical stdout step: text-mode `to_scalar_string()` + strict UTF-8 `write_output`, and the `--json` arm's direct UTF-8 write of the Kernel-encoded envelope"
+  replacement: "ONE CLI Source stdout composition (`compat::python_output`) that resolves the real stdio encoding/error policy (PYTHONIOENCODING, UTF-8 mode, real locale codeset) over the existing Kernel utf-8 encoder and the existing Invocation locale/latin-9 authorities, and writes the SAME bytes CPython's TextIOWrapper writes for that policy"
+  # No `operation:` key: this is an ADDITIVE lane (a new module, a new pure
+  # Kernel encoder entry point, a narrow Invocation pure-codec accessor and an
+  # exact re-export). The allowed operations are rename/remove/deprecate; none
+  # applies.
+categories:
+  code_symbols:
+    action: do_not_change
+    notes: >-
+      No existing symbol is renamed, removed or deprecated. ADDED:
+      `compat::python_output` with `SourceStdout` / `StdoutPolicy` /
+      `StdoutError` and the `write_stdout_line` seam; Kernel
+      `python_utf8::encode_python_string_with` (+ the pure handler/error type);
+      Invocation `python_os_encoding::LocaleCodeset` / `locale_codeset` /
+      `latin9_byte` re-exports. `encode_python_string`, `PythonUtf8EncodeError`,
+      `render_include_exact`, `emit`, `json_envelope` keep their names and
+      signatures.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No dependency, manifest, lock, pin or module-path change. Exactly one
+      `pub use python_os_encoding::{...}` line is added to
+      `crates/sk-invocation/src/lib.rs` beside the existing re-exports; the new
+      CLI module is declared once in `compat/mod.rs`. CLI already depends on
+      sk-invocation and sk-kernel, so no new edge is created.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No authored pack, pin, golden, Source or test-data path is touched. The
+      stdout policy reads environment/locale facts only; no file is written and
+      no existing path is relocated.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      The `--json` envelope keeps the reference's key set and insertion order
+      (`result`, `success`, `include`, `context`, `text`) and the one Kernel
+      `json.dumps` rendering with `indent=2, ensure_ascii=True`. Only the
+      PHYSICAL stream encoding of that ASCII text changes (for example UTF-16
+      bytes when `PYTHONIOENCODING=utf-16`). No key is added, renamed or
+      reordered, and the DecisionIndex summary_json exception is not used.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command, subcommand, flag, alias or exit-code contract is added,
+      renamed or removed. `charter context --include` keeps its grammar; the
+      already-registered surface only gains the reference's real stdout policy.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      The text-mode refusal prefix stays `cannot print the rendered text of
+      --include '<selector>'` and still names `--json` (the existing CF43
+      assertion is preserved), but the text gains the actual CPython codec
+      error (codec name, `\uXXXX`, position, reason) and the reference's own
+      Rich-supplied hint line
+      `*** You may need to add PYTHONIOENCODING=utf-8 to your environment ***`.
+      No prose is rewritten elsewhere and no success wording is invented.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      ADDED only: `crates/sk-cli/tests/cf52_source_stdout_cli.rs` with both
+      actual children (pinned 3.11.15 oracle) asserting their own CWD/HOME, all
+      seven XDG roots (including XDG_CONFIG_DIRS/XDG_DATA_DIRS),
+      TMPDIR/TMP/TEMP, absolute PYTHONPATH, pinned packs root and hash seed,
+      plus in-module unit tests for the policy/encoder. KEEP with no edit:
+      cf43_exact_include_cli.rs (its high-surrogate refusal is still the
+      default-policy outcome), cf26_context_include_cli.rs,
+      cf26_parent_include_errors.rs, cf31/cf32/cf38/cf42 include suites and
+      profile_console_*_wire.rs.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No event, metric or telemetry identity changes; no readiness, approval,
+      acceptance or performance status is written by this lane.
+exceptions:
+  - path: crates/sk-cli/src/compat/python_output.rs
+    action: manual_review
+    reason: >-
+      NEW module only: the one stdout encoding/error-policy composition and
+      writer. It reads PYTHONIOENCODING/PYTHONUTF8/PYTHONCOERCECLOCALE and the
+      real locale codeset, borrows the Kernel utf-8 encoder and the Invocation
+      latin-9/locale facts, and writes bytes. It is the seam CF50's non-include
+      action emission must call; no context/action/envelope behaviour lives here.
+  - path: crates/sk-cli/src/compat/charter/context_include.rs
+    action: manual_review
+    reason: >-
+      Emission only: the text and `--json` arms both go through the new writer,
+      the old strict-UTF-8 `to_scalar_string()` gate is retired, and a codec
+      failure becomes the reference-shaped late refusal. Selector grammar,
+      kind routing, template fast path, envelope keys, error envelopes and exit
+      codes are unchanged.
+  - path: crates/sk-cli/src/compat/mod.rs
+    action: manual_review
+    reason: >-
+      Exactly one new module declaration (`pub mod python_output;`) beside the
+      existing declarations; no other line changes.
+  - path: crates/sk-kernel/src/python_utf8.rs
+    action: manual_review
+    reason: >-
+      One pure, additive encoder entry point that applies a named CPython error
+      handler over the existing strict utf-8 code units, plus a pure handler
+      name/parse helper. `encode_python_string`, the strict decoder and every
+      existing failure phase are unchanged; this is not a byte-decoder or
+      global-error-policy change.
+  - path: crates/sk-invocation/src/python_os_encoding.rs
+    action: manual_review
+    reason: >-
+      Pure codec/locale-fact access only, so the CLI does not copy the
+      filesystem tables or re-derive real locale data: expose the existing
+      latin-9 mapping and the existing real codeset resolution as public pure
+      functions. No filesystem environment, mutation, fsencode-default or
+      dependency policy changes.
+  - path: crates/sk-invocation/src/lib.rs
+    action: manual_review
+    reason: >-
+      Exactly one `pub use` line re-exporting the three pure accessors beside
+      the existing exports; no module-map or ordering change.
+  - path: crates/sk-cli/tests/cf52_source_stdout_cli.rs
+    action: manual_review
+    reason: >-
+      NEW test file only; no existing test is edited, weakened or removed.
+  - path: docs/rust/occurrence-maps/cf52-source-stdout.yaml
+    action: manual_review
+    reason: >-
+      NEW lane classification artifact; no prior invalid map is copied and no
+      fictional Mission metadata is written.
+status:
+  reviewed_by: "parent pre-edit classification; not independent approval"
+  accepted: false

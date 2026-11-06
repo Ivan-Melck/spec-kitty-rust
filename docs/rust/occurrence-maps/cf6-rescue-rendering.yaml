@@ -1,0 +1,96 @@
+# CF6 PRE-edit occurrence classification for the rescue-callback + SPDD-rendering
+# lane. No invented Mission/Op metadata. This map classifies the identifiers this
+# task touches; every declared change here is ADDITIVE (new names, new
+# gates), so no `operation` is declared and nothing is renamed, removed or
+# deprecated. It does not approve any other producer's edits, nor the parent's
+# eventual registration/manifest work.
+target:
+  term: "SPDD/REASONS block visibility and the four B7 rescue callbacks"
+  replacement: "no rename; project-bound activation gate + faithful Source carrier/warning text"
+  scope: >-
+    crates/sk-install/src/render.rs, crates/sk-install/src/render/shim.rs,
+    crates/sk-install/src/migrations/completion_modern/rescue_spine.rs,
+    crates/sk-mission/src/migration_rescue.rs, the new cf6_* tests, and this map.
+categories:
+  code_symbols:
+    action: do_not_change
+    notes: >-
+      KEEP `process_spdd_blocks`, `REASONS_BLOCK_START/END`,
+      `TemplateSource::{new,from_pack_root,with_spdd_active,resolve}` and
+      `shim::rewrite_agent_shims` names and signatures. New private `SpddGate`
+      plus additive `TemplateSource::{for_project,project_root}` carry the
+      project-bound answer; no second renderer, selector or boolean authority.
+      `sk_doctrine::is_spdd_reasons_active` stays the only SPDD decision, and the
+      rescue `IMPLEMENTATIONS` array keeps its id/callback shape.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No module move. `sk_install::render::shim` and
+      `sk_install::migrations::completion_modern::rescue_spine` keep their public
+      paths; `sk-doctrine` was already a declared sk-install dependency.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No authored data path moves. The project-bound gate reads the existing
+      `.kittify/config.yaml` / `.kittify/charter/activation.yaml` authority
+      through the doctrine selector; rescue effects keep `.kittify/derived`,
+      `.kittify/.migration-backup`, `kitty-specs/<slug>` and the agent command
+      directories exactly as before.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No authored config/meta/ledger key changes. `status_phase` keeps its
+      Source value `"1"`; `schema_capabilities`, `mission_id`, `wp_code`,
+      `work_package_id` are untouched; activation keys are read, never rewritten.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command, flag, registration or catalogue entry is added. The four ids
+      stay UNREGISTERED (`native_migrations()`, the completion_modern table,
+      migration catalog and generic registry are parent-owned and unchanged).
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Only Source-shaped report text changes: the rollback/backup warnings now
+      carry Source's exact "restore from it by hand and then delete it" /
+      "Rollback succeeded but ... could not be removed" wording, the charter
+      merge failure uses Source's "Failed to merge constitution/ into charter/:"
+      carrier, and a proven-owned governance removal surfaces the shared guard's
+      diagnostic. SPDD block bytes stay byte-identical to the reference renderer.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New Native-only cf6_* tests (`cf6_spdd_rendering.rs`,
+      `cf6_rescue_callbacks.rs`) use fresh mktemp fixtures and the actual
+      selector; no existing test is weakened, and they are explicitly not paired
+      Source-isolation evidence.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log/metric/identity label changes and no performance or equivalence
+      claim. The temporary CF6STEP timing eprintln used to locate the existing
+      slow apply path is removed before the final report.
+exceptions:
+  - path: crates/sk-install/src/render.rs
+    action: manual_review
+    reason: >-
+      Private gate enum replaces one private boolean field; public constructors
+      keep their names and the pure-render capability default is unchanged.
+  - path: crates/sk-install/src/migrations/completion_modern/rescue_spine.rs
+    action: manual_review
+    reason: >-
+      Source carrier/warning text and merge-failure ordering only; id set,
+      callbacks, backup/restore and row semantics unchanged.
+  - path: crates/sk-mission/src/migration_rescue.rs
+    action: manual_review
+    reason: >-
+      Dry-run WP-identity action line and lifecycle-materialization error
+      attribution now match the reference; no writer, reducer or model change.
+structural_targets:
+  - path: crates/sk-install/src/render.rs
+    reason: >-
+      One selector seam evaluates the project's canonical activation per
+      marker-bearing template instead of a hardcoded boolean.
+status:
+  phase: producer pre-edit implementation
+  accepted: false

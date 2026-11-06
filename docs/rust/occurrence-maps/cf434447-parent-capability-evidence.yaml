@@ -1,0 +1,34 @@
+target:
+  term: "Bounded exact include skill and coordination collector capability evidence"
+categories:
+  code_symbols:
+    action: do_not_change
+    notes: No producer implementation or parser changes in this metadata update.
+  import_paths:
+    action: do_not_change
+    notes: Existing capability owner and domain authorities unchanged.
+  filesystem_paths:
+    action: do_not_change
+    notes: No artifacts roots or placement changes.
+  serialized_keys:
+    action: manual_review
+    notes: Evidence and gaps values only; states remain partial and doctor rosters remain thirteen reachable six refused. No new keys.
+  cli_commands:
+    action: do_not_change
+    notes: No root routing or fix support promoted; coordination remains refused pending real admission and error gates.
+  user_facing_strings:
+    action: manual_review
+    notes: Describe delivered exact JSON include consumer canonical skill repository and composed collector without old absent-owner claims or whole Source parity.
+  tests_fixtures:
+    action: do_not_change
+    notes: Existing focused receipts retained; no new aggregate or independent approval implied.
+  logs_telemetry:
+    action: do_not_change
+    notes: Keep failures filtered campaigns and foreign-blocked strict attempt; no reconstructed evidence.
+exceptions:
+  - path: crates/sk-cli/src/compat/capabilities.rs
+    action: manual_review
+    reason: Update only charter and doctor evidence/gap descriptions to actual bounded delivery.
+status:
+  accepted: false
+  phase: parent pre-edit bounded capability description

@@ -1,0 +1,111 @@
+target:
+  term: CF92 exact native filename identity discovery and primary stems
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      PRE census at published 4a8196bda798f66cf710aa2a56cfcd84b1aedaf5, before any
+      edit, fixed-string whole-token counts (sk-doctrine/src / sk-doctrine/tests /
+      other crates / docs/rust): struct Entry 1/2/1/0 (the other-crate and two test
+      hits are unrelated local Entry types — do_not_change); by_stem 10/17/3/0 (the
+      three other-crate hits are not sk-doctrine identity); ids_by_stem 3/0/0/0;
+      fn config_stem 2 (the offering.rs availability helper is a separate
+      do_not_change scalar listing helper); config_stem( 3; artifact_files_in 2;
+      collect_recursive 3; fn stems( 1; declared_id_stems 1; fn stem_exact 1;
+      fn declared_id_exact 1; lookup_existing_exact 4; names_a_file 3/2/1/2;
+      representable_stem 4; NativeOfferingFailure 36/12/0/20;
+      DiagnosticPathDecode 4; struct ScanPass 1; enum FileRead 1;
+      source_name_before_first_dot 2/0/4/0; OsEncodingContext 19/23/45/0 in
+      sk-doctrine/src (plus docs mentions).
+      KEEP unchanged: ArtifactDocument/canonical_read/file_read/ScanPass/FileRead
+      semantics, FastReadError, SuccessOnce, GateFailure/ConstructorAbort,
+      DiagnosticPathDecode, the offering.rs config_stem availability helper,
+      IdentityLookup scalar trait, Every other Entry type outside sk-doctrine.
+      CHANGED in place: sk-doctrine identity `Entry.stem`, `KindTable.by_stem`,
+      `KindTable.ids_by_stem` become the existing Kernel `PythonString` primary
+      key (no second table); `config_stem` and the two discovery walkers decode
+      the native file name through the ONE Kernel OsEncodingContext and reuse
+      `source_name_before_first_dot`; the scalar `stems`/`declared_id_stems`
+      remain explicit checked scalar views, with new `*_exact` views beside them.
+      ADDITIVE: at most one `NativeOfferingFailure::IdentityPathDecode` variant
+      (original PathBuf + canonical OsDecodeError) for a Native filesystem-codec
+      capability failure, because Source os.fsdecode never fails on POSIX bytes
+      and dropping the file would be a fabricated healthy omission.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No new crate/module/dependency/registry/export path. identity.rs uses the
+      already-exported sk_kernel::python_os_encoding::OsEncodingContext and
+      sk_kernel::source_name_before_first_dot. No Cargo.toml/Cargo.lock change.
+  filesystem_paths:
+    action: manual_review
+    notes: >-
+      No new scan root, glob roster, recursion rule or fixture root is added. The
+      existing per-kind layer scan order and ScanDepth recursion contract are
+      preserved; only the native-name comparison is decoded through the canonical
+      Kernel codec. New test fixtures are created under each child's own fresh CWD
+      with identical relative paths.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No YAML/JSON/wire key or serialized field name changes. Identity stems/ids
+      are compared and returned, never written as a new serialized key.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No CLI command, flag, envelope, count or registration change.
+  user_facing_strings:
+    action: do_not_change
+    notes: >-
+      No new user-facing wording. A Native filesystem-codec failure renders the
+      existing OsDecodeError text as a typed Native non-success; it is never
+      rendered as a Source Python exception class.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      One tiny new named target crates/sk-doctrine/tests/cf92_exact_filename_identity.rs
+      following the cf85_source_fast_id guarded-pair pattern: independent actual
+      Source and Native children, each asserting fresh CWD/HOME/all seven XDG
+      (DIRS/RUNTIME included)/TMPDIR/TMP/TEMP, independent absolute expected
+      Source/PYTHONPATH/packs/module origin, PYTHONHASHSEED, pinned 3.11.15 and
+      exact-53 oracle proof, and real filesystem/stdout/stderr codecs before any
+      business read. Rows use raw non-UTF8 filename prefixes (0xFF/0xFE), a
+      space-prefixed stem, a Unicode prefix, and unchanged scalar fast-id cases.
+      Native and Source receipts compare raw code-point arrays and native path
+      bytes. The actual consumer is the existing deny-spelling algebra
+      (`effective_deny_exact`) that source_denied/ActivationGate use. The directly
+      affected cf85_source_fast_id target is the ONE existing target re-run, with
+      no semantic change expected from this edit.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No warning/traceback/logging/global-wire parity claim. Cache/read-retry
+      phases are preserved and only identity discovery/stem data changes.
+exceptions:
+  - path: crates/sk-doctrine/src/identity.rs
+    action: manual_review
+    reason: >-
+      Primary site: exact decoded filename discovery and PythonString stem/keys;
+      reuse Kernel codec and path helpers; no new decoder, hash, cache or roster.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: >-
+      Additive typed NativeOfferingFailure::IdentityPathDecode variant plus its
+      Display and std::error::Error::source arms. No other enum/hierarchy change.
+  - path: crates/sk-doctrine/tests/cf92_exact_filename_identity.rs
+    action: manual_review
+    reason: >-
+      New tiny named target with independent Source/Native business children and
+      the existing deny-spelling consumer.
+  - path: crates/sk-doctrine/tests/cf85_source_fast_id.rs
+    action: do_not_change
+    reason: >-
+      Directly affected existing target re-run as the one compatibility target;
+      no edit is planned.
+  - path: docs/rust/occurrence-maps/cf92-exact-filename-identity.yaml
+    action: manual_review
+    reason: >-
+      This prospective lane map, accepted:false, written before the API edit.
+status:
+  accepted: false
+  phase: prospective CF92 exact native filename identity discovery/stems

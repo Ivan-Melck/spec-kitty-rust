@@ -1,0 +1,73 @@
+target:
+  term: Source eight-kind global-selection prompt block and its prepared budget input
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Add one Doctrine selection-block render owner plus a readonly governance-charter selection projection; no existing public symbol is renamed or removed.
+  import_paths:
+    action: manual_review
+    notes: New crate-private module with same-item additive re-exports; context_render and compat/charter consume the shared owners.
+  filesystem_paths:
+    action: manual_review
+    notes: Doctrine reads stay on the existing canonical layered repositories and the existing charter.yaml reader; fresh independent fixtures only, no production root change.
+  serialized_keys:
+    action: do_not_change
+    notes: No JSON/serialized contract key is added or renamed; the selection block is rendered prompt text only.
+  cli_commands:
+    action: do_not_change
+    notes: No new CLI flag or command; the existing charter context bootstrap rail now carries the real selection block.
+  user_facing_strings:
+    action: manual_review
+    notes: Source per-kind headers, when-clauses, provenance suffix, miss stanza and fetch stanzas are carried verbatim; physical Python warning formatting remains a disclosed Native boundary.
+  tests_fixtures:
+    action: manual_review
+    notes: New focused selection-block controls and one live CLI consumer control; two existing render-input literals gain only the new optional field.
+  logs_telemetry:
+    action: manual_review
+    notes: Preserve every probe/exit and the genuine pre-change absence red; no retroactive or fabricated evidence.
+exceptions:
+  - path: crates/sk-doctrine/src/selection_block.rs
+    action: manual_review
+    reason: New single owner for the Source combined 8-kind selection block (provenance merge, identity lookup, body phase, per-entry budget, miss stanza).
+  - path: crates/sk-doctrine/src/project_governance.rs
+    action: manual_review
+    reason: Extend the existing readonly GovernanceCharterSelection projection with the missing selected_<kind> lists and the Source effective-selection reader; no second config loader.
+  - path: crates/sk-doctrine/src/identity.rs
+    action: manual_review
+    reason: Additive exact lookup-key seam over the existing index; no second classifier.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: Additive whole-record provenance label on the existing merged record; no second repository or merge.
+  - path: crates/sk-doctrine/src/catalog_diagnosis.rs
+    action: manual_review
+    reason: Extend the existing diagnosis owner so an agent-profile miss reads the canonical profile catalogue instead of reporting a false absence.
+  - path: crates/sk-doctrine/src/profile_sections.rs
+    action: manual_review
+    reason: Expose the existing canonical typed step-model view crate-internally for the shared inline formatter; no second model.
+  - path: crates/sk-doctrine/src/text_budget.rs
+    action: manual_review
+    reason: Mechanical ripple only if the prepared selection block changes the call shape; the CF71 candidate owner is unchanged.
+  - path: crates/sk-doctrine/src/context_render.rs
+    action: manual_review
+    reason: Prepare the selection block once before the bootstrap mark, push it into the text and hand the SAME block to the existing budget owner.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Same-item additive module declaration and re-exports.
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: Read the existing charter projection and pass the canonical catalogue/identity at the existing stage; no new command/flag/mark position.
+  - path: crates/sk-doctrine/tests/cf8_context_render.rs
+    action: manual_review
+    reason: Mechanical render-input literal ripple only.
+  - path: crates/sk-doctrine/tests/cf8_charter_workflow.rs
+    action: manual_review
+    reason: Mechanical render-input literal ripple only.
+  - path: crates/sk-doctrine/tests/cf75_selection_block.rs
+    action: manual_review
+    reason: New focused selection-block and provenance/budget controls.
+  - path: crates/sk-cli/tests/cf75_selection_block_cli.rs
+    action: manual_review
+    reason: New live CLI consumer control for the prepared selection block.
+status:
+  accepted: false
+  phase: prospective pre-edit classification

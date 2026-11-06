@@ -1,0 +1,973 @@
+{
+  "schema": "skit.rust.performance-registry.v1",
+  "registry_version": 1,
+  "frozen": true,
+  "frozen_baseline": {
+    "repository": "spec-kitty/spec-kitty",
+    "commit": "9aed3a8012cb5eb22c0128b14d525039f95fea7a"
+  },
+  "checker": {
+    "path": "scripts/rust/check_completion.py",
+    "inventory_model": "scripts/rust/inventory_model.py",
+    "evidence_adapter": "scripts/rust/performance_evidence.py",
+    "required_workload_ids": [
+      "startup.version",
+      "startup.help",
+      "cli.mission.list",
+      "status.replay",
+      "state.event-append",
+      "state.move-task",
+      "state.decision.resolve",
+      "runtime.next.governed",
+      "governance.charter",
+      "glossary.activation",
+      "workflow.mission-create",
+      "workflow.specify",
+      "workflow.plan",
+      "workflow.tasks",
+      "workflow.implement",
+      "workflow.review",
+      "workflow.accept",
+      "workflow.consolidate",
+      "workflow.merge",
+      "workflow.recovery"
+    ],
+    "gate_workload_ids": [
+      "status.replay",
+      "state.event-append",
+      "state.move-task",
+      "state.decision.resolve",
+      "runtime.next.governed",
+      "governance.charter",
+      "glossary.activation",
+      "workflow.mission-create",
+      "workflow.specify",
+      "workflow.plan",
+      "workflow.tasks",
+      "workflow.implement",
+      "workflow.review",
+      "workflow.accept",
+      "workflow.consolidate",
+      "workflow.merge",
+      "workflow.recovery"
+    ],
+    "startup_workload_ids": [
+      "startup.version",
+      "startup.help"
+    ],
+    "min_samples_per_side": 20,
+    "min_strict_workloads": 14,
+    "min_speedup": 3.0,
+    "max_regression_fraction": 0.1
+  },
+  "policy": {
+    "gate": "geometric_mean_speedup",
+    "minimum_speedup": 3.0,
+    "max_per_workload_regression_fraction": 0.1,
+    "minimum_strict_workloads": 14,
+    "minimum_samples_per_side": 20,
+    "confidence_level": 0.95,
+    "bootstrap_iterations": 4000,
+    "max_side_cv": 0.3,
+    "max_load_1m": 6.0,
+    "max_load_spread_1m": 4.0,
+    "min_work_excess_seconds": 0.005,
+    "min_work_excess_ratio": 1.25,
+    "require_paired_repetitions": true,
+    "require_interleaved_repetitions": true,
+    "require_machine_and_load_context": true,
+    "require_result_equivalence": true,
+    "require_payload_schema": true,
+    "require_post_state_equivalence": true,
+    "require_fixture_identity": true,
+    "require_portable_fixtures": true,
+    "require_toolchain_identity": true,
+    "require_build_receipt": true,
+    "require_clean_source": true,
+    "require_registry_digest": true,
+    "require_recomputation": true,
+    "require_work_excess_geomean": true,
+    "require_startup_separate": true,
+    "projection_counts_toward_gate": false,
+    "startup_counts_toward_gate": false,
+    "require_raw_samples": true,
+    "startup_is_separate": true,
+    "notes": "Aggregate = geometric mean of per-workload median(Python)/median(Rust) over strict, required work workloads. Startup and projection workloads are reported separately and cannot substitute."
+  },
+  "workloads": [
+    {
+      "id": "startup.version",
+      "category": "startup",
+      "required": true,
+      "strict_equivalence": false,
+      "gate_eligible": false,
+      "equivalence": "contract",
+      "measurement": "startup",
+      "fixture": null,
+      "params": {
+        "extract_version": true
+      },
+      "normalizer": "version_projection",
+      "comparator": "exact",
+      "native": {
+        "state": "implemented",
+        "binary": "spec-kitty",
+        "route": "spec-kitty --version",
+        "argv": [
+          "{binary:spec-kitty}",
+          "--version"
+        ],
+        "blocked_by": null
+      },
+      "oracle": {
+        "kind": "py-cli",
+        "argv": [
+          "{oracle}",
+          "-m",
+          "specify_cli",
+          "--version"
+        ],
+        "adapter": null,
+        "floor_modules": []
+      },
+      "expectations": {
+        "exit": 0,
+        "stdout": {
+          "required_substrings": [
+            "spec-kitty"
+          ],
+          "required_patterns": [
+            "\\d+\\.\\d+\\.\\d+"
+          ],
+          "min_bytes": 10
+        },
+        "payload": {
+          "required_keys": [
+            "version"
+          ],
+          "required_patterns": {
+            "version": "^\\d+\\.\\d+\\.\\d+"
+          }
+        }
+      },
+      "notes": [
+        "Startup is measured and reported separately; it can never enter the 3x aggregate.",
+        "The declared version string is compared exactly after extraction, so equal-but-empty output cannot pass."
+      ]
+    },
+    {
+      "id": "startup.help",
+      "category": "startup",
+      "required": true,
+      "strict_equivalence": false,
+      "gate_eligible": false,
+      "equivalence": "contract",
+      "measurement": "startup",
+      "fixture": null,
+      "params": {},
+      "normalizer": "raw_stdout",
+      "comparator": "contract",
+      "native": {
+        "state": "implemented",
+        "binary": "spec-kitty",
+        "route": "spec-kitty --help",
+        "argv": [
+          "{binary:spec-kitty}",
+          "--help"
+        ],
+        "blocked_by": null
+      },
+      "oracle": {
+        "kind": "py-cli",
+        "argv": [
+          "{oracle}",
+          "-m",
+          "specify_cli",
+          "--help"
+        ],
+        "adapter": null,
+        "floor_modules": []
+      },
+      "expectations": {
+        "exit": 0,
+        "stdout": {
+          "required_substrings": [
+            "Usage:",
+            "spec-kitty"
+          ],
+          "required_patterns": [
+            "(?m)^\\s{2,}\\S"
+          ],
+          "min_bytes": 200,
+          "min_lines": 6
+        }
+      },
+      "notes": [
+        "Help text differs by design (different CLI frameworks); this is a contract workload with a non-vacuous per-side schema, never gate evidence."
+      ]
+    },
+    {
+      "id": "cli.mission.list",
+      "category": "work",
+      "required": true,
+      "strict_equivalence": false,
+      "gate_eligible": false,
+      "equivalence": "projection",
+      "measurement": "read",
+      "fixture": "compat-project",
+      "params": {},
+      "normalizer": "project_mission_list",
+      "comparator": "exact",
+      "native": {
+        "state": "implemented",
+        "binary": "spec-kitty-rust",
+        "route": "spec-kitty-rust --json --project-root <fixture> mission list",
+        "argv": [
+          "{binary:spec-kitty-rust}",
+          "--json",
+          "--project-root",
+          "{fixture}",
+          "mission",
+          "list"
+        ],
+        "blocked_by": null
+      },
+      "oracle": {
+        "kind": "py-adapter",
+        "argv": [
+          "{oracle}",
+          "{adapters}/py_mission_list.py",
+          "--repo",
+          "{fixture}"
+        ],
+        "adapter": "benchmarks/rust/adapters/py_mission_list.py",
+        "floor_modules": [
+          "specify_cli.context.mission_resolver"
+        ]
+      },
+      "expectations": {
+        "exit": 0,
+        "payload": {
+          "required_keys": [
+            "count",
+            "missions"
+          ],
+          "nonempty_keys": [
+            "missions"
+          ],
+          "equals": {
+            "count": 12
+          },
+          "min_items": {
+            "missions": 12
+          },
+          "row_keys": {
+            "missions": [
+              "slug",
+              "mid8",
+              "friendly_name"
+            ]
+          },
+          "required_patterns": {
+            "missions[0].mid8": "^[0-9A-Z]{8}$"
+          }
+        }
+      },
+      "notes": [
+        "PROJECTION: upstream has no full inventory document; only slug/mid8/friendly_name are compared.",
+        "Required by the frozen floor but explicitly excluded from the strict 3x aggregate."
+      ]
+    },
+    {
+      "id": "status.replay",
+      "category": "work",
+      "required": true,
+      "strict_equivalence": true,
+      "gate_eligible": true,
+      "equivalence": "strict",
+      "measurement": "mutation",
+      "fixture": "replay-project",
+      "params": {
+        "mission_slug": "002-bench-mission-002"
+      },
+      "normalizer": "unwrap_rust_data",
+      "comparator": "exact",
+      "native": {
+        "state": "implemented",
+        "binary": "spec-kitty",
+        "route": "spec-kitty agent status materialize --mission 002-bench-mission-002 --json",
+        "argv": [
+          "{binary:spec-kitty}",
+          "agent",
+          "status",
+          "materialize",
+          "--mission",
+          "002-bench-mission-002",
+          "--json"
+        ],
+        "blocked_by": null
+      },
+      "oracle": {
+        "kind": "py-adapter",
+        "argv": [
+          "{oracle}",
+          "{adapters}/py_status_materialize.py",
+          "--repo",
+          "{fixture}",
+          "--mission",
+          "002-bench-mission-002"
+        ],
+        "adapter": "benchmarks/rust/adapters/py_status_materialize.py",
+        "floor_modules": [
+          "specify_cli.cli.commands.agent.status",
+          "specify_cli.status"
+        ]
+      },
+      "expectations": {
+        "exit": 0,
+        "payload": {
+          "required_keys": [
+            "mission_slug",
+            "mission_number",
+            "mission_type",
+            "materialized_at",
+            "event_count",
+            "last_event_id",
+            "work_packages",
+            "summary",
+            "schema_version"
+          ],
+          "nonnull_keys": [
+            "last_event_id",
+            "materialized_at"
+          ],
+          "nonempty_keys": [
+            "work_packages",
+            "summary"
+          ],
+          "equals": {
+            "mission_slug": "002-bench-mission-002",
+            "mission_number": "2",
+            "mission_type": "software-dev",
+            "event_count": 2800,
+            "schema_version": 2,
+            "summary.done": 200
+          },
+          "min_items": {
+            "work_packages": 200
+          },
+          "row_keys": {
+            "work_packages": [
+              "lane",
+              "actor",
+              "force_count",
+              "last_event_id",
+              "last_transition_at",
+              "review_result"
+            ]
+          },
+          "row_equals": {
+            "work_packages": {
+              "lane": "done"
+            }
+          }
+        },
+        "post_state": {
+          "required_paths": [
+            "kitty-specs/{mission_slug}/status.json"
+          ],
+          "min_bytes": {
+            "kitty-specs/{mission_slug}/status.json": 2000
+          },
+          "json_payload_key": "kitty-specs/{mission_slug}/status.json",
+          "json_payload": {
+            "required_keys": [
+              "mission_slug",
+              "mission_number",
+              "mission_type",
+              "materialized_at",
+              "event_count",
+              "last_event_id",
+              "work_packages",
+              "summary"
+            ],
+            "equals": {
+              "mission_slug": "002-bench-mission-002",
+              "mission_number": "2",
+              "mission_type": "software-dev",
+              "schema_version": 2,
+              "event_count": 2800,
+              "summary.done": 200
+            },
+            "min_items": {
+              "work_packages": 200
+            }
+          },
+          "unchanged_paths": [
+            "kitty-specs/{mission_slug}/status.events.jsonl"
+          ],
+          "ignored_prefixes": [
+            ".git/spec-kitty-locks/"
+          ],
+          "expected_additions": [
+            "kitty-specs/{mission_slug}/status.json"
+          ],
+          "expected_changes": [],
+          "expected_removals": [],
+          "exclusion_ruling": "Status lock artifacts are implementation-private, ephemeral and named differently by each implementation (.git/spec-kitty-locks/<slug>.status.lock upstream vs a hashed name natively). They are captured per invocation under ignored_artifacts, never asserted equal, and never counted as the observable post-state. Every user-facing byte -- including status.json -- is compared exactly."
+        }
+      },
+      "notes": [
+        "Canonical replay + materialize over a 2,800-event, 200-WP coherent mission.",
+        "Mutation: fresh clone per invocation; the timer excludes clone and post-state scan.",
+        "A 36-event fixture was measured during development and was launch-dominated; this fixture is sized so replay work dominates."
+      ]
+    },
+    {
+      "id": "state.event-append",
+      "category": "work",
+      "required": true,
+      "strict_equivalence": true,
+      "gate_eligible": true,
+      "equivalence": "strict",
+      "measurement": "absent",
+      "fixture": null,
+      "params": {},
+      "normalizer": null,
+      "comparator": null,
+      "native": {
+        "state": "absent",
+        "binary": null,
+        "route": null,
+        "argv": null,
+        "blocked_by": "Native `agent status emit` refuses: there is no canonical event writer yet. A refusal is not an equivalence result and must not be paired with an invented adapter."
+      },
+      "oracle": null,
+      "expectations": null,
+      "notes": []
+    },
+    {
+      "id": "state.move-task",
+      "category": "work",
+      "required": true,
+      "strict_equivalence": true,
+      "gate_eligible": true,
+      "equivalence": "strict",
+      "measurement": "absent",
+      "fixture": null,
+      "params": {},
+      "normalizer": null,
+      "comparator": null,
+      "native": {
+        "state": "absent",
+        "binary": null,
+        "route": null,
+        "argv": null,
+        "blocked_by": "Native `agent tasks move-task` refuses: no canonical writer yet. The refusal is explicit, so the workload stays blocked rather than being timed as an equal error."
+      },
+      "oracle": null,
+      "expectations": null,
+      "notes": []
+    },
+    {
+      "id": "state.decision.resolve",
+      "category": "work",
+      "required": true,
+      "strict_equivalence": true,
+      "gate_eligible": true,
+      "equivalence": "strict",
+      "measurement": "absent",
+      "fixture": null,
+      "params": {},
+      "normalizer": null,
+      "comparator": null,
+      "native": {
+        "state": "absent",
+        "binary": null,
+        "route": null,
+        "argv": null,
+        "blocked_by": "No native decision-ledger mutation or repair path; only a partial durable run store exists."
+      },
+      "oracle": null,
+      "expectations": null,
+      "notes": []
+    },
+    {
+      "id": "runtime.next.governed",
+      "category": "work",
+      "required": true,
+      "strict_equivalence": true,
+      "gate_eligible": true,
+      "equivalence": "strict",
+      "measurement": "absent",
+      "fixture": null,
+      "params": {},
+      "normalizer": null,
+      "comparator": null,
+      "native": {
+        "state": "absent",
+        "binary": null,
+        "route": null,
+        "argv": null,
+        "blocked_by": "Native `next` lacks mission-board progress, WP workspace resolution, decision-log commits, analysis currency, lifecycle records and retrospective hooks; native runtime routes are extensions with no upstream counterpart and cannot be paired as governed next."
+      },
+      "oracle": null,
+      "expectations": null,
+      "notes": []
+    },
+    {
+      "id": "governance.charter",
+      "category": "work",
+      "required": true,
+      "strict_equivalence": true,
+      "gate_eligible": true,
+      "equivalence": "strict",
+      "measurement": "absent",
+      "fixture": null,
+      "params": {},
+      "normalizer": null,
+      "comparator": null,
+      "native": {
+        "state": "absent",
+        "binary": null,
+        "route": null,
+        "argv": null,
+        "blocked_by": "No native charter activation/pack acquisition execution; upstream charter status/context/validate are different contracts from the Rust inspection document."
+      },
+      "oracle": null,
+      "expectations": null,
+      "notes": []
+    },
+    {
+      "id": "glossary.activation",
+      "category": "work",
+      "required": true,
+      "strict_equivalence": true,
+      "gate_eligible": true,
+      "equivalence": "strict",
+      "measurement": "absent",
+      "fixture": null,
+      "params": {},
+      "normalizer": null,
+      "comparator": null,
+      "native": {
+        "state": "absent",
+        "binary": null,
+        "route": null,
+        "argv": null,
+        "blocked_by": "Native sk-glossary implements seed validation + lookup only; replay/extraction/middleware/activation mutations have no native counterpart."
+      },
+      "oracle": null,
+      "expectations": null,
+      "notes": []
+    },
+    {
+      "id": "workflow.mission-create",
+      "category": "workflow",
+      "required": true,
+      "strict_equivalence": true,
+      "gate_eligible": true,
+      "equivalence": "strict",
+      "measurement": "absent",
+      "fixture": null,
+      "params": {},
+      "normalizer": null,
+      "comparator": null,
+      "native": {
+        "state": "absent",
+        "binary": null,
+        "route": null,
+        "argv": null,
+        "blocked_by": "Mission creation is partial: no charter activation gate, no mission_number allocation, no planning commit."
+      },
+      "oracle": null,
+      "expectations": null,
+      "notes": []
+    },
+    {
+      "id": "workflow.specify",
+      "category": "workflow",
+      "required": true,
+      "strict_equivalence": true,
+      "gate_eligible": true,
+      "equivalence": "strict",
+      "measurement": "absent",
+      "fixture": null,
+      "params": {},
+      "normalizer": null,
+      "comparator": null,
+      "native": {
+        "state": "absent",
+        "binary": null,
+        "route": null,
+        "argv": null,
+        "blocked_by": "Specify scaffolding is partial and does not reproduce the upstream refusal/commit contract."
+      },
+      "oracle": null,
+      "expectations": null,
+      "notes": []
+    },
+    {
+      "id": "workflow.plan",
+      "category": "workflow",
+      "required": true,
+      "strict_equivalence": true,
+      "gate_eligible": true,
+      "equivalence": "strict",
+      "measurement": "absent",
+      "fixture": null,
+      "params": {},
+      "normalizer": null,
+      "comparator": null,
+      "native": {
+        "state": "absent",
+        "binary": null,
+        "route": null,
+        "argv": null,
+        "blocked_by": "Native scaffolds plan.md without the substantive-spec gate or planning commit."
+      },
+      "oracle": null,
+      "expectations": null,
+      "notes": []
+    },
+    {
+      "id": "workflow.tasks",
+      "category": "workflow",
+      "required": true,
+      "strict_equivalence": true,
+      "gate_eligible": true,
+      "equivalence": "strict",
+      "measurement": "absent",
+      "fixture": null,
+      "params": {},
+      "normalizer": null,
+      "comparator": null,
+      "native": {
+        "state": "absent",
+        "binary": null,
+        "route": null,
+        "argv": null,
+        "blocked_by": "Task finalization reports a different contract (`tasks.md not found`) and skips requirement mapping, lanes refresh and lifecycle events."
+      },
+      "oracle": null,
+      "expectations": null,
+      "notes": []
+    },
+    {
+      "id": "workflow.implement",
+      "category": "workflow",
+      "required": true,
+      "strict_equivalence": true,
+      "gate_eligible": true,
+      "equivalence": "strict",
+      "measurement": "absent",
+      "fixture": null,
+      "params": {},
+      "normalizer": null,
+      "comparator": null,
+      "native": {
+        "state": "absent",
+        "binary": null,
+        "route": null,
+        "argv": null,
+        "blocked_by": "Lane implementation refuses with MISSING_LANES and lacks branch/dependency preflight, workspace persistence and auto-commit."
+      },
+      "oracle": null,
+      "expectations": null,
+      "notes": []
+    },
+    {
+      "id": "workflow.review",
+      "category": "workflow",
+      "required": true,
+      "strict_equivalence": true,
+      "gate_eligible": true,
+      "equivalence": "strict",
+      "measurement": "absent",
+      "fixture": null,
+      "params": {},
+      "normalizer": null,
+      "comparator": null,
+      "native": {
+        "state": "absent",
+        "binary": null,
+        "route": null,
+        "argv": null,
+        "blocked_by": "No native review workflow (claim, review_result, approval stamp and evidence windows) exists."
+      },
+      "oracle": null,
+      "expectations": null,
+      "notes": []
+    },
+    {
+      "id": "workflow.accept",
+      "category": "workflow",
+      "required": true,
+      "strict_equivalence": true,
+      "gate_eligible": true,
+      "equivalence": "strict",
+      "measurement": "absent",
+      "fixture": null,
+      "params": {},
+      "normalizer": null,
+      "comparator": null,
+      "native": {
+        "state": "absent",
+        "binary": null,
+        "route": null,
+        "argv": null,
+        "blocked_by": "Native accept is an explicit refusal: acceptance gates are not implemented."
+      },
+      "oracle": null,
+      "expectations": null,
+      "notes": []
+    },
+    {
+      "id": "workflow.consolidate",
+      "category": "workflow",
+      "required": true,
+      "strict_equivalence": true,
+      "gate_eligible": true,
+      "equivalence": "strict",
+      "measurement": "absent",
+      "fixture": null,
+      "params": {},
+      "normalizer": null,
+      "comparator": null,
+      "native": {
+        "state": "absent",
+        "binary": null,
+        "route": null,
+        "argv": null,
+        "blocked_by": "Native consolidate is an explicit refusal: no lane merge, rollback or preflight engine."
+      },
+      "oracle": null,
+      "expectations": null,
+      "notes": []
+    },
+    {
+      "id": "workflow.merge",
+      "category": "workflow",
+      "required": true,
+      "strict_equivalence": true,
+      "gate_eligible": true,
+      "equivalence": "strict",
+      "measurement": "absent",
+      "fixture": null,
+      "params": {},
+      "normalizer": null,
+      "comparator": null,
+      "native": {
+        "state": "absent",
+        "binary": null,
+        "route": null,
+        "argv": null,
+        "blocked_by": "Merge is retired in favour of consolidate and is an explicit native refusal."
+      },
+      "oracle": null,
+      "expectations": null,
+      "notes": []
+    },
+    {
+      "id": "workflow.recovery",
+      "category": "workflow",
+      "required": true,
+      "strict_equivalence": true,
+      "gate_eligible": true,
+      "equivalence": "strict",
+      "measurement": "absent",
+      "fixture": null,
+      "params": {},
+      "normalizer": null,
+      "comparator": null,
+      "native": {
+        "state": "absent",
+        "binary": null,
+        "route": null,
+        "argv": null,
+        "blocked_by": "No native recovery workflow for interrupted consolidation, stale worktrees or unexplained branch moves."
+      },
+      "oracle": null,
+      "expectations": null,
+      "notes": []
+    }
+  ],
+  "diagnostics": [
+    {
+      "id": "runtime.query.step",
+      "class": "work",
+      "equivalence": "strict",
+      "fixture": "runtime-large",
+      "note": "Pure planner scenario; real equivalence, but not a frozen completion workload."
+    },
+    {
+      "id": "runtime.query.blocked",
+      "class": "work",
+      "equivalence": "strict",
+      "fixture": "runtime-large",
+      "note": "Pure planner scenario."
+    },
+    {
+      "id": "runtime.query.terminal",
+      "class": "work",
+      "equivalence": "strict",
+      "fixture": "runtime-large",
+      "note": "Pure planner scenario."
+    },
+    {
+      "id": "runtime.query.pending-decision",
+      "class": "work",
+      "equivalence": "strict",
+      "fixture": "runtime-large",
+      "note": "Pure planner scenario."
+    },
+    {
+      "id": "runtime.query.missing-input",
+      "class": "work",
+      "equivalence": "strict",
+      "fixture": "runtime-large",
+      "note": "Pure planner scenario."
+    },
+    {
+      "id": "runtime.query.audit-blocking",
+      "class": "work",
+      "equivalence": "strict",
+      "fixture": "runtime-large",
+      "note": "Pure planner scenario."
+    },
+    {
+      "id": "runtime.query.audit-advisory",
+      "class": "work",
+      "equivalence": "strict",
+      "fixture": "runtime-large",
+      "note": "Pure planner scenario."
+    },
+    {
+      "id": "runtime.query.unschedulable",
+      "class": "work",
+      "equivalence": "strict",
+      "fixture": "runtime-large",
+      "note": "Pure planner scenario."
+    },
+    {
+      "id": "runtime.query.drift",
+      "class": "work",
+      "equivalence": "strict",
+      "fixture": "runtime-large",
+      "note": "Pure planner scenario."
+    },
+    {
+      "id": "glossary.lookup.resolved",
+      "class": "work",
+      "equivalence": "strict",
+      "fixture": "project-large",
+      "note": "Lookup only, not activation."
+    },
+    {
+      "id": "glossary.lookup.ambiguous",
+      "class": "work",
+      "equivalence": "strict",
+      "fixture": "project-large",
+      "note": "Lookup only."
+    },
+    {
+      "id": "glossary.lookup.unknown",
+      "class": "work",
+      "equivalence": "strict",
+      "fixture": "project-large",
+      "note": "Lookup only."
+    },
+    {
+      "id": "glossary.lookup.no-active-sense",
+      "class": "work",
+      "equivalence": "strict",
+      "fixture": "project-large",
+      "note": "Lookup only."
+    },
+    {
+      "id": "glossary.lookup.critical-unknown",
+      "class": "work",
+      "equivalence": "strict",
+      "fixture": "project-large",
+      "note": "Lookup only."
+    },
+    {
+      "id": "glossary.lookup.scoped-team",
+      "class": "work",
+      "equivalence": "strict",
+      "fixture": "project-large",
+      "note": "Lookup only."
+    },
+    {
+      "id": "tasks.list",
+      "class": "work",
+      "equivalence": "strict",
+      "fixture": "compat-project",
+      "note": "Real strict pair on a compatibility route; not a frozen completion workload."
+    },
+    {
+      "id": "mission.list.projection",
+      "class": "work",
+      "equivalence": "projection",
+      "fixture": "project-large",
+      "note": "Diagnostic projection."
+    },
+    {
+      "id": "mission.graph.projection",
+      "class": "work",
+      "equivalence": "projection",
+      "fixture": "project-large",
+      "note": "Diagnostic projection."
+    },
+    {
+      "id": "tasks.list_dependents.projection",
+      "class": "work",
+      "equivalence": "projection",
+      "fixture": "compat-project",
+      "note": "Diagnostic projection."
+    },
+    {
+      "id": "mission.branch_context.projection",
+      "class": "micro",
+      "equivalence": "projection",
+      "fixture": "compat-project",
+      "note": "Micro/projection; launch-dominated."
+    },
+    {
+      "id": "transition.check.planned-claimed",
+      "class": "micro",
+      "equivalence": "projection",
+      "fixture": null,
+      "note": "Micro FSM decision."
+    },
+    {
+      "id": "transition.check.claimed-in_progress",
+      "class": "micro",
+      "equivalence": "projection",
+      "fixture": null,
+      "note": "Micro FSM decision."
+    },
+    {
+      "id": "transition.check.for_review-in_review",
+      "class": "micro",
+      "equivalence": "projection",
+      "fixture": null,
+      "note": "Micro FSM decision."
+    },
+    {
+      "id": "transition.check.approved-done",
+      "class": "micro",
+      "equivalence": "projection",
+      "fixture": null,
+      "note": "Micro FSM decision."
+    },
+    {
+      "id": "transition.check.planned-done-refused",
+      "class": "micro",
+      "equivalence": "projection",
+      "fixture": null,
+      "note": "Micro FSM decision."
+    }
+  ],
+  "digest": "sha256:82435983080c99693f9ce0c977bc7dffd7a4c6e581194e9583c4e7b70114700d"
+}

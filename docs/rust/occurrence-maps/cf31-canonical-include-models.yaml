@@ -1,0 +1,236 @@
+# CF31 — occurrence classification (PRE-EDIT; canonical include model dumps + admission for
+# glossary-pack, paradigm, skill/PackSkill and mission-step-contract)
+#
+# Lane: the ONE existing typed admission/model-dump owner in `sk-doctrine`
+# (`offering/model.rs` admission over `ArtifactDocument`, `body.rs`
+# `canonical_artifact_body`). CF31 closes the pending projection for four kinds that the
+# source `charter.activation.context_renderers.artifact_bodies._jsonable_artifact_value`
+# already renders from a validated Pydantic model. Non-template include serving
+# (`context_include.rs`, `context_render.rs`, CLI) is CF32's lane and is NOT edited here.
+#
+# Written BEFORE any CF31 edit from the real pre-edit inventory recorded in
+# /tmp/sk-evidence-cf31-01 (`command-log-index.tsv`; `preedit-ident-counts.WYlKYK.log`
+# counts: canonical_artifact_body 9, admits_mapping 3, model_id 62, ArtifactKind::Skill 12,
+# glossary_pack 30, mission_step_contract 65 occurrences across `crates/**/*.rs`).
+# This is a NEW lane map: no invented Mission/Op metadata, no `accepted: true`, no
+# fictional `kitty-specs/` mission, no backdated approval.
+#
+# This lane is ADDITIVE at the identifier level, so `target.operation` is omitted (the
+# schema allows that for additive work): no artifact-kind token, selector grammar, JSON
+# key, CLI flag, filesystem path or Source message is renamed, removed or deprecated. The
+# one genuine non-additive *behaviour* change is that a Native capability GAP becomes real
+# support: `IncludeError::PendingProjection` stays (the variant, its
+# `CONTEXT_INCLUDE_PENDING` code and its message are untouched and still correct for any
+# future untyped kind), but it stops being reachable for these four kinds because the
+# canonical model dump now exists. The obsolete expectation in the foreign test file is
+# named under `tests_fixtures` and is NOT edited by this lane (outside the ownership
+# grant); the exact replacement is requested from the parent/CF32.
+#
+# KEEP list (must NOT change in this lane):
+#   * `IncludeError`, `CONTEXT_INCLUDE_PENDING`, the `PendingProjection` variant and its
+#     message text — CF26/CF32 own the include error family; CF31 only makes it
+#     unreachable for four kinds by supplying the dump it declared missing
+#   * the include selector grammar, the `artifact:` ambiguity/not-found families, heading
+#     labels and the `Full artifact:` renderer — `context_include.rs`,
+#     `context_render.rs` and the CLI envelope are CF32's, not edited here
+#   * `body::canonical_artifact_body`'s public name and signature (re-exported from
+#     `lib.rs`, which this lane does not edit) and `offering::model::{model_id,
+#     admits_mapping}` names/signatures
+#   * the five already-dumped kinds' field sets/order (directive, tactic, styleguide,
+#     toolguide, procedure) — their dumps must stay byte-identical on admitted documents
+#   * the ONE AgentProfile owner: `profile.rs`'s `AgentProfile::model_dump` /
+#     `ProfileBody::scalar_projection` is untouched and no second profile model is added
+#   * `crates/sk-install/src/skills/pack_skill.rs` (its own typed installer model,
+#     repository, enhancement fold and `record_json`) — untouched; unification onto the
+#     Doctrine admission owner is parent-scoped debt, not a CF31 edit
+#   * Source authority: `src/**`, `packs/**`, `pins/**`, `goldens/**`,
+#     `packs/built-in.source.yaml` untouched (read only)
+#   * `crates/sk-doctrine/src/{context_include,context_render,context,offering}.rs`,
+#     `identity.rs`, `effective_set.rs`, `sk-cli/**`, `sk-charter/**`, `Cargo.toml`,
+#     `Cargo.lock` untouched (foreign lanes / parent)
+#
+# docs: this map plus the module/test doc comments inside the two owned source files are
+# the only documentation CF31 adds. `docs/rust/STATUS.md`, `docs/rust/VERIFICATION.md` and
+# the capability/inventory prose are parent-owned and are NOT edited.
+target:
+  term: >-
+    PendingProjection refusal for the glossary_pack / paradigm / skill /
+    mission_step_contract `--include` and action-delivery `Full artifact:` payload
+  replacement: >-
+    the canonical reference `model_dump(by_alias=True, mode="json", exclude_none=True)`
+    projection for those four kinds, produced by the existing
+    `sk-doctrine::body::canonical_artifact_body` schema tables from the same
+    `ArtifactDocument`, with whole-document admission in the existing
+    `sk-doctrine::offering::model` owner (`PackSkill` admission added; the three existing
+    admissions verified against the pinned Source models)
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      ADDITIVE only. `body.rs` gains four model-dump schema tables
+      (`GLOSSARY_PACK`/`GLOSSARY_TERM`, `PARADIGM`/`PARADIGM_REFERENCE`,
+      `PACK_SKILL`/`PACK_SKILL_PARAMETER`/`PACK_SKILL_INVOCATION`/`SKILL_EXPANSION`,
+      `MISSION_STEP_CONTRACT`/`MISSION_STEP_CONTRACT_STEP`/`MISSION_STEP_CONTRACT_INPUT`/
+      `DELEGATES_TO`/`GATE_BINDING`), the new `Spec` variants that express real model
+      defaults/coercions (`Float`, `Boolean`, `BooleanDefault`, `Kind`, `OptTextList`,
+      `RequiredTextList`, `RequiredModels`, `OptModel`, `TextListDefault`,
+      `SkillInvocation`) and three shared lax-scalar text rules promoted in
+      `offering::model` (`lax_bool_text`, `lax_int_text`, `lax_float_text`) so admission
+      and the dump obey ONE coercion authority. `offering::model` gains
+      `View::pack_skill` plus its nested validators (`skill_expansion`, `skill_parameter`,
+      `skill_invocation`) and the `ArtifactKind::Skill` arm of `admits_mapping`. No
+      existing symbol is renamed or removed; no parallel model, parser or writer is added.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No module path, `pub mod`/`pub use` line, crate edge or dependency changes. Both
+      files already import what they need (`serde_yaml_ng`, `sk_charter::ArtifactKind`,
+      `sk_kernel::PythonString`); `body.rs` gains one intra-crate `use` of the coerced
+      scalar rules from `super::model` (same crate, no new edge).
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No pack, pin, bundle, state or asset path moves or is rewritten. The new files are
+      exactly two `cf31_*` test files and this map.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      Every dumped key is the pinned Source Pydantic field name (`by_alias=True`): the four
+      kinds add no key of their own and rename none. Newly *emitted* (never renamed) keys
+      are Source field names only — glossary_pack `id, provenance, terms, description`,
+      term `surface, definition, confidence, status, see_also, introduced_in_mission,
+      synonyms_to_avoid, aliases, banned_synonyms`; paradigm `schema_version, id, name,
+      summary, directive_refs, references` + reference `type, id`; skill
+      `schema_version, id, title, description, triggers, form, body_path, expands_to,
+      parameters, invocation, tools, version, maintainers, overrides, enhances` +
+      parameter `name, required, description, default` + invocation `user_invocable,
+      model_invocable, side_effects` + expansion `target, args`; mission_step_contract
+      `id, schema_version, action, mission, steps, gates` + step `id, description, command,
+      inputs, delegates_to, guidance` + input `flag, source, optional` + delegates_to
+      `kind, candidates` + gate `on_transition, handler, handler_kind, schema_version,
+      fail_open, provenance`. `Float`/`Boolean`/`Kind` emit the model's coerced JSON value
+      (number/boolean/canonical enum spelling), never a rewritten authored token.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command, subcommand, flag, alias or registration change; `--include`,
+      `charter context` and every CLI route stay with CF32/parent. Exit codes and the JSON
+      envelope are untouched by this lane.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      No user-facing string is added or edited. `PendingProjection`'s message
+      ("… no canonical model-dump schema for it …") is unchanged; its *reachable set*
+      shrinks for glossary_pack / paradigm / skill / mission_step_contract, which is the
+      point of the lane. Heading labels (`Glossary pack`, `Paradigm`, `Skill`,
+      `Mission step contract`) already exist in the foreign include owner and are not
+      edited here.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      NEW `crates/sk-doctrine/tests/cf31_canonical_include_models.rs` (dump surface,
+      defaults, coercion, field presence, real built-in glossary pack / paradigm / step
+      contract / internal pack skill documents) and NEW
+      `crates/sk-doctrine/tests/cf31_pack_skill_admission.rs` (admission accept/refuse
+      matrix through the existing owner, including the augmentation/form/limit rules the
+      model owns). KEEP/REQUEST: the foreign
+      `crates/sk-doctrine/tests/cf26_context_include.rs::kinds_without_a_canonical_model_dump_refuse_instead_of_printing_raw_yaml`
+      asserts `CONTEXT_INCLUDE_PENDING` for `glossary-pack:` and `paradigm:`. That
+      expectation becomes obsolete the moment the dump exists; it is outside this lane's
+      ownership grant and is NOT edited here — the parent/CF32 must replace those two rows
+      with real-render assertions (heading + inline body + `Full artifact:` payload) and
+      keep the pending assertion only for a kind that still has no dump. Existing
+      Source-first/oracle tests are not weakened or re-pinned.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric, event or telemetry key is added or renamed; no warning/debug line is
+      emitted on the new dump/admission path.
+exceptions:
+  - path: crates/sk-doctrine/src/body.rs
+    action: manual_review
+    reason: >-
+      Sole owner of the canonical model-dump tables. CF31 adds four kind schemas and the
+      `Spec` variants they need; the five existing kinds' tables, their dump ordering and
+      the public `canonical_artifact_body` contract are preserved.
+  - path: crates/sk-doctrine/src/offering/model.rs
+    action: manual_review
+    reason: >-
+      Sole owner of whole-document admission. CF31 adds `PackSkill` admission and the
+      shared lax-scalar text rules; every existing kind's admission predicate keeps its
+      current semantics.
+  - path: crates/sk-doctrine/tests/cf26_context_include.rs
+    action: do_not_change
+    reason: >-
+      KEEP: foreign lane file. Its two pending-projection rows become obsolete with this
+      lane's dump; the replacement is requested from the parent/CF32 instead of being
+      edited outside the grant.
+status:
+  lane: cf31-canonical-include-models
+  change_mode: bulk_edit
+  source_baseline: "9aed3a8012cb5eb22c0128b14d525039f95fea7a"
+  owned_paths:
+    - crates/sk-doctrine/src/body.rs
+    - crates/sk-doctrine/src/offering/model.rs
+    - crates/sk-doctrine/tests/cf31_canonical_include_models.rs
+    - crates/sk-doctrine/tests/cf31_pack_skill_admission.rs
+    - docs/rust/occurrence-maps/cf31-canonical-include-models.yaml
+  declared_non_edits:
+    - crates/sk-doctrine/src/context_include.rs
+    - crates/sk-doctrine/src/context_render.rs
+    - crates/sk-doctrine/src/context.rs
+    - crates/sk-doctrine/src/offering.rs
+    - crates/sk-doctrine/src/offering/value.rs
+    - crates/sk-doctrine/src/identity.rs
+    - crates/sk-doctrine/src/effective_set.rs
+    - crates/sk-doctrine/src/profile.rs
+    - crates/sk-doctrine/src/lib.rs
+    - crates/sk-doctrine/tests/cf26_context_include.rs
+    - crates/sk-install/src/skills/pack_skill.rs
+    - crates/sk-cli/**
+    - crates/sk-charter/**
+    - Cargo.toml
+    - Cargo.lock
+    - src/**
+    - packs/**
+    - pins/**
+    - goldens/**
+  added_literals:
+    - symbol: sk_doctrine::body::{GLOSSARY_PACK, GLOSSARY_TERM}
+      where: crates/sk-doctrine/src/body.rs
+      reason: >-
+        `GlossaryPack.model_dump(by_alias=True, mode="json", exclude_none=True)` surface:
+        `terms` is `Field(min_length=1)` (required, no default), `description` is optional,
+        term list fields default to `None` (dropped), `confidence` is a lax `float`.
+    - symbol: sk_doctrine::body::{PARADIGM, PARADIGM_REFERENCE}
+      where: crates/sk-doctrine/src/body.rs
+      reason: >-
+        `Paradigm` surface: `directive_refs`/`references` are `default_factory=list`
+        (always present), `ParadigmReference.type` is an `ArtifactKind` enum (JSON value =
+        canonical spelling).
+    - symbol: sk_doctrine::body::{PACK_SKILL, PACK_SKILL_PARAMETER, PACK_SKILL_INVOCATION, SKILL_EXPANSION}
+      where: crates/sk-doctrine/src/body.rs
+      reason: >-
+        `PackSkill` surface: `tools` defaults to `["*"]`, `version` to `"1.0.0"`,
+        `invocation` is `default_factory=SkillInvocation`, `parameters`/`triggers`/
+        `maintainers` default empty, `body_path`/`expands_to`/`overrides`/`enhances`
+        optional. `SkillInvocation`'s `mode="before"` validator forces
+        `model_invocable=False` whenever `side_effects` is declared — the dump reflects
+        that model value, not the authored field.
+    - symbol: sk_doctrine::body::{MISSION_STEP_CONTRACT, MISSION_STEP_CONTRACT_STEP, MISSION_STEP_CONTRACT_INPUT, DELEGATES_TO, GATE_BINDING}
+      where: crates/sk-doctrine/src/body.rs
+      reason: >-
+        `MissionStepContract` surface: `gates` defaults empty, `steps` is
+        `Field(min_length=1)`, step `inputs` defaults empty, `optional`/`fail_open`
+        default `False`/`True`, `handler_kind` defaults `"mission_step_contract"`,
+        `DelegatesTo.candidates` is `Field(min_length=1)` and `kind` is an `ArtifactKind`.
+    - symbol: sk_doctrine::offering::model::View::pack_skill
+      where: crates/sk-doctrine/src/offering/model.rs
+      reason: >-
+        The `ArtifactKind::Skill` admission arm missing from the existing owner:
+        `extra="forbid"` key set, `Literal["1.0"]`, id grammar/length, non-empty
+        title/description, form discriminator with `body_path`/`expands_to` exclusivity,
+        `expands_to` builtin/cli argv guards, duplicate-parameter, and
+        `overrides`/`enhances` exclusivity/self-reference rules.
+  reviewed_by: "CF31 implementer pre-edit classification (not independent approval)"
+  accepted: false

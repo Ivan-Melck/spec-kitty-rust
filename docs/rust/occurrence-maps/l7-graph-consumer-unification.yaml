@@ -1,0 +1,162 @@
+# PRE-EDIT inventory for L7 (created 2026-11-05T14:58Z, BEFORE any source edit).
+# Grounded in l7-09/l7-11/l7-12 census logs under /tmp/sk-l7-evidence.
+# Narrow semantic migration of typed consumers onto the ONE canonical YAML object
+# graph. NOT a rename, NOT a package-wide format pass, NOT a new parser.
+# No host Mission/Op/gate metadata. Frozen subject verified: 38/38 sha256 match
+# against /tmp/sk-l7-parent-handoff.RynxFn/subject.sha256 (l7-02-subject-verify).
+target:
+  term: "acyclic tree projection of the whole YAML root before typed validation"
+  replacement: "ONE ObjectGraph authority + borrowed NodeRef views read by the typed consumers"
+  operation: migrate_consumers
+categories:
+  # --- 1. one authority (Kernel python_yaml subtree + python_value) -------------
+  authority:
+    action: manual_review
+    files:
+      - {path: crates/sk-kernel/src/python_yaml.rs, lines: 849, role: "pipeline + decode_graph/decode_text/decode_document/decode_bytes"}
+      - {path: crates/sk-kernel/src/python_yaml/graph.rs, lines: 1049, role: "arena/Object/NodeId/equal/hash/repr/project/build"}
+      - {path: crates/sk-kernel/src/python_yaml/transport.rs, lines: 1572, role: "transport/markers/splice_identity_tags"}
+      - {path: crates/sk-kernel/src/python_yaml/construct.rs, lines: 1766, role: "tag constructors"}
+      - {path: crates/sk-kernel/src/python_yaml/set_order.rs, lines: 1118, role: "hash/order authority"}
+      - {path: crates/sk-kernel/src/python_yaml/error.rs, lines: 139, role: "error classes"}
+      - {path: crates/sk-kernel/src/python_yaml/dialect.rs, lines: 485, role: "dialect policy"}
+      - {path: crates/sk-kernel/src/python_value.rs, lines: 246, role: "PythonValue domain + lax accessors"}
+    notes: >-
+      ADD one borrowed view module (NodeRef/GraphDocument) plus ONE factored
+      scalar coercion (lax str/bool) that BOTH PythonValue and NodeRef delegate
+      to, so there is no second walker/text/validator. Extend graph.rs with
+      field-scoped projection (`to_python_value_at`) and node-scoped `str()`.
+      No change to Object/PythonValue enum shape, no new parser, no dependency
+      edit, no magic depth cap, no registry patch/fork.
+
+  # --- 2. actual Source-compatible consumers that MUST read the graph -----------
+  consumers_migrate:
+    action: manual_review
+    files:
+      - {path: crates/sk-mission/src/definition/dialect.rs, hits: 17, role: "PyYamlSafe/RuamelSafe decode -> graph document"}
+      - {path: crates/sk-mission/src/definition/model.rs, state_value_hits: 61, role: "MissionDefinition::from_document + Builder (45 SourceValue:: matches)"}
+      - {path: crates/sk-mission/src/definition/resolve.rs, hits: 1, role: "load_at: read bytes, decode, validate"}
+      - {path: crates/sk-mission/src/path_conventions/project.rs, hits: 14, role: "project.path_conventions reader (13 SourceValue sites)"}
+    notes: >-
+      The loader seam returns a graph document, never a whole-root
+      to_python_value(ROOT). Field-scoped projection only where the existing
+      model needs a tree (e.g. `paths` OrderedMap). A cycle in an IGNORED
+      compat field must not be traversed; a cycle in a required field yields the
+      model-phase issue, not a transport/tree error. Preserve resolver tiers,
+      remap/waiver/root policy, diagnostics wording, authored order.
+
+  # --- 3. legacy aliases kept real in the build (no lookalike DTO) -------------
+  legacy_alias_keep:
+    action: do_not_change
+    files:
+      - {path: crates/sk-mission/src/definition/value.rs, lines: 17, role: "SourceValue = PythonValue, OrderedMap re-export"}
+    notes: >-
+      These remain the within-build TypeId aliases. They are the legacy
+      acyclic adapter type for already-decoded test inputs; they are NOT a
+      second parser and must not gain a copied validator.
+
+  # --- 4. explicitly-distinct dialect adapter (never Source-faithful) ----------
+  distinct_dialect_keep:
+    action: manual_review
+    files:
+      - {path: crates/sk-mission/src/definition/dialect.rs, matches: 7, role: "CoreSchemaYaml + CORE_SCHEMA_DIVERGENCES"}
+    notes: >-
+      Kept as a distinct, explicitly-divergent YAML-1.2-core capability used
+      only for cross-checks. It must still hand its constructed tree to the
+      ONE canonical builder so consumers see one object model; its own
+      serde_yaml_ng parse stays because it models a different dialect on
+      purpose, and it must never become a fallback for PyYAML/ruamel.
+
+  # --- 5. fixtures / oracles / paired tests (KEEP; additive only) --------------
+  fixtures_oracles:
+    action: manual_review
+    files:
+      - {path: crates/sk-mission/tests/definition_source.rs, lines: 789}
+      - {path: crates/sk-mission/tests/path_conventions_source.rs, lines: 1426}
+      - {path: crates/sk-mission/tests/oracle/definition_model.py, lines: 115}
+      - {path: crates/sk-mission/tests/oracle/path_conventions.py, lines: 174}
+      - {path: crates/sk-kernel/tests/python_yaml_source.rs, lines: 785}
+      - {path: crates/sk-kernel/tests/python_yaml_graph_source.rs, lines: 502}
+      - {path: crates/sk-kernel/tests/oracle/python_yaml_graph.py, lines: 129}
+    notes: >-
+      Existing Source-first controls stay genuine and green. Add new rows for
+      the migration boundaries (ignored-field cycle, required-field cycle,
+      alias data preservation, lax bool, date/bytes/set/omap/pairs) — Source
+      child asserts the intended cause FIRST, both children assert the exact
+      sandbox/interpreter/packs. No weak normalizer, no expected divergence
+      promoted to parity.
+
+  # --- 6. shared text/coercion authority in Doctrine (private walkers -> graph) -
+  shared_text_coercion:
+    action: manual_review
+    files:
+      - {path: crates/sk-doctrine/src/offering/value.rs, repr_hits: 18, lines: 549, role: "ArtifactDocument python_str/python_repr/repr_text/sequence,mapping,set,omap,pairs_repr"}
+      - {path: crates/sk-doctrine/src/identity.rs, repr_hits: 3, lines: 1138, role: "declared_id via document.python_str"}
+      - {path: crates/sk-doctrine/src/offering/model.rs, repr_hits: 1, lines: 906, role: "python_string_value"}
+      - {path: crates/sk-doctrine/src/profile_schema.rs, repr_hits: 11, lines: 629, role: "python_repr_value recursive walker"}
+    notes: >-
+      Delete the private container repr walkers and route container `str()`/
+      `repr()` to the ONE graph text authority, so a cyclic/shared container
+      prints `[...]`/`{...}` structurally while the underlying data stays a
+      graph. Profile/schema/offering-model *validation* still reads its
+      constructed tree in this pass; that residual is named OPEN, not waived.
+
+  # --- 7. ignored/compat fields that must never be traversed -------------------
+  ignored_compat_keep:
+    action: do_not_change
+    files:
+      - {path: crates/sk-mission/src/definition/model.rs, const: "MISSION_COMPAT_IGNORED_FIELDS (7)"}
+    notes: >-
+      Source's model ignores these keys; the migration must not project or
+      walk them, so a Source-valid cycle inside one stays accepted. They stay
+      authored in the graph untouched (preserve raw authored graph/extras).
+
+  # --- 8. out of scope: parent-owned or other-wave ----------------------------
+  out_of_scope_parent:
+    action: do_not_change
+    paths:
+      - crates/sk-kernel/src/lib.rs
+      - crates/sk-kernel/src/atomic.rs
+      - crates/sk-kernel/src/bounded.rs
+      - crates/sk-kernel/src/paths.rs
+      - crates/sk-kernel/src/python_text.rs
+      - crates/sk-kernel/src/python_utf8.rs
+      - crates/sk-kernel/src/source_writer.rs
+      - crates/sk-kernel/src/source_writer/write_observer.rs
+      - Cargo.toml
+      - Cargo.lock
+      - crates/sk-install/**
+      - crates/sk-status/**
+      - crates/sk-workspace/**
+      - crates/sk-cli/**
+      - crates/sk-invocation/**
+      - crates/sk-charter/**
+      - crates/sk-doctrine/src/language_scope.rs   # not in L7 scope list
+      - crates/sk-doctrine/src/profile.rs          # not in L7 scope list
+      - crates/sk-doctrine/src/activation.rs
+      - crates/sk-doctrine/src/ledger.rs
+      - crates/sk-doctrine/src/org_charter.rs
+      - src/**
+      - packs/**
+    notes: >-
+      Parent owns manifests/locks/rootlib/central registry/catalogue/ledger/
+      CLI/accounting/publication; W2 owns context/guards/token/future; the
+      charter carrier/Unicode/traversal wave owns sk-charter. No edits there,
+      no foreign formatting, no Source/pack/pin/golden mutation.
+exceptions:
+  - path: crates/sk-kernel/src/python_yaml/view.rs
+    action: add
+    reason: New borrowed view module; must be complete before any consumer names it.
+  - path: crates/sk-kernel/src/python_yaml.rs
+    action: manual_review
+    reason: Re-export the view + canonical builder entry; no lib.rs root export needed (parent-owned).
+  - path: crates/sk-kernel/src/python_yaml/graph.rs
+    action: manual_review
+    reason: Add node-scoped project/str accessors only; keep one identity/equality/hash/repr authority.
+  - path: crates/sk-kernel/src/python_value.rs
+    action: manual_review
+    reason: Delegate lax coercions to the one shared module; enum shape unchanged.
+status:
+  reviewed_by: "producer pre-edit classification; not independent approval"
+  accepted: false
+  created_before_edit: true

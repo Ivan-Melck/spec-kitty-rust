@@ -1,0 +1,118 @@
+# CF87 continuation — occurrence classification for the post-publication guards,
+# delivery controls and the actual CLI consumer
+#
+# Lane: the published-but-unfinished CF87 pack-skill include delivery. This map is
+# PRE-EDIT: it was written from the current bytes (census receipt
+# `09-pre8-census`, counted before any edit in this continuation) and validated
+# with the three canonical validators BEFORE the test-guard correction, the new
+# CLI consumer target and any production correction. `status.accepted: false`.
+#
+# This lane is neither a rename nor a removal, so `target.operation` is omitted
+# (additive/corrective). The target term names the delivery guard slice, not a
+# literal string that must be replaced everywhere; every occurrence class below is
+# classified from the census counts.
+#
+# Planned edits, all confined to the original narrow grant:
+#   - `crates/sk-doctrine/tests/cf87_skill_include_delivery.rs`: prospective guard
+#     correction (independent expected Source root/origin, codec/stream/fs policy,
+#     exact53 oracle verification, hash seed, miss/denied/read controls) — the
+#     fixture and production route bytes are not weakened.
+#   - NEW `crates/sk-cli/tests/cf87_cli_skill_include.rs`: one actual tiny CLI
+#     consumer of `spec-kitty charter context --include skill:<id>` through the
+#     real binary.
+#   - production files only if a Source-measured difference demands it:
+#     `crates/sk-doctrine/src/{pack_skill_repository,offering,context_include}.rs`.
+target:
+  term: cf87-skill-include-delivery
+status:
+  accepted: false
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Census `09-pre8-census`: `cf87_skill_include_delivery` 3 occurrences (the
+      target file name, its module doc and the published map's text),
+      `render_kind` 3, `render_document_artifact` 4, `IncludeAccess` 11. The
+      production symbols keep their names and signatures; the new CLI target
+      calls the existing `spec-kitty charter context --include` route. No public
+      export, root module or registration edit.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      Census: `context_include` imports 21, `pack_skill_repository` imports 11.
+      The new test target adds no dependency edge and no manifest/lock change; it
+      uses the existing `sk-cli` integration-test pattern.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      Census `find`: exactly two paths name cf87 today
+      (`crates/sk-doctrine/tests/cf87_skill_include_delivery.rs`,
+      `docs/rust/occurrence-maps/cf87-skill-include-delivery.yaml`); this lane
+      adds one test path and one map path. No pack/pin/golden/state path changes;
+      fixtures stay in fresh per-test temporary trees.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      Census: `fixture-skill` 16, `"body_path"` 7, `deactivated_skills` 2. No
+      `*.skill.yaml`, `activation.yaml`, `config.yaml` or model-dump key is added,
+      renamed or removed. The denied control writes the existing
+      `deactivated_skills` ledger key exactly as the published activation model
+      spells it; the rendered `Full artifact:` payload remains the exact model
+      dump.
+  cli_commands:
+    action: manual_review
+    notes: >-
+      Census: 18 existing `charter context --include` integration invocations.
+      No command/subcommand/flag/alias/exit-code/envelope change. The new target
+      exercises the existing `charter context --include skill:<id>` route through
+      the real binary, for a Source-valid project skill and its sibling body.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Census: `No skill found for selector` 2 (the reference message and its
+      assertion), `"Skill "` heading label 0 directly (the label is built by
+      `heading`). The reference sentences stay verbatim; the miss message remains
+      only for a genuine miss/skip. No new operator-facing wording.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      Census: three skill-named doctrine test files plus this lane's target;
+      `cf32_effective_include` 11 references. NEW
+      `crates/sk-cli/tests/cf87_cli_skill_include.rs` (real binary consumer) and
+      prospective additions to the existing cf87 doctrine target. The Source-valid
+      CF32 fixture is not edited or weakened; its one old include case remains the
+      selected regression check after Source validity is established.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      Census: 9 `CF87_*`/`SK_CF87_*` child-marker occurrences. No log, metric,
+      event or telemetry key change. Child receipt markers stay test-only stdout;
+      loader warnings keep the `Skipping invalid …` shape.
+exceptions:
+  - path: crates/sk-doctrine/tests/cf87_skill_include_delivery.rs
+    action: manual_review
+    reason: >-
+      Owned test target. Corrects the published guard tautology and adds
+      miss/denied/read controls prospectively; the business fixture and the
+      production route under test are unchanged.
+  - path: crates/sk-cli/tests/cf87_cli_skill_include.rs
+    action: manual_review
+    reason: >-
+      New owned CLI consumer target; one tiny actual binary invocation of the
+      existing include route, no CLI root/envelope redesign.
+  - path: crates/sk-doctrine/src/context_include.rs
+    action: manual_review
+    reason: >-
+      Owned `--include` dispatch. Only touched if a Source-measured delivery,
+      phase, deny, lazy or caught-error difference requires it; otherwise the
+      published bytes stay.
+  - path: crates/sk-doctrine/src/pack_skill_repository.rs
+    action: manual_review
+    reason: >-
+      Owned canonical pack-skill repository. Only touched if the measured Source
+      read/admission/body phase differs; no schema clone or second model.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: >-
+      Owned Skill-only offering bridge. Only touched if the measured record/
+      payload/lazy phase differs; no other kind's arm changes.

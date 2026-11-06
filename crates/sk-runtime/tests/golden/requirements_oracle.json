@@ -1,0 +1,609 @@
+{
+  "bare_prose": {
+    "compound_and_suffix": {
+      "candidates": [],
+      "content": "# Spec\n\n## Functional Requirements\n\nFR-008-mandated is not an id. FR-001a is suffixed. SC-001 is a success criterion.\n"
+    },
+    "declared_everywhere": {
+      "candidates": [],
+      "content": "# Spec\n\n## Functional Requirements\n\n| FR-001 | declared |\n\nFR-001 is cited again here.\n"
+    },
+    "mixed_section": {
+      "candidates": [
+        {
+          "ids": [
+            "FR-001",
+            "FR-002"
+          ],
+          "section_heading": "Functional Requirements"
+        }
+      ],
+      "content": "# Spec\n\n## Functional Requirements\n\n| ID | Requirement |\n| --- | --- |\n| NFR-001 | declared |\n\nFR-001 must hold. FR-002 too.\n"
+    },
+    "no_requirement_section": {
+      "candidates": [],
+      "content": "# Spec\n\n## Overview\n\nFR-001 is not scanned without a requirement heading.\n"
+    }
+  },
+  "bare_prose_failures": {
+    "compound_and_suffix": [],
+    "declared_everywhere": [],
+    "mixed_section": [
+      "Bare-prose requirement id(s) found, uncounted by requirement mapping: Functional Requirements: FR-001, FR-002. Rewrite them in a recognized declared shape (table row / id-naming heading / bulleted item / bold-led paragraph) before finalizing."
+    ],
+    "no_requirement_section": []
+  },
+  "classify": [
+    {
+      "declared": [
+        "FR-001"
+      ],
+      "raw": "FR-001",
+      "verdict": {
+        "accepted": "FR-001"
+      }
+    },
+    {
+      "declared": [
+        "FR-001"
+      ],
+      "raw": "fr-001",
+      "verdict": {
+        "accepted": "FR-001"
+      }
+    },
+    {
+      "declared": [
+        "FR-001a"
+      ],
+      "raw": "FR-001a",
+      "verdict": {
+        "accepted": "FR-001a"
+      }
+    },
+    {
+      "declared": [
+        "FR-001a"
+      ],
+      "raw": "FR-001A",
+      "verdict": {
+        "accepted": "FR-001a"
+      }
+    },
+    {
+      "declared": [
+        "FR-001"
+      ],
+      "raw": "FR-001-mandated",
+      "verdict": {
+        "rejected": {
+          "raw": "FR-001-mandated",
+          "reason": "malformed"
+        }
+      }
+    },
+    {
+      "declared": [
+        "FR-001"
+      ],
+      "raw": "FR-001.3",
+      "verdict": {
+        "rejected": {
+          "raw": "FR-001.3",
+          "reason": "malformed"
+        }
+      }
+    },
+    {
+      "declared": [
+        "FR-001"
+      ],
+      "raw": "other#FR-001",
+      "verdict": {
+        "rejected": {
+          "raw": "other#FR-001",
+          "reason": "foreign_qualified"
+        }
+      }
+    },
+    {
+      "declared": [
+        "FR-001"
+      ],
+      "raw": "other-01M6GC7E#FR-001",
+      "verdict": {
+        "rejected": {
+          "raw": "other-01M6GC7E#FR-001",
+          "reason": "foreign_qualified"
+        }
+      }
+    },
+    {
+      "declared": [
+        "FR-001"
+      ],
+      "raw": "Other#FR-001",
+      "verdict": {
+        "rejected": {
+          "raw": "Other#FR-001",
+          "reason": "malformed"
+        }
+      }
+    },
+    {
+      "declared": [
+        "FR-001"
+      ],
+      "raw": "FR-999",
+      "verdict": {
+        "rejected": {
+          "raw": "FR-999",
+          "reason": "unknown_spec_id"
+        }
+      }
+    },
+    {
+      "declared": [
+        "SC-001"
+      ],
+      "raw": "SC-001",
+      "verdict": {
+        "accepted": "SC-001"
+      }
+    },
+    {
+      "declared": [
+        "DR-001"
+      ],
+      "raw": "DR-001",
+      "verdict": {
+        "rejected": {
+          "raw": "DR-001",
+          "reason": "malformed"
+        }
+      }
+    },
+    {
+      "declared": [
+        "FR-001"
+      ],
+      "raw": "bogus",
+      "verdict": {
+        "rejected": {
+          "raw": "bogus",
+          "reason": "malformed"
+        }
+      }
+    }
+  ],
+  "mapping": [
+    {
+      "facts": {
+        "feature_dir_name": "demo-01M6GC7E",
+        "functional": [
+          "FR-001",
+          "FR-002"
+        ],
+        "name": "complete",
+        "refs": {
+          "WP01": [
+            "FR-001"
+          ],
+          "WP02": [
+            "FR-002"
+          ]
+        },
+        "spec": [
+          "FR-001",
+          "FR-002"
+        ],
+        "wp_ids": [
+          "WP01",
+          "WP02"
+        ]
+      },
+      "failures": []
+    },
+    {
+      "facts": {
+        "feature_dir_name": "demo-01M6GC7E",
+        "functional": [
+          "FR-001",
+          "FR-002"
+        ],
+        "name": "missing_refs",
+        "refs": {
+          "WP01": [
+            "FR-001"
+          ]
+        },
+        "spec": [
+          "FR-001",
+          "FR-002"
+        ],
+        "wp_ids": [
+          "WP01",
+          "WP02"
+        ]
+      },
+      "failures": [
+        "Requirement mapping incomplete before finalize-tasks: missing refs for WPs: WP02; unmapped FRs: FR-002. Run `spec-kitty agent tasks map-requirements --batch ... --mission demo-01M6GC7E --json` or update WP requirement_refs before finalizing."
+      ]
+    },
+    {
+      "facts": {
+        "feature_dir_name": "demo-01M6GC7E",
+        "functional": [
+          "FR-001",
+          "FR-002"
+        ],
+        "name": "unmapped_functional",
+        "refs": {
+          "WP01": [
+            "FR-001",
+            "SC-001"
+          ],
+          "WP02": [
+            "FR-001"
+          ]
+        },
+        "spec": [
+          "FR-001",
+          "FR-002",
+          "SC-001"
+        ],
+        "wp_ids": [
+          "WP01",
+          "WP02"
+        ]
+      },
+      "failures": [
+        "Requirement mapping incomplete before finalize-tasks: unmapped FRs: FR-002. Run `spec-kitty agent tasks map-requirements --batch ... --mission demo-01M6GC7E --json` or update WP requirement_refs before finalizing."
+      ]
+    },
+    {
+      "facts": {
+        "feature_dir_name": "demo-01M6GC7E",
+        "functional": [
+          "FR-001"
+        ],
+        "name": "rejected_refs",
+        "refs": {
+          "WP01": [
+            "FR-001",
+            "bogus",
+            "FR-999"
+          ],
+          "WP02": [
+            "other#FR-001"
+          ]
+        },
+        "spec": [
+          "FR-001"
+        ],
+        "wp_ids": [
+          "WP01",
+          "WP02"
+        ]
+      },
+      "failures": [
+        "Requirement mapping incomplete before finalize-tasks: missing refs for WPs: WP02; rejected refs: WP01: FR-999 (unknown_spec_id), bogus (malformed). Run `spec-kitty agent tasks map-requirements --batch ... --mission demo-01M6GC7E --json` or update WP requirement_refs before finalizing."
+      ]
+    },
+    {
+      "facts": {
+        "feature_dir_name": "research-01M6GC7E",
+        "functional": [
+          "FR-001"
+        ],
+        "mission_type": "research",
+        "name": "research_kinds",
+        "refs": {
+          "WP01": [
+            "DR-001"
+          ]
+        },
+        "spec": [
+          "FR-001"
+        ],
+        "wp_ids": [
+          "WP01"
+        ]
+      },
+      "failures": [
+        "Requirement mapping incomplete before finalize-tasks: missing refs for WPs: WP01; rejected refs: WP01: DR-001 (unknown_spec_id); unmapped FRs: FR-001. Run `spec-kitty agent tasks map-requirements --batch ... --mission research-01M6GC7E --json` or update WP requirement_refs before finalizing."
+      ]
+    }
+  ],
+  "prose": {
+    "FR-001 FR-001": [
+      {
+        "canonical": "FR-001",
+        "digits": "001",
+        "kind": "FR",
+        "mission": null,
+        "rendered": "FR-001",
+        "suffix": null
+      },
+      {
+        "canonical": "FR-001",
+        "digits": "001",
+        "kind": "FR",
+        "mission": null,
+        "rendered": "FR-001",
+        "suffix": null
+      }
+    ],
+    "FR-001 and FR-002": [
+      {
+        "canonical": "FR-001",
+        "digits": "001",
+        "kind": "FR",
+        "mission": null,
+        "rendered": "FR-001",
+        "suffix": null
+      },
+      {
+        "canonical": "FR-002",
+        "digits": "002",
+        "kind": "FR",
+        "mission": null,
+        "rendered": "FR-002",
+        "suffix": null
+      }
+    ],
+    "FR-001aNFR-002 adjacent": [],
+    "FR-002.3 is not an id": [],
+    "FR-008-mandated is not an id": [],
+    "Other-Mission#FR-001 leaked qualifier": [],
+    "other#FR-001 foreign": [
+      {
+        "canonical": "FR-001",
+        "digits": "001",
+        "kind": "FR",
+        "mission": "other",
+        "rendered": "other#FR-001",
+        "suffix": null
+      }
+    ],
+    "other-01M6GC7E#FR-001 foreign mid8": [
+      {
+        "canonical": "FR-001",
+        "digits": "001",
+        "kind": "FR",
+        "mission": "other-01M6GC7E",
+        "rendered": "other-01M6GC7E#FR-001",
+        "suffix": null
+      }
+    ],
+    "see FR-001. next": [
+      {
+        "canonical": "FR-001",
+        "digits": "001",
+        "kind": "FR",
+        "mission": null,
+        "rendered": "FR-001",
+        "suffix": null
+      }
+    ],
+    "x.y#FR-001 truncated qualifier": []
+  },
+  "prose_spec_scan": {
+    "FR-001 FR-001": [
+      {
+        "canonical": "FR-001",
+        "digits": "001",
+        "kind": "FR",
+        "mission": null,
+        "rendered": "FR-001",
+        "suffix": null
+      },
+      {
+        "canonical": "FR-001",
+        "digits": "001",
+        "kind": "FR",
+        "mission": null,
+        "rendered": "FR-001",
+        "suffix": null
+      }
+    ],
+    "FR-001 and FR-002": [
+      {
+        "canonical": "FR-001",
+        "digits": "001",
+        "kind": "FR",
+        "mission": null,
+        "rendered": "FR-001",
+        "suffix": null
+      },
+      {
+        "canonical": "FR-002",
+        "digits": "002",
+        "kind": "FR",
+        "mission": null,
+        "rendered": "FR-002",
+        "suffix": null
+      }
+    ],
+    "FR-001aNFR-002 adjacent": [],
+    "FR-002.3 is not an id": [],
+    "FR-008-mandated is not an id": [],
+    "Other-Mission#FR-001 leaked qualifier": [],
+    "other#FR-001 foreign": [
+      {
+        "canonical": "FR-001",
+        "digits": "001",
+        "kind": "FR",
+        "mission": "other",
+        "rendered": "other#FR-001",
+        "suffix": null
+      }
+    ],
+    "other-01M6GC7E#FR-001 foreign mid8": [
+      {
+        "canonical": "FR-001",
+        "digits": "001",
+        "kind": "FR",
+        "mission": "other-01M6GC7E",
+        "rendered": "other-01M6GC7E#FR-001",
+        "suffix": null
+      }
+    ],
+    "see FR-001. next": [
+      {
+        "canonical": "FR-001",
+        "digits": "001",
+        "kind": "FR",
+        "mission": null,
+        "rendered": "FR-001",
+        "suffix": null
+      }
+    ],
+    "x.y#FR-001 truncated qualifier": []
+  },
+  "provenance": {
+    "generator": "crates/sk-runtime/tests/oracle/generate_requirement_goldens.py",
+    "python": "3.11.15",
+    "source": "spec-kitty 9aed3a8012cb5eb22c0128b14d525039f95fea7a"
+  },
+  "specs": {
+    "foreign_and_unknown": {
+      "content": "# Spec\n\n| FR-001 | real |\n",
+      "declared": [
+        "FR-001"
+      ],
+      "parsed": {
+        "all": [
+          "FR-001"
+        ],
+        "constraint": [],
+        "functional": [
+          "FR-001"
+        ],
+        "non_functional": [],
+        "success_criteria": []
+      }
+    },
+    "headings_and_comments": {
+      "content": "# Spec\n\n### FR-001: first\n#### NFR-002\n<!--\n| FR-099 | commented out |\n-->\n## FR-001a suffixed\n",
+      "declared": [
+        "FR-001",
+        "FR-001a",
+        "NFR-002"
+      ],
+      "parsed": {
+        "all": [
+          "FR-001",
+          "FR-001a",
+          "NFR-002"
+        ],
+        "constraint": [],
+        "functional": [
+          "FR-001",
+          "FR-001a"
+        ],
+        "non_functional": [
+          "NFR-002"
+        ],
+        "success_criteria": []
+      }
+    },
+    "multi_id_line": {
+      "content": "# Spec\n\n- **FR-001 / FR-002**: both hold.\n| FR-003 | third |\n",
+      "declared": [
+        "FR-001",
+        "FR-003"
+      ],
+      "parsed": {
+        "all": [
+          "FR-001",
+          "FR-003"
+        ],
+        "constraint": [],
+        "functional": [
+          "FR-001",
+          "FR-003"
+        ],
+        "non_functional": [],
+        "success_criteria": []
+      }
+    },
+    "only_prose": {
+      "content": "# Spec\n\nFR-001 must hold. FR-002 too.\n",
+      "declared": [],
+      "parsed": {
+        "all": [],
+        "constraint": [],
+        "functional": [],
+        "non_functional": [],
+        "success_criteria": []
+      }
+    },
+    "quoting": {
+      "content": "# Spec\n\nSee FR-021's default-pack materialization; do not count it.\n| FR-001 | real |\n",
+      "declared": [
+        "FR-001"
+      ],
+      "parsed": {
+        "all": [
+          "FR-001"
+        ],
+        "constraint": [],
+        "functional": [
+          "FR-001"
+        ],
+        "non_functional": [],
+        "success_criteria": []
+      }
+    },
+    "table_and_bullets": {
+      "content": "# Spec\n\n| ID | Requirement |\n| --- | --- |\n| **FR-001** | first |\n| ~~FR-002~~ | retired |\n| SC-001 | success |\n\n- FR-003: third\n- **NFR-001**: non functional\n1. C-001 constraint\n\n**FR-004 \u2014 bold lead.** prose\n\nProse citation of FR-021 is not declared.\nCompound FR-008-mandated is not declared.\n",
+      "declared": [
+        "C-001",
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "NFR-001",
+        "SC-001"
+      ],
+      "parsed": {
+        "all": [
+          "C-001",
+          "FR-001",
+          "FR-002",
+          "FR-003",
+          "FR-004",
+          "NFR-001",
+          "SC-001"
+        ],
+        "constraint": [
+          "C-001"
+        ],
+        "functional": [
+          "FR-001",
+          "FR-002",
+          "FR-003",
+          "FR-004"
+        ],
+        "non_functional": [
+          "NFR-001"
+        ],
+        "success_criteria": [
+          "SC-001"
+        ]
+      }
+    }
+  },
+  "tasks_md_refs": {
+    "software-dev": {
+      "WP01": [],
+      "WP02": [
+        "FR-002"
+      ],
+      "WP03": [
+        "C-001"
+      ]
+    }
+  }
+}

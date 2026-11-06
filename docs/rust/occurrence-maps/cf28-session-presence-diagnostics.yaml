@@ -1,0 +1,227 @@
+# CF28 — occurrence classification (additive session-presence probes)
+#
+# Lane: NEW actual session-presence health probes (context_file / rule / hook).
+#
+# Shape history (no retroactive pre-edit approval is claimed):
+#   * v1 (this lane's first draft) put the lane metadata inside `target:` and
+#     laid the eight categories out as LISTS of rows. That shape fails the real
+#     Source schema (`additionalProperties: false` on `target`, category
+#     entries must be mappings with `action`) and the structural/admissibility
+#     checks. The parent reported the failure; the original bytes are preserved
+#     at /tmp/sk-evidence/cf28-20261105T215710Z-main/occurrence-map/
+#     cf28-original-invalid.yaml (sha256 preserved in `status`).
+#   * v2 (this file) keeps only schema-legal keys: `target` (term / operation /
+#     replacement), the eight `categories` as mappings with `action`, and the
+#     free-form `status:` block that the schema allows for exactly this kind of
+#     lane metadata. Per-occurrence detail lives under `status.category_rows`.
+#
+# The change itself is ADDITIVE: no identifier, key, path, flag or message is
+# renamed or removed. `target.term` therefore names the one literal whose
+# *treatment* this lane changes: the research-gap sentinel `<unsupported>`,
+# which stops being a blanket "no native diagnostic" verdict for the three
+# session-presence kinds (the reference's own provider verdict replaces it) and
+# stays in force for the kinds that remain genuine gaps
+# (`plugin_manifest`, `native_config` outside Vibe, `agent_profile` without a
+# manifest). `replacement` is null because no single literal replaces it.
+#
+# Standard 8 categories: each carries exactly one `action`; the detailed
+# per-occurrence rows a reviewer needs are under `status.category_rows`.
+
+target:
+  term: "<unsupported>"
+  operation: deprecate
+  replacement: null
+
+categories:
+  code_symbols:
+    action: manual_review
+    note: >-
+      Additive only: the private writer roster in session.rs gains a read-only
+      public descriptor and the session-presence kinds gain a probe module. No
+      symbol is renamed or removed; a reviewer confirms no second harness roster
+      appeared.
+  import_paths:
+    action: manual_review
+    note: >-
+      One new submodule declaration (`tool_surface_diagnostics::session_presence`);
+      every existing `crate::session::*` importer is unimported differently only
+      where it already was.
+  filesystem_paths:
+    action: manual_review
+    note: >-
+      No new filesystem path literal: the probe reads the descriptor's existing
+      harness paths and the existing CLAUDE_SETTINGS_REL.
+  serialized_keys:
+    action: manual_review
+    note: >-
+      Reuses the released state vocabulary and adds the reference's three
+      session-presence finding codes; no JSON key is renamed.
+  cli_commands:
+    action: do_not_change
+    note: >-
+      `--kind context_file|rule|hook` tokens and the `--fix` refusal already
+      exist; no command, flag or token value changes in this lane.
+  user_facing_strings:
+    action: manual_review
+    note: >-
+      New operator-facing messages are the reference's own sentences for the
+      three kinds; existing install warnings are untouched.
+  tests_fixtures:
+    action: manual_review
+    note: >-
+      Two new cf28 test files; one owned unit test is retargeted because its
+      premise is superseded (recorded below). No fixture bytes are rewritten.
+  logs_telemetry:
+    action: do_not_change
+    note: >-
+      No log, telemetry or warning-format change: the audit runs no writer and
+      emits no install warning.
+
+status:
+  lane: cf28-session-presence-diagnostics
+  change_kind: additive
+  source_baseline: "9aed3a8012cb5eb22c0128b14d525039f95fea7a"
+  inventory_receipt: "026-pre-edit-occurrence-inventory.Njlpmi.log"
+  original_invalid_map:
+    path: /tmp/sk-evidence/cf28-20261105T215710Z-main/occurrence-map/cf28-original-invalid.yaml
+    sha256: "c65e9c207a3cf330f57359bc04a0bed9aa05809a7b99ef5740da5497153edd7a"
+    size_bytes: 11502
+    reported_by: parent (real Source schema failure)
+    reproduced_by: "078-real-gate-reproduction-of-reported-failure (schema+structural+admissibility all invalid)"
+  validation_receipts:
+    real_gate_runner: /tmp/sk-evidence/cf28-20261105T215710Z-main/cf28-validate-map.py
+    checks: [validate_against_schema, validate_occurrence_map, check_admissibility]
+    note: >-
+      Runs the pinned Source gate code itself on a temporary
+      `occurrence_map.yaml` copy, so the verdict is the gate's, not a hand-rolled
+      assertion.
+  owned_paths:
+    - crates/sk-install/src/session.rs
+    - crates/sk-install/src/tool_surface_diagnostics.rs
+    - crates/sk-install/src/tool_surface_diagnostics/session_presence.rs
+    - crates/sk-install/tests/cf28_session_presence_probes.rs
+    - crates/sk-cli/tests/cf28_session_presence_cli.rs
+    - docs/rust/occurrence-maps/cf28-session-presence-diagnostics.yaml
+  declared_non_edits:
+    - crates/sk-install/src/lib.rs
+    - crates/sk-cli/src/compat/doctor.rs
+    - crates/sk-cli/src/compat/doctor/tool_surfaces.rs
+    - crates/sk-cli/tests/cf23_tool_surface_diagnostics.rs
+    - crates/sk-install/src/init.rs
+    - crates/sk-install/src/migrations
+    - crates/sk-kernel
+  rationale: >-
+    This map classifies an additive change, so the per-category actions state
+    what a reviewer must inspect (manual_review) or must not see change
+    (do_not_change). The two do_not_change rows name surfaces this lane does not
+    touch at all; every surface the diff actually edits is manual_review, so the
+    review-time diff check flags review rows instead of pretending the edits are
+    forbidden or silently whitelisting them.
+  category_rows:
+    code_symbols:
+      - occurrence: "WriterKind"
+        sites: 1
+        where: crates/sk-install/src/session.rs
+        posture: removed as a private enum, replaced in place by the public SessionWriterDescriptor/SessionWriterMode; the single writer_for match is not duplicated
+      - occurrence: "writer_for"
+        sites: 1
+        where: crates/sk-install/src/session.rs
+        posture: renamed to the public session_writer (one authority, same match); no caller outside the file
+      - occurrence: "session_writer / SessionWriterDescriptor / SessionWriterMode"
+        sites: 0 before this lane
+        where: NEW public API in crates/sk-install/src/session.rs
+        posture: new symbols verified absent in the pre-edit inventory
+      - occurrence: "session_artefacts / session_artefact_kind / assess_orientation / observe_claude_settings / assess_claude_hooks"
+        sites: 0 before this lane
+        where: NEW read-only assessment API in crates/sk-install/src/session.rs
+        posture: new symbols verified absent in the pre-edit inventory
+      - occurrence: "SurfaceKind::ContextFile|Hook|Rule"
+        sites: 6
+        where: crates/sk-install/src/tool_surface_diagnostics.rs, crates/sk-cli/tests/cf23_tool_surface_diagnostics.rs
+        posture: enum variants and wire strings unchanged; only the expand/probe dispatch arms move to the new submodule. The CLI test site is parent-owned and is not edited.
+      - occurrence: "session_presence_definition"
+        sites: 1
+        where: crates/sk-install/src/tool_surface_diagnostics.rs
+        posture: kept as the single definition builder; the submodule calls it for the emitted artefact's own kind
+      - occurrence: "RESEARCH_GAP_SENTINEL / research_gap"
+        sites: 2
+        where: crates/sk-install/src/tool_surface_diagnostics.rs
+        posture: kept for the kinds that remain genuine gaps; session kinds dispatch to the new submodule before the generic sentinel check so the reference's own research-gap sentence is used
+    import_paths:
+      - occurrence: "crate::session::*"
+        sites: 3
+        where: crates/sk-install/src/{init.rs,migrations/completion_modern/presence.rs,lib.rs}
+        posture: unchanged; the new items are additive and `pub mod session` already exists, so no lib.rs edit is requested
+      - occurrence: "tool_surface_diagnostics::session_presence"
+        sites: 0
+        where: NEW declaration in crates/sk-install/src/tool_surface_diagnostics.rs
+        posture: declared once; resolves to src/tool_surface_diagnostics/session_presence.rs with no path attribute
+    filesystem_paths:
+      - occurrence: ".claude/CLAUDE.md"
+        sites: existing writer only
+        posture: no new literal; the probe uses the descriptor's path
+      - occurrence: ".claude/settings.json"
+        sites: existing CLAUDE_SETTINGS_REL
+        posture: no new literal; the probe reuses the constant
+      - occurrence: ".cursor/rules/spec-kitty.mdc, .kiro/steering/spec-kitty.md, .windsurf/rules/spec-kitty.md"
+        sites: existing writer roster
+        posture: rule classification derives from these descriptor paths via the reference marker rule (/rules/, /steering/, .mdc)
+      - occurrence: "AGENTS.md, GEMINI.md, LLXPRT.md, .github/copilot-instructions.md"
+        sites: existing writer roster
+        posture: classified as context files exactly as the reference's _markdown_kind does
+    serialized_keys:
+      - occurrence: "state: present|missing|stale|unsafe|not_applicable"
+        sites: existing STATE_* constants
+        posture: reused verbatim; no new state token
+      - occurrence: "code: context-file-missing | session-presence-incomplete | session-presence-undecodable | stale-generated-surface | research-gap-surface"
+        sites: 0 in crates before this lane
+        posture: added as the reference's exact strings; STALE_GENERATED_SURFACE and RESEARCH_GAP_SURFACE reused, three session codes are new constants
+      - occurrence: "summary.* and surfaces[].*"
+        sites: existing SurfaceReport/SurfaceStatus::to_json
+        posture: untouched JSON contract (released by CF23); only states/findings are filled
+    cli_commands:
+      - occurrence: "spec-kitty doctor tool-surfaces --kind context_file|rule|hook"
+        sites: existing KIND_TOKENS
+        posture: already resolves; this lane makes the three kinds real probes, adds no flag
+      - occurrence: "spec-kitty doctor tool-surfaces --kind context_file --fix / --kind hook --fix"
+        sites: existing repair hints and the CLI --fix refusal
+        posture: reuse of the reference's hints as finding repair_command; repair remains a typed refusal
+    user_facing_strings:
+      - occurrence: "No known session-presence mechanism for <tool>."
+        sites: 1 (new submodule)
+        posture: the reference's exact sentence for NullWriter harnesses
+      - occurrence: "Always-on context file missing for <tool>: <path>"
+        sites: 1 (new)
+        posture: reference _missing_status wording
+      - occurrence: "Session-presence hook entry missing for <tool>: <path> / Session-presence rule file missing for <tool>: <path>"
+        sites: 2 (new)
+        posture: reference labels for HOOK/RULE missing
+      - occurrence: "Orientation version stale for <tool>: <path>"
+        sites: 1 (new)
+        posture: reference _stale_status wording
+      - occurrence: "undecodable: re-save <path> as UTF-8"
+        sites: 1 (new)
+        posture: reference _undecodable_status wording
+    tests_fixtures:
+      - occurrence: "an_unimplemented_kind_is_a_research_gap_not_a_health_claim"
+        sites: 1
+        where: crates/sk-install/src/tool_surface_diagnostics.rs (owned)
+        posture: >-
+          superseded premise (a configured claude has no context_file probe).
+          Retargeted to plugin_manifest, which stays a research gap; it still
+          pins the state/severity contract and was not deleted or weakened to a
+          tautology.
+      - occurrence: "an_unimplemented_kind_reports_a_research_gap_instead_of_health"
+        sites: 1
+        where: crates/sk-cli/tests/cf23_tool_surface_diagnostics.rs (PARENT-OWNED)
+        posture: same superseded premise; NOT edited. Exact patch requested in the lane report; the current red is recorded.
+      - occurrence: "cf28_session_presence_probes.rs / cf28_session_presence_cli.rs"
+        sites: 0
+        posture: new files, unique cf28_ prefix, no name collision
+    logs_telemetry:
+      - occurrence: "Failed to write orientation for <tool>: ..."
+        sites: existing apply_session_presence warnings
+        posture: untouched; the audit runs no writer and emits no install warning
+      - occurrence: "audit must not run a session projection writer"
+        sites: 0
+        posture: enforced by construction (probe module only reads bytes and calls the read-only assessment)

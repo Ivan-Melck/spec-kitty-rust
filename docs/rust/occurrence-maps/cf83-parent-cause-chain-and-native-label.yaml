@@ -1,0 +1,46 @@
+target:
+  term: CF83 standard error source traversal and truthful Native codec capability labels
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Existing typed error carriers implement standard Error source; canonical ConstructorAbort becomes an Error leaf, no new class or parallel carrier.
+  import_paths:
+    action: do_not_change
+    notes: Existing NativeOfferingFailure StreamError and typed carrier reexports only.
+  filesystem_paths:
+    action: do_not_change
+    notes: Pure in-memory cause traversal; no writer/root/read-phase changes.
+  serialized_keys:
+    action: do_not_change
+    notes: No wire schema or parser data changes.
+  cli_commands:
+    action: do_not_change
+    notes: No root flags/counts or invocation changes.
+  user_facing_strings:
+    action: manual_review
+    notes: Source-valid-but-unsupported codec must display Native capability gap, not fake Python unknown-codec fatal; actual InvalidStartup untouched.
+  tests_fixtures:
+    action: manual_review
+    notes: New existingAPI structural negatives for source chain and capability label, no Source business-pair claim.
+  logs_telemetry:
+    action: manual_review
+    notes: Original typed getter proofs do not prove std Error traversal. Current checks scoped; provenance chronology preserved.
+exceptions:
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: Error leaf and OfferingLoadError source returns actual typed cause.
+  - path: crates/sk-doctrine/src/offering/gate.rs
+    action: manual_review
+    reason: GateFailure exposes Constructor or Native cause via standard trait.
+  - path: crates/sk-doctrine/src/effective_set.rs
+    action: manual_review
+    reason: ActivationContextError and EffectiveSetError source traversal, no catch policy changes.
+  - path: crates/sk-kernel/src/python_stream.rs
+    action: manual_review
+    reason: UnsupportedEncoding is capability classification, display must not invent Source invalidity.
+  - path: crates/sk-doctrine/tests/cf83_parent_cause_chain.rs
+    action: manual_review
+    reason: Focused standard cause-chain and truthful Native capability label controls.
+status:
+  accepted: false
+  phase: prospective parent error interoperability and diagnostic correction

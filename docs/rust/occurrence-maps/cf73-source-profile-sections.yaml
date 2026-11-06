@@ -1,0 +1,64 @@
+target:
+  term: Source profile-cited prompt sections and the prepared profile block
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Add one Doctrine profile-sections owner and one catalogue-diagnosis owner; add crate-private repository accessors; no existing public symbol is renamed.
+  import_paths:
+    action: manual_review
+    notes: New crate-private modules with same-item re-exports; context_render and compat/charter consume the shared owners.
+  filesystem_paths:
+    action: manual_review
+    notes: Profile/doctrine reads stay on the existing canonical layered repositories; fresh independent fixtures only, no production root change.
+  serialized_keys:
+    action: do_not_change
+    notes: No JSON/serialized contract key is added or renamed; the profile block is rendered text only.
+  cli_commands:
+    action: do_not_change
+    notes: No new CLI flag or command; the existing --profile input now reaches the real prepared block.
+  user_facing_strings:
+    action: manual_review
+    notes: Source section headers, miss stanza/cause/suggestion text and fetch stanzas are carried verbatim; warning delivery differs from Python warnings formatting and is disclosed.
+  tests_fixtures:
+    action: manual_review
+    notes: New Source-first small controls and paired CLI children; existing fixture literals gain only the new optional render-input field.
+  logs_telemetry:
+    action: manual_review
+    notes: Preserve every probe/exit and the genuine pre-change profile-absence red; no retroactive or fabricated evidence.
+exceptions:
+  - path: crates/sk-doctrine/src/profile_sections.rs
+    action: manual_review
+    reason: New single owner for Source profile-cited sections (directive/tactic/styleguide/toolguide/procedure/suggested) and the prepared block.
+  - path: crates/sk-doctrine/src/catalog_diagnosis.rs
+    action: manual_review
+    reason: New canonical catalogue-miss diagnosis owner (difflib-compatible classification, structured stanza, warning policy).
+  - path: crates/sk-doctrine/src/context_render.rs
+    action: manual_review
+    reason: Render the prepared profile block once, include it in the text and hand the same block to the existing budget owner; exact compact carrier.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: Additive repository id/scope-filtered accessors and scope-filtered tracking needed by the diagnosis owner; no second repository.
+  - path: crates/sk-doctrine/src/context.rs
+    action: manual_review
+    reason: Expose the existing edge-reference projector crate-internally for the profile-channel projection; no second edge model.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Same-item additive module declarations and re-exports.
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: Resolve the already-requested profile and canonical offering service at the existing stage and pass them to the render; no new command/flag/mark position.
+  - path: crates/sk-doctrine/tests/cf8_context_render.rs
+    action: manual_review
+    reason: Mechanical render-input literal ripple only.
+  - path: crates/sk-doctrine/tests/cf8_charter_workflow.rs
+    action: manual_review
+    reason: Mechanical render-input literal ripple only.
+  - path: crates/sk-doctrine/tests/cf73_profile_sections.rs
+    action: manual_review
+    reason: New focused profile-section and diagnosis controls.
+  - path: crates/sk-cli/tests/cf73_profile_sections_cli.rs
+    action: manual_review
+    reason: New paired Source/Native profile-section children with independent isolated roots.
+status:
+  accepted: false
+  phase: prospective pre-edit classification

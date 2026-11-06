@@ -1,0 +1,113 @@
+target:
+  term: CF83 typed Native offering/runtime-output failure propagation (gate -> OfferingLoadError -> ServiceKeys -> EffectiveSetError)
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Additive arms and one shared carrier only. New NativeOfferingFailure (offering error
+      owner), GateFailure (the gate's filtering/delivery route), ServiceKeys::Native,
+      EffectiveSetError::Native and ActivationReadError::Native. Existing public names keep
+      their spelling; ActivationGate::filter's error type and the private resolution/factory
+      signatures change mechanically. StreamError keeps is_stream_startup_failure but its
+      meaning is narrowed to a real invalid startup; a separate capability-gap predicate
+      names Source-valid Native gaps. No rename, no duplicate error hierarchy.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      Only existing crate edges (sk-doctrine -> sk-kernel already imports python_logging /
+      python_stream / python_yaml). No new dependency, crate, manifest or lock change.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No root, pack, pin, golden or fixture path change. New probes use fresh mktemp trees
+      and independent child CWD/HOME/all-seven-XDG/TMPDIR/TMP/TEMP.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No YAML/JSON wire shape or activation-key change. The new error types are in-process
+      Rust carriers, never serialized.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No new command, flag or exit contract. The existing charter effective-set consumers
+      (sk-cli compat/charter.rs, sk-install promote.rs) keep taking the error's rendered
+      message; only the new typed arm's Display is added.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      The new Native failure Display text must not claim a Source Python exception class for
+      HashSeedError or for a Source-valid codec/handler the native composition lacks. It
+      names the native boundary and preserves the original cause text.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New named CF83 target plus one real service/effective-set consumer. The CF82 escaped
+      control that pinned healthy membership+cache on a delivery escape is corrected to the
+      typed Err/no-cache contract (it is not a valid paired-success plan). The Kernel
+      classification unit that asserted UnsupportedEncoding is a Source startup fatal is
+      corrected to the capability-gap class. CF81 service reset and the CF82 default /
+      suppression / handler-handled success plans stay unchanged.
+  logs_telemetry:
+    action: manual_review
+    notes: >-
+      The WarningLog keeps the delivery outcomes and the escaped StreamError as evidence; a
+      delivery escape now returns Err and publishes no cache. No new logging emission and no
+      warning is restored or suppressed.
+exceptions:
+  - path: crates/sk-kernel/src/python_stream.rs
+    action: manual_review
+    reason: >-
+      Central classification only: narrow is_stream_startup_failure to the actual invalid
+      startup class, add the native-capability-gap predicate and the delivery-stop predicate,
+      correct the docs. No codec table, parser, unsafe/FFI or process-start capture is added.
+  - path: crates/sk-kernel/src/python_logging.rs
+    action: manual_review
+    reason: >-
+      deliver_warning_with classifies the unavailable-delivery classes through the one
+      corrected predicate; the default policy and the handled/suppressed success arms are
+      unchanged. Its start-up unit test follows the corrected classification.
+  - path: crates/sk-doctrine/src/offering/gate.rs
+    action: manual_review
+    reason: >-
+      filter/resolved_ids return the typed GateFailure; on deliver_warning_with Err the gate
+      records the evidence, publishes no resolved cache and returns the typed Native cause.
+      Constructor abort remains ConstructorAbort with no delivery/cache. The set-order
+      HashSeedError becomes the typed Native/startup cause, not a fake python class.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: >-
+      NativeOfferingFailure and the GateFailure conversion live with the existing
+      OfferingLoadError authority; OfferingLoadError gains the typed native cause/accessor;
+      service_keys gains the Native arm; gate.filter callers propagate it. No second error
+      hierarchy and no success substitution.
+  - path: crates/sk-doctrine/src/ledger.rs
+    action: manual_review
+    reason: >-
+      ActivationReadError gains the typed Native arm for the startup set-policy cause through
+      the existing boxed DoctrineError::ActivationRead seam; Aborted keeps the real Source
+      exception classification.
+  - path: crates/sk-doctrine/src/effective_set.rs
+    action: manual_review
+    reason: >-
+      ServiceKeys::Native and EffectiveSetError::Native; strict resolve_one propagates the
+      Native failure instead of unresolved; the typed context/factory bridge keeps ordinary
+      build failures unresolved/fallback but never converts a Native failure into fallback
+      health; the fallback service read propagates Native. String facades stay checked
+      adapters.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Same-item re-exports for the new public carrier types.
+  - path: crates/sk-doctrine/tests/cf83_typed_offering_failure.rs
+    action: manual_review
+    reason: New named target with independent guards and a real service/effective-set consumer.
+  - path: crates/sk-doctrine/tests/cf82_activation_token_logging.rs
+    action: manual_review
+    reason: >-
+      Mechanical correction of the escaped-delivery control that pinned the rejected healthy
+      membership+cache; the paired success/suppression/handled plans stay.
+  - path: docs/rust/occurrence-maps/cf83-typed-native-offering-failure.yaml
+    action: manual_review
+    reason: This PRE classification map for the lane.
+status:
+  accepted: false
+  phase: prospective CF83 typed native offering failure propagation

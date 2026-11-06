@@ -1,0 +1,24 @@
+[package]
+name = "sk-invocation"
+description = "Native profile-invocation and Op audit-record primitives"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+ulid.workspace = true
+sk-kernel = { path = "../sk-kernel" }
+sk-doctrine = { path = "../sk-doctrine" }
+sk-git = { path = "../sk-git" }
+sk-workspace = { path = "../sk-workspace" }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

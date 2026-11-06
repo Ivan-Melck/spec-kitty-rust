@@ -1,0 +1,102 @@
+target:
+  term: "Typed org pack-context / extends-chain assembly and authored interview-default insertion order"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Additive, no rename. New OrgPackContext + typed base-first chain assembly
+      (crates/sk-doctrine/src/org_charter/chain.rs) and the ordered
+      AuthoredDefaults map replace OrgCharterPolicy.interview_defaults'
+      BTreeMap (field NAME unchanged, only its container type, so no caller
+      rename). Existing symbols reused, never cloned: source::chain_members
+      (one extends walk), load_org_charter_policy (one typed schema),
+      configured_org_roots/declared_org_packs (one registry/path authority),
+      union_exact_tokens/strip_token (one merge rule), PythonInt (one integer),
+      AuthoredScalar (one scalar). Observed PRE occurrences:
+      interview_defaults 49 across 6 files; fold_org_charter_policies 14 across
+      6 files; typed `extends` 12 in org_charter.rs + 12 in source.rs.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No crate/module moves and no new dependency. `mod org_charter;` stays
+      private; the new public items are added to the existing
+      `pub use org_charter::{...}` list in crates/sk-doctrine/src/lib.rs (narrow
+      additive same-item export, no whole-root reformat).
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      The pack root / `org-charter.yaml` path authority stays exactly
+      OrgPackConfig::effective_root + ORG_CHARTER. Tests use fresh mktemp
+      fixtures only; no writes to packs/, Source, refs, index or state.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No JSON/YAML key changes. `interview_defaults` stays the authored key in
+      org-charter.yaml and in the existing receipts; only its in-memory
+      iteration order becomes the authored one (tests that compare it sort both
+      sides, so no golden is re-pinned).
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No route, flag, help text, registration or count change. The live
+      consumers (org_required_stems / include_access / compat charter status)
+      keep their signatures.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      The typed chain's two operator messages are Source's typed wording,
+      "Cycle detected in extends: chain: A → B → A" and
+      "Base pack 'x' not found. Chain: A → B", plus the strict
+      "schema_version mismatch in extends: chain. Versions found: [2, 3]. ..."
+      The PRE tree only carried the raw walk's "Base layer ..." wording, so the
+      typed door must not reuse it.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New scoped test file crates/sk-doctrine/tests/cf63_typed_org_chain.rs (unit
+      + real Source/Native pairs). Existing cf48/cf55/cf57/cf58 expectations
+      stay as written; cf55's sort-by-key on the fold list is an existing
+      set-view comparison, not re-pinned to hide ordering.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No telemetry label, log format, metric or dashboard key. Evidence logs
+      stay under /tmp/sk-cf63-typed-org-20261106-01/.
+exceptions:
+  - path: crates/sk-doctrine/src/org_charter/chain.rs
+    action: manual_review
+    reason: >-
+      New narrow submodule: the typed pack-context assembly and base-first chain
+      resolution. It borrows the existing extends walk and typed loader rather
+      than owning a second registry/roots/schema.
+  - path: crates/sk-doctrine/src/org_charter.rs
+    action: manual_review
+    reason: >-
+      Narrow field type (ordered interview defaults) plus accessors and same-item
+      re-exports. Frozen parent integer/scalar/Ord/serde blocks are not touched.
+  - path: crates/sk-doctrine/src/org_charter/fold.rs
+    action: manual_review
+    reason: >-
+      Typed chain assembly behind ONE fold entry: the pack-context path is added
+      next to the flat path and both share the existing fold body; the raw
+      requested-field readers are untouched.
+  - path: crates/sk-doctrine/src/org_charter/source.rs
+    action: manual_review
+    reason: >-
+      One narrow same-item visibility export of the existing extends walk
+      (chain_members + ChainFailure) so the typed door reuses it instead of
+      cloning a resolver; no reader logic changes.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: >-
+      Additive same-item re-export of the new public typed items on the existing
+      org_charter export list; no module/root restructuring.
+  - path: crates/sk-doctrine/tests/cf63_typed_org_chain.rs
+    action: manual_review
+    reason: >-
+      New scoped controls (ordered defaults, base-first chain placement,
+      dangling/cycle/invalid/retired/constructor classes, unchanged raw readers,
+      live writer-floor consumer), with real Source/Native pairs.
+status:
+  accepted: false
+  phase: producer PRE classification (CF63), before code edits

@@ -1,0 +1,85 @@
+# CF74 coordinator pre-edit classification (prospective, before any source edit).
+# Additive capability: a new canonical typed step-model property/default/str/repr
+# view plus precise fallback wiring. No existing identifier is renamed, so
+# `operation` is omitted (additive) and no runtime Bulk Edit Gate pass or Mission
+# metadata is fabricated. This map is not a retrospective approval.
+target:
+  term: crates/sk-doctrine/src/body/model_view.rs
+  replacement: null
+categories:
+  code_symbols: {action: manual_review}
+  import_paths: {action: manual_review}
+  filesystem_paths: {action: manual_review}
+  serialized_keys: {action: do_not_change}
+  cli_commands: {action: do_not_change}
+  user_facing_strings: {action: manual_review}
+  tests_fixtures: {action: manual_review}
+  logs_telemetry: {action: do_not_change}
+exceptions:
+  - path: crates/sk-doctrine/src/body.rs
+    action: manual_review
+    reason: >-
+      One schema authority: add the model class identity and Source StrEnum
+      display metadata (ArtifactKind/ActorRole/Enforcement/StyleguideScope) to
+      the existing Field/Spec tables and the new canonical model-view module.
+      Field order/name/alias/coercion/default factory/optionalNone and the exact
+      JSON dump for every existing value stay single-source; no second schema or
+      field roster is introduced.
+  - path: crates/sk-doctrine/src/body/exact.rs
+    action: manual_review
+    reason: >-
+      The one walker learns only the new `Enum`/`EnumDefault` specs (identical
+      lax-text dump to the `Text`/`TextDefault` specs they replace) and the
+      nested `Model` wrapper. JSON key collapse/null order, Any failure phases,
+      graph identity and default materialisation are unchanged.
+  - path: crates/sk-doctrine/src/body/model_view.rs
+    action: manual_review
+    reason: New canonical leaf owning the typed property/default/str/repr view.
+  - path: crates/sk-doctrine/src/profile_sections.rs
+    action: manual_review
+    reason: >-
+      Precise consumer wiring only: `format_inline_named_body`'s lazy
+      `title or description or str(step)` fallback reads the canonical model view
+      instead of rendering the JSON payload. Section order, headers, budget,
+      fetch stanza and the pointer-only modes are untouched.
+  - path: crates/sk-doctrine/src/context_render.rs
+    action: manual_review
+    reason: >-
+      `_append_step_lines` consumer wiring only: the include/procedure step
+      header keeps its own Source phase (title attribute verbatim, description
+      sub-line, no description->str fallback) and uses the model view's
+      `str(step)` default instead of reconstructed JSON for a model-shaped step.
+  - path: crates/sk-doctrine/src/context_include.rs
+    action: manual_review
+    reason: >-
+      Pass the already-read merged record's canonical graph to the include step
+      formatter; no second read, lookup, or reparse.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Additive re-export of the new canonical model-view API only.
+  - path: crates/sk-doctrine/tests/cf74_source_model_repr.rs
+    action: manual_review
+    reason: New named focused tests for the view, both consumer phases and the unchanged exact JSON.
+  - path: crates/sk-doctrine/tests/cf74_source_model_pair.rs
+    action: manual_review
+    reason: >-
+      New tiny paired control written after this PRE classification (disclosed,
+      not presented as pre-edit): the pinned Source child and an isolated Native
+      child over two independent business fixtures, comparing the step lines of
+      both consumers.
+  - path: crates/sk-doctrine/tests/cf73_profile_sections.rs
+    action: do_not_change
+    reason: >-
+      Existing CF73 profile tests pass unchanged; no expectation was weakened.
+  - path: crates/sk-doctrine/tests/cf43_exact_include_delivery.rs
+    action: do_not_change
+    reason: Existing exact include delivery expectations must pass unchanged.
+  - path: src/**
+    action: do_not_change
+    reason: Pinned Source reference; read-only oracle, never edited by this lane.
+  - path: packs/**
+    action: do_not_change
+    reason: Pinned doctrine packs; no content change.
+  - path: docs/rust/reviews/**
+    action: manual_review
+    reason: Only a new bounded intake note may be added; historical notes stay immutable.

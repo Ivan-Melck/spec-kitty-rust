@@ -1,0 +1,86 @@
+# CF25 PRE-edit occurrence classification (DIRECTIVE_035 / bulk-edit gate).
+#
+# Written BEFORE any CF25 source edit. This is a NEW lane map (no invented
+# Mission metadata, no `accepted: true`, no fictional kitty-specs/ mission).
+#
+# What CF25 changes: it ADDS the user-reachable
+# `spec-kitty migrate backfill-runtime-state` subcommand and an owned
+# repository-root lock-root composition for the runtime-state seed leg. The
+# occurrence-string surface is the existing Source command name
+# `backfill-runtime-state` plus the owned/shared lock-root vocabulary. Nothing
+# is renamed, removed or deprecated, so no `operation` is declared (the schema
+# documents `operation` as optional; `rename`/`remove`/`deprecate` would be
+# false for an additive surface).
+#
+# KEEP list (must NOT change):
+#   * the Source command spelling `backfill-runtime-state`, `--dry-run`,
+#     `--mission`, `--json` (pinned CLI contract, users have scripts)
+#   * the seeded event actor `migration:backfill_runtime_state`
+#   * `status_phase` / its snapshot-authority value `"1"` (serialized keys)
+#   * `status.events.jsonl`, `meta.json`, `kitty-specs/` (filesystem contracts)
+#   * every existing `migrate ledger` / layout-migration behaviour and the
+#     group-flag refusal policy
+#   * the four withheld rescue callbacks and their ids (registration stays
+#     parent work: no registration/equivalence change in this lane)
+#
+# docs: this lane map is the only documentation surface it adds; no global
+# docs, no catalogue/capability table, no manifest.
+target:
+  term: backfill-runtime-state
+categories:
+  code_symbols:         { action: manual_review }
+  import_paths:         { action: do_not_change }
+  filesystem_paths:     { action: manual_review }
+  serialized_keys:      { action: do_not_change }
+  cli_commands:         { action: manual_review }
+  user_facing_strings:  { action: manual_review }
+  tests_fixtures:       { action: manual_review }
+  logs_telemetry:       { action: do_not_change }
+structural_targets:
+  - path: crates/sk-cli/src/compat/migrate.rs
+    reason: >-
+      Adds the `BackfillRuntimeState` subcommand variant, its dispatch arm and
+      the group-flag forwarding decision for the one new subcommand; every
+      existing ledger/layout arm stays byte-identical.
+  - path: crates/sk-cli/src/compat/migrate/runtime_state.rs
+    reason: >-
+      New module: the Source option surface (--dry-run/--mission/--json),
+      mission-handle resolution, the true dry-run preview and the
+      per-mission best-effort result/exit contract for the new command.
+  - path: crates/sk-cli/src/compat/migrate/runtime_state/tests.rs
+    reason: >-
+      New module-internal tests for the option surface and result envelope.
+  - path: crates/sk-status/src/migration_backfill.rs
+    reason: >-
+      Additive repo_root-aware seed sibling (plus its focused tests) so the
+      owned seed lock resolves from the ownership fact's repository root;
+      every existing wrapper/caller keeps its current signature.
+  - path: crates/sk-install/src/migrations/completion_modern/rescue_spine.rs
+    reason: >-
+      Runtime-cutover COMPOSITION section only: exposes the operator CLI's
+      two Source walkers (single mission, per-mission best-effort corpus) over
+      the ONE existing cutover engine and forwards the owned lock root.
+  - path: crates/sk-mission/src/migration_rescue.rs
+    reason: >-
+      Narrow owned-root forwarding on the existing neutral OwnedMission port
+      into the seed leg; one ownership model, no new context type.
+  - path: crates/sk-status/tests/cf25_runtime_lock_root.rs
+    reason: >-
+      New focused test for the owned vs unowned runtime-state seed lock-root
+      composition.
+  - path: crates/sk-cli/tests/cf25_runtime_cutover_command.rs
+    reason: >-
+      New end-to-end command test: dry run, apply, retry, failed verify with no
+      flip, unknown handle, and the owned source-valid path.
+exceptions:
+  - path: crates/sk-mission/src/migration_rescue.rs
+    action: manual_review
+    reason: >-
+      The cutover engine's existing tests live in this file; adding the
+      owned-root forwarding touches the same module's test fixtures, which is
+      in-lane and reviewed by hand rather than mechanically renamed.
+status:
+  owner: cf25
+  note: >-
+    All eight standard categories are classified; changes are additive, so
+    every `do_not_change` posture is a KEEP instruction, not a rename target.

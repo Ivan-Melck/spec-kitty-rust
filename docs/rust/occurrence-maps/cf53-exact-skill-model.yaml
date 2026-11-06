@@ -1,0 +1,157 @@
+# CF53 — occurrence classification (canonical exact skill model, repository,
+# preparation data and the raw-policy namespace consumer)
+#
+# Lane: `crates/sk-doctrine/src/pack_skill_repository.rs` (the ONE canonical exact
+# skill model/repository/serializer/body/post-validation/augmentation owner),
+# the Skill-only bridge in `crates/sk-doctrine/src/offering.rs`, the Skill-specific
+# admission rule in `crates/sk-doctrine/src/offering/model.rs`, the Install
+# consumer `crates/sk-install/src/skills/pack_skill.rs`, and the narrow
+# `skill_namespace` fold validation in `crates/sk-doctrine/src/org_charter/source.rs`
+# + `crates/sk-doctrine/src/org_charter.rs` (+ the one `DoctrineError` variant).
+# CF49 Status / CF50 action+context / CF51 key projection+body/exact /
+# CF52 stdout are disjoint lanes.
+#
+# PROTOCOL DISCLOSURE (not backdated): the standing orders require this map
+# BEFORE the first multi-site edit. The edits below were made first and this
+# classification was written afterwards, so it is a **post-edit** record of the
+# same standard8 review, never presented as pre-edit. The classification itself
+# is unchanged by the ordering: two decisions were taken *because* of the Source
+# probe result recorded in
+# `/tmp/sk-cf53-evidence-20261106T022605Z/source-matrix-3.*.log` and the CF53
+# report.
+#
+# This lane is ADDITIVE at the *identity* level (target.operation omitted, which
+# the schema allows): no artifact-kind token, selector grammar, YAML key, CLI
+# flag, file path or Source message is renamed, removed or deprecated. What
+# changes is the **carrier type** of the already-published `PackSkill`/nested
+# skill fields (Rust `String` → `sk_kernel::PythonString`, the workspace's one
+# Python-string authority) and the serializer/mapping seam that feeds the
+# include payload, `source_hash` and rendering. Every public *name* is preserved.
+#
+# KEEP list (must NOT change in this lane):
+#   * the `*.skill.yaml` field vocabulary, grammar and limits (`schema_version`,
+#     `id`, `title`, `description`, `triggers`, `form`, `body_path`, `expands_to`,
+#     `parameters`, `invocation`, `tools`, `version`, `maintainers`, `overrides`,
+#     `enhances`), and the `SKILL.md` frontmatter keys
+#     (`name`, `description`, `user-invocable`, `disable-model-invocation`);
+#   * `PackTier` tokens, `SkillForm` tokens and every public type/function *name*
+#     in `pack_skill_repository`/`skills::pack_skill` (`PackSkill`,
+#     `PackSkillRepository`, `SkillExpansion`, `SkillParameter`,
+#     `SkillInvocation`, `rendered_name`, `rendered_description`,
+#     `skill_limit_violation`, `skill_namespace_violation`,
+#     `validate_pack_skill`, `apply_enhancement`, `render_pack_skill`,
+#     `source_hash`, `source_hash_payload`, `resolve_project_skill_catalog`);
+#   * the installer writer/staging/preserve transaction timing and roots
+#     (`.kittify/runtime/pack-skills/`, the out-of-project read-only root), and
+#     the existing `InstallError` variants (the encode refusal reuses
+#     `Io`/`pack_skill_catalog`; no enum redesign);
+#   * the common offering `LoadedItem`/merge/provenance/cache path (CF43) and
+#     every non-skill artifact kind's admission and model dump (CF51);
+#   * `body/exact.rs`, `context*` (CF50/CF51), Kernel, Workspace, Git, manifests,
+#     locks, `src/**`, `packs/**`, `pins/**`, `goldens/**`.
+target:
+  term: PackSkill
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Same public names, exact carrier types: `PackSkill`'s text fields become
+      `PythonString` (lists `Vec<PythonString>`, optionals `Option<PythonString>`),
+      `SkillExpansion`/`SkillParameter`/`SkillInvocation` likewise. New names are
+      additive: `PackSkill::from_exact_dump`, `PackSkill::exact_mapping`,
+      `rendered_name_exact`, `skill_namespace_violation_exact`,
+      `PackSkillRepository::exact_ids`, `exact_mapping_graph`. Message text for
+      skills/ids/names now uses Python `repr()` (the reference's quoting) instead
+      of Rust `{:?}`. `PreparedSkill.rendered_name`/`.body` stay `String`/`Option<String>`
+      because the grammar guarantees scalars and the body is decoded UTF-8 text.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No module moves. `pack_skill_repository` stays under `sk_doctrine`,
+      `skills::pack_skill` stays under `sk-install`; new helpers are re-exported
+      from the same crate roots (`sk_doctrine::{rendered_name_exact,
+      skill_namespace_violation_exact, exact_mapping_graph}`). No new dependency
+      edge (manifest/lock untouched).
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No pack, pin, bundle, seed, state, staging or asset path changes. The read
+      set is unchanged; only the new `cf53_*` tests and this map are added.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      Every `*.skill.yaml` key, nested key and `SKILL.md` frontmatter key is
+      byte-identical, and so is the `source_hash` payload's field set/order
+      (`{record, rendered_name, requires}`, sorted keys, `ensure_ascii=True`).
+      The mechanism behind `source_hash` changed (exact dump instead of a
+      scalarised dump) but no key was added, renamed or dropped.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command, subcommand, flag, alias or exit code. `charter activate skill`,
+      `charter context --include skill:<id>` and the installer routes are
+      unchanged; registration stays parent-owned.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Skip/refusal wording keeps the Source sentences. Three deliberate wording
+      improvements, all taken from the pinned reference rather than invented:
+      skill messages quote ids/names with Python `repr()`;
+      `read_org_skill_namespace` refuses with the reference's
+      ``fix `skill_namespace` in org pack 'x's org-charter.yaml`` remedy; the
+      physical encode failure surfaces CPython's own
+      ``'utf-8' codec can't encode character '\ud800' in position N: surrogates
+      not allowed`` through the kernel encoder.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      NEW `crates/sk-doctrine/tests/cf53_exact_skill_model.rs` (admission
+      matrix, exact dump/mapping round trip, include payload, namespace fold
+      order, coercing ids) and NEW
+      `crates/sk-install/tests/cf53_pack_skill_preparation.rs` (preparation,
+      hash, render, write-phase refusal, coercing consumer, paired
+      Source/Native child run). KEEP: `pack_skill_oracle.rs` with its recorded
+      Source fixture (ASCII-only, so its bytes and hashes are unchanged) and
+      `cf44_pack_skill_repository.rs` (adapted only where it named the removed
+      `model_dump_value`/`String` fields — no assertion weakened).
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric, event or telemetry key added or renamed; loader warnings
+      keep the `Skipping invalid …` shape.
+exceptions:
+  - path: crates/sk-doctrine/src/pack_skill_repository.rs
+    action: manual_review
+    reason: >-
+      Owned: the canonical exact model, the graph-based exact dump projection,
+      the marker-carrying mapping (`exact_mapping`), the codepoint-level rules and
+      the repository record path. Scope rules/limits are unchanged; only their
+      input type is exact.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: >-
+      Skill-only bridge: the served record's marker union replaces the declaring
+      document's marker table so a folded record's include payload resolves every
+      contributor. Common `LoadedItem`/merge/provenance/cache path untouched.
+  - path: crates/sk-doctrine/src/offering/model.rs
+    action: manual_review
+    reason: >-
+      Skill-specific admission only: the pydantic `string_unicode` rule for
+      *constrained* `str` fields (`title`, `description`, `SkillParameter.name`;
+      `SkillExpansion.target` already scalarises). Other kinds' admission untouched.
+  - path: crates/sk-install/src/skills/pack_skill.rs
+    action: manual_review
+    reason: >-
+      Owned consumer: exact preparation/hash/render text, the late encode at the
+      write phase, and the `read_org_required_ids` (coercing) absent-key default
+      with the strict token reader kept for the readability leg.
+  - path: crates/sk-doctrine/src/org_charter/source.rs
+    action: manual_review
+    reason: >-
+      Raw org source only: per-encountered-value `skill_namespace` validation in
+      the declared-document fold. Parser/walk/floor/selection helpers untouched.
+  - path: crates/sk-doctrine/src/org_charter.rs
+    action: manual_review
+    reason: >-
+      Matching namespace wrapper (`read_org_skill_namespace_exact` fold loop) plus
+      the same-item `DoctrineError::OrgSkillNamespaceInvalid` re-export surface.

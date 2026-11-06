@@ -1,0 +1,190 @@
+{
+  "assertions": "all passed",
+  "cases": {
+    "empty_tree_empty": {
+      "kind": "managed_path",
+      "outcome": "proof",
+      "reference": "emptied-legacy-root:legacy/empty"
+    },
+    "empty_tree_file_path": {
+      "outcome": "none"
+    },
+    "empty_tree_nested_empty": {
+      "kind": "managed_path",
+      "outcome": "proof",
+      "reference": "emptied-legacy-root:legacy/nested"
+    },
+    "empty_tree_symlink_root": {
+      "outcome": "none"
+    },
+    "empty_tree_with_file": {
+      "outcome": "none"
+    },
+    "empty_tree_with_symlinked_dir": {
+      "outcome": "none"
+    },
+    "guard_empty_tree_dry_run": {
+      "backup_path": null,
+      "diagnostic": "Would remove package-owned legacy/guard-empty (proof: managed_path)",
+      "exists_after": true,
+      "owned": true,
+      "preserved_path": null,
+      "proof": {
+        "kind": "managed_path",
+        "reference": "emptied-legacy-root:legacy/guard-empty"
+      },
+      "reason": "package-owned (managed_path)"
+    },
+    "guard_empty_tree_remove": {
+      "backup_path": null,
+      "diagnostic": "Removed package-owned legacy/guard-empty (proof: managed_path)",
+      "exists_after": false,
+      "owned": true,
+      "preserved_path": null,
+      "proof": {
+        "kind": "managed_path",
+        "reference": "emptied-legacy-root:legacy/guard-empty"
+      },
+      "reason": "package-owned (managed_path)"
+    },
+    "guard_empty_tree_retry": {
+      "backup_path": null,
+      "diagnostic": "Skipped legacy/guard-empty; path is absent",
+      "exists_after": false,
+      "owned": false,
+      "preserved_path": null,
+      "reason": "absent"
+    },
+    "guard_moved_copy_dry_run": {
+      "backup_path": null,
+      "diagnostic": "Would remove package-owned legacy/guard-me.md (proof: canonical_content)",
+      "exists_after": true,
+      "owned": true,
+      "preserved_path": null,
+      "proof": {
+        "kind": "canonical_content",
+        "reference": "moved-copy:legacy/guard-me.md"
+      },
+      "reason": "package-owned (canonical_content)"
+    },
+    "guard_moved_copy_remove": {
+      "backup_path": null,
+      "diagnostic": "Removed package-owned legacy/guard-me.md (proof: canonical_content)",
+      "exists_after": false,
+      "owned": true,
+      "preserved_path": null,
+      "proof": {
+        "kind": "canonical_content",
+        "reference": "moved-copy:legacy/guard-me.md"
+      },
+      "reason": "package-owned (canonical_content)"
+    },
+    "guard_moved_copy_retry": {
+      "backup_path": null,
+      "diagnostic": "Skipped legacy/guard-me.md; path is absent",
+      "exists_after": false,
+      "owned": false,
+      "preserved_path": null,
+      "reason": "absent"
+    },
+    "guard_moved_copy_unproven_preserved": {
+      "backup_path": null,
+      "diagnostic": "Preserved legacy/keep-me.md; not package-owned (name is not ownership proof) \u2014 left in place",
+      "exists_after": true,
+      "owned": false,
+      "preserved_path": "/tmp/sk-c6-oracle.zIIBOb/work/project/legacy/keep-me.md",
+      "reason": "not package-owned"
+    },
+    "guard_tree_hashes_dry_run": {
+      "backup_path": null,
+      "diagnostic": "Would remove package-owned legacy/guard-skill (proof: canonical_content)",
+      "exists_after": true,
+      "owned": true,
+      "preserved_path": null,
+      "proof": {
+        "kind": "canonical_content",
+        "reference": "shipped-skill-hash:legacy/guard-skill"
+      },
+      "reason": "package-owned (canonical_content)"
+    },
+    "guard_tree_hashes_remove": {
+      "backup_path": null,
+      "diagnostic": "Removed package-owned legacy/guard-skill (proof: canonical_content)",
+      "exists_after": false,
+      "owned": true,
+      "preserved_path": null,
+      "proof": {
+        "kind": "canonical_content",
+        "reference": "shipped-skill-hash:legacy/guard-skill"
+      },
+      "reason": "package-owned (canonical_content)"
+    },
+    "guard_tree_hashes_retry": {
+      "backup_path": null,
+      "diagnostic": "Skipped legacy/guard-skill; path is absent",
+      "exists_after": false,
+      "owned": false,
+      "preserved_path": null,
+      "reason": "absent"
+    },
+    "moved_copy_copy_is_directory": {
+      "outcome": "none"
+    },
+    "moved_copy_different_bytes": {
+      "outcome": "none"
+    },
+    "moved_copy_identical": {
+      "kind": "canonical_content",
+      "outcome": "proof",
+      "reference": "moved-copy:legacy/old.md"
+    },
+    "moved_copy_missing_copy": {
+      "outcome": "none"
+    },
+    "moved_copy_source_symlink_copy_file": {
+      "outcome": "none"
+    },
+    "moved_copy_symlink_different_target": {
+      "outcome": "none"
+    },
+    "moved_copy_symlink_identical": {
+      "kind": "canonical_content",
+      "outcome": "proof",
+      "reference": "moved-copy:legacy/link-old"
+    },
+    "tree_hashes_changed_bytes": {
+      "outcome": "none"
+    },
+    "tree_hashes_empty_map": {
+      "outcome": "none"
+    },
+    "tree_hashes_exact": {
+      "kind": "canonical_content",
+      "outcome": "proof",
+      "reference": "shipped-skill-hash:legacy/skill"
+    },
+    "tree_hashes_exact_map_floor": {
+      "map": {
+        "SKILL.md": "15a14c2a8756d91be222a8ceaa6715d8e0cccaa12a0e8540df9343d4c0688616",
+        "references/notes.md": "444e0fffbd825e9610ff5b199485707a0c895339ae80c15cc8a8aee41b106fda"
+      }
+    },
+    "tree_hashes_extra_file": {
+      "outcome": "none"
+    },
+    "tree_hashes_file_path": {
+      "outcome": "none"
+    },
+    "tree_hashes_missing_file": {
+      "outcome": "none"
+    },
+    "tree_hashes_symlink_member": {
+      "outcome": "none"
+    },
+    "tree_hashes_symlink_root": {
+      "outcome": "none"
+    }
+  },
+  "probe": "c6-preserve-provers",
+  "python": "3.11.15"
+}

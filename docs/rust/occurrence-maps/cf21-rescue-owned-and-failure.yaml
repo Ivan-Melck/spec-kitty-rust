@@ -1,0 +1,109 @@
+# CF21 PRE-edit occurrence classification (written BEFORE any source edit).
+#
+# Lane: the remaining withheld rescue callbacks' owned-cutover leg and their
+# caught failure carriers. Every declared change here is ADDITIVE (new typed
+# port, new carrier field/channel, Source-shaped message text). Nothing is
+# renamed, removed or deprecated, so no `operation` is declared. This map
+# covers only the CF21-owned paths; it approves no other producer's edits and
+# no parent registration, manifest, catalogue or CLI work.
+target:
+  term: "rescue callback owned-checkout leg and caught failure carriers"
+  replacement: null
+  # Additive only: no existing identifier, path, key or label is renamed.
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Public additions only: the neutral owned-context port in
+      `sk_mission::migration_rescue` (repository root / mission dir / slug /
+      stored topology), the owned field on `CutoverRequest`, the owned-aware
+      flip target and lock root, `RebuildOutcome.errors`, and the
+      `OwnedCheckout` adapter in `sk_install`'s rescue spine. Existing names,
+      signatures of the four callbacks and of the four `NativeMigration`
+      rows keep their shape; no cloned context, codec, writer, reducer or
+      model is introduced, and the one `status_phase` writer stays the flip.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No module move and no manifest dependency change. `sk-mission` must NOT
+      depend on `sk-workspace` (that would close a cycle), so the owned facts
+      travel through the neutral port; `sk-install` already depends on both
+      `sk-workspace` and `sk-mission`.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No authored data path moves. The owned leg keeps Source's own anchors
+      (`owned.mission_dir`, the repository root for the lock) and the unowned
+      leg keeps `canonicalize_feature_dir`; `.kittify/.migration-backup`,
+      `kitty-specs/<slug>` and the agent command directories are untouched.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No authored config/meta/ledger key changes. `status_phase` keeps its
+      Source value "1"; `mission_id`, `wp_code`, `work_package_id`,
+      `schema_capabilities` are untouched, and the new carrier channels are
+      in-memory report fields only.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command, flag, registration or catalogue entry is added. The four ids
+      stay UNREGISTERED here; the registry, catalogue, capabilities and root
+      CLI are parent-owned.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Source-shaped report text only: `Migration failed with exception: <e>`
+      for an uncaught 3.0.0 exception, the joined `"; "` rebuild error text
+      plus `State rebuild warning for <slug>: <e>` at the runner's step 4,
+      and Source's owned-mission-path refusal message. No new wording is
+      invented beyond the reference's own sentences.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New Native-only cf21 tests use fresh mktemp git fixtures (real `git
+      init`/worktree for the owned fact). No existing test is weakened and no
+      Source child process is claimed: these are scoped functional smokes, not
+      paired isolation evidence.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log/metric/identity label changes, no performance claim, no invented
+      rollback/readiness/OID/time/provenance values.
+exceptions:
+  - path: crates/sk-mission/src/migration_rescue.rs
+    action: manual_review
+    reason: >-
+      Adds the neutral owned-context port, the owned field on `CutoverRequest`,
+      owned-aware flip target/lock root, Source's owned-leg validation order,
+      and the rebuild `errors` channel joined exactly as the reference does.
+  - path: crates/sk-install/src/migrations/completion_modern/rescue_spine.rs
+    action: manual_review
+    reason: >-
+      Adds the `Migration failed with exception:` carrier at the 3.0.0 apply
+      boundary, joins the rebuild error/warning channels into the runner and
+      the 3.2.0a4 carrier, and adapts the canonical `OwnedCheckout` fact onto
+      the neutral port.
+  - path: crates/sk-install/tests/cf21_failure_carriers.rs
+    action: manual_review
+    reason: >-
+      New test file: the two failure-carrier legs through the pre-existing entry
+      points, plus a controlled ordinary event-log write failure; additive, no
+      existing assertion changed.
+  - path: crates/sk-install/tests/cf21_owned_cutover.rs
+    action: manual_review
+    reason: >-
+      New test file: real owned-fact routing (canonical `OwnedCheckout` mint on a
+      fresh git worktree), preview/apply/retry, and the owned-leg refusal;
+      additive, no existing assertion changed.
+structural_targets:
+  - path: crates/sk-mission/src/migration_rescue.rs
+    reason: >-
+      Structural code edit (new port type, owned branches, new error channel),
+      not a find/replace occurrence.
+  - path: crates/sk-install/src/migrations/completion_modern/rescue_spine.rs
+    reason: >-
+      Structural code edit (apply-boundary carrier, owned adapter, channel
+      joins), not a find/replace occurrence.
+status:
+  phase: producer pre-edit implementation
+  accepted: false

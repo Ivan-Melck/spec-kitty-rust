@@ -1,0 +1,104 @@
+# CF87 — occurrence classification for the Source-valid pack-skill include delivery
+#
+# Lane: `crates/sk-doctrine/src/context_include.rs` (the ONE non-`section:`
+# `--include` dispatch) plus the NEW `crates/sk-doctrine/tests/cf87_skill_include_delivery.rs`
+# target. The canonical pack-skill repository/model/body owner
+# (`crates/sk-doctrine/src/pack_skill_repository.rs`) and the Skill-only offering
+# bridge (`crates/sk-doctrine/src/offering.rs`) are READ and reused here, not
+# edited.
+#
+# PRE-EDIT record. This map was written and validated with the three canonical
+# validators BEFORE the `render_kind` dispatch correction and BEFORE the new test
+# target existed; the census it classifies was taken from the current bytes with
+# receipt `30-pre8-census`. It is NOT a post-edit reconstruction.
+#
+# This lane is neither a rename nor a removal: `target.operation` is omitted (the
+# schema allows an additive/corrective map). The one behavioural change is that
+# the `--include` dispatch stops applying the charter activation gate to document
+# kinds the reference renders on the PLAIN offering service. The pinned Source
+# (`src/charter/activation/context.py::build_charter_context_include`) wraps only
+# `agent-profile` and `glossary-pack` in the activation-aware service; a `skill:<id>`
+# record is served by `CharterOfferingService.skills` with no activation filter.
+# Native's `render_kind` passed `gated = true` for every non-directive kind, and
+# `ActivationGate` gives `skill` the required-only absent-key default
+# (`read_org_required_ids_exact`), so a Source-valid authored skill was turned
+# into the structured miss `No skill found for selector 'skill:<id>'.`
+#
+# The target term names the include-gate decision, not a literal string that must
+# be replaced everywhere. Every occurrence of that decision is classified below.
+target:
+  term: skill-include-activation-gate
+status:
+  accepted: false
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      `render_kind`/`render_document_artifact` in
+      `crates/sk-doctrine/src/context_include.rs` keep their names and signatures.
+      Only the `ArtifactKind::GlossaryPack` arm stays activation-gated; the other
+      document kinds take the plain `offering.artifact` path the reference uses.
+      The unrelated `sk-mission::definition::error::render_kind` is KEEP (a
+      different function with the same name; no change). `artifact_with_gate`
+      itself is unchanged and stays used by agent-profile, glossary-pack and the
+      activation-aware service.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No module moves or additions; the new test target adds no import edge. No
+      dependency, manifest or lock change.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No pack/pin/golden/state path changes. The fixture writes only into a fresh
+      per-test temporary tree (`isolated::fixture`, under `target/e4-effective-set`)
+      and the pre-existing test fixtures are not edited.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No `*.skill.yaml`, `activation.yaml`, `config.yaml` or model-dump key is
+      added, renamed or removed. The rendered `Full artifact:` payload is the
+      same exact model dump the reference produces.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command, subcommand, flag or alias change. `charter context --include
+      skill:<id>` already exists; its answer for a Source-valid skill becomes the
+      Source answer instead of a miss. No exit-code or envelope change.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      The reference sentences are preserved verbatim. The change removes the
+      WRONG use of the existing `No skill found for selector 'skill:<id>'.`
+      message for a record that exists (the message remains for a real miss), and
+      it stops a required-only activation token warning from being emitted on the
+      plain skill path. No new user-facing wording is introduced.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      NEW `crates/sk-doctrine/tests/cf87_skill_include_delivery.rs` (in-process
+      production-route assertion plus an isolated Source/Native paired child run on
+      independent fresh fixtures). The existing
+      `crates/sk-doctrine/tests/cf32_effective_include.rs` fixture was already
+      Source-valid (prompt skill + sibling body) and is NOT edited or weakened; its
+      one include case is the selected regression check. Tests that assert the deny
+      annotation or glossary-pack gating are unaffected. Source-only observation
+      scripts live in `/tmp`, never in the repository.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric, event or telemetry key changes. Loader warnings keep the
+      `Skipping invalid …` shape. The `unresolved <kind> activation token …`
+      warning is no longer produced for a plain (non-gated) include kind, which is
+      the reference's behaviour; the warning itself is untouched.
+exceptions:
+  - path: crates/sk-doctrine/src/context_include.rs
+    action: manual_review
+    reason: >-
+      Owned: the single `--include` dispatch. One arm's gate predicate changes to
+      match the reference's plain/gated split; the renderer, identity lookup,
+      payload projection and deny annotation are untouched.
+  - path: crates/sk-doctrine/tests/cf87_skill_include_delivery.rs
+    action: manual_review
+    reason: >-
+      New owned test target for the delivery; no existing test is modified.

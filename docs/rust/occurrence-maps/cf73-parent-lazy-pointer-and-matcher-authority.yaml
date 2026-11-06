@@ -1,0 +1,46 @@
+target:
+  term: Source profile pointer laziness directive code boundaries and directional catalogue matcher
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Lookup records before body, pointer mode never dumps Any; correct empty/multiline code regex and directional difflib match; reuse existing graph projection owners.
+  import_paths:
+    action: manual_review
+    notes: Same-item context link_references/requires_closure exports, no cloned walker; preserve single body/model authority.
+  filesystem_paths:
+    action: do_not_change
+    notes: No Source/packs/pins/manifests/path authority changes.
+  serialized_keys:
+    action: do_not_change
+    notes: No record schema or wire key changes.
+  cli_commands:
+    action: do_not_change
+    notes: Existing routes and prepared profile-block stage unchanged.
+  user_facing_strings:
+    action: manual_review
+    notes: Directional Source diagnosis and exact directive-code spelling; no generic fallback or altered Source body schema.
+  tests_fixtures:
+    action: manual_review
+    notes: New Source-first current-API negatives for pointer-only binary Any, empty/multiline code, asymmetric matcher; preserve earlier pairs unchanged.
+  logs_telemetry:
+    action: manual_review
+    notes: Structured miss and warnings remain Source-caller-specific; do not claim warning-prefix/full text parity.
+exceptions:
+  - path: crates/sk-doctrine/src/profile_sections.rs
+    action: manual_review
+    reason: Narrow lazy record/body boundary, Source code regex, canonical graph helper reuse.
+  - path: crates/sk-doctrine/src/catalog_diagnosis.rs
+    action: manual_review
+    reason: Source get_close_matches fixes seq2 to missing word, not each candidate.
+  - path: crates/sk-doctrine/src/context.rs
+    action: manual_review
+    reason: Same-item crate exports for already-owned graph reference/closure policy.
+  - path: crates/sk-doctrine/tests/cf73_parent_lazy_and_directional.rs
+    action: manual_review
+    reason: New Source-derived current public API controls, no original-fixture resetting pair claim.
+  - path: crates/sk-doctrine/tests/cf73_profile_sections.rs
+    action: manual_review
+    reason: Prospective independent business fixture trees, not one shared project with separate HOME/CWD only.
+status:
+  accepted: false
+  phase: prospective parent correction
