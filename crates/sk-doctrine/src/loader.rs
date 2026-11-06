@@ -51,7 +51,9 @@ const TOP_LEVEL_KEYS: [&str; 5] = [
     "nodes",
     "edges",
 ];
-const FRAGMENT_SUFFIX: &str = ".graph.yaml";
+/// The one fragment-filename suffix (shared with the offering pre-validation
+/// migration hint, which names `packs/built-in/<kind>.graph.yaml`).
+pub(crate) const FRAGMENT_SUFFIX: &str = ".graph.yaml";
 const SINGLE_GRAPH: &str = "graph.yaml";
 
 /// Read one graph document.
