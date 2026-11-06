@@ -74,7 +74,7 @@ pub use asset::{
 pub use bundle_manifest::{CANONICAL_BUNDLE_MANIFEST, CanonicalBundleManifest};
 pub use canonical_yaml::{
     canonical_yaml, canonical_yaml_sha256, canonical_yaml_sha256_without, ordered_yaml,
-    ordered_yaml_width, ordered_yaml_width_normalized,
+    ordered_yaml_string_lists, ordered_yaml_width, ordered_yaml_width_normalized,
 };
 pub use charter::{
     ACTIVATION_LEDGER, BundleFile, CHARTER_MD, CHARTER_YAML, CharterBundle, SYNTHESIS_MANIFEST,

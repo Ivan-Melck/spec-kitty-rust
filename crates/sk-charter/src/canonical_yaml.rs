@@ -40,6 +40,7 @@
 use std::fmt::Write as _;
 
 use serde_yaml_ng::Value;
+use sk_kernel::PythonString;
 
 /// Serialize `body` to the canonical YAML byte form used by every charter
 /// hash in the pinned Source.
@@ -62,6 +63,55 @@ pub fn canonical_yaml(body: &Value) -> Vec<u8> {
 /// line-wrapping rules cannot drift between them; only the key order differs.
 pub fn ordered_yaml(body: &Value) -> Vec<u8> {
     ordered_yaml_width(body, BEST_WIDTH)
+}
+
+/// Serialize authored string-list fields without projecting their values to UTF-8.
+///
+/// This is the exact input surface for activation stems. Mapping/sequence layout,
+/// scalar style, escaping and folding all use the same emitter as [`ordered_yaml`].
+/// Keys are scalar field names; values retain every Python code point, including
+/// lone surrogates. This does not perform ledger admission or publish a file.
+pub fn ordered_yaml_string_lists(fields: &[(String, Vec<PythonString>)]) -> Vec<u8> {
+    let mut emitter = Emitter {
+        preserve_order: true,
+        root_context: true,
+        ..Emitter::default()
+    };
+    if fields.is_empty() {
+        emitter.expect_flow_mapping();
+    } else {
+        emitter.expect_mapping_entries(fields, |emitter, (key, items)| {
+            emitter.expect_block_mapping_key(&Value::String(key.clone()));
+            emitter.write_indicator(":", false, false, false);
+            emitter.root_context = false;
+            emitter.sequence_context = false;
+            emitter.mapping_context = true;
+            emitter.simple_key_context = false;
+            if items.is_empty() {
+                emitter.expect_flow_sequence();
+            } else {
+                emitter.expect_block_sequence(items, |emitter, text| {
+                    emitter.root_context = false;
+                    emitter.sequence_context = true;
+                    emitter.mapping_context = false;
+                    emitter.simple_key_context = false;
+                    emitter.increase_indent(true, None, false);
+                    match text.to_scalar_string() {
+                        Ok(text) => emitter.process_scalar(&Value::String(text)),
+                        Err(_) => {
+                            // A surrogate makes Source's scalar analysis select
+                            // double quotes. Keep the original units as data.
+                            emitter.write_indent();
+                            emitter.write_double_quoted(text.codepoints(), true);
+                        }
+                    }
+                    emitter.indent = emitter.indents.pop().map(|entry| entry.0).unwrap_or(None);
+                });
+            }
+        });
+    }
+    emitter.write_indent();
+    emitter.out.into_bytes()
 }
 
 /// [`ordered_yaml`] with an explicit folding width.
@@ -358,210 +408,12 @@ fn analyze_scalar(chars: &[char]) -> Analysis {
 /// non-string tags (so the round-trip emitter must quote it to keep it a
 /// string). Mirrors `Resolver.resolve(ScalarNode, value, (True, False))`.
 fn resolves_as_non_string(value: &str) -> bool {
-    is_bool_literal(value)
-        || is_float_literal(value)
-        || is_int_literal(value)
-        || value == "<<"
-        || is_null_literal(value)
-        || is_timestamp_literal(value)
-        || value == "="
-}
-
-fn is_bool_literal(value: &str) -> bool {
-    matches!(
+    sk_kernel::python_yaml::implicit_scalar_kind(
         value,
-        "true" | "True" | "TRUE" | "false" | "False" | "FALSE"
-    )
-}
-
-fn is_null_literal(value: &str) -> bool {
-    matches!(value, "" | "~" | "null" | "Null" | "NULL")
-}
-
-fn digits_with_underscores(text: &str, predicate: impl Fn(char) -> bool) -> bool {
-    !text.is_empty() && text.chars().all(|ch| ch == '_' || predicate(ch))
-}
-
-fn all_digits(text: &str) -> bool {
-    digits_with_underscores(text, |ch| ch.is_ascii_digit())
-}
-
-fn is_int_literal(value: &str) -> bool {
-    let body = value
-        .strip_prefix('+')
-        .or_else(|| value.strip_prefix('-'))
-        .unwrap_or(value);
-    if let Some(rest) = body.strip_prefix("0b") {
-        return digits_with_underscores(rest, |ch| ch == '0' || ch == '1');
-    }
-    if let Some(rest) = body.strip_prefix("0x") {
-        return digits_with_underscores(rest, |ch| ch.is_ascii_hexdigit());
-    }
-    if let Some(rest) = body.strip_prefix("0o") {
-        return digits_with_underscores(rest, |ch| ('0'..='7').contains(&ch));
-    }
-    all_digits(body)
-}
-
-fn is_float_literal(value: &str) -> bool {
-    let body = value
-        .strip_prefix('+')
-        .or_else(|| value.strip_prefix('-'))
-        .unwrap_or(value);
-    if matches!(body, ".inf" | ".Inf" | ".INF") {
-        return true;
-    }
-    if matches!(body, ".nan" | ".NaN" | ".NAN") {
-        return true;
-    }
-    // [-+]?(?:[0-9][0-9_]*)\.[0-9_]*(?:[eE][-+]?[0-9]+)?
-    // |[-+]?(?:[0-9][0-9_]*)(?:[eE][-+]?[0-9]+)
-    // |[-+]?\.[0-9_]+(?:[eE][-+][0-9]+)?
-    let (mantissa, exponent) = match body.find(['e', 'E']) {
-        Some(index) => (&body[..index], Some(&body[index + 1..])),
-        None => (body, None),
-    };
-    if let Some(exponent) = exponent {
-        let exp_body = exponent
-            .strip_prefix('+')
-            .or_else(|| exponent.strip_prefix('-'))
-            .unwrap_or(exponent);
-        if !all_digits(exp_body) {
-            return false;
-        }
-        if exponent.starts_with('+') || exponent.starts_with('-') {
-            // The third alternative requires an explicit exponent sign.
-        }
-    }
-    match mantissa.find('.') {
-        Some(dot) => {
-            let (whole, fraction) = (&mantissa[..dot], &mantissa[dot + 1..]);
-            let whole_ok = whole.is_empty() || all_digits(whole);
-            // `[0-9][0-9_]*\.[0-9_]*` needs a leading digit; `\.[0-9_]+`
-            // requires at least one fraction digit.
-            let fraction_ok = if whole.is_empty() {
-                digits_with_underscores(fraction, |ch| ch.is_ascii_digit())
-            } else {
-                digits_with_underscores(fraction, |ch| ch.is_ascii_digit()) || fraction.is_empty()
-            };
-            whole_ok && fraction_ok && exponent.is_none_or(|exp| !exp.is_empty())
-        }
-        None => exponent.is_some() && all_digits(mantissa),
-    }
-}
-
-fn is_timestamp_literal(value: &str) -> bool {
-    // ^(?:[0-9]{4}-[0-9]{2}-[0-9]{2}
-    //  |[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:[Tt]|[ \t]+)[0-9]{1,2}:[0-9]{2}:[0-9]{2}
-    //    (?:\.[0-9]*)?(?:[ \t]*(?:Z|[-+][0-9]{1,2}(?::[0-9]{2})?))?)$
-    let chars: Vec<char> = value.chars().collect();
-    if chars.len() < 10 {
-        return false;
-    }
-    let digits = |start: usize, count: usize| -> bool {
-        start + count <= chars.len() && chars[start..start + count].iter().all(char::is_ascii_digit)
-    };
-    if !(digits(0, 4) && chars[4] == '-' && digits(5, 2) && chars[7] == '-' && digits(8, 2)) {
-        return false;
-    }
-    if chars.len() == 10 {
-        return true;
-    }
-    // Extended form: YYYY-M-D[Tt or spaces]H:MM:SS(.frac)?(tz)?
-    let mut pos = 5;
-    while pos < chars.len() && chars[pos].is_ascii_digit() {
-        pos += 1;
-    }
-    if pos == 5 || pos - 5 > 2 || pos >= chars.len() || chars[pos] != '-' {
-        return false;
-    }
-    pos += 1;
-    let day_start = pos;
-    while pos < chars.len() && chars[pos].is_ascii_digit() {
-        pos += 1;
-    }
-    if pos == day_start || pos - day_start > 2 || pos >= chars.len() {
-        return false;
-    }
-    let rest: String = chars[pos..].iter().collect();
-    let rest = rest.as_str();
-    let after_sep = rest
-        .strip_prefix('T')
-        .or_else(|| rest.strip_prefix('t'))
-        .or_else(|| {
-            let trimmed = rest.trim_start_matches([' ', '\t']);
-            if trimmed.len() == rest.len() {
-                None
-            } else {
-                Some(trimmed)
-            }
-        });
-    let Some(after_sep) = after_sep else {
-        return false;
-    };
-    // H:MM:SS(.frac)?(tz)?
-    let bytes: Vec<char> = after_sep.chars().collect();
-    let mut cursor = 0;
-    while cursor < bytes.len() && bytes[cursor].is_ascii_digit() {
-        cursor += 1;
-    }
-    if cursor == 0 || cursor > 2 || cursor >= bytes.len() || bytes[cursor] != ':' {
-        return false;
-    }
-    cursor += 1;
-    let minute_start = cursor;
-    while cursor < bytes.len() && bytes[cursor].is_ascii_digit() {
-        cursor += 1;
-    }
-    if cursor - minute_start != 2 || cursor >= bytes.len() || bytes[cursor] != ':' {
-        return false;
-    }
-    cursor += 1;
-    let second_start = cursor;
-    while cursor < bytes.len() && bytes[cursor].is_ascii_digit() {
-        cursor += 1;
-    }
-    if cursor - second_start != 2 {
-        return false;
-    }
-    if cursor < bytes.len() && bytes[cursor] == '.' {
-        cursor += 1;
-        while cursor < bytes.len() && bytes[cursor].is_ascii_digit() {
-            cursor += 1;
-        }
-    }
-    while cursor < bytes.len() && matches!(bytes[cursor], ' ' | '\t') {
-        cursor += 1;
-    }
-    if cursor == bytes.len() {
-        return true;
-    }
-    if bytes[cursor] == 'Z' {
-        return cursor + 1 == bytes.len();
-    }
-    if matches!(bytes[cursor], '+' | '-') {
-        cursor += 1;
-        let hour_start = cursor;
-        while cursor < bytes.len() && bytes[cursor].is_ascii_digit() {
-            cursor += 1;
-        }
-        if cursor == hour_start || cursor - hour_start > 2 {
-            return false;
-        }
-        if cursor == bytes.len() {
-            return true;
-        }
-        if bytes[cursor] != ':' {
-            return false;
-        }
-        cursor += 1;
-        let minute_start = cursor;
-        while cursor < bytes.len() && bytes[cursor].is_ascii_digit() {
-            cursor += 1;
-        }
-        return cursor - minute_start == 2 && cursor == bytes.len();
-    }
-    false
+        sk_kernel::python_yaml::Dialect::RuamelSafe12,
+    ) != "str"
+        // These resolver tags are syntax, not constructed scalar value kinds.
+        || matches!(value, "<<" | "=")
 }
 
 /// Port of `Emitter.choose_scalar_style` for the supported value classes.
@@ -673,7 +525,9 @@ impl Emitter {
                 if items.is_empty() {
                     self.expect_flow_sequence();
                 } else {
-                    self.expect_block_sequence(items);
+                    self.expect_block_sequence(items, |emitter, item| {
+                        emitter.emit_node(item, false, true, false, false);
+                    });
                 }
             }
             Value::Mapping(map) => {
@@ -711,20 +565,30 @@ impl Emitter {
     }
 
     fn expect_block_mapping(&mut self, map: &serde_yaml_ng::Mapping) {
-        if !self.mapping_context && !(self.compact_seq_map || self.column == 0) {
-            self.write_line_break(None);
-        }
-        self.increase_indent(false, Some(false), false);
         let entries: Vec<(&Value, &Value)> = if self.preserve_order {
             map.iter().collect()
         } else {
             sorted_mapping_entries(map)
         };
-        for (key, value) in entries {
-            self.expect_block_mapping_key(key);
+        self.expect_mapping_entries(&entries, |emitter, (key, value)| {
+            emitter.expect_block_mapping_key(key);
             // `expect_block_mapping_simple_value`
-            self.write_indicator(":", false, false, false);
-            self.emit_node(value, false, false, true, false);
+            emitter.write_indicator(":", false, false, false);
+            emitter.emit_node(value, false, false, true, false);
+        });
+    }
+
+    fn expect_mapping_entries<T>(
+        &mut self,
+        entries: &[T],
+        mut emit_entry: impl FnMut(&mut Self, &T),
+    ) {
+        if !self.mapping_context && !(self.compact_seq_map || self.column == 0) {
+            self.write_line_break(None);
+        }
+        self.increase_indent(false, Some(false), false);
+        for entry in entries {
+            emit_entry(self, entry);
         }
         self.indent = self.indents.pop().map(|entry| entry.0).unwrap_or(None);
     }
@@ -755,7 +619,7 @@ impl Emitter {
         }
     }
 
-    fn expect_block_sequence(&mut self, items: &[Value]) {
+    fn expect_block_sequence<T>(&mut self, items: &[T], mut emit_item: impl FnMut(&mut Self, &T)) {
         let indentless = if self.mapping_context {
             !self.indention
         } else {
@@ -777,7 +641,7 @@ impl Emitter {
             if nonl == Some(true) || self.sequence_dash_offset + 2 > self.best_sequence_indent {
                 self.no_newline = Some(true);
             }
-            self.emit_node(item, false, true, false, false);
+            emit_item(self, item);
         }
         self.indent = self.indents.pop().map(|entry| entry.0).unwrap_or(None);
         self.no_newline = Some(false);
@@ -799,7 +663,10 @@ impl Emitter {
         match style {
             Style::Plain => self.write_plain(&chars, split),
             Style::Single => self.write_single_quoted(&chars, split),
-            Style::Double => self.write_double_quoted(&chars, split),
+            Style::Double => {
+                let points: Vec<u32> = chars.iter().copied().map(u32::from).collect();
+                self.write_double_quoted(&points, split);
+            }
         }
     }
 
@@ -1010,7 +877,7 @@ impl Emitter {
         self.write_indicator("'", false, false, false);
     }
 
-    fn write_double_quoted(&mut self, chars: &[char], split: bool) {
+    fn write_double_quoted(&mut self, chars: &[u32], split: bool) {
         if self.root_context && self.requested_indent.is_some() {
             self.write_line_break(None);
             if self.requested_indent != Some(0) {
@@ -1026,20 +893,18 @@ impl Emitter {
             let needs_escape = match ch {
                 None => true,
                 Some(ch) => {
-                    matches!(
-                        ch,
-                        '"' | '\\' | '\u{85}' | '\u{2028}' | '\u{2029}' | '\u{FEFF}'
-                    ) || !(('\x20'..='\x7E').contains(&ch)
-                        || (self.allow_unicode
-                            && (('\u{A0}'..='\u{D7FF}').contains(&ch)
-                                || ('\u{E000}'..='\u{FFFD}').contains(&ch)
-                                || ('\u{10000}'..='\u{10FFFF}').contains(&ch))))
+                    matches!(ch, 0x22 | 0x5C | 0x85 | 0x2028 | 0x2029 | 0xFEFF)
+                        || !((0x20..=0x7E).contains(&ch)
+                            || (self.allow_unicode
+                                && ((0xA0..=0xD7FF).contains(&ch)
+                                    || (0xE000..=0xFFFD).contains(&ch)
+                                    || (0x10000..=0x10FFFF).contains(&ch))))
                 }
             };
             if needs_escape {
                 if start < end {
-                    let data: String = chars[start..end].iter().collect();
-                    self.column += data.chars().count();
+                    let data = unescaped_text(&chars[start..end]);
+                    self.column += end - start;
                     self.out.push_str(&data);
                     start = end;
                 }
@@ -1052,34 +917,33 @@ impl Emitter {
             }
             if 0 < end
                 && end < n.saturating_sub(1)
-                && (ch == Some(' ') || start >= end)
+                && (ch == Some(0x20) || start >= end)
                 && (self.column as isize + (end as isize - start as isize))
                     > self.best_width as isize
                 && split
             {
                 let mut need_backslash = true;
                 if n > end
-                    && let Some(space_offset) = chars[end..].iter().position(|ch| *ch == ' ')
+                    && let Some(space_offset) = chars[end..].iter().position(|ch| *ch == 0x20)
                 {
                     let mut space_pos = end + space_offset;
                     if let Some(newline_offset) =
-                        chars[end..space_pos].iter().position(|ch| *ch == '\n')
+                        chars[end..space_pos].iter().position(|ch| *ch == 0x0A)
                     {
                         space_pos = end + newline_offset;
                     }
-                    let next_is_space = chars.get(space_pos + 1) == Some(&' ');
-                    let next_is_newline = chars.get(space_pos + 1) == Some(&'\n');
-                    let doubled_space =
-                        end > 0 && chars.get(end - 1) == Some(&' ') && chars.get(end) == Some(&' ');
-                    let inner: String = if end <= space_pos {
-                        chars[end..space_pos].iter().collect()
-                    } else {
-                        String::new()
-                    };
-                    if chars[space_pos] == '\n' && !next_is_space {
+                    let next_is_space = chars.get(space_pos + 1) == Some(&0x20);
+                    let next_is_newline = chars.get(space_pos + 1) == Some(&0x0A);
+                    let doubled_space = end > 0
+                        && chars.get(end - 1) == Some(&0x20)
+                        && chars.get(end) == Some(&0x20);
+                    // Inspect code points directly: this lookahead can include
+                    // a surrogate which will be escaped on a later iteration.
+                    let inner = &chars[end..space_pos];
+                    if chars[space_pos] == 0x0A && !next_is_space {
                         // Keep the backslash.
-                    } else if !inner.contains('"')
-                        && !inner.contains('\'')
+                    } else if !inner.contains(&0x22)
+                        && !inner.contains(&0x27)
                         && !next_is_space
                         && !next_is_newline
                         && !doubled_space
@@ -1088,8 +952,8 @@ impl Emitter {
                         need_backslash = false;
                     }
                 }
-                let mut data: String = if start < end {
-                    chars[start..end].iter().collect()
+                let mut data = if start < end {
+                    unescaped_text(&chars[start..end])
                 } else {
                     String::new()
                 };
@@ -1104,7 +968,7 @@ impl Emitter {
                 self.write_indent();
                 self.whitespace = false;
                 self.indention = false;
-                if chars.get(start) == Some(&' ') {
+                if chars.get(start) == Some(&0x20) {
                     if !need_backslash {
                         start += 1;
                     }
@@ -1120,29 +984,37 @@ impl Emitter {
     }
 }
 
-fn escape_char(ch: char) -> String {
-    let replacement = match ch {
-        '\0' => Some('0'),
-        '\x07' => Some('a'),
-        '\x08' => Some('b'),
-        '\t' => Some('t'),
-        '\n' => Some('n'),
-        '\x0B' => Some('v'),
-        '\x0C' => Some('f'),
-        '\r' => Some('r'),
-        '\x1B' => Some('e'),
-        '"' => Some('"'),
-        '\\' => Some('\\'),
-        '\u{85}' => Some('N'),
-        '\u{A0}' => Some('_'),
-        '\u{2028}' => Some('L'),
-        '\u{2029}' => Some('P'),
+/// Only runs between escape boundaries. Every surrogate/control unit has
+/// already ended the run, so conversion here cannot reject caller data.
+fn unescaped_text(points: &[u32]) -> String {
+    points
+        .iter()
+        .map(|point| char::from_u32(*point).expect("unescaped YAML run contains only scalar units"))
+        .collect()
+}
+
+fn escape_char(code: u32) -> String {
+    let replacement = match code {
+        0 => Some('0'),
+        0x07 => Some('a'),
+        0x08 => Some('b'),
+        0x09 => Some('t'),
+        0x0A => Some('n'),
+        0x0B => Some('v'),
+        0x0C => Some('f'),
+        0x0D => Some('r'),
+        0x1B => Some('e'),
+        0x22 => Some('"'),
+        0x5C => Some('\\'),
+        0x85 => Some('N'),
+        0xA0 => Some('_'),
+        0x2028 => Some('L'),
+        0x2029 => Some('P'),
         _ => None,
     };
     if let Some(replacement) = replacement {
         return format!("\\{replacement}");
     }
-    let code = ch as u32;
     if code <= 0xFF {
         format!("\\x{code:02X}")
     } else if code <= 0xFFFF {

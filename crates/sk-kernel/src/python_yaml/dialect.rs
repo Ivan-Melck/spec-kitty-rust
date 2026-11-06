@@ -278,7 +278,13 @@ fn implicit_scalar_kind_yaml12(text: &str) -> &'static str {
     if is_float_resolver(text) {
         return "float";
     }
-    if is_int_resolver(text) {
+    // Source dispatches this resolver regex only for sign/digit initials.
+    // The regex itself permits `_`, including after a sign, but an initial
+    // underscore never reaches it (and must remain a plain string).
+    if text
+        .starts_with(|character: char| matches!(character, '+' | '-') || character.is_ascii_digit())
+        && is_int_resolver(text)
+    {
         return "int";
     }
     if matches!(text, "~" | "null" | "Null" | "NULL" | "") {
