@@ -1,0 +1,111 @@
+target:
+  term: >-
+    Source activation-reader warning/report delivery and the shared Source stream-codec
+    ownership promotion (StreamCodec / StreamPolicy / StreamError / WriteClass in Kernel,
+    same-item CLI shim), plus new activation_reporting formatter / process latch / path identity
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Additive: ONE new Doctrine activation_reporting owner (exact formatter, process report
+      latch, typed delivery sink, Source ordered path/key identity) and a report_stray read
+      option on both ledger readers. The existing stdout codec/policy/error/write-class
+      declarations move from sk-cli compat/python_output.rs into sk-kernel python_stream.rs
+      under Kernel names; the CLI keeps the SAME public names as re-exports (as CF69 did for
+      the filesystem decoder) so no caller signature changes. No second encoder, parser, type
+      or dependency; no generic warning abstraction.
+  import_paths:
+    action: manual_review
+    notes: >-
+      New sk-doctrine -> sk-kernel use of the existing Kernel module path; sk-cli keeps its
+      compat::python_output path for the stdout write seam. No new dependency, Cargo.toml,
+      lockfile, pin or registry change. Doctrine must not depend on sk-cli.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      Warning paths are DISPLAYED, never resolved, canonicalised or re-encoded: the existing
+      captured Kernel OS codec + source path spelling authority renders str(Path). The reader
+      keeps reading only .kittify/config.yaml, the pointed charter.yaml and
+      .kittify/charter/activation.yaml. No writer target, root, cache, pack or provenance path.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No ledger allow/deny/unknown-deny key, three-state rule, schema or write target changes.
+      The legacy deny report only READS the already-detected deactivated_<kind> keys and never
+      applies or stringifies a non-string key.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No new flag, route, refusal code or admission surface. The warnings reach the existing
+      process stderr of the already-ported commands (charter list, charter status, doctor,
+      context, activate), so JSON stdout stays parseable.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      The two Source warning texts (stray keys beside a ledger; legacy deactivated_<kind> not
+      applied) are reproduced byte for byte, including the "Warning: " prefix, the
+      "; "-separated stray list, the sorted legacy key tuple and the remedy literals. They are
+      plain stderr lines, not Python warnings-module rendering.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      One new named Doctrine reporting target (Source-first paired children) and one new
+      actual-CLI consumer target; fresh temporary trees only; no Source/pack/golden edit.
+      The moved codec tests travel with the declaration into Kernel; the CLI write-seam tests
+      stay where they are.
+  logs_telemetry:
+    action: manual_review
+    notes: >-
+      Source-first probes and their measured stderr bytes precede the code; failed attempts,
+      the remaining codec/platform and config/two-read/scalar-legacy gaps are recorded as
+      data, never as invented health or as a Source exception.
+exceptions:
+  - path: crates/sk-doctrine/src/activation_reporting.rs
+    action: manual_review
+    reason: >-
+      New ONE owner: exact Source formatter, one process report latch keyed on Source's ordered
+      (path, key tuple) identity, typed delivery sink, and the default Source stderr delivery
+      through the shared Kernel stream codec.
+  - path: crates/sk-doctrine/src/ledger.rs
+    action: manual_review
+    reason: >-
+      The existing scalar/exact readers gain the Source report_stray option and call the
+      reporting owner at Source's exact stages (modern: stray report before the ledger read;
+      legacy: deny report after the raw read, before projection/validation).
+  - path: crates/sk-doctrine/src/source_denied.rs
+    action: manual_review
+    reason: >-
+      The supplied-ledger bypass is documented/kept (no probe, no read, no report) and the
+      reading arm keeps Source's default reporting through the reader it already calls.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Additive same-item exports of the reporting owner and the inspection read variant.
+  - path: crates/sk-kernel/src/python_stream.rs
+    action: manual_review
+    reason: >-
+      New home of the ONE Source stdout/stderr codec+policy+error composition promoted from the
+      CLI, with the measured stderr defaults (same encoding resolution, fixed backslashreplace).
+  - path: crates/sk-kernel/src/lib.rs
+    action: manual_review
+    reason: Additive same-item `pub mod python_stream;` export of the promoted composition.
+  - path: crates/sk-cli/src/compat/python_output.rs
+    action: manual_review
+    reason: >-
+      Same-item shim: the moved declarations are re-exported under their existing public names
+      and the stdout write seam, hint and broken-pipe/exit classification stay here.
+  - path: crates/sk-cli/src/compat/charter/status.rs
+    action: manual_review
+    reason: >-
+      Source `_status_collectors` reads with report_stray=False; the status collector switches
+      to the inspection read so this observation command stays silent, as Source is.
+  - path: crates/sk-cli/src/compat/doctor/facts.rs
+    action: manual_review
+    reason: >-
+      Source doctor `ledger_findings` reads with report_stray=False; the doctor fact collector
+      switches to the inspection read so diagnostics stay data, not printed warnings.
+  - path: crates/sk-doctrine/tests/cf79_activation_reporting.rs
+    action: manual_review
+    reason: New named Source/Native paired-child reporting target plus filtered unit controls.
+  - path: crates/sk-cli/tests/cf79_activation_reporting_cli.rs
+    action: manual_review
+    reason: New named actual-CLI consumer target over the real binary's stderr and JSON stdout.

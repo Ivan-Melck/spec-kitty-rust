@@ -839,11 +839,14 @@ fn has_commit_beyond(
 
 /// The paths that differ between two trees under `prefix`.
 ///
+/// `pub(crate)` for the lifecycle adapters (`review`, `accept`), which need the
+/// same tree comparison and must not grow a second one.
+///
 /// The delivered Git adapter exposes tree paths and per-path tree entries, not a
 /// bulk diff, so this enumerates the candidates under the one prefix the caller
 /// cares about and compares object ids. Path membership changes (added/deleted)
 /// are detected without a second call; a common path is compared by oid.
-fn changed_paths_between(
+pub(crate) fn changed_paths_between(
     repository: &sk_git::GitRepository,
     base: &sk_git::Oid,
     tip: &sk_git::Oid,
@@ -903,6 +906,16 @@ fn changed_paths_between(
         }
     }
     Ok(changed)
+}
+
+/// Lifecycle-facing wrapper over [`changed_paths_between`].
+pub(crate) fn changed_paths_for_lifecycle(
+    repository: &sk_git::GitRepository,
+    base: &sk_git::Oid,
+    tip: &sk_git::Oid,
+    prefix: &str,
+) -> Result<Vec<String>, String> {
+    changed_paths_between(repository, base, tip, prefix)
 }
 
 /// The literal path prefix of an `owned_files` glob, or `""` for a wildcard head.

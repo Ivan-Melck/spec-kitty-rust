@@ -1,0 +1,156 @@
+# CF59 occurrence classification (DIRECTIVE_035) — written AFTER the edits.
+#
+# HONEST LABEL: this map was produced after the source edits landed, not
+# before them. It is therefore NOT a pre-edit gate receipt and does not
+# retroactively approve anything; it records the actual occurrence classes the
+# change touched and the review decision for each. Disclosed in the CF59 report.
+#
+# The change is ADDITIVE at its core (a NEW Source-valued annotation model, a NEW
+# lazy legacy-metadata resolver, and the annotation pass of the ONE existing
+# fold), with one public in-crate field-type change
+# (`SourceEventStream.annotations`) plus exact re-exports. Nothing is renamed or
+# removed, so no `operation` is declared.
+
+target:
+  term: "SourceAnnotation"
+  replacement: null
+
+categories:
+  code_symbols:
+    action: manual_review
+    note: >-
+      New symbols only: `sk_status::source_annotation::{SourceAnnotation,
+      SourceDelta, SourceReviewOverride, ReviewFold, ANNOTATION_KIND,
+      DELTA_SCALAR_FIELDS, CLAIM_RELEASE_SLOTS, python_int_value,
+      python_list_value}` and `sk_status::source_metadata::SourceSlugResolver`.
+      NEW `sk_status::source_event::{FoldAnnotation, FoldDelta}` are crate-private
+      fold adapters (one fold body). Exactly ONE existing public shape changes:
+      `SourceEventStream.annotations` from `Vec<replay::InnerStateChanged>` to
+      `Vec<SourceAnnotation>` (the Source annotation owner; the typed view stays
+      as an adapter). `sk_status::replay::{SourceAnnotation, SourceDelta,
+      SourceReviewOverride, ReviewFold, SourceSlugResolver, DELTA_SCALAR_FIELDS,
+      CLAIM_RELEASE_SLOTS}` are exact re-exports of the same items, not copies.
+      Two crate-private helpers gained `pub(crate)` visibility so the new modules
+      reuse them instead of forking: `source_event::{SourceActor, decode_actor,
+      key, normalize_object, python_repr, row_mission_slug}`. The now-unused
+      `replay::DiaryError::detail` (the finite serde annotation bridge's own
+      helper) was deleted rather than left dead.
+  import_paths:
+    action: manual_review
+    note: >-
+      Two new module declarations in `crates/sk-status/src/lib.rs`
+      (`pub mod source_annotation; pub mod source_metadata;`) plus their
+      `pub use` exports, and the exact re-exports in
+      `crates/sk-status/src/replay.rs`. No crate root, manifest, lockfile or
+      dependency edge changes.
+  filesystem_paths:
+    action: manual_review
+    note: >-
+      Runtime path shapes are unchanged (`<kitty-specs>/<slug>/meta.json`,
+      `status.events.jsonl`). The metadata resolver now EXECUTES the reference's
+      path phases instead of a bounded no-follow inspection: segment grammar via
+      `replay::is_safe_path_segment`, containment via
+      `sk_kernel::paths::resolve_path_non_strict`, existence via
+      `sk_kernel::paths::source_path_exists`, unbounded read via
+      `sk_kernel::read_source_bytes` + strict UTF-8, decode via the canonical J1
+      parser. The removed `sk_kernel::no_follow::read_text_no_follow` +
+      1 MiB `MAX_META_BYTES` bound is a *documented Source divergence* being
+      corrected, not a compatible path change.
+  serialized_keys:
+    action: do_not_change
+    note: >-
+      No event key is added, renamed or removed. Annotations keep the authored
+      `event_id`, `kind`, `wp_id`, `at`, `actor` and `delta` keys; the delta
+      keeps `shell_pid`, `subtasks`, `note`, `tracker_refs`,
+      `tracker_refs_replace`, `review`, the eight `str | None` scalar slots and
+      `release_runtime_claim`. `SourceAnnotation::to_dict_value()` reproduces the
+      reference's own `InnerStateChanged.to_dict()` projection and is never
+      written to disk.
+  cli_commands:
+    action: do_not_change
+    note: >-
+      No CLI command, flag, option or exit code changes. This is a library
+      model/fold/resolver plus one existing library consumer.
+  user_facing_strings:
+    action: manual_review
+    note: >-
+      Every NEW message reproduces the reference's own text and phase:
+      `InnerStateChanged.event_id is not a valid ULID: <repr>`,
+      `InnerStateChanged requires kind == 'annotation', got <repr>`,
+      `'<type>' object has no attribute 'get'|'items'|'strip'`,
+      `'<value>' is not a valid Lane`,
+      `invalid literal for int() with base 10: <repr>`,
+      `int() argument must be a string, a bytes-like object or a real number, not
+      '<type>'`, `'<type>' object is not iterable`,
+      `list indices must be integers or slices, not str`,
+      `cannot convert float NaN to integer`. One EXISTING message was corrected to
+      the reference's own interpolation: the structured-actor
+      `profile_source` refusal now uses CPython `repr` (single quotes) instead of
+      Rust `Debug` (double quotes). That correction applies to both the lane and
+      annotation actor path because both use the same helper (no fork).
+  tests_fixtures:
+    action: manual_review
+    note: >-
+      New Source-first tests only: `cf59_source_full_stream` (TWO real children,
+      ~60 annotation/fold/metadata cases plus a cache-timing control) and
+      `cf59_committed_ignored_annotation` (TWO real children over a real Git
+      fixture). One existing expectation moved toward the reference:
+      `cf49_source_event_admission::annotation_unknown_subtask_status` now
+      asserts the reference's own `'nonsense' is not a valid Lane` text (its
+      `source_message` already said so; only the finite-view `native_tokens`
+      were stale). No passing valid-input baseline is weakened, skipped or
+      deleted.
+  logs_telemetry:
+    action: do_not_change
+    note: >-
+      No telemetry key, diagnostic code, finding code or emitted id is added or
+      changed. The new refusals are library error variants, not emitted codes;
+      doctor/capability/count/publication ownership stays with the parent.
+
+exceptions:
+  - path: "crates/sk-status/src/source_annotation.rs"
+    action: manual_review
+    reason: >-
+      NEW file; the one canonical Source-valued annotation model/admission.
+  - path: "crates/sk-status/src/source_metadata.rs"
+    action: manual_review
+    reason: >-
+      NEW file; the actual lazy `_SlugResolver` execution (cache/grammar/
+      containment/exists/read/decode/field phases).
+  - path: "crates/sk-status/src/source_event.rs"
+    action: manual_review
+    reason: >-
+      Annotation-admission, metadata-resolver and fold-annotation blocks only:
+      the stream's annotation list now carries the Source owner, the resolver is
+      the new module (the local `LegacyMissionIdResolver` and its 1 MiB no-follow
+      read are deleted), and `fold_diary` gained the generic annotation adapter
+      over ONE `apply_annotation_delta` body. Lane admission/arbitration/
+      ordering/evidence algorithms are unchanged.
+  - path: "crates/sk-status/src/replay.rs"
+    action: manual_review
+    reason: >-
+      Typed annotation adapter boundary: exact re-exports of the new items and
+      deletion of the finite-serde bridge's now-unused `DiaryError::detail`.
+      `parse_diary`/`reduce_diary` keep their signatures and routing.
+  - path: "crates/sk-status/src/lib.rs"
+    action: manual_review
+    reason: >-
+      Two module declarations and their exact exports (status crate root only).
+  - path: "crates/sk-workspace/tests/cf49_source_event_admission.rs"
+    action: manual_review
+    reason: >-
+      One declared-narrowing case's finite-view message tokens updated to the
+      reference's actual text (see `tests_fixtures`).
+  - path: "docs/rust/occurrence-maps/cf59-source-annotation.yaml"
+    action: do_not_change
+    reason: >-
+      This classification artifact itself; it is the map, not an occurrence of
+      the target term in product code.
+
+status:
+  accepted: false
+  approval: "not requested"
+  note: >-
+    Post-edit classification written by the implementation lane. It records
+    decisions; it does not approve the change, open a Mission, or claim a gate
+    result. Its late timing is disclosed in the CF59 report.

@@ -57,7 +57,7 @@ pub fn assert_valid(graph: &DrgGraph) -> Result<(), DoctrineError> {
     )))
 }
 
-fn validate_dangling_references(graph: &DrgGraph) -> Vec<String> {
+pub(crate) fn validate_dangling_references(graph: &DrgGraph) -> Vec<String> {
     let urns = graph.node_urns();
     let mut errors = Vec::new();
     for edge in dangling_endpoints(graph) {

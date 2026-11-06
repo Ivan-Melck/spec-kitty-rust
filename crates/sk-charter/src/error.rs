@@ -172,4 +172,10 @@ pub enum CharterError {
     /// The kernel containment primitive refused a path for a non-path reason.
     #[error("kernel containment refused {path}: {reason}")]
     ContainmentRefused { path: PathBuf, reason: String },
+
+    /// A charter document carries a shape or value this build does not accept
+    /// (an unknown artifact kind, a malformed synthesis manifest, an
+    /// unhashable bundle member).
+    #[error("unsupported charter state in {path}: {detail}")]
+    UnsupportedNode { path: PathBuf, detail: String },
 }

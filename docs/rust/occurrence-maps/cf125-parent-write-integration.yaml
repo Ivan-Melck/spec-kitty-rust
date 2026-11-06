@@ -1,0 +1,78 @@
+# Parent PRE-EDIT classification. Source inventory .Hizcd2 and actual files read.
+# No active host Mission/Op; not retrospective producer compliance approval.
+target:
+  term: "planning::write_ledger"
+  replacement: "write_ledger"
+  operation: rename
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      One canonical root ledger module, same-item compatibility reexport in planning,
+      CF1 additive collector/options reexports. Thread-affine WriteLedgerSession
+      prevents wrong-thread TLS/token cleanup. Mission and Workspace errors retain
+      typed post-publication observer causes; metadata/lanes notify exact writer
+      bytes after successful own publication/readback, not inferred foreign readback.
+  import_paths:
+    action: manual_review
+    notes: >-
+      Preserve planning::write_ledger public compatibility as a same-module alias,
+      remove path-attribute declaration; consolidation uses canonical root. No
+      dependency/manifest/lock changes or duplicate nominal types.
+  filesystem_paths:
+    action: do_not_change
+    notes: No data/lock/cache/surface filenames move; no source/packs/pins changes.
+  serialized_keys:
+    action: do_not_change
+    notes: JSON/YAML models and actual existing writer encodings/durability unchanged.
+  cli_commands:
+    action: do_not_change
+    notes: This integration changes no CLI arguments/registration; later adapters separately owned.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Add honest typed observer post-publication error display, not guessed OSError
+      class. Existing source messages and readback diagnostics retained.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      Keep CF1/CF2/CF5 smoke assertions, add direct metadata/lanes writer notify and
+      actual observer capture/typed-error/unchanged-byte checks plus compile-fail
+      thread-affinity proof. Native smoke not Source pairing/deep certification.
+  logs_telemetry:
+    action: do_not_change
+    notes: No logging/metric identity or false success/parity counters.
+exceptions:
+  - path: crates/sk-workspace/src/lib.rs
+    action: manual_review
+    reason: Canonical ledger declaration/exports and additive CF1 collector exports only.
+  - path: crates/sk-workspace/src/planning.rs
+    action: manual_review
+    reason: Replace nested path-module declaration with same-item compatibility alias.
+  - path: crates/sk-workspace/src/consolidation.rs
+    action: manual_review
+    reason: Use root ledger authority without changing bake policy.
+  - path: crates/sk-workspace/src/write_ledger.rs
+    action: manual_review
+    reason: Thread-affine RAII and post-publication Mission observer error classification.
+  - path: crates/sk-mission/src/meta.rs
+    action: manual_review
+    reason: Notify exact computed bytes after existing successful publication/readback, keep Native durable policy.
+  - path: crates/sk-mission/src/error.rs
+    action: manual_review
+    reason: Typed observer error retains path/cause/published state.
+  - path: crates/sk-workspace/src/lanes.rs
+    action: manual_review
+    reason: Notify from both real owned writer sites using actual computed bytes and changed result.
+  - path: crates/sk-workspace/src/error.rs
+    action: manual_review
+    reason: Typed observer failure cause rather than fabricated IO class.
+  - path: crates/sk-workspace/tests/cf125_parent_write_notifications.rs
+    action: manual_review
+    reason: New functional direct-writer composition tests with fresh fixtures.
+structural_targets:
+  - path: crates/sk-workspace/tests/cf125_parent_write_notifications.rs
+    reason: New additive actual-writer smoke, not a renamed fixture.
+status:
+  accepted: false
+  phase: parent implementation integration before deep probing

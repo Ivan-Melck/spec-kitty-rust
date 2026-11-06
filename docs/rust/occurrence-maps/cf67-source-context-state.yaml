@@ -1,0 +1,110 @@
+# CF67 — NEW canonical Source context-state file store + prepared-snapshot ticket.
+#
+# This lane ADDS one missing capability: the Source `charter/activation/context_state`
+# read/catch/snapshot/mark/write authority over the ONE Kernel J1 exact
+# JSON/string/clock/Atomic-writer authority, and a state ticket that carries the
+# prepared snapshot to the mark/write. No existing identifier, command, key,
+# path or wire shape is renamed, removed or deprecated, so `target.operation` is
+# intentionally omitted (the schema allows an additive map with only `target.term`).
+target:
+  term: private serde context-state read/write with a second disk read at mark time
+  replacement: >-
+    one Source-faithful exact context-state store over the Kernel J1 JSON/string/
+    clock/Atomic writer, with the prepared first-stage snapshot carried to
+    mark/write by a state ticket
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      NEW additive public surface in sk-doctrine (`context_state` module):
+      ContextStateBundle, ContextStateValue, ContextStateError, load_context_state,
+      write_context_state, prepare_context_state, mark_action_loaded, KITTIFY_DIRNAME,
+      CONTEXT_STATE_SCHEMA_VERSION, MIN_EFFECTIVE_DEPTH, CONTEXT_STATE_FILE plus the
+      same-item lib.rs re-exports. No existing symbol is renamed, removed or
+      deprecated. The four private sk-cli state helpers keep their names
+      (context_state / load_context_state / write_context_state / persist_first_load)
+      and keep their private visibility; only their bodies change, plus one new
+      private state ticket type.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      Reuse sk_kernel::python_json::{parse, PythonJsonValue, PythonJsonDict,
+      PythonJsonRenderOptions}, sk_kernel::paths::source_path_exists,
+      sk_kernel::clock::{Clock, SystemClock, now_utc_stamp},
+      sk_kernel::atomic_write_with_options/AtomicWriteOptions and the existing
+      sk_doctrine::normalize_context_action. No new crate, dependency, manifest or
+      lockfile edge; no second parser/renderer/codec/clock/writer/model.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      The file stays `<repo-root>/.kittify/charter/context-state.json` exactly
+      (Source `repo_root / KITTIFY_DIRNAME / "charter" / "context-state.json"`),
+      including its CWD-independent resolution, parent creation on write and the
+      mode/mtime behaviour of the existing atomic writer. No new path spelling,
+      no new state directory, no cleanup of the live project file.
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      The persisted document is the Source state dict: `schema_version` and
+      `actions` plus every unknown authored key preserved verbatim. Source-valid
+      data that the private serde store lost (non-finite floats, escaped lone
+      surrogates, arbitrary-magnitude integers, unknown/nested keys) now survives
+      exactly. The bytes become the Source `json.dumps(indent=2, sort_keys=True)`
+      shape (default ensure_ascii/allow_nan) instead of serde's pretty printer.
+      No JSON key is renamed and no new key is invented.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      `charter context` keeps every flag, route and stdout shape. Only the granted
+      state-helper bodies change, plus the mechanical callsite ripples at
+      `execute_text_stage` and the single-build `context_payload` helper so the
+      original prepared snapshot reaches mark/write. first_load/depth locals and
+      the Source phase decisions stay stable for every other consumer.
+  user_facing_strings:
+    action: do_not_change
+    notes: >-
+      The existing `could not persist first-load state: {error}` message is kept
+      verbatim; no new user-facing wording, no warning-transport, no global error
+      rewrite, no OS-error codec change.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      NEW focused tests only: crates/sk-doctrine/tests/cf67_context_state_store.rs
+      (paired Source/Native store phases) and
+      crates/sk-cli/tests/cf67_context_state_cli.rs (paired real-handler state
+      survival). Fresh tempfile fixtures, no reuse of the live project state file,
+      no mutation of shared roots. Both business children assert CWD/HOME/all seven
+      XDG/TMPDIR/TMP/TEMP/absolute Source+packs/hash seed before business reads.
+  logs_telemetry:
+    action: manual_review
+    notes: >-
+      No logger or telemetry surface is added. The store records nothing; it only
+      reads/writes the one bookkeeping file. The Mark/write phase timing follows
+      Source (bootstrap renders then marks; the compact rail marks then renders).
+exceptions:
+  - path: crates/sk-doctrine/src/context_state.rs
+    action: manual_review
+    reason: >-
+      New Source-faithful state module: exact catch boundary (Path.exists before the
+      read try; JSONDecodeError/UnicodeDecodeError/OSError fall back; digit-ceiling
+      ValueError and RecursionError escape), exact unknown-key/shape handling,
+      exact write bytes and the prepared-snapshot mark.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Narrow same-item `mod` + `pub use` declaration for the new module.
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: >-
+      Only the four granted state-helper bodies, one new private state ticket type,
+      and the mechanical callsite ripples at execute_text_stage / context_payload.
+      ContextPhase/ContextMode/render/profile/reference-graph and the finite
+      ContextExecution payload adapter stay parent-owned and unchanged.
+  - path: crates/sk-cli/tests/cf67_context_state_cli.rs
+    action: manual_review
+    reason: New focused paired CLI/store test file.
+  - path: crates/sk-doctrine/tests/cf67_context_state_store.rs
+    action: manual_review
+    reason: New focused paired doctrine store test file.
+status:
+  accepted: false
+  phase: new canonical Source context-state store and prepared-snapshot ticket

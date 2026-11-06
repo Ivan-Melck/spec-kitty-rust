@@ -1,0 +1,118 @@
+# PRE-EDIT occurrence classification for CF4 (canonical sequential upgrade runner).
+#
+# This lane changes NO existing identifier, path, JSON key, CLI flag or wire field.
+# It replaces a *behaviour*: `run_upgrade` used to execute the verdicts of a
+# precomputed detect plan (guards read before any write); it now evaluates every
+# guard in catalogue order, after the previous migration's effects, and adds the
+# Source `sequenced_after` dry-run prediction, the failure stamp restore and the
+# success schema stamp. `operation` is therefore intentionally omitted (additive).
+#
+# Inventory (pre-edit, code + tests + docs + Source, `__pycache__` excluded;
+# full counts in the run's evidence root, label `occurrence-inventory`):
+#   plan_upgrade            11 upgrade.rs / 5 sk-cli upgrade_worktrees.rs / 4+3+3 tests / 1 lib.rs / 1 README
+#   PlannedOutcome          23 upgrade.rs / 9 sk-cli compat/upgrade.rs / 1 lib.rs
+#   metadata_written         9 sk-cli upgrade_worktrees.rs / 6 upgrade.rs / 4 init.rs / 4+3+2+1 tests
+#   schema_capabilities     16 metadata.rs / 8 Source upgrade/metadata.py / 8 Source init.py / 4 yaml_edit.rs
+#   stamp_schema_version     4 Source upgrade/runner.py / 2 upgrade.rs (new) / 2 metadata.rs (new)
+#   VersionStamp             5 Source upgrade/version_stamp_boundary.py / 4 Source runner.py / 3 metadata.rs
+#   sequenced_after          4 Source runner.py / 2 Source migrations/README.md / 1 base.py
+#   SEQUENCED_AFTER          3 upgrade.rs (new) / 2 Source runner.py / 1 Source base.py
+#   "No migrations needed from"         1 Source runner.py / 1 upgrade.rs / 1 cf4 test
+#   "project already in target state"   1 Source runner.py / 1 upgrade.rs
+#   "not needed on the current tree"    2 upgrade.rs / 1 Source runner.py
+target:
+  term: "upgrade runner execution: precomputed detect-plan verdicts reused for execution"
+  replacement: "sequential guard evaluation after the previous migration's effects"
+
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      New crate-private StepStatus/StepResult/evaluate_step/record_failure/
+      dry_run_row/not_needed_message plus the public SEQUENCED_AFTER table and
+      declared_predecessors/sequenced_predecessors. No existing symbol is
+      renamed: PlannedOutcome, MigrationPlanRow, UpgradePlan, UpgradeReport,
+      UpgradeRequest, record_scoped_result, MigrationOutcome and every
+      migration callback keep their names and shapes. plan_upgrade stays the
+      read-only forecast; run_upgrade no longer consumes its row verdicts.
+  import_paths:
+    action: manual_review
+    notes: >-
+      upgrade.rs imports VersionStamp + stamp_schema_version from the existing
+      crate::metadata module (no new file, no new dependency edge, no manifest
+      change). Source authority kept single: metadata.rs owns the stamp/restore
+      primitives; rescue_spine.rs's pre-existing private stamp stays untouched
+      and is reported as a duplicate-authority finding rather than edited here.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      Ledger partitions (.kittify/migration-ledger.jsonl,
+      .kittify/migrations/clone-local.jsonl), .kittify/metadata.yaml,
+      .gitattributes and hook paths are unchanged. The one path this lane
+      RESOLVES differently is the git exclude file: Source `git_exclude_file`
+      honours the COMMON dir's `info/exclude` for a linked worktree, so
+      `4.0.0rc7_exclude_spec_kitty` now resolves it through
+      `sk_git::GitRepository::git_dirs()` while `0.13.1_exclude_worktrees` keeps
+      Source's spelled `.git/info/exclude` (and is a recorded no-op in a linked
+      worktree). No path string, filename or location is renamed. New tests use
+      fresh mktemp_tempdir fixtures only.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      Ledger JSONL keys, metadata.yaml keys (spec_kitty.{version,
+      initialized_at,last_upgraded_at,schema_version,schema_capabilities},
+      environment.*) and UpgradeReport JSON field names are unchanged. The
+      capability map is written by Source's rule (operator map wins, legacy list
+      completed, absent/malformed -> canonical), never invented.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No CLI flag, subcommand, alias or exit policy change; the CLI surface is
+      parent-owned (sk-cli compat/upgrade.rs consumes the same types).
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Skip/not-needed/no-migrations wording now follows Source exactly
+      ("not needed (project already in target state)", "not needed on the
+      current tree" for a dry run, "No migrations needed from X to Y",
+      "already applied, skipping", "not applicable here (...); skipping",
+      "dry-run: would apply after <ids>"). No other user-facing prose changed.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      One new file only: crates/sk-install/tests/cf4_sequential_runner.rs.
+      One existing expectation is re-pinned because the sequential verdict is
+      the Source one: in migrations_gitignore_paths.rs the delegate
+      `3.2.3_encoding_provenance_gitignore_backfill` is now recorded `skipped`
+      after `3.2.0rc35_kittify_runtime_git_hygiene` performed the identical
+      repair, instead of being applied second. The effect assertions and the
+      per-record assertions are unchanged; nothing was weakened or deleted.
+      The red-first sequential case uses the real merge-driver family and real
+      git config.
+  logs_telemetry:
+    action: do_not_change
+    notes: No log/metric/event key added or renamed; no schema_version or count claim.
+exceptions:
+  - path: crates/sk-install/src/upgrade.rs
+    action: manual_review
+    reason: >-
+      Sequential execution, sequenced dry-run prediction, failure stop + stamp
+      restore and success schema stamp inside the parent-owned native_migrations
+      registration block boundary (the block itself is not edited).
+  - path: crates/sk-install/src/metadata.rs
+    action: manual_review
+    reason: >-
+      Additive Source VersionStamp capture/restore and stamp_schema_version; the
+      existing init stamp (stamp_schema_metadata) and save() semantics unchanged.
+  - path: crates/sk-install/tests/cf4_sequential_runner.rs
+    action: manual_review
+    reason: New CF4 runner tests (sequential dependency, dry-run prediction, failure/apply timing, stamp, rerun, linked worktree).
+  - path: crates/sk-install/tests/migrations_gitignore_paths.rs
+    action: manual_review
+    reason: >-
+      One expectation re-pinned to the Source sequential verdict (the verbatim
+      hygiene delegate is skipped after the hygiene migration repaired the same
+      entries); all effect and record assertions retained.
+  - path: crates/sk-install/README.md
+    action: manual_review
+    reason: Correct the crate's Git-boundary note; the linked-worktree common-dir exclude is no longer delegated.

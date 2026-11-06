@@ -1,0 +1,122 @@
+# CF7 PRE-edit occurrence classification for the acceptance-execution lane.
+# No invented Mission/Op metadata and no acceptance claim: this map classifies
+# the identifiers THIS task touches. Every declared change here is ADDITIVE
+# (new modules, new fields, a thin delegation), so no `operation` is declared;
+# nothing is renamed, removed or deprecated for an operator. It does not approve
+# any other producer's edits, nor the parent's registration/manifest work.
+# Scope: crates/sk-cli/src/compat/acceptance.rs, the accept-only portions of crates/sk-cli/src/compat/lifecycle.rs, crates/sk-workspace/src/acceptance_execution.rs, crates/sk-workspace/src/acceptance_source.rs, crates/sk-mission/src/expected_artifacts.rs, the new cf7_* tests, and this map.
+target:
+  term: "accept: Native evaluate_acceptance_with path"
+  replacement: "composed Source collector + policy + matrix execution; no operator-facing rename"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      ADDITIVE: `sk_mission::expected_artifacts` (manifest reader + key
+      projection), `sk_workspace::acceptance_execution` (matrix population,
+      invariant enforcement, locked splice-and-write), `MatrixInput::Computed`,
+      `AcceptanceCollectionOptions::required_artifacts`, `MatrixEvidence::Judged`
+      reuse, and the `AcceptArgs::{diagnose,no_commit}` fields. REMOVED private
+      helpers only: `lifecycle::implementers`,
+      `lifecycle::work_package_changed_files`, `lifecycle::declared_owned_files`
+      and `lifecycle::write_and_commit_matrix`, together with the
+      `evaluate_acceptance_with` call they served. `lifecycle::accept` keeps its
+      name/signature and becomes a thin delegation; no second policy, codec,
+      writer, parser or Git process is introduced.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No module move. `sk_mission::expected_artifacts` and
+      `sk_workspace::acceptance_execution` are the parent-predeclared public
+      modules; `sk-cli::compat::acceptance` is the predeclared adapter module.
+      No dependency edge is added: the new reader uses `sk_kernel`'s existing
+      YAML graph authority and `sk_mission`'s existing decoder trait.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No authored data path moves. The matrix keeps its
+      `<mission>/acceptance-matrix.json` location (coordination-aware), the
+      expected-artifacts manifest keeps
+      `<root>/missions/<type>/expected-artifacts.yaml`, and acceptance metadata,
+      the lock directory and the Git paths touched by the acceptance commits are
+      unchanged.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No authored key changes. The matrix document keeps every Source field and
+      its order; only values population/enforcement produce change (as Source
+      does). The `accept --json` payload keeps every summary key and gains
+      additive adapter keys (`acceptance_matrix_path`, `acceptance_ok`,
+      `diagnose`, `no_commit`, `mutation_performed`,
+      `required_artifacts_source`, `matrix_verdict`). `meta.json` acceptance
+      fields are written by the existing recorders, unchanged.
+  cli_commands:
+    action: manual_review
+    notes: >-
+      `spec-kitty accept` keeps its name, existing flags and exit policy. Two
+      Source flags are added: `--diagnose` (read-only) and `--no-commit`
+      (resolve the matrix, create no commit). No command registration,
+      catalogue entry or agent-surface change is made here (parent-owned); the
+      existing root dispatch already routes to `lifecycle::accept`.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Acceptance diagnostics are now the Source policy's own text (blocked/
+      skipped checks, fix order, matrix/verdict messages) instead of the former
+      Native gate names. The matrix-missing, lock-timeout, cannot-evaluate and
+      metadata-issue strings are reproduced from Source, not invented; the
+      text renderer prints lanes, outstanding buckets, skipped checks and the
+      recommended fix order.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New Native-only tests `cf7_expected_artifacts.rs`,
+      `cf7_acceptance_execution.rs` and `cf7_acceptance_flow.rs` use fresh mktemp
+      Git repositories and real recorded verdicts/provenance. Two existing
+      fixtures were corrected, not weakened: `lifecycle_chain.rs` now scaffolds
+      the acceptance matrix Source requires (a code mission without one is a
+      Source refusal) and records the claim's `policy_metadata.agent`, which is
+      what the reducer's `implementer_of_record` projection and the strict
+      metadata gate read.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log/metric/identity label changes and no performance or parity claim.
+      Timestamps written into a populated criterion come from the Kernel clock
+      (a real `now_utc_iso()`), never a fabricated value.
+exceptions:
+  - path: crates/sk-cli/src/compat/lifecycle.rs
+    action: manual_review
+    reason: >-
+      Accept-only portion: `AcceptArgs` gains the two Source flags, the accept
+      entry becomes a thin delegation, and four private helpers that existed only
+      for the deleted Native gate path are removed. Review/consolidate/merge code
+      is untouched.
+  - path: crates/sk-workspace/src/acceptance_source.rs
+    action: manual_review
+    reason: >-
+      Additive `MatrixInput::Computed`, additive
+      `AcceptanceCollectionOptions::required_artifacts`, and one public
+      canonical matrix reader used by both the collector and the execution step.
+      Collection order, D1 marker-lazy ledger reads and every existing fact are
+      unchanged.
+  - path: crates/sk-cli/tests/lifecycle_chain.rs
+    action: manual_review
+    reason: >-
+      Fixture-only corrections (matrix scaffold + claim `policy_metadata.agent`)
+      plus the two new `AcceptArgs` fields; assertions are unchanged and none is
+      relaxed.
+structural_targets:
+structural_targets:
+  - path: crates/sk-cli/src/compat/acceptance.rs
+    reason: >-
+      New Source-ordered acceptance pipeline (verify merge commit, origin gate,
+      probe collection, matrix execution, authoritative collection, record and
+      render); the previous single native-policy call is replaced, not wrapped.
+  - path: crates/sk-workspace/src/acceptance_execution.rs
+    reason: >-
+      New module implementing the matrix read/populate/enforce/locked-splice/
+      write/judge sequence and the read-only diagnose leg.
+status:
+  phase: producer pre-edit implementation
+  accepted: false

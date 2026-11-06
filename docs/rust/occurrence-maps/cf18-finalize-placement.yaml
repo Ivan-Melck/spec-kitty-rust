@@ -1,0 +1,160 @@
+# PRE-EDIT occurrence classification for CF18 (Source-correct finalize write
+# placement + ownership glob validation).
+#
+# Written BEFORE any source/test edit in this lane. The counts below come from
+# evidence label `cf18-occurrence-inventory` (Rust workspace `crates/**/*.rs`;
+# "source" is the pinned Python reference `src/`, counted for contrast only).
+#
+#   term                          Rust hits/files   Source hits
+#   committed                     644 / 108         1479
+#   bootstrap_canonical_state       4 /   1           29
+#   write_dir                       2 /   2          208
+#   STATUS_STATE                    4 /   3          206
+#   StatusState                    13 /   4           41
+#   coordination_write_surface      8 /   2            0
+#   validate_glob_matches           0 /   0            8
+#   LaneGlobValidationError         0 /   0           13
+#   ownership_literal_path_errors   0 /   0            3
+#   establish_write_location        0 /   0            0
+#   create_intent                   3 /   1           17
+#   CoordTransaction               46 /   3            0
+#   emit_status_transition         51 /  12           78
+#   finalize_lanes                  3 /   1           13
+#   owned_files                   104 /  24          235
+#   canonical_lanes                12 /   6            0
+#
+# The lane is ADDITIVE in behaviour and REMOVING in one serialized key:
+#
+#  * it ADDS a canonical write-location establishment API in the owning
+#    workspace module (`sk_workspace::coord`), an ownership-glob validation
+#    function in the owning lanes module (`sk_workspace::lanes`), and the
+#    finalize-side composition that uses them;
+#  * it REMOVES the Native-only `committed` key from the `finalize_tasks`
+#    machine payload (Source never emits it: `_output_result` renders
+#    `render.json_envelope(data)`, and `RealRender.json_envelope` is a plain
+#    `json.dumps(payload)` with no extra keys — see
+#    `src/specify_cli/agent_tasks_ports.py:486`).
+target:
+  term: "finalize-tasks bootstraps status into the primary Mission dir and publishes lanes.json without ownership glob validation"
+  replacement: "finalize-tasks establishes the coordination STATUS_STATE write location through the canonical workspace owner (materialize/seed/refuse, never materialize on --validate-only) while scanning tasks/ from PRIMARY, and re-validates owned_files globs before lanes.json is written"
+categories:
+  code_symbols:
+    operation: rename
+    action: manual_review
+    notes: >-
+      Adds `sk_workspace::coord::{CoordWriteLocation, establish_write_location}` and
+      the private `establish_surface`/`EstablishedSurface` split that both
+      `CoordTransaction::acquire` and the new accessor use (one establishment path,
+      no second materializer). Adds `sk_workspace::lanes::{GlobValidationResult,
+      is_glob_pattern, validate_glob_matches}`. Adds private helpers in
+      `crates/sk-cli/src/compat/mission.rs` (`status_write_location`,
+      `lifecycle_phase_for_finalize`, `gather_create_intent`, `glob_refusal`).
+      No existing public Rust symbol is renamed, removed, or re-signatured;
+      `CoordTransaction::acquire`, `bootstrap_coordination`, `LanesStore`,
+      `compute_lanes` and `emit_status_transition` keep their exact contracts.
+  import_paths:
+    action: manual_review
+    notes: >-
+      New `use` items only, all already-public or newly-added items inside the two
+      owning crates (`sk_workspace::{CoordWriteLocation, establish_write_location,
+      GlobValidationResult, validate_glob_matches, LifecyclePhase, LifecycleEvidence,
+      derive_lifecycle_phase, baseline_merge_commit_from_mission, probe_target_ref,
+      terminal_completion, ProtectionPolicy}`). No new crate edge: `sk-cli` already
+      depends on `sk-workspace`, `sk-status`, `sk-mission` and `sk-git`. No
+      `Cargo.toml`, `Cargo.lock`, pin, or pack edit.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No path moves. One real new on-disk location is *written* at runtime: the
+      coordination worktree's `kitty-specs/<slug>-<mid8>/status.events.jsonl` +
+      `status.json` for coord / lanes_with_coord missions (that is the Source
+      write location, established through the existing canonical materialize/seed
+      transaction, never a new writer). No new file is added to the repository
+      outside this map and the two test files.
+  serialized_keys:
+    operation: remove
+    action: do_not_change
+    notes: >-
+      REMOVED: `committed` (constant `false`) from both `finalize_tasks` payload
+      arms. Source emits no such key (`_output_result` → `json_envelope` →
+      `json.dumps`), so keeping it was an unauthorized wire divergence. The key is
+      NOT removed from `mission create` / `specify` payloads (different Source
+      route, outside this lane's owned portion). ADDED: `ownership_literal_path_errors`
+      in the finalize error document, exactly Source's payload shape
+      (`tasks_finalize._finalize_lanes` → `_output_error(..., {"error": msg,
+      "ownership_literal_path_errors": exc.result.errors})`). No other module or
+      test reads the removed key except one shared pre-existing compat assertion,
+      corrected to the Source contract (see `tests_fixtures`).
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command name, flag, alias, default, or exit code changes. `tasks` and
+      `agent mission finalize-tasks` keep their parent-owned registration;
+      `--validate-only` / `--json` semantics are unchanged, and `--validate-only`
+      now provably performs no materialize/seed/lock/ref/commit.
+  user_facing_strings:
+    action: rename_if_user_visible
+    notes: >-
+      Two Source strings become reachable on this route for the first time, both
+      byte-identical to the reference: `Lane computation aborted: literal-path
+      owned_files entries match zero files. Fix the paths before lanes.json is
+      written.` (`lanes.compute_and_persist.LaneGlobValidationError`) and the
+      per-entry `{wp_id}: owned_files path '{pattern}' is a literal file path that
+      matches zero files in the repository.` sentence with Source's
+      `create_intent` remedy paragraph. The existing human success/validation
+      lines are unchanged.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New `crates/sk-cli/tests/cf18_finalize_placement_ownership.rs` (fresh
+      `mktemp` + real `git init` fixtures only). Corrected in place, not weakened:
+      `crates/sk-cli/tests/cf15_finalize_tasks.rs` (partial-write policy: a failed
+      status write must now leave the run's own prompt/lanes writes in place,
+      matching Source's no-implicit-rollback contract) and the single
+      `crates/sk-cli/tests/compat.rs:598` assertion that read the removed
+      non-Source `committed` key. No test is deleted and no assertion is loosened
+      to pass a product red.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric, or event key added or renamed. Status events keep the
+      canonical writer, Source's actor
+      (`{role: system, tool: finalize-tasks, profile: null, model: null}`), reason
+      `canonical bootstrap`, and `execution_mode: worktree`.
+exceptions:
+  - path: crates/sk-workspace/src/coord.rs
+    action: manual_review
+    reason: >-
+      The coordination transaction store is the owning module for "where does a
+      coordination write land and what proves it". The new accessor reuses the
+      existing probe / destination / claim+Mission lock / materialize / seed /
+      journal machinery; the only structural change is extracting the
+      establishment half of `establish` into `establish_surface` so the two
+      callers cannot drift. No new lock namespace, process, or writer.
+  - path: crates/sk-workspace/src/lanes.rs
+    action: manual_review
+    reason: >-
+      The lanes module already owns `WpPlan`, `compute_lanes`, `globs_overlap` and
+      `LanesStore`, so the ownership-glob re-validation that Source keeps in
+      `ownership/validation.py` + `lanes/compute_and_persist.py` belongs here
+      rather than in a private CLI helper.
+  - path: crates/sk-cli/src/compat/mission.rs
+    action: manual_review
+    reason: >-
+      Owned finalization portion only. `create`, `specify`, `plan` and
+      `branch_context` are untouched; the public `finalize_tasks` signature and
+      the parent-owned `compat/mod.rs` routes stay unchanged.
+  - path: crates/sk-cli/tests/compat.rs
+    action: manual_review
+    reason: >-
+      One pre-existing shared assertion read the non-Source `committed` key of the
+      `tasks` payload. It is corrected to the Source contract (the key is absent).
+      Disclosed as the only edit outside the lane's own files; it is a contract
+      correction, not a weakening.
+  - path: crates/sk-cli/tests/cf15_finalize_tasks.rs
+    action: manual_review
+    reason: >-
+      The CF15 rollback assertion encoded the pre-correction behaviour the parent
+      removed. It is replaced with the Source partial-write contract (writes stay,
+      no implicit rollback) plus the retry contract. Native-only fixtures; they
+      are not Source isolation/pairing proof.

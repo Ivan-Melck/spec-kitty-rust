@@ -18,6 +18,37 @@ pub enum WorkspaceError {
     #[error(transparent)]
     Kernel(#[from] KernelError),
 
+    /// Source's decision stat/read/decode/model failure, never an empty index
+    /// or an invented clarification verdict. Probe and read phases stay typed.
+    #[error(transparent)]
+    DecisionIndex(#[from] Box<crate::decision_store::DecisionIndexLoadError>),
+
+    /// Source acceptance artifact decoding failed before reading its markers.
+    #[error(
+        "Invalid UTF-8 encoding in {path}: byte 0x{byte:02x} at offset {offset}. Run with --normalize-encoding to fix automatically."
+    )]
+    ArtifactEncoding {
+        /// The artifact being read.
+        path: PathBuf,
+        /// First rejected byte in the decoder's payload.
+        byte: u8,
+        /// Offset in the decoder's payload (after utf-8-sig BOM removal).
+        offset: usize,
+        /// Exact decoder object/range/reason, preserved as the causal error.
+        #[source]
+        source: Box<sk_kernel::python_utf8::PythonUtf8DecodeError>,
+    },
+
+    /// An installed observer failed after the manifest writer published.
+    #[error("write observer failed after publishing {path}: {source}")]
+    WriteObserver {
+        /// Actual manifest destination.
+        path: PathBuf,
+        /// Original callback class/cause, not a guessed filesystem exception.
+        #[source]
+        source: Box<sk_kernel::source_writer::WriteObserverError>,
+    },
+
     /// A Git probe or planned mutation failed.
     #[error(transparent)]
     Git(#[from] GitError),

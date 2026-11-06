@@ -274,8 +274,25 @@ fn help_version_and_capabilities_are_stable() {
         .iter()
         .map(|command| command["name"].as_str().expect("name"))
         .collect();
-    assert!(unsupported.contains(&"upgrade"));
+    assert!(!unsupported.contains(&"upgrade"));
     assert!(!unsupported.contains(&"agent status emit"));
+    let upgrade = value["commands"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|command| command["name"] == json!("upgrade"))
+        .expect("reachable upgrade");
+    assert_eq!(upgrade["state"], json!("partial"));
+    let doctor = value["commands"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|command| command["name"] == json!("doctor"))
+        .expect("reachable doctor");
+    assert_eq!(doctor["state"], json!("partial"));
+    assert_eq!(doctor["mutates"], json!(true));
+    assert_eq!(doctor["implemented_leaves"].as_array().unwrap().len(), 13);
+    assert_eq!(doctor["refused_leaves"].as_array().unwrap().len(), 6);
 }
 
 #[test]
@@ -595,7 +612,13 @@ fn specify_plan_and_tasks_form_a_real_authoring_slice() {
     let value = single_json(&tasks);
     assert_eq!(value["result"], json!("success"));
     assert_eq!(value["dependencies"]["WP01"], json!([]));
-    assert_eq!(value["committed"], json!(false));
+    // CF18: `committed` was a Native-only key. Source's `tasks` payload has no
+    // such field (`_output_result` renders a plain `json.dumps` of the result
+    // map), so the divergence was removed and the contract asserted instead.
+    assert!(
+        value.get("committed").is_none(),
+        "the payload must match Source's key set: {value}"
+    );
 }
 
 #[test]
@@ -940,19 +963,32 @@ fn next_and_runtime_share_one_durable_run() {
 }
 
 #[test]
-fn unknown_and_unimplemented_routes_fail_with_the_usage_class() {
+fn unknown_commands_and_invalid_usage_fail_with_the_usage_class() {
     let (temp, home) = project();
     let unknown = run(temp.path(), &home, &["not-a-command"]);
     assert_eq!(unknown.status.code(), Some(2));
 
-    let upgrade = run(temp.path(), &home, &["upgrade", "--json"]);
+    // Upgrade now has a real adapter. Its old NOT_IMPLEMENTED expectation was
+    // a foundation capability fence, not the Source command contract. Preserve
+    // the usage-class check with an actual conflicting Source flag pair.
+    let upgrade = run(
+        temp.path(),
+        &home,
+        &[
+            "upgrade",
+            "--agent-check",
+            "--agent-choice",
+            "later",
+            "--json",
+        ],
+    );
     assert_eq!(upgrade.status.code(), Some(2));
     let value = single_json(&upgrade);
-    assert_eq!(value["error_code"], json!("NOT_IMPLEMENTED"));
     assert!(
         value["error"]
             .as_str()
-            .is_some_and(|error| error.contains("upgrade"))
+            .unwrap()
+            .contains("mutually exclusive")
     );
 
     let emit = run(temp.path(), &home, &["agent", "status", "emit", "--json"]);

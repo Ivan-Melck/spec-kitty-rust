@@ -53,7 +53,9 @@
 #[cfg(test)]
 extern crate self as sk_invocation;
 
+pub mod catalogue;
 mod error;
+pub mod executor;
 mod legacy_json;
 mod modes;
 mod op_admission;
@@ -61,15 +63,16 @@ mod op_commit;
 mod op_commit_policy;
 mod op_custody;
 mod op_target;
-mod os_locale;
-mod python_json;
+pub mod ops_sweep;
+pub mod os_locale;
+pub mod python_json;
 mod python_os_encoding;
 mod record;
 mod router;
 #[cfg(test)]
 mod router_oracle_tests;
 mod router_unicode;
-mod router_unicode_data;
+pub mod step_contract;
 mod writer;
 
 pub use error::{
@@ -97,6 +100,9 @@ pub use op_custody::{
     resolve_op_record_root,
 };
 pub use python_json::python_repr;
+pub use python_os_encoding::{
+    LocaleCodeset, latin9_byte, locale_codeset, locale_request, utf8_mode_setting,
+};
 pub use record::{
     ClosedBy, InvocationId, OpCompletedEvent, OpCompletedFields, OpEvent, OpOutcome,
     OpStartedEvent, OpStartedFields, parse_op_event,

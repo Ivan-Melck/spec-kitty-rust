@@ -222,6 +222,7 @@ pub fn apply(project_root: &Path) -> Result<MigrationOutcome, InstallError> {
                 changed: false,
                 changes: Vec::new(),
                 warnings: vec![format!("Skipping lane-tip recorder install: {error}.")],
+                ..crate::upgrade::MigrationOutcome::default()
             });
         }
     };
@@ -230,6 +231,7 @@ pub fn apply(project_root: &Path) -> Result<MigrationOutcome, InstallError> {
             changed: false,
             changes: Vec::new(),
             warnings: vec![format!("Skipping lane-tip recorder install: {reason}.")],
+            ..crate::upgrade::MigrationOutcome::default()
         });
     }
     std::fs::create_dir_all(&hooks_dir)
@@ -252,6 +254,7 @@ pub fn apply(project_root: &Path) -> Result<MigrationOutcome, InstallError> {
         changed: !changes.is_empty(),
         changes,
         warnings,
+        ..crate::upgrade::MigrationOutcome::default()
     })
 }
 

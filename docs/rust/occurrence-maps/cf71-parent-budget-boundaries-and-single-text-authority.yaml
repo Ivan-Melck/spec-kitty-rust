@@ -1,0 +1,49 @@
+target:
+  term: Checked finite budget remainder exact critical partition and canonical splitlines
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Checked i128 remainder projection; exact inequality without clamping, Source descriptor default true, distinct LF-partition policies; one Kernel splitlines authority.
+  import_paths:
+    action: manual_review
+    notes: Expose exact codepoint splitlines beside scalar Kernel owner, retire local boundary clone; same-item typed adapter error export.
+  filesystem_paths:
+    action: manual_review
+    notes: Fresh independent guarded Source/Native fixtures; executable smoke not mislabelled qualified pair; no production root changes.
+  serialized_keys:
+    action: do_not_change
+    notes: Existing warning/notes/descriptor wire strings unchanged.
+  cli_commands:
+    action: do_not_change
+    notes: No new flags/routing/counts, current bootstrap boundary held.
+  user_facing_strings:
+    action: manual_review
+    notes: Explicit Native finite projection error when warning reservation below i128, never fabricated Source error or saturation.
+  tests_fixtures:
+    action: manual_review
+    notes: Source-first current API min-budget/header-only negatives; strengthen actual child codec/root assertions and classify CLI wrappers honestly.
+  logs_telemetry:
+    action: manual_review
+    notes: Preserve all failures and old smoke/pair qualification chronology, no retroactive proof.
+exceptions:
+  - path: crates/sk-doctrine/src/text_budget.rs
+    action: manual_review
+    reason: Finite threshold projection and comparison, LF partition, reuse Kernel exact splitlines, same algorithm/model.
+  - path: crates/sk-kernel/src/python_text.rs
+    action: manual_review
+    reason: One boundary predicate plus exact borrowed codepoint splitlines accessor; existing scalar behavior retained.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Same-item adapter error export only if needed.
+  - path: crates/sk-doctrine/tests/cf71_parent_budget_edges.rs
+    action: manual_review
+    reason: New Source-derived public API boundary controls before fixes.
+  - path: crates/sk-doctrine/tests/cf71_text_budget.rs
+    action: manual_review
+    reason: Checked representable remainder callsite and actual codec/absolute-root/module-origin guards.
+  - path: crates/sk-cli/tests/cf71_budget_bootstrap_cli.rs
+    action: manual_review
+    reason: Source and Native business child guards plus independent fixtures, no production routing change.
+status:
+  accepted: false
+  phase: prospective parent correction

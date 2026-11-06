@@ -27,6 +27,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod chokepoint;
 pub mod error;
 pub mod models;
 pub mod resolution;
@@ -34,6 +35,10 @@ pub mod scope;
 pub mod seed;
 pub mod store;
 
+pub use chokepoint::{
+    DEFAULT_APPLICABLE_SCOPES, GlossaryChokepoint, GlossaryConflict, GlossaryIndex,
+    GlossaryObservationBundle, checked_tokens, glossary_urn, normalize,
+};
 pub use error::{GlossaryError, SeedFileError, SeedValidationError};
 pub use models::{Provenance, TermMetadata, TermSense, TermStatus, TermSurface};
 pub use resolution::{

@@ -1,0 +1,91 @@
+target:
+  term: CF82 unknown activation-token warning owner, canonical Source set order, and default logger delivery
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      IdentityIndex::activation_id / try_activation_id (scalar warning formatter) and
+      activation_id_exact / try_activation_id_exact (no warning) must reconcile on ONE
+      resolution/warning owner; ActivationGate::resolved_ids iterates a BTreeSet today
+      while Source _gated iterates the netted frozenset. New owner is private core plus
+      one collecting exact method; existing public names keep their signatures.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      Existing sk_kernel re-exports only (python_yaml::set_order string hash/table
+      authority, python_stream stderr policy/write, PythonString::repr). No new
+      dependency, no new crate edge.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No root, pack, pin, golden or fixture path change; probes use fresh mktemp trees
+      with independent CWD/HOME/all-seven-XDG/TMPDIR/TMP/TEMP.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No YAML/JSON wire shape change. Warning text is a human diagnostic string, not a
+      serialized key; the ledger key vocabulary is untouched.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No new command, flag or exit-code contract. The existing `charter activate`
+      write path reaches CanonicalOfferingService::ids_for through
+      resolve_effective_sets and is used unchanged as the real consumer.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      The one diagnostic line `unresolved <kind> activation token <token!r>;
+      best-effort resolved to <resolved!r>` becomes Python repr. No prefix, level name,
+      logger name or location is added: the measured default formatter is
+      '%(message)s' and the terminator is a single newline.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      Existing cf81 paired-target pattern is extended, not replaced; the CF81
+      Source-constructor cache reset and its guard test are preserved. New named
+      target for the warning/logging plan.
+  logs_telemetry:
+    action: manual_review
+    notes: >-
+      New Kernel Source-default logging transport (lastResort WARNING ->
+      sys.stderr, '%(message)s', '\\n', raiseExceptions handling). Bounded to the
+      measured default path; handler-hierarchy customisation, traceback bytes,
+      process-start capture and shutdown exit code remain required gaps.
+exceptions:
+  - path: crates/sk-doctrine/src/identity.rs
+    action: manual_review
+    reason: >-
+      Factor the scalar and exact activation-id methods through one resolution owner
+      whose warning uses PythonString::repr; add one collecting exact method. The
+      fallback path and the ConstructorAbort phase are unchanged.
+  - path: crates/sk-doctrine/src/offering/gate.rs
+    action: manual_review
+    reason: >-
+      Keep the authored allow token sequence, build the Source frozenset through the
+      canonical Kernel set-order authority (twice when a deny nets it), iterate that
+      order for resolution, collect warnings, deliver them, then publish the cache.
+  - path: crates/sk-kernel/src/python_yaml/set_order.rs
+    action: manual_review
+    reason: >-
+      Export the SAME SipHash/SetTable owner for a PythonString-keyed frozenset
+      iteration order; no second hash implementation and no sorted substitution.
+  - path: crates/sk-kernel/src/python_logging.rs
+    action: manual_review
+    reason: >-
+      New small Kernel owner for the measured Source-default lastResort WARNING
+      delivery through the shared python_stream stderr policy and write primitive.
+  - path: crates/sk-kernel/src/lib.rs
+    action: manual_review
+    reason: One module declaration and re-export for the new Kernel owner.
+  - path: crates/sk-doctrine/tests/cf82_activation_token_logging.rs
+    action: manual_review
+    reason: >-
+      New named target, independent guarded Source/Native children, warning bytes,
+      membership, cache, seed order, suppression, handled-failure and real CLI
+      consumer controls.
+  - path: docs/rust/occurrence-maps/cf82-parent-activation-token-warning-logging.yaml
+    action: manual_review
+    reason: This PRE classification map for the lane.
+status:
+  accepted: false
+  phase: prospective parent activation-token warning and default-logger delivery

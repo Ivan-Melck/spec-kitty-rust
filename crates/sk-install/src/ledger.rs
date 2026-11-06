@@ -51,6 +51,13 @@ pub const LEDGER_LOCK_TIMEOUT: Duration = Duration::from_secs(30);
 
 const CATALOG_JSON: &str = include_str!("migration_catalog.json");
 
+// Source BaseMigration's inherited execution contract. Embedded catalogue rows
+// carry explicit values; this default retains compatibility with older Native
+// catalogue documents rather than creating a second id-based policy table.
+fn default_runs_on_worktrees() -> bool {
+    true
+}
+
 /// One declared migration.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct MigrationSpec {
@@ -66,6 +73,10 @@ pub struct MigrationSpec {
     pub clone_local: bool,
     /// Whether applying it requires a git repository.
     pub requires_git_repository: bool,
+    /// Source's execution contract, independent of selection/ledger partition.
+    /// Internal metadata: do not add a new key to existing serialized CLI rows.
+    #[serde(default = "default_runs_on_worktrees", skip_serializing)]
+    pub runs_on_worktrees: bool,
     /// A supersession note, empty when the migration is live.
     pub superseded_by: String,
     /// `sha256:<hex>` of the defining source bytes at the reference snapshot.
@@ -711,6 +722,7 @@ mod tests {
             target_version: "1.0".into(),
             clone_local: false,
             requires_git_repository: false,
+            runs_on_worktrees: true,
             superseded_by: String::new(),
             content_hash: "sha256:abc".into(),
         };

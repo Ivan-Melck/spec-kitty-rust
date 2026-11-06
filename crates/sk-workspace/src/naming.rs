@@ -297,7 +297,108 @@ pub fn worktree_dir_name(slug: &str, lane_id: &str) -> Result<String, WorkspaceE
             lane: lane_id.to_owned(),
         });
     }
-    Ok(format!("{slug}-{lane_id}"))
+    Ok(compose_worktree_dir_name(slug, lane_id))
+}
+
+/// Compose `<slug>-<lane_id>` without validating the lane id.
+///
+/// The reference's `worktree_dir_name` is a bare `f"{mission_slug}-{lane_id}"`.
+/// Composition lives in one place so [`worktree_dir_name`] and the recognition
+/// helpers below cannot drift; the validation stays in [`worktree_dir_name`]
+/// and is deliberately not applied when reconstructing a name for comparison,
+/// because recognition must not refuse a shape the reference recognises.
+fn compose_worktree_dir_name(slug: &str, lane_id: &str) -> String {
+    format!("{slug}-{lane_id}")
+}
+
+/// Split a lane-worktree directory name into `(slug, lane_id)` by shape alone.
+///
+/// Reproduces the reference's `^(.+)-(lane-[a-z]+)$`: the lane-id fragment is
+/// `lane-` followed by at least one ASCII lowercase letter, anchored at the end
+/// of the name, behind a **greedy** slug prefix (so `a-lane-b-lane-c` parses as
+/// `("a-lane-b", "lane-c")`). Python's default `.` never matches a newline, and
+/// its `$` also matches just before one trailing newline; both behaviours are
+/// reproduced here because the reference's parser has them.
+///
+/// This is **slug-free** recognition — it never confirms that `slug` names a
+/// real Mission. A caller that already knows the expected Mission slug must use
+/// [`lane_id_for_worktree_dir`], which confirms the match by recomposition.
+fn split_lane_worktree_dir_bytes(dir_name: &[u8]) -> Option<(&[u8], &[u8])> {
+    let subject = dir_name.strip_suffix(b"\n").unwrap_or(dir_name);
+    for index in (0..subject.len()).rev() {
+        if subject[index] != b'-' {
+            continue;
+        }
+        let (head, tail) = subject.split_at(index);
+        // `tail` starts with the splitting `-`; the lane id is `lane-<letters>`.
+        let lane_id = &tail[1..];
+        let Some(lane_body) = lane_id.strip_prefix(b"lane-") else {
+            continue;
+        };
+        if head.is_empty() || head.contains(&b'\n') || lane_body.is_empty() {
+            continue;
+        }
+        if !lane_body.iter().all(u8::is_ascii_lowercase) {
+            continue;
+        }
+        return Some((head, lane_id));
+    }
+    None
+}
+
+/// Recognize a lane-worktree directory name by shape alone, or `None`.
+///
+/// Returns `(slug, lane_id)` without confirming that `slug` names a real
+/// Mission. Use [`lane_id_for_worktree_dir`] when the expected Mission slug is
+/// known: it confirms by recomposition and rejects a same-prefix impostor.
+pub fn parse_lane_worktree_dir(dir_name: &str) -> Option<(&str, &str)> {
+    let (slug, lane_id) = split_lane_worktree_dir_bytes(dir_name.as_bytes())?;
+    // Both slices are substrings of `dir_name`, which is already valid UTF-8:
+    // the slug ends at an ASCII `-` and the lane body is ASCII by the grammar.
+    Some((
+        std::str::from_utf8(slug).ok()?,
+        std::str::from_utf8(lane_id).ok()?,
+    ))
+}
+
+/// Return the lane id iff `dir_name` is `mission_slug`'s worktree directory.
+///
+/// Recognition is **by recomposition**, not by prefix or by a second pattern:
+/// the name is parsed for a candidate `(slug, lane_id)` and the lane id is
+/// returned only when re-composing it through the one builder
+/// ([`compose_worktree_dir_name`], the body [`worktree_dir_name`] uses)
+/// reproduces `dir_name` byte for byte. That rejects the `057-foo` vs
+/// `057-foobar` prefix trap a `starts_with` check falls into.
+///
+/// The recomposition is deliberately the unvalidated one: the reference's
+/// `worktree_dir_name` is a bare f-string, so it also recognises a directory
+/// named `<slug>-lane-planning`. No lane worktree is ever created there, but
+/// recognition must not invent a refusal the reference does not have.
+pub fn lane_id_for_worktree_dir<'a>(dir_name: &'a str, mission_slug: &str) -> Option<&'a str> {
+    let (_slug, lane_id) = parse_lane_worktree_dir(dir_name)?;
+    (compose_worktree_dir_name(mission_slug, lane_id) == dir_name).then_some(lane_id)
+}
+
+/// Byte-level twin of [`parse_lane_worktree_dir`].
+///
+/// A native directory name is an `OsStr`, not a UTF-8 string: the reference
+/// decodes such names with `surrogateescape`, so a non-UTF-8 name is still a
+/// Python string and can still match. The grammar only inspects ASCII
+/// structure, so deciding on the raw bytes is the same decision without a lossy
+/// `to_string_lossy` conversion (which would rename the path).
+pub fn parse_lane_worktree_dir_bytes(dir_name: &[u8]) -> Option<(&[u8], &[u8])> {
+    split_lane_worktree_dir_bytes(dir_name)
+}
+
+/// Byte-level twin of [`lane_id_for_worktree_dir`].
+pub fn lane_id_for_worktree_dir_bytes<'a>(
+    dir_name: &'a [u8],
+    mission_slug: &str,
+) -> Option<&'a [u8]> {
+    let (_slug, lane_id) = split_lane_worktree_dir_bytes(dir_name)?;
+    let lane_id = std::str::from_utf8(lane_id).ok()?;
+    (compose_worktree_dir_name(mission_slug, lane_id).as_bytes() == dir_name)
+        .then_some(lane_id.as_bytes())
 }
 
 /// The absolute lane-worktree path under `<repo_root>/.worktrees/`.
@@ -419,6 +520,89 @@ mod tests {
         assert_eq!(
             identity.mission_branch_name(),
             "kitty/mission-my-feature-01KNXQS9"
+        );
+    }
+
+    #[test]
+    fn lane_worktree_parser_matches_the_reference_grammar() {
+        // Right-anchored, greedy slug prefix.
+        assert_eq!(
+            parse_lane_worktree_dir("057-foo-lane-a"),
+            Some(("057-foo", "lane-a"))
+        );
+        assert_eq!(
+            parse_lane_worktree_dir("foo-lane-a-lane-b"),
+            Some(("foo-lane-a", "lane-b"))
+        );
+        // `lane-planning` matches `lane-[a-z]+`, so the parser accepts it.
+        assert_eq!(
+            parse_lane_worktree_dir("foo-lane-planning"),
+            Some(("foo", "lane-planning"))
+        );
+        // Non-matches: no letters, no slug, uppercase, missing fragment.
+        assert_eq!(parse_lane_worktree_dir("foo-lane-"), None);
+        assert_eq!(parse_lane_worktree_dir("lane-a"), None);
+        assert_eq!(parse_lane_worktree_dir("foo-lane-A"), None);
+        assert_eq!(parse_lane_worktree_dir("foo-lanea"), None);
+        assert_eq!(parse_lane_worktree_dir("foo-lane-a/inner"), None);
+        // Python's `$` also matches before one trailing newline, and `.` never
+        // matches a newline inside the slug.
+        assert_eq!(
+            parse_lane_worktree_dir("foo-lane-a\n"),
+            Some(("foo", "lane-a"))
+        );
+        assert_eq!(parse_lane_worktree_dir("fo\no-lane-a"), None);
+        assert_eq!(parse_lane_worktree_dir("foo-lane-a\n\n"), None);
+    }
+
+    #[test]
+    fn lane_recognition_is_by_recomposition() {
+        assert_eq!(
+            lane_id_for_worktree_dir("057-foo-lane-a", "057-foo"),
+            Some("lane-a")
+        );
+        // A same-prefix impostor is not this Mission's worktree.
+        assert_eq!(
+            lane_id_for_worktree_dir("057-foobar-lane-a", "057-foo"),
+            None
+        );
+        assert_eq!(
+            lane_id_for_worktree_dir("057-foo-lane-a", "057-foobar"),
+            None
+        );
+        // Recomposition reproduces the reference's unvalidated f-string, so a
+        // planning-lane-shaped directory is still recognised.
+        assert_eq!(
+            lane_id_for_worktree_dir("foo-lane-planning", "foo"),
+            Some("lane-planning")
+        );
+        // The newline the parser tolerates is not byte-identical after
+        // recomposition, so recognition refuses it.
+        assert_eq!(lane_id_for_worktree_dir("foo-lane-a\n", "foo"), None);
+    }
+
+    #[test]
+    fn byte_recognizer_keeps_non_utf8_names_exact() {
+        // A valid multi-byte UTF-8 slug still recomposes byte for byte.
+        let cafe = "caf\u{e9}-lane-a".as_bytes();
+        assert_eq!(
+            lane_id_for_worktree_dir_bytes(cafe, "caf\u{e9}"),
+            Some(b"lane-a".as_slice())
+        );
+
+        // A lone continuation byte makes the name non-UTF-8. Recognition keeps
+        // the raw slug; a lossy `from_utf8_lossy` rendering must never match.
+        let raw = b"caf\x80-lane-a";
+        let (slug, lane_id) = parse_lane_worktree_dir_bytes(raw).expect("shape matches");
+        assert_eq!(slug, b"caf\x80".as_slice());
+        assert_eq!(lane_id, b"lane-a".as_slice());
+        assert_eq!(lane_id_for_worktree_dir_bytes(raw, "caf"), None);
+        let lossy = String::from_utf8_lossy(raw).into_owned();
+        assert_ne!(lossy.as_bytes(), raw);
+        assert_eq!(
+            lane_id_for_worktree_dir_bytes(raw, lossy.split('-').next().unwrap_or("")),
+            None,
+            "the lossy slug must not be treated as the real directory name"
         );
     }
 }

@@ -1,0 +1,120 @@
+# CF57 ADDITIVE + field-TYPE classification; no active host Mission/Op, not an approval.
+#
+# Scope: the authored typed-scalar algebra in `crates/sk-doctrine/src/org_charter.rs`
+# (`AuthoredScalar` for `str | bool`, `PythonInt` for `schema_version`); the
+# scalar/governance identity, dedupe and result adapters in
+# `crates/sk-doctrine/src/org_charter/fold.rs`; the `org_charter` block's
+# exact payload projection in `crates/sk-doctrine/src/context.rs`; the same-item
+# `crates/sk-doctrine/src/lib.rs` re-exports; the mechanical projection updates in
+# `crates/sk-doctrine/tests/cf55_typed_org_fold.rs`; the NEW test binary
+# `crates/sk-doctrine/tests/cf57_exact_org_scalars.rs`; and this map.
+#
+# No pre-existing identifier is renamed, removed or deprecated, so
+# `target.operation` is omitted (additive). No authored YAML/JSON *key* changes:
+# the change is that three existing fields stop collapsing/holding a lossy Rust
+# projection and hold the reference's authored value type instead.
+target:
+  term: "CF57-authored-typed-org-scalar-values"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      NEW public types in the ONE typed schema owner: `AuthoredScalar`
+      (`Text(PythonString) | Bool(bool)`, so `True` and `'True'` are distinct
+      values with distinct identity) and `PythonInt` (an exact Python `int` in
+      canonical decimal text, so arbitrary-width and Unicode-decimal spellings
+      survive). EXISTING symbols keep their names: `OrgCharterPolicy`,
+      `GovernancePolicy`, `load_org_charter_policy`, `OrgCharterPolicyFold`,
+      `fold_org_charter_policies`, `org_charter_block`, `OrgCharterBlock`,
+      `OrgCharterPack`, `OrgGovernancePolicy`. Three FIELD TYPES change inside the
+      one model: `OrgCharterPolicy::schema_version` (`i64` -> `PythonInt`),
+      `OrgCharterPolicy::interview_defaults` values and
+      `GovernancePolicy::value` (`PythonString` -> `AuthoredScalar`). That is the
+      defect being closed (a text-only view collapses a boolean into
+      `PythonString("True")` and can make `(field, true)` collide with
+      `(field, "True")`), not a rename. No canonical authority is cloned: the
+      YAML transport/construction (`ArtifactDocument`, `python_yaml::construct`,
+      `PythonValue`), `PythonString`, `strip_token`, `ArtifactKind` and the JSON
+      payload owner (`PythonJsonValue`) stay borrow-only owners.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No new module edge and no new external crate. `org_charter.rs` borrows
+      `sk_kernel::python_text` (whitespace/decimal-digit authority) and
+      `sk_kernel::python_json` (the interpreter's integer digit ceiling and
+      `PythonJsonValue`); both are already-workspace Kernel owners. No
+      `Cargo.toml`/`Cargo.lock` edit (parent-owned), no `unsafe`.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      `org-charter.yaml` (existing `ORG_CHARTER` const / `sk_kernel::pack_org_charter`)
+      and the configured pack roots (registry + `effective_root`) keep their exact
+      spellings. Nothing is created, renamed or adopted; the fold and the context
+      block write no file.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      The authored YAML keys are unchanged (`schema_version`, `interview_defaults`,
+      `governance_policies`, `value`, `field`, `enforcement`, `required_<plural>`),
+      and the `org_charter` JSON block keeps its keys (`present`, `packs`,
+      `pack_name`, `governance_policies`, `required_directives`, `field`, `value`,
+      `enforcement`, `source`). What changes is the *value* a key carries: a
+      `str | bool` value is emitted as a JSON boolean when the authored value was a
+      Python `bool` (it was previously always a string), and `schema_version`
+      keeps its exact digits instead of a bounded `i64`.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No CLI command, flag, subcommand or capability-matrix entry is added or
+      changed. The same `charter context --action <name> --json` envelope carries
+      the corrected `org_charter` block; the root CLI, catalogue and registration
+      remain parent-owned.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      The three `schema_version` refusal messages keep their wording; their
+      CONDITION widens/narrows to the reference (`int(str)` text, arbitrary width,
+      Unicode decimal digits, the interpreter's digit ceiling). No other message
+      is rewritten.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      KEEP unchanged and green: `crates/sk-doctrine/tests/org_floor_tokens_oracle.rs`,
+      `governance_oracle.rs`, `cf48_raw_org_policy.rs`, `cf53_exact_skill_model.rs`,
+      `cf32_effective_include.rs`, `cf29_preset_application.rs`, and the module
+      tests in `org_charter/source.rs`. MECHANICAL: `cf55_typed_org_fold.rs`
+      projects the now-typed fold fields through the explicit
+      `python_str()`/`as_decimal()` accessors; its Source receipts and assertions
+      are unchanged. NEW: `crates/sk-doctrine/tests/cf57_exact_org_scalars.rs`
+      with real paired Source/Native children (both re-executed under the
+      repository's isolated CWD/HOME/7-XDG/TMP/PYTHONPATH/packs/hashseed
+      protocol). No existing test is weakened or deleted.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log key, event, metric or telemetry field is added or renamed. The fold
+      and the block are read-only: no lock, no ledger entry, no file write. The
+      new test binary keeps a "no unintended write" snapshot control.
+exceptions:
+  - path: crates/sk-doctrine/src/org_charter/source.rs
+    action: manual_review
+    reason: >-
+      ONE mechanical adapter line at the raw projection site
+      (`OrgCharterRawDocument::to_policy`, the only constructor of
+      `OrgCharterPolicy` outside this lane's files): it wraps its own `i64`
+      projection into the new `PythonInt` field type. The raw parser, transport,
+      walk, `extends:` chain, per-field floors and namespace fold are unchanged;
+      that raw reader never consults `schema_version` (its own docstring says so).
+      This is a type-shape consequence of the field type CF57 is required to fix,
+      not a raw-reader behavior change, and it is disclosed in the report.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: >-
+      Same-item re-exports of the new `org_charter` scalar items only. No other
+      module export, ordering or grouping is touched.
+  - path: docs/rust/occurrence-maps/cf57-exact-org-scalars.yaml
+    action: do_not_change
+    reason: This file records the pre-edit classification; it is not an approval.
+status:
+  reviewed_by: "CF57 implementer pre-edit classification (not independent approval)"
+  accepted: false

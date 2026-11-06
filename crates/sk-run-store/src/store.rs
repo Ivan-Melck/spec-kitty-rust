@@ -747,6 +747,34 @@ impl RunStore {
         Ok(sk_runtime::load_template(&path)?)
     }
 
+    /// Read one run's cursor and its verified frozen template, without mutating
+    /// anything.
+    ///
+    /// This is the read-only, reconciliation-free accessor a fact collector
+    /// needs when it must reproduce upstream's
+    /// `runtime.next.runtime_bridge_io.read_runtime_acceptance_facts` order: read
+    /// `state.json`, verify the frozen template against the hash recorded in the
+    /// cursor, then load that frozen template. It deliberately does NOT consult
+    /// the journal (`RunStore::query` reconciles it and refuses an unhealthy run,
+    /// which would turn a torn final journal line into an acceptance refusal
+    /// upstream does not produce) and it never starts, repairs or advances a run.
+    ///
+    /// # Errors
+    ///
+    /// A missing/corrupt cursor, a frozen template that no longer matches its
+    /// recorded hash ([`RunStoreError::FrozenTemplateDrift`]), or an unreadable
+    /// frozen template.
+    pub fn read_run_template(
+        &self,
+        run: &RunRef,
+    ) -> Result<(RunState, MissionTemplate), RunStoreError> {
+        let run = self.resolve_ref(run)?;
+        let state = self.read_state(&run)?;
+        self.verify_frozen_hash(&run, &state)?;
+        let template = self.load_frozen_template(&run)?;
+        Ok((state, template))
+    }
+
     /// The recorded live template hash, or `None` when the recorded source no
     /// longer exists (a missing live file is not drift, matching upstream).
     pub(crate) fn live_template_hash(

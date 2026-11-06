@@ -13,8 +13,8 @@
 //!   `U+03C2` or `U+03C3` depending on context.
 //!
 //! Both fact tables are generated from the pinned CPython 3.11.15 / Unicode
-//! 14.0.0 interpreter by `scripts/rust/generate_router_unicode.py` into the
-//! private `router_unicode_data` module. Nothing here consults Python at runtime
+//! 14.0.0 interpreter by `scripts/rust/generate_router_unicode.py` into Kernel's
+//! private `python_text_data` module. The shared algorithms live in Kernel too. Nothing here consults Python at runtime
 //! and nothing approximates the classes with ASCII or Rust's own Unicode data.
 //!
 //! `Final_Sigma` is the standard Unicode rule, and both scans behave the same
@@ -41,91 +41,9 @@
 //! This module stays private. The in-crate oracle checks all 1,114,112 code
 //! points without exposing a test-only public API.
 
-use crate::router_unicode_data as facts;
-
-/// Capital sigma: the only context-sensitive lower mapping in the reference.
-const CAPITAL_SIGMA: u32 = 0x03a3;
-/// Small final sigma.
-const SMALL_FINAL_SIGMA: u32 = 0x03c2;
-
-/// Whether CPython's `Final_Sigma` context holds at `index`.
-///
-/// Both clauses are required: "not followed by case-ignorable* cased" and
-/// "preceded by cased + case-ignorable*". The generated `is_case_ignorable`
-/// class excludes cased code points, so the cased test always comes first.
-fn final_sigma_context(codepoints: &[u32], index: usize) -> bool {
-    // After-clause: a later cased code point (after any ignorable ones) vetoes
-    // final sigma; anything not case-ignorable ends the scan in favour of it.
-    for &code in &codepoints[index + 1..] {
-        if facts::is_cased(code) {
-            return false;
-        }
-        if !facts::is_case_ignorable(code) {
-            break;
-        }
-    }
-    // Before-clause: a cased code point wins; a non-case-ignorable one loses.
-    for &code in codepoints[..index].iter().rev() {
-        if facts::is_cased(code) {
-            return true;
-        }
-        if !facts::is_case_ignorable(code) {
-            return false;
-        }
-    }
-    false
-}
-
-/// CPython `str.lower()` over an exact code-point sequence.
-///
-/// Surrogate code units are preserved (they have no case mapping). The result
-/// may be longer than the input because of a special-casing expansion.
-pub(crate) fn lower_codepoints(codepoints: &[u32]) -> Vec<u32> {
-    let mut lowered = Vec::with_capacity(codepoints.len());
-    for (index, &code) in codepoints.iter().enumerate() {
-        if code == CAPITAL_SIGMA && final_sigma_context(codepoints, index) {
-            lowered.push(SMALL_FINAL_SIGMA);
-        } else if let Some(mapped) = facts::lower_single(code) {
-            lowered.push(mapped);
-        } else if let Some(expansion) = facts::lower_expansion(code) {
-            lowered.extend_from_slice(expansion);
-        } else {
-            lowered.push(code);
-        }
-    }
-    lowered
-}
-
-/// CPython `\w` for one code point.
-pub(crate) fn is_word(code: u32) -> bool {
-    facts::is_word(code)
-}
-
-/// Split a lowered code-point sequence into maximal `\w` runs.
-///
-/// This is `re.split(r"[\s\W]+", ...)` without the separator capture: every
-/// non-word code point is a separator, including whitespace (whitespace is never
-/// a word code point), combining marks, emoji and lone surrogates.
-pub(crate) fn split_word_runs(lowered: &[u32]) -> Vec<&[u32]> {
-    let mut runs = Vec::new();
-    let mut start = 0usize;
-    let mut in_run = false;
-    for (index, &code) in lowered.iter().enumerate() {
-        if is_word(code) {
-            if !in_run {
-                start = index;
-                in_run = true;
-            }
-        } else if in_run {
-            runs.push(&lowered[start..index]);
-            in_run = false;
-        }
-    }
-    if in_run {
-        runs.push(&lowered[start..]);
-    }
-    runs
-}
+#[cfg(test)]
+pub(crate) use sk_kernel::python_text::is_word;
+pub(crate) use sk_kernel::python_text::{lower_codepoints, split_word_runs};
 
 #[cfg(test)]
 mod tests {

@@ -254,6 +254,7 @@ pub fn apply_drivers(
         changed: !changes.is_empty(),
         changes,
         warnings,
+        ..crate::upgrade::MigrationOutcome::default()
     })
 }
 

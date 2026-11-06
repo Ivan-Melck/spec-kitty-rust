@@ -24,16 +24,22 @@
 //! or resumes the run, answers any pending decision as the human operator, and
 //! advances under the run cursor lock.
 //!
+//! 5. the **composed step contract** (`StepContractExecutor` over the real
+//!    pack contracts), which for a composition-eligible action executes every
+//!    contract step through `ProfileInvocationExecutor` — one started and one
+//!    completed Op record each, best-effort committed — then runs the
+//!    post-action guard and commits the run's advance through the canonical
+//!    `plan_advance` → `commit_advance`, never the legacy `advance`.
+//!
 //! # What it does not compose (explicit gaps)
 //!
-//! The upstream `StepContractExecutor` composition dispatch (invocation
-//! records, step-contract artifact authoring, the decision-log Git commit, the
-//! retrospective completion gate, coordination-topology workspaces) is **not**
-//! implemented here. The requirement-mapping and occurrence-map guards are
-//! implemented natively in `sk-runtime`, so the `tasks` step advances only when
-//! the mapping gate is satisfied and otherwise re-issues with the reference's
-//! actionable failure. `capabilities` records the same state; this module never
-//! reports a success it did not perform.
+//! The decision-log Git commit, the retrospective completion gate and
+//! coordination-topology workspaces are **not** implemented here. Only the
+//! software-dev composed-guard family is ported; every other mission family
+//! takes the reference's unregistered-family neutral (empty) guard result.
+//! Custom `contract_ref` bindings resolve through the mission/action contract
+//! rather than the referenced id. `capabilities` records the same state; this
+//! module never reports a success it did not perform.
 
 use std::collections::BTreeMap;
 use std::env;
@@ -53,6 +59,7 @@ use sk_runtime::{
     Origin, WpProgress, finalized_board_step, plan_next, state_alias, wp_progress,
 };
 
+use super::invocation;
 use super::support::{
     CompatError, emit_json, emit_json_pretty, path_string, project_root, resolve_mission,
 };
@@ -162,7 +169,7 @@ fn parse_result(value: &str) -> Result<StepResult, CompatError> {
 /// The org required floor is resolved by `sk_doctrine::required_floor`, whose
 /// own pack search reads the documented parent value; the leaf normalization
 /// here serves this adapter's template and governance-context reads.
-fn packs_root(repo_root: &Path) -> Option<PathBuf> {
+pub(crate) fn packs_root(repo_root: &Path) -> Option<PathBuf> {
     if let Some(value) = env::var_os("SPEC_KITTY_PACKS_ROOT") {
         let value = PathBuf::from(value);
         let parent = if value.file_name() == Some(OsStr::new("built-in")) {
@@ -1351,12 +1358,12 @@ fn mission_type_governance_block(
 }
 
 /// The gathered governance facts for one action.
-struct GovernanceFacts {
-    context: sk_doctrine::CharterContext,
-    paradigms: Vec<String>,
-    diagnostics: Vec<String>,
-    template_set: String,
-    tools: Vec<String>,
+pub(crate) struct GovernanceFacts {
+    pub(crate) context: sk_doctrine::CharterContext,
+    pub(crate) paradigms: Vec<String>,
+    pub(crate) diagnostics: Vec<String>,
+    pub(crate) template_set: String,
+    pub(crate) tools: Vec<String>,
 }
 
 /// The advisory governance block for an action, or the reason it is absent.
@@ -1377,7 +1384,7 @@ fn governance_block(
 }
 
 /// Render the compact governance block the reference prompt carries.
-fn render_governance(facts: &GovernanceFacts) -> String {
+pub(crate) fn render_governance(facts: &GovernanceFacts) -> String {
     let rendered = |values: &[String]| {
         if values.is_empty() {
             "(none)".to_string()
@@ -1462,7 +1469,7 @@ fn entry_ids(entries: &[sk_doctrine::ArtifactEntry]) -> Vec<String> {
 // resolved pack root, and it propagates a real service failure instead of
 // inventing a no-signal result.
 
-fn active_project_languages(
+pub(crate) fn active_project_languages(
     service: &mut sk_doctrine::LanguageScopeService,
     repo_root: &Path,
     packs_root: Option<&Path>,
@@ -1477,17 +1484,37 @@ fn active_project_languages(
     Ok(inferred.into_option())
 }
 
-fn action_context(
-    repo_root: &Path,
-    mission_type: &str,
-    action: &str,
-    profile_id: Option<&str>,
-) -> Result<GovernanceFacts, String> {
+/// The one doctrine load the CLI's governance reads share.
+///
+/// Built once, then reused by the action-context builder, the step-contract
+/// delegation graph and the profile catalogue so those surfaces cannot disagree
+/// about the layers, the activation ledger or the required floor.
+pub(crate) struct DoctrineBundle {
+    /// The merged built-in + org + project DRG.
+    pub graph: sk_doctrine::DrgGraph,
+    /// The same graph after the activation filter.
+    pub filtered: sk_doctrine::DrgGraph,
+    /// The activation ledger the filter and the contract admission read.
+    pub ledger: sk_doctrine::ActivationLedger,
+    /// The scanned identity index.
+    pub identity: sk_doctrine::IdentityIndex,
+    /// The language-scoped profile repository.
+    pub profiles: sk_doctrine::ProfileRepository,
+    /// The org pack's required floor per kind.
+    pub floor: BTreeMap<sk_charter::ArtifactKind, Vec<String>>,
+}
+
+/// Load the merged graph, its activation-filtered view, and the governance
+/// inputs every CLI surface shares.
+pub(crate) fn doctrine_bundle(repo_root: &Path) -> Result<DoctrineBundle, CompatError> {
+    fn domain(error: impl std::fmt::Display) -> CompatError {
+        CompatError::domain(error.to_string())
+    }
     let packs_override = packs_root(repo_root);
-    let (built_in, org_packs, project) = doctrine_roots(repo_root, packs_override.as_deref())?;
+    let (built_in, org_packs, project) =
+        doctrine_roots(repo_root, packs_override.as_deref()).map_err(domain)?;
     let org_roots: Vec<PathBuf> = org_packs.iter().map(|pack| pack.root.clone()).collect();
-    let mut built_in_graph =
-        sk_doctrine::load_graph_or_dir(&built_in).map_err(|error| error.to_string())?;
+    let mut built_in_graph = sk_doctrine::load_graph_or_dir(&built_in).map_err(domain)?;
     let mut fragments = Vec::new();
     for (index, pack) in org_packs.iter().enumerate() {
         let root = &pack.root;
@@ -1495,54 +1522,83 @@ fn action_context(
         // inputs in the reference. A root graph must not gate the fragment,
         // nor imply that a fragment exists. Both can contribute to one pack.
         if sk_doctrine::has_graph_files(root) {
-            let root_graph =
-                sk_doctrine::load_graph_or_dir(root).map_err(|error| error.to_string())?;
-            built_in_graph = sk_doctrine::merge_layers(&built_in_graph, Some(&root_graph))
-                .map_err(|error| error.to_string())?;
+            let root_graph = sk_doctrine::load_graph_or_dir(root).map_err(domain)?;
+            built_in_graph =
+                sk_doctrine::merge_layers(&built_in_graph, Some(&root_graph)).map_err(domain)?;
         }
         if root.join(sk_doctrine::ORG_FRAGMENT).exists() {
-            let fragment = sk_doctrine::load_org_pack(&pack.name, root, index + 1)
-                .map_err(|error| error.to_string())?;
+            let fragment =
+                sk_doctrine::load_org_pack(&pack.name, root, index + 1).map_err(domain)?;
             fragments.push(fragment);
         }
     }
     let project_graph = match &project {
         Some(root) if sk_doctrine::has_graph_files(root) => {
-            Some(sk_doctrine::load_graph_or_dir(root).map_err(|error| error.to_string())?)
+            Some(sk_doctrine::load_graph_or_dir(root).map_err(domain)?)
         }
         _ => None,
     };
     let merged =
         sk_doctrine::merge_three_layers(&built_in_graph, &fragments, project_graph.as_ref())
-            .map_err(|error| error.to_string())?;
-    let ledger =
-        sk_doctrine::load_activation_ledger(repo_root).map_err(|error| error.to_string())?;
+            .map_err(domain)?;
+    let ledger = sk_doctrine::load_activation_ledger(repo_root).map_err(domain)?;
     let mut identity =
         sk_doctrine::IdentityIndex::from_roots(&built_in, &org_roots, project.as_deref());
     sk_doctrine::scan_all(&mut identity);
     let mut language_service = sk_doctrine::LanguageScopeService::new();
     let active_languages =
-        active_project_languages(&mut language_service, repo_root, packs_override.as_deref())?;
+        active_project_languages(&mut language_service, repo_root, packs_override.as_deref())
+            .map_err(domain)?;
     let profiles = sk_doctrine::ProfileRepository::load_with_languages(
         &built_in,
         &org_roots,
         project.as_deref(),
         active_languages.as_deref(),
     )
-    .map_err(|error| error.to_string())?;
+    .map_err(domain)?;
     // The org charter's required floor is a real input to the activation state:
     // it nets a stale deny so an org-required artifact is still delivered. An
     // empty map here would make the floor unenforceable on this surface.
     let floor = sk_doctrine::required_floor(repo_root, &identity)
-        .map_err(|error| error.to_string())?
+        .map_err(domain)?
         .into_map();
+    let activation =
+        sk_doctrine::ActivationState::from_ledger(&ledger, &identity, &floor).map_err(domain)?;
+    let filtered = sk_doctrine::filter_graph_by_activation(&merged.graph, &activation);
+    Ok(DoctrineBundle {
+        graph: merged.graph,
+        filtered,
+        ledger,
+        identity,
+        profiles,
+        floor,
+    })
+}
+
+/// The activation-filtered merged DRG for `repo_root`.
+pub(crate) fn filtered_graph(repo_root: &Path) -> Result<sk_doctrine::DrgGraph, CompatError> {
+    Ok(doctrine_bundle(repo_root)?.filtered)
+}
+
+pub(crate) fn action_context(
+    repo_root: &Path,
+    mission_type: &str,
+    action: &str,
+    profile_id: Option<&str>,
+) -> Result<GovernanceFacts, String> {
+    let bundle = doctrine_bundle(repo_root).map_err(|error| error.message().to_string())?;
+    let graph = &bundle.graph;
+    let ledger = &bundle.ledger;
+    let identity = &bundle.identity;
+    let profiles = &bundle.profiles;
+    let floor = &bundle.floor;
     let inputs = sk_doctrine::ContextInputs {
-        graph: &merged.graph,
-        ledger: &ledger,
-        identity: &identity,
-        profiles: &profiles,
+        graph,
+        ledger,
+        identity,
+        profiles,
         project_root: repo_root,
-        required_floor: &floor,
+        required_floor: floor,
         project_warnings: &[],
     };
     let mut request = sk_doctrine::ContextRequest::new(action);
@@ -1568,8 +1624,7 @@ fn action_context(
             .iter()
             .map(|token| token.strip_prefix("paradigm:").unwrap_or(token).to_string())
             .collect(),
-        None => merged
-            .graph
+        None => graph
             .nodes()
             .iter()
             .filter(|node| node.kind() == sk_doctrine::NodeKind::Paradigm)
@@ -1640,7 +1695,7 @@ fn action_context(
 }
 
 /// Doctrine roots resolved with the same pack-root convention as templates.
-fn doctrine_roots(
+pub(crate) fn doctrine_roots(
     repo_root: &Path,
     packs_root: Option<&Path>,
 ) -> Result<(PathBuf, Vec<sk_charter::OrgPackRoot>, Option<PathBuf>), String> {
@@ -2900,6 +2955,27 @@ fn advance_mode(
         }
     }
 
+    // 3b. Composition dispatch (single dispatch, FR-001/FR-002): a
+    //     composition-eligible issued step executes its real step contract, runs
+    //     the post-action guard, then commits the engine's own advance plan. The
+    //     legacy `store.advance` below is never reached for these steps.
+    if step_result == StepResult::Success
+        && let Some(current) = state.issued_step_id.clone()
+        && let Some(exit) = composition_dispatch(
+            ctx,
+            &store,
+            &run,
+            agent,
+            &state,
+            &current,
+            answered_id.as_deref(),
+            answer,
+            json_output,
+        )?
+    {
+        return Ok(exit);
+    }
+
     // 4. Advance the durable run.
     let outcome = match store.advance(
         &run,
@@ -2945,6 +3021,200 @@ fn advance_mode(
         answered_pair(answered_id.as_deref(), answer),
     )?;
     Ok(exit)
+}
+
+/// Dispatch one composition-eligible step through the real step contract.
+///
+/// Order mirrors the reference exactly: execute the contract (invoking and
+/// closing each step exactly once), then the post-action guard, then the
+/// engine's canonical `plan_advance` → `commit_advance` once. A failure at any
+/// stage returns a structured `blocked` decision and leaves the run cursor
+/// untouched; no legacy DAG dispatch runs as a fallback.
+///
+/// `Ok(None)` means the step is not composition-eligible and the caller must
+/// continue on the legacy path.
+#[allow(clippy::too_many_arguments)]
+fn composition_dispatch(
+    ctx: &DecisionContext<'_>,
+    store: &RunStore,
+    run: &RunRef,
+    agent: &str,
+    state: &RunState,
+    current: &str,
+    answered_id: Option<&str>,
+    answer: Option<&str>,
+    json_output: bool,
+) -> Result<Option<i32>, CompatError> {
+    if !invocation::should_dispatch_via_composition(
+        &ctx.repo_root,
+        &ctx.mission_type,
+        current,
+        Some(&run.run_dir),
+    ) {
+        return Ok(None);
+    }
+    let services = match invocation::InvocationServices::load(&ctx.repo_root, &ctx.mission_type) {
+        Ok(services) => services,
+        Err(error) => {
+            // A registry/data load failure is the reference's structured composed
+            // failure surface, not a traceback: block without advancing.
+            let envelope =
+                composition_blocked_envelope(ctx, current, &[error.message().to_string()]);
+            let (_, exit) = finish_decision(
+                envelope,
+                json_output,
+                None,
+                None,
+                answered_pair(answered_id, answer),
+            )?;
+            return Ok(Some(exit));
+        }
+    };
+    let composed_action = invocation::normalize_action_for_composition(current).to_string();
+    // Built-in actions resolve their profile through the shipped default table
+    // (and its availability fallback); only a custom step's frozen-template
+    // binding is threaded as a hint (the reference's PR #797 / FR-003 order).
+    let profile_hint = if sk_invocation::step_contract::action_profile_default(
+        &ctx.mission_type,
+        &composed_action,
+    )
+    .is_some()
+    {
+        None
+    } else {
+        invocation::frozen_step_binding(&run.run_dir, current).0
+    };
+    let record_root = sk_invocation::resolve_op_record_root(&ctx.repo_root, ctx.root);
+    let composition = invocation::compose_action(
+        &services,
+        &composed_action,
+        agent,
+        &record_root,
+        profile_hint.as_deref(),
+        None,
+    );
+    let outcome = match composition {
+        Ok(outcome) => outcome,
+        Err(failure) => {
+            let envelope = composition_blocked_envelope(ctx, current, &[failure]);
+            let (_, exit) = finish_decision(
+                envelope,
+                json_output,
+                None,
+                None,
+                answered_pair(answered_id, answer),
+            )?;
+            return Ok(Some(exit));
+        }
+    };
+
+    // Post-action guard. The reference degrades an unregistered mission family to
+    // a neutral (empty) result with a WARNING; only software-dev has a ported
+    // composed-guard family today, so every other family takes that same neutral
+    // path rather than being judged by software-dev's rules.
+    let guard_failures = if ctx.mission_type == SOFTWARE_DEV {
+        software_dev_guards(
+            &ctx.repo_root,
+            ctx.mission,
+            ctx.board.as_ref(),
+            &ctx.mission_type,
+            current,
+        )
+        .0
+    } else {
+        Vec::new()
+    };
+    if !guard_failures.is_empty() {
+        let envelope = composition_blocked_envelope(ctx, current, &guard_failures);
+        let (_, exit) = finish_decision(
+            envelope,
+            json_output,
+            None,
+            None,
+            answered_pair(answered_id, answer),
+        )?;
+        return Ok(Some(exit));
+    }
+
+    // Plan first, commit second: one canonical advance, no second dispatch.
+    let request = AdvanceRequest {
+        agent_id: agent.to_string(),
+        result: StepResult::Success,
+        expected_issued_step: state.issued_step_id.clone(),
+    };
+    let plan = match store.plan_advance(run, &request) {
+        Ok(plan) => plan,
+        Err(error) => {
+            let envelope = advance_failed_envelope(ctx, current, &error.to_string());
+            let (_, exit) = finish_decision(
+                envelope,
+                json_output,
+                None,
+                None,
+                answered_pair(answered_id, answer),
+            )?;
+            return Ok(Some(exit));
+        }
+    };
+    let advanced = match store.commit_advance(&plan) {
+        Ok(advanced) => advanced,
+        Err(error) => {
+            let envelope = advance_failed_envelope(ctx, current, &error.to_string());
+            let (_, exit) = finish_decision(
+                envelope,
+                json_output,
+                None,
+                None,
+                answered_pair(answered_id, answer),
+            )?;
+            return Ok(Some(exit));
+        }
+    };
+    // The composed run's audit trail is the Op records themselves (one started +
+    // one completed per step, each best-effort committed); the reference logs the
+    // invocation-id chain and adds no extra decision key, so the payload contract
+    // stays exactly `Decision.to_dict()`.
+    let _ = &outcome;
+    let mut envelope = runtime_decision_envelope(ctx, run, &advanced.decision, Some(agent));
+    if envelope.step_id.is_none() {
+        envelope.step_id = Some(current.to_string());
+    }
+    let authored = author_decision_prompt(store, run, ctx, agent, &envelope);
+    let (_, exit) = finish_decision(
+        envelope,
+        json_output,
+        authored.path,
+        authored.error,
+        answered_pair(answered_id, answer),
+    )?;
+    Ok(Some(exit))
+}
+
+fn composition_blocked_envelope(
+    ctx: &DecisionContext<'_>,
+    step: &str,
+    failures: &[String],
+) -> DecisionEnvelope {
+    let mut envelope = ctx.envelope(CliDecisionKind::Blocked);
+    envelope.mission_state = step.to_string();
+    envelope.step_id = Some(step.to_string());
+    envelope.reason = failures.first().cloned();
+    envelope.guard_failures = failures.to_vec();
+    envelope
+}
+
+fn advance_failed_envelope(
+    ctx: &DecisionContext<'_>,
+    step: &str,
+    detail: &str,
+) -> DecisionEnvelope {
+    let mut envelope = ctx.envelope(CliDecisionKind::Blocked);
+    envelope.mission_state = step.to_string();
+    envelope.step_id = Some(step.to_string());
+    envelope.reason = Some(format!(
+        "Run-state advancement after composition failed: {detail}"
+    ));
+    envelope
 }
 
 /// The answered-decision pair, when this call persisted an answer.

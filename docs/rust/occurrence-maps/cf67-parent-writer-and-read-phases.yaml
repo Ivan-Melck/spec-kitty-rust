@@ -1,0 +1,43 @@
+target:
+  term: Source state writer family, typed publication errors and repeated read phases
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Replace inspection atomic use with existing Source writer operation, retain typed cause/publication and one state/J1/clock authority.
+  import_paths:
+    action: manual_review
+    notes: Existing Kernel SourcePayload/WriterOperation/write_source and newline helpers only.
+  filesystem_paths:
+    action: manual_review
+    notes: Equal-byte replacement/mode/observer behavior and Source second-stage state reread preserved; no invented CAS.
+  serialized_keys:
+    action: do_not_change
+    notes: Existing exact JSON state schema unchanged.
+  cli_commands:
+    action: manual_review
+    notes: Structured stage performs real prepare read with first-stage depth; same routes/counts.
+  user_facing_strings:
+    action: manual_review
+    notes: Typed Source writer cause survives; native budget does not assert Source necessarily raises at same limit.
+  tests_fixtures:
+    action: manual_review
+    notes: New actual Source writer observer/equal-byte/publication controls before fixes; focused independent temporary roots.
+  logs_telemetry:
+    action: manual_review
+    notes: Actual postpublication observer runs and escapes, never successful silently skipped write.
+exceptions:
+  - path: crates/sk-doctrine/src/context_state.rs
+    action: manual_review
+    reason: Correct existing writer-family selection and typed cause, universal newlines, no writer implementation clone.
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: Exact narrow second-stage state prepare read only.
+  - path: crates/sk-doctrine/tests/cf67_parent_writer_phases.rs
+    action: manual_review
+    reason: Prospective Source-derived writer effects and error-phase controls, new file.
+  - path: crates/sk-cli/tests/cf67_parent_second_state_read.rs
+    action: manual_review
+    reason: Prospective post-mark observer mutation and second-state-read consumer control, new file.
+status:
+  accepted: false
+  phase: parent prospective Source writer and read correction

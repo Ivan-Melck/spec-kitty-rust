@@ -1,0 +1,152 @@
+# CF43 PRE-EDIT occurrence classification (additive lane; no rename/remove/deprecate).
+#
+# Written BEFORE any Source/Native code edit, from the actual pre-edit inventory
+# in /tmp/sk-cf43-evidence-20261105-01/ (command-log-index.tsv) and from reading
+# crates/sk-doctrine/src/{body.rs,body/exact.rs,context_include.rs,context_render.rs,
+# offering.rs,offering/value.rs,profile.rs} and
+# crates/sk-cli/src/compat/charter/context_include.rs.
+# No host Mission/Op/approval is invented by this map.
+target:
+  term: "charter context --include non-template serving over the finite serde payload (canonical_artifact_body + include_body_lines + include_full_payload_lines) and the scalar_projection profile dump"
+  replacement: "the same include surface served from the exact Kernel PythonJsonValue payload (canonical_artifact_body_exact over the merged exact graph, include_body_lines_exact, include_full_payload_lines_exact) and the exact ProfileBody model-JSON view, with the finite/scalar entry points retained as explicit checked adapters"
+  # No `operation:` key: this map authorises an ADDITIVE lane (new exact entry
+  # points, new provenance accessors, new tests). The allowed operations are
+  # rename/remove/deprecate; none applies.
+categories:
+  code_symbols:
+    action: do_not_change
+    notes: >-
+      No existing symbol is renamed, removed or deprecated. ADDED:
+      `context_render::include_body_lines_exact` (exact inline formatter),
+      `body::exact::exact_json_value` (the one `_jsonable_artifact_value`
+      projection over a canonical graph node), `ProfileBody::model_json_exact`
+      (exact model-dump view), `MergedArtifact::exact_root` /
+      `MergedArtifact::provenance`, `context_include::render_include_exact`, and
+      an `IncludeError` payload-refusal variant. `include_body_lines`,
+      `include_full_payload_lines`, `canonical_artifact_body`,
+      `ProfileBody::scalar_projection` and `render_include` keep their names and
+      signatures and become explicit checked adapters over the exact path.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No manifest, module path, re-export root or dependency edge changes. The
+      new `exact_json_value` entry point is a same-item addition inside the
+      existing `body::exact` module, re-exported beside the CF38 items.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No authored YAML, pack, pin, golden or Source path is touched. New test
+      fixtures live in fresh temporary directories only.
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      The artifact payload key set is unchanged (same CF38 Field/Spec surface,
+      same defaults, same exclude_none dropping). Only VALUE fidelity widens for
+      keys that already exist: typed NaN/+-Infinity/signed zero, exact code
+      points (lone surrogates escaped as CPython `\uXXXX`), constructed
+      set/pairs/omap/bytes shapes. The CLI `--include --json` envelope keeps the
+      reference's own keys (`result`, `success`, `include`, `context`, `text`) in
+      the reference's insertion order and is rendered by the one Kernel encoder
+      with `ensure_ascii=True`; the key SET is not changed. No new key is
+      invented and the DecisionIndex summary_json exception is not used.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command, subcommand, flag or alias is added, renamed or removed. The
+      `charter context --include` surface keeps its grammar and refusal
+      envelopes; only the already-registered non-template selector's payload
+      text/envelope emission becomes exact.
+  user_facing_strings:
+    action: do_not_change
+    notes: >-
+      Reference headings (`Directive <id>: <title>`, `    Full artifact:`) and
+      indentation are byte-identical. No prose is rewritten. The one new
+      message is the honest Native payload/encoding refusal text described in
+      the report; it is not presented as a Source exception or as a success.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      ADDED only: crates/sk-doctrine/tests/cf43_exact_include_delivery.rs with
+      both actual children (pinned 3.11.15 oracle) asserting their own CWD/HOME,
+      all seven XDG roots (including XDG_CONFIG_DIRS/XDG_DATA_DIRS),
+      TMPDIR/TMP/TEMP, absolute PYTHONPATH, pinned packs root and
+      PYTHONHASHSEED=0. KEEP with no edit: cf26_context_include.rs,
+      cf26_parent_include_projection.rs, cf31_canonical_include_models.rs,
+      cf32_effective_include.rs, cf38_exact_artifact_payload.rs,
+      cf42_directive_repository.rs, cf42_layered_directive.rs,
+      cf30_template_include.rs and the in-crate body/context_render tests.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No event, metric or telemetry identity changes; no readiness, approval,
+      acceptance or performance status is written by this lane.
+exceptions:
+  - path: crates/sk-doctrine/src/context_include.rs
+    action: manual_review
+    reason: >-
+      Non-template serving/header/profile/ambiguity/error composition only: the
+      document and profile arms switch to the exact payload, the heading is
+      built from exact strings, and `render_include_exact` becomes the one
+      implementation with `render_include` delegating. Selector grammar,
+      deny annotation, identity lookup, template fast path and ambiguity
+      phases keep their behaviour.
+  - path: crates/sk-doctrine/src/context_render.rs
+    action: manual_review
+    reason: >-
+      Only the include inline/full payload block: one exact inline formatter is
+      added and `include_body_lines` becomes the finite adapter over it. The
+      general context sections, section-anchor extraction and CF32 arms are
+      untouched.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: >-
+      MergedArtifact/LoadedItem common provenance fields and accessors plus the
+      merge data composition (unioned content-addressed transport markers and
+      per-field merge-layer origin). The existing shallow field-replacement
+      merge policy is reused verbatim; no second graph merger, no skill
+      post-validation hook (CF44 owns that), no repository/identity behaviour
+      change.
+  - path: crates/sk-doctrine/src/offering/value.rs
+    action: manual_review
+    reason: >-
+      Exact document/provenance accessor only: expose the transports markers
+      and one builder that turns an already-merged constructed mapping into the
+      canonical graph through the existing Kernel builder. No parser, transport
+      or construct-phase change.
+  - path: crates/sk-doctrine/src/profile.rs
+    action: manual_review
+    reason: >-
+      One additive exact model-dump projection accessor beside the existing
+      scalar_projection adapter. No schema, parser, default, lineage or merge
+      policy rewrite.
+  - path: crates/sk-doctrine/src/body/exact.rs
+    action: manual_review
+    reason: >-
+      Input-view/projection extension only: one public entry point over the
+      EXISTING `any_graph` walker so the agent-profile model dump uses the same
+      `_jsonable_artifact_value` projection. No second walker, schema or model.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: >-
+      Same-item re-exports of the new exact entry points beside the existing
+      CF38 exports; no module-map or ordering change.
+  - path: crates/sk-cli/src/compat/charter/context_include.rs
+    action: manual_review
+    reason: >-
+      Exact non-template emission/helper composition only: the CLI consumes the
+      exact text and emits the reference envelope through the Kernel encoder
+      (ensure_ascii, reference key order), with the physical-encoding failure
+      kept a distinct late phase. Template/section paths, error envelopes and
+      exit codes are unchanged.
+  - path: crates/sk-doctrine/tests/cf43_exact_include_delivery.rs
+    action: manual_review
+    reason: >-
+      NEW test file only; no existing test is edited, weakened or removed.
+  - path: docs/rust/occurrence-maps/cf43-exact-include-delivery.yaml
+    action: manual_review
+    reason: >-
+      NEW lane classification artifact; the prior invalid L7 map is neither
+      copied nor revalidated and no fictional Mission metadata is written.
+status:
+  reviewed_by: "parent pre-edit classification; not independent approval"
+  accepted: false

@@ -1,0 +1,188 @@
+{
+ "_provenance": "Recorded by the pinned Source (CPython 3.11.15, .venv-rust-oracle) running the ACTUAL consolidate_charter_bundle_fold migration over two bundles: (accepted) the coercions pydantic v2 accepts for the fields the fold reads \u2014 an integral float in an int field (2.0 -> 2), \"yes\"/1 in bool fields, a numeric string in an int field (\"85\"), an int in a float field (3 -> 3.0) \u2014 so the composed charter.yaml shows the coerced result; (refused) a fractional float (2.9) in an int field, which pydantic REFUSES with int_from_float: the Source raises the raw pydantic ValidationError and writes nothing. Placeholders $ACCEPTED, $REFUSED. Volatile: the .backup-<stamp> archive names are the run instant (bound by the test). Regenerate with /tmp/sk-a5-closeout/probe3-fold-coercions-fixture.py through /tmp/sk-a5/source-probe.sh.",
+ "accepted": {
+  "after": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/.backup-20261105T011002Z": {
+    "kind": "dir"
+   },
+   ".kittify/.backup-20261105T011002Z-1": {
+    "kind": "dir"
+   },
+   ".kittify/.backup-20261105T011002Z-1/.kittify": {
+    "kind": "dir"
+   },
+   ".kittify/.backup-20261105T011002Z-1/.kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/.backup-20261105T011002Z-1/.kittify/charter/directives.yaml": {
+    "kind": "file",
+    "sha256": "dc15316658d053feede80580d6dd2c9dfa2706a8d4ca5fd913a628443e85946c",
+    "text": "directives:\n- id: DIRECTIVE_003\n  title: Decision documentation\n  description: Record decisions.\n  severity: warn\n  references:\n  - docs/adr/1.md\n"
+   },
+   ".kittify/.backup-20261105T011002Z-2": {
+    "kind": "dir"
+   },
+   ".kittify/.backup-20261105T011002Z-2/.kittify": {
+    "kind": "dir"
+   },
+   ".kittify/.backup-20261105T011002Z-2/.kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/.backup-20261105T011002Z-2/.kittify/charter/references.yaml": {
+    "kind": "file",
+    "sha256": "c49509875f57020ccf1e4f2181b9ad70e940565cf3ecafb536a81455401a680d",
+    "text": "mission: software-dev\ntemplate_set: software-dev-default\nlanguages:\n- en\nreferences:\n- id: DIRECTIVE:003-decision-documentation-requirement\n  kind: directive\n  title: Decision documentation\n  summary: Record decisions.\n  source_path: ${SPEC_KITTY_PACKS_ROOT}/built-in/directives/003.directive.yaml\n  local_path: .kittify/charter-packs/directive/003.decision.yaml\n"
+   },
+   ".kittify/.backup-20261105T011002Z/.kittify": {
+    "kind": "dir"
+   },
+   ".kittify/.backup-20261105T011002Z/.kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/.backup-20261105T011002Z/.kittify/charter/governance.yaml": {
+    "kind": "file",
+    "sha256": "aceb74526235144e366f77b3418512d1c795d63bc22b57c7d49d655804f56a07",
+    "text": "testing:\n  tdd_required: \"yes\"\n  min_coverage: \"85\"\n  framework: pytest\nquality:\n  pr_approvals: 2.0\n  pre_commit_hooks: 1\n  linting: ruff\ncommits:\n  convention: conventional\nperformance:\n  cli_timeout_seconds: 3\n  dashboard_max_wps: 50.0\nbranch_strategy:\n  main_branch: main\n  rules:\n  - release/*\ncharter:\n  selected_directives:\n  - 003-decision-documentation-requirement\n  template_set: software-dev-default\nenforcement:\n  commits: signed\nactivations: []\n"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "513e07b4134fb0929da33f6aa3aab5ebe6d7022dc00cc3025a3823fa46e3b98f",
+    "text": "schema_version: 2.0.0\ngovernance:\n  testing:\n    min_coverage: 85\n    tdd_required: true\n    framework: pytest\n    type_checking: ''\n  quality:\n    linting: ruff\n    pr_approvals: 2\n    pre_commit_hooks: true\n  commits:\n    convention: conventional\n  performance:\n    cli_timeout_seconds: 3.0\n    dashboard_max_wps: 50\n  branch_strategy:\n    main_branch: main\n    rules:\n    - release/*\n  charter:\n    selected_paradigms: []\n    selected_directives:\n    - 003-decision-documentation-requirement\n    selected_tactics: []\n    selected_styleguides: []\n    selected_toolguides: []\n    selected_procedures: []\n    selected_agent_profiles: []\n    selected_mission_step_contracts: []\n    selected_glossary_packs: []\n    selected_assets: []\n    available_tools: []\n    template_set: software-dev-default\n    authority_paths: []\n    governance_references: []\n  activations: []\n  enforcement:\n    commits: signed\ndirectives:\n  directives:\n  - id: DIRECTIVE_003\n    title: Decision documentation\n    description: Record decisions.\n    severity: warn\n    references:\n    - docs/adr/1.md\ncatalog:\n  mission: software-dev\n  template_set: software-dev-default\n  languages:\n  - en\n  references:\n  - id: DIRECTIVE:003-decision-documentation-requirement\n    kind: directive\n    title: Decision documentation\n    summary: Record decisions.\n    source_path: ${SPEC_KITTY_PACKS_ROOT}/built-in/directives/003.directive.yaml\n    local_path: .kittify/charter-packs/directive/003.decision.yaml\noverrides: {}\nmetadata:\n  generated_at: '2026-11-05T01:10:02Z'\n  bundle_schema_version: 2\nactivated_kinds:\n- directives\n- tactics\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "794e866d48852cecff55ee7228ebbaaa31cdfefffc07195e3dd1c1f684225037",
+    "text": "charter: .kittify/charter/charter.yaml\n"
+   }
+  },
+  "before": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/directives.yaml": {
+    "kind": "file",
+    "sha256": "dc15316658d053feede80580d6dd2c9dfa2706a8d4ca5fd913a628443e85946c",
+    "text": "directives:\n- id: DIRECTIVE_003\n  title: Decision documentation\n  description: Record decisions.\n  severity: warn\n  references:\n  - docs/adr/1.md\n"
+   },
+   ".kittify/charter/governance.yaml": {
+    "kind": "file",
+    "sha256": "aceb74526235144e366f77b3418512d1c795d63bc22b57c7d49d655804f56a07",
+    "text": "testing:\n  tdd_required: \"yes\"\n  min_coverage: \"85\"\n  framework: pytest\nquality:\n  pr_approvals: 2.0\n  pre_commit_hooks: 1\n  linting: ruff\ncommits:\n  convention: conventional\nperformance:\n  cli_timeout_seconds: 3\n  dashboard_max_wps: 50.0\nbranch_strategy:\n  main_branch: main\n  rules:\n  - release/*\ncharter:\n  selected_directives:\n  - 003-decision-documentation-requirement\n  template_set: software-dev-default\nenforcement:\n  commits: signed\nactivations: []\n"
+   },
+   ".kittify/charter/references.yaml": {
+    "kind": "file",
+    "sha256": "c49509875f57020ccf1e4f2181b9ad70e940565cf3ecafb536a81455401a680d",
+    "text": "mission: software-dev\ntemplate_set: software-dev-default\nlanguages:\n- en\nreferences:\n- id: DIRECTIVE:003-decision-documentation-requirement\n  kind: directive\n  title: Decision documentation\n  summary: Record decisions.\n  source_path: ${SPEC_KITTY_PACKS_ROOT}/built-in/directives/003.directive.yaml\n  local_path: .kittify/charter-packs/directive/003.decision.yaml\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "e97efff63187da66d46eda2115f6af36e8b499acf96434e50f2695ac0373b11d",
+    "text": "charter: .kittify/charter/charter.yaml\nactivated_kinds:\n- directives\n- tactics\n"
+   }
+  },
+  "can_apply": [
+   true,
+   ""
+  ],
+  "detect": true,
+  "result": {
+   "changes_made": [
+    "Composed $ACCEPTED/.kittify/charter/charter.yaml from legacy bundle + config activation",
+    "Preserved divergent $ACCEPTED/.kittify/charter/governance.yaml to $ACCEPTED/.kittify/.backup-20261105T011002Z/.kittify/charter/governance.yaml, then retired it",
+    "Preserved divergent $ACCEPTED/.kittify/charter/directives.yaml to $ACCEPTED/.kittify/.backup-20261105T011002Z-1/.kittify/charter/directives.yaml, then retired it",
+    "Preserved divergent $ACCEPTED/.kittify/charter/references.yaml to $ACCEPTED/.kittify/.backup-20261105T011002Z-2/.kittify/charter/references.yaml, then retired it",
+    "Updated .kittify/config.yaml: removed activated_* keys, added charter: pointer"
+   ],
+   "errors": [],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "report": null,
+   "success": true,
+   "warnings": []
+  }
+ },
+ "refused": {
+  "after": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/directives.yaml": {
+    "kind": "file",
+    "sha256": "dc15316658d053feede80580d6dd2c9dfa2706a8d4ca5fd913a628443e85946c",
+    "text": "directives:\n- id: DIRECTIVE_003\n  title: Decision documentation\n  description: Record decisions.\n  severity: warn\n  references:\n  - docs/adr/1.md\n"
+   },
+   ".kittify/charter/governance.yaml": {
+    "kind": "file",
+    "sha256": "6beb7fb77852e99530de0d38e35462844f52f7770dc98bf2b687bae4db55a68d",
+    "text": "testing:\n  tdd_required: \"yes\"\n  min_coverage: \"85\"\n  framework: pytest\nquality:\n  pr_approvals: 2.9\n  pre_commit_hooks: 1\n  linting: ruff\ncommits:\n  convention: conventional\nperformance:\n  cli_timeout_seconds: 3\n  dashboard_max_wps: 50.0\nbranch_strategy:\n  main_branch: main\n  rules:\n  - release/*\ncharter:\n  selected_directives:\n  - 003-decision-documentation-requirement\n  template_set: software-dev-default\nenforcement:\n  commits: signed\nactivations: []\n"
+   },
+   ".kittify/charter/references.yaml": {
+    "kind": "file",
+    "sha256": "c49509875f57020ccf1e4f2181b9ad70e940565cf3ecafb536a81455401a680d",
+    "text": "mission: software-dev\ntemplate_set: software-dev-default\nlanguages:\n- en\nreferences:\n- id: DIRECTIVE:003-decision-documentation-requirement\n  kind: directive\n  title: Decision documentation\n  summary: Record decisions.\n  source_path: ${SPEC_KITTY_PACKS_ROOT}/built-in/directives/003.directive.yaml\n  local_path: .kittify/charter-packs/directive/003.decision.yaml\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "e97efff63187da66d46eda2115f6af36e8b499acf96434e50f2695ac0373b11d",
+    "text": "charter: .kittify/charter/charter.yaml\nactivated_kinds:\n- directives\n- tactics\n"
+   }
+  },
+  "apply_raised": {
+   "error_count": 1,
+   "error_fields": [
+    "quality.pr_approvals"
+   ],
+   "error_types": [
+    "int_from_float"
+   ],
+   "first_line": "1 validation error for GovernanceConfig",
+   "module": "pydantic_core._pydantic_core",
+   "type": "ValidationError"
+  },
+  "before": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/directives.yaml": {
+    "kind": "file",
+    "sha256": "dc15316658d053feede80580d6dd2c9dfa2706a8d4ca5fd913a628443e85946c",
+    "text": "directives:\n- id: DIRECTIVE_003\n  title: Decision documentation\n  description: Record decisions.\n  severity: warn\n  references:\n  - docs/adr/1.md\n"
+   },
+   ".kittify/charter/governance.yaml": {
+    "kind": "file",
+    "sha256": "6beb7fb77852e99530de0d38e35462844f52f7770dc98bf2b687bae4db55a68d",
+    "text": "testing:\n  tdd_required: \"yes\"\n  min_coverage: \"85\"\n  framework: pytest\nquality:\n  pr_approvals: 2.9\n  pre_commit_hooks: 1\n  linting: ruff\ncommits:\n  convention: conventional\nperformance:\n  cli_timeout_seconds: 3\n  dashboard_max_wps: 50.0\nbranch_strategy:\n  main_branch: main\n  rules:\n  - release/*\ncharter:\n  selected_directives:\n  - 003-decision-documentation-requirement\n  template_set: software-dev-default\nenforcement:\n  commits: signed\nactivations: []\n"
+   },
+   ".kittify/charter/references.yaml": {
+    "kind": "file",
+    "sha256": "c49509875f57020ccf1e4f2181b9ad70e940565cf3ecafb536a81455401a680d",
+    "text": "mission: software-dev\ntemplate_set: software-dev-default\nlanguages:\n- en\nreferences:\n- id: DIRECTIVE:003-decision-documentation-requirement\n  kind: directive\n  title: Decision documentation\n  summary: Record decisions.\n  source_path: ${SPEC_KITTY_PACKS_ROOT}/built-in/directives/003.directive.yaml\n  local_path: .kittify/charter-packs/directive/003.decision.yaml\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "e97efff63187da66d46eda2115f6af36e8b499acf96434e50f2695ac0373b11d",
+    "text": "charter: .kittify/charter/charter.yaml\nactivated_kinds:\n- directives\n- tactics\n"
+   }
+  },
+  "can_apply": [
+   true,
+   ""
+  ],
+  "detect": true
+ }
+}

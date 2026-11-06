@@ -1,0 +1,103 @@
+# CF8 occurrence classification — native `charter` command adapters.
+#
+# This lane is ADDITIVE. It changes no existing identifier, path, JSON key,
+# CLI flag or wire field, so `operation` is intentionally omitted. The only
+# pre-existing symbol whose spelling is reused is `CharterCommand`, already
+# owned by the native inspection tree (`crates/sk-cli/src/cli.rs`, the
+# `native charter inspect` route). The new type lives in
+# `crates/sk_cli::compat::charter` and is a distinct, module-scoped enum, so it
+# is KEEP on both sides; the parent's root-CLI registration must name the
+# compat one explicitly (`compat::charter::CharterCommand`).
+#
+# Inventory (recorded after the additive implementation; no rename was made,
+# so there is no pre-edit rename set to validate):
+#   context_render            new module + the `pub mod` declaration the parent predeclared
+#   RenderInputs/ReferenceDoc/CompactGovernance
+#                             new public formatter inputs (no pre-existing occurrences)
+#   CharterCommand            12 hits: 1 native `cli.rs` enum (KEEP, unrelated route),
+#                             new compat enum + its uses, 1 predeclared rlib module stub
+#   CONTEXT_STATE_REL         new private const (context-state.json, reference path only)
+#
+# No bulk edit, no `sed`, no path-module hack, no second authority.
+target:
+  term: "charter CLI command group + charter context text renderer (absent)"
+  replacement: "compat::charter adapters over the canonical Doctrine authorities + sk_doctrine::context_render"
+
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      New public items: `compat::charter::{CharterCommand, ContextArgs, ListArgs,
+      ActivateArgs, DeactivateArgs, StatusArgs, run, context_payload, list_payload,
+      activate, deactivate, cascade_activation_after, cascade_deactivation_after,
+      ActivationSummary, ContextOutcome}` and `sk_doctrine::context_render::*`.
+      No existing symbol is renamed or removed. `CharterCommand` remains two
+      distinct module-scoped enums (native inspection vs compat charter group);
+      no alias, glob import or root re-export is added here. Planning, the
+      ledger, the required floor, the lock and the lossless writer stay the
+      delivered Doctrine owners; this module only composes them.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No new crate, manifest, lockfile or dependency edge. The adapter consumes
+      the existing `sk_doctrine`, `sk_charter`, `sk_kernel` and `sk_cli`
+      support/runtime helpers. `compat::charter` was already declared by the
+      parent; no `#[path]` workaround is introduced.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      Authored paths are fixed by the canonical modules: `.kittify/charter/
+      activation.yaml` through the ledger owner, `.kittify/config.yaml` through
+      the existing readers, `.kittify/charter/charter.md|yaml` (read-only prose
+      and catalog references), and `.kittify/charter/context-state.json` for
+      first-load bookkeeping (the reference's own state path). New tests use
+      fresh `tempfile` fixtures only.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      The `charter context --json` payload keys and the `charter list --json`
+      row keys are the reference contract (`context_schema_version`, `action`,
+      `mode`, `first_load`, `references_count`, `context`, `text`, directive/
+      tactic/styleguide/toolguide arrays, diagnostics, references, project/org
+      charter blocks; `kinds[].{kind,activated,available,deactivated}`,
+      `templates`). The activation change report keeps the reference
+      `schema_version` 1.0.0 shape. serde_json's default key ordering (sorted)
+      is the existing workspace-wide property, not a new divergence introduced
+      here.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No root CLI enum, dispatch, capability matrix or help surface is edited;
+      registration is parent-owned and this lane supplies the typed tree plus
+      `run`. No existing flag is renamed. `--include` accepts only
+      `section:<slug>` natively and refuses other selectors explicitly.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Text lines mirror the reference wording (bootstrap header, policy summary,
+      authority paths, action-critical section headers, fetch + when-doing
+      stanza, action-doctrine lines, list rows, activation/deactivation change
+      report). Degradations are named honestly: the catalog recompile notice,
+      the pending pack-skill projection notice, and `charter status` refusing
+      rather than emitting a fabricated sync/synthesis/freshness payload.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New cf8_* tests only. `cf8_context_render.rs` drives the formatter with a
+      constructed payload; `cf8_charter_workflow.rs` builds a real context from
+      the pinned built-in pack and exercises plan/commit idempotency and
+      deletion; `cf8_charter_command.rs` drives the public adapter API against a
+      fixture project. No existing test is weakened, skipped or deleted.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log/metric/event key change; no success label is emitted for a pending
+      surface. The pending tails are user-visible notices, not telemetry.
+
+exceptions:
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: The new adapter. Replaces a declaration-only stub the parent predeclared.
+  - path: crates/sk-doctrine/src/context_render.rs
+    action: manual_review
+    reason: The new canonical text formatter. Replaces a declaration-only stub the parent predeclared.

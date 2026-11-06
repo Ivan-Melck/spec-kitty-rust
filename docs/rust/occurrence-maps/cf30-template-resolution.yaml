@@ -1,0 +1,188 @@
+# CF30 — occurrence classification (PRE-EDIT; NEW canonical template catalog + six-tier
+# content/command resolution + real `template:` include)
+#
+# Lane: the NEW mission-qualified template catalog and the ONE canonical six-tier
+# template resolver, owned by `sk-charter` below Doctrine, plus the real
+# `template:<mission>/<name>` include in `sk-doctrine` and the template-only CLI fast
+# path in `sk-cli`. No dependency edge is added and no second resolution policy is
+# created.
+#
+# Written BEFORE any CF30 edit, from the real pre-edit inventory in
+# /tmp/cf30-ev-04 (see `command-log-index.tsv`). This is a NEW lane map: no invented
+# Mission/Op metadata, no `accepted: true`, no fictional kitty-specs/ mission, and no
+# backdated approval.
+#
+# This lane is ADDITIVE at the identifier level, so `target.operation` is omitted (the
+# schema allows that for additive work): no existing artifact-kind token, selector
+# grammar, JSON key, CLI flag, filesystem path or Source message is renamed. The one
+# genuine non-additive occurrence is a Native capability GAP becoming real support:
+# `IncludeError::PendingTemplateResolver` (with its `CONTEXT_INCLUDE_PENDING` code path
+# for `template:`) is DELETED because the resolver it declared "missing" now exists. The
+# code itself stays for `PendingProjection`; only the template arm goes.
+#
+# KEEP list (must NOT change in this lane):
+#   * the shared selector grammar (`<kind>:<id>`, `kind.strip().lower()`,
+#     `identifier.strip()`, `Expected --include selector in '<kind>:<id>' form.`) and the
+#     canonical `ArtifactKind` kind vocabulary — CF26 owns them, CF30 only consumes them
+#   * every existing include refusal family and message (`Unsupported --include selector
+#     kind '…'.`, `No <kind> found for selector '…'.`, the `artifact:` ambiguity and
+#     not-found messages, the `mission-type` refusal) and their exit-1 / envelope shape
+#   * the `--json` include success envelope `{result, success, include, context, text}`
+#     and the section helper/refusal behaviour
+#   * `CONTEXT_INCLUDE_PENDING` for `PendingProjection` (glossary_pack / paradigm /
+#     skill / mission_step_contract), and the parent's ambiguity vs pending distinction
+#   * the canonical kind token `template`, the `template:<mission>/<name>` shape, the
+#     mission-qualified ID split (exactly one `/`, both halves non-empty)
+#   * Source tier value spellings `override`, `legacy`, `org`, `global_mission`,
+#     `global`, `package_default` (underscored, never hyphenated wire labels)
+#   * `README.md` exclusion and the recursive `templates/` + `command-templates/`
+#     discovery contract
+#   * Source authority: `src/**`, `packs/**`, `pins/**`, `goldens/**`,
+#     `packs/built-in.source.yaml` untouched (read only)
+#
+# docs: this lane map plus the new module/test doc comments are the only documentation
+# CF30 adds. `docs/rust/*` status/capability prose is parent-owned and is NOT edited.
+target:
+  term: "template:<mission>/<name> pending Native refusal (PendingTemplateResolver)"
+  replacement: >-
+    canonical sk-charter template catalog + ONE six-tier content/command resolver, with
+    a real `Template <id> (tier: <Source spelling>):` include rendered from the UTF-8
+    template text
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      NEW public module `sk_charter::template_catalog` (tier vocabulary, `TierRoot`,
+      `TemplateRef`, `TemplateRoots` provider seam, `discover_templates`,
+      `resolve_template` / `resolve_command` / `resolve_template_by_id`,
+      `render_template_include`). NEW module doc + typed errors. In `sk-doctrine`, the
+      `template` arm of `render_include`/`render_kind` now delegates to that one owner,
+      and `IncludeError::PendingTemplateResolver` is DELETED (dead once implemented).
+      No existing public name is renamed; no `sk-mission` type, Mission config resolver
+      or Mission definition is moved or cloned.
+  import_paths:
+    action: manual_review
+    notes: >-
+      `sk-charter/src/lib.rs` gains exactly ONE `pub mod template_catalog;` line.
+      `sk-doctrine` and `sk-cli` already depend on `sk-charter`; no manifest, lockfile
+      or dependency edge changes. `sk-cli`'s compat template fast path calls
+      `sk_charter::template_catalog::…` directly; doctrine calls the same functions.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No pack, pin, bundle, template, state or asset path moves or is rewritten. The new
+      files are a new charter module, three new `cf30_*` test files and this map. Tier
+      candidate paths are only probed for existence with the Source's exact joins.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No serialized key changes. The include success envelope and the error envelope
+      (`{result, success, error}` / `{…, code}`) are byte-identical; the template
+      refusal family carries NO code, exactly like the reference `ValueError`.
+  cli_commands:
+    action: manual_review
+    notes: >-
+      No command, subcommand, flag, alias or registration changes. `--include` keeps its
+      spelling; only the internal dispatch gains a template-only fast path placed after
+      the shared selector grammar and BEFORE `doctrine_bundle`/profile construction.
+      Exit codes follow Source (0 success, 1 refusal).
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      NEW user-facing template surface, spelled exactly like the reference:
+      `Template <id> (tier: <tier.value>):` + the template text with `rstrip('\n')`,
+      `No template found for selector '<selector>'.`,
+      `Malformed template selector '<selector>': template_id <repr> is not of the form
+      '<mission>/<name>'`, and `Template for selector '<selector>' could not be read:
+      <detail>`. The legacy-tier migrate nudge reuses the reference sentence subject and
+      runtime-path rendering; the reference's Python `logging`/`DeprecationWarning`
+      stderr wire is NOT reproduced (deferred, see the lane report).
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      NEW `crates/sk-charter/tests/cf30_template_catalog.rs`,
+      `crates/sk-doctrine/tests/cf30_template_include.rs` and
+      `crates/sk-cli/tests/cf30_template_include_cli.rs` (real temp trees across
+      override / legacy / org first-match / global mission / global / package tiers,
+      injected root providers for the four env-shaped tiers, catalog
+      duplicate-README-nested cases, miss/malformed/read refusals, real-binary text and
+      JSON). The two parent-owned obsolete slots are replaced, not weakened:
+      `sk-doctrine/tests/cf26_context_include.rs::kinds_without_a_canonical_model_dump_refuse_instead_of_printing_raw_yaml`
+      keeps its four model-projection expectations and its glossary/paradigm pending
+      assertions, and only its `template:` pending assertion becomes a real
+      resolution/returned-text assertion;
+      `sk-cli/tests/cf26_context_include_cli.rs::template_selector_reports_the_pending_resolver_code`
+      becomes a real supported-template text/JSON assertion.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric, event or telemetry key is added or renamed; no fabricated
+      `WARNING  …` / `DeprecationWarning: …` line is emitted in place of the reference's
+      logging wire.
+exceptions:
+  - path: crates/sk-charter/src/lib.rs
+    action: manual_review
+    reason: Exactly one added `pub mod template_catalog;` declaration; CF29 owns the presets line.
+  - path: crates/sk-doctrine/src/context_include.rs
+    action: manual_review
+    reason: >-
+      Only the `template:` branch/helper, the deleted `PendingTemplateResolver` variant
+      and its doc/known-gap text. The parent's pinned selector parser, code-point
+      lower/trim, ambiguity rules, JSON projection and every other kind family are
+      preserved unchanged.
+  - path: crates/sk-cli/src/compat/charter/context_include.rs
+    action: manual_review
+    reason: >-
+      One narrow template fast path plus the legacy-tier nudge helper; the parent's
+      success/error envelope and `section:` helpers are reused, and no
+      parser/error-family/other-kind change is made.
+status:
+  lane: cf30-template-resolution
+  change_mode: bulk_edit
+  source_baseline: "9aed3a8012cb5eb22c0128b14d525039f95fea7a"
+  owned_paths:
+    - crates/sk-charter/src/template_catalog.rs
+    - crates/sk-charter/src/lib.rs
+    - crates/sk-charter/tests/cf30_template_catalog.rs
+    - crates/sk-doctrine/src/context_include.rs
+    - crates/sk-doctrine/tests/cf30_template_include.rs
+    - crates/sk-doctrine/tests/cf26_context_include.rs
+    - crates/sk-cli/src/compat/charter/context_include.rs
+    - crates/sk-cli/tests/cf30_template_include_cli.rs
+    - crates/sk-cli/tests/cf26_context_include_cli.rs
+    - docs/rust/occurrence-maps/cf30-template-resolution.yaml
+  declared_non_edits:
+    - crates/sk-mission/src/template.rs
+    - crates/sk-charter/src/pack.rs
+    - crates/sk-charter/src/config.rs
+    - crates/sk-doctrine/src/context.rs
+    - crates/sk-doctrine/src/context_render.rs
+    - crates/sk-doctrine/src/identity.rs
+    - crates/sk-doctrine/src/preset_application.rs
+    - crates/sk-cli/src/compat/charter.rs
+    - crates/sk-cli/src/compat/charter/preset.rs
+    - Cargo.toml
+    - Cargo.lock
+    - src/**
+    - packs/**
+    - pins/**
+  removed_literals:
+    - symbol: IncludeError::PendingTemplateResolver
+      where: crates/sk-doctrine/src/context_include.rs
+      replaced_by: >-
+        real six-tier resolution through `sk_charter::template_catalog`, with the
+        reference's own refusal family (no machine code) for miss/malformed/read failure
+  added_literals:
+    - symbol: sk_charter::template_catalog
+      where: crates/sk-charter/src/template_catalog.rs
+      reason: >-
+        The ONE canonical template catalog/resolver owner, below Doctrine; the reference
+        behaviour is `charter.offering.template_catalog` + the six-tier
+        `charter.offering.resolver._resolve_asset` order.
+    - symbol: "Template <id> (tier: <tier.value>):"
+      where: crates/sk-charter/src/template_catalog.rs
+      reason: >-
+        The reference include heading; tier spellings are the Source enum values
+        (`global_mission`, `package_default`), never invented hyphenated labels.
+  reviewed_by: "CF30 implementer pre-edit classification (not independent approval)"
+  accepted: false

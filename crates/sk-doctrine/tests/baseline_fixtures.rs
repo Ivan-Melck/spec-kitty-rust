@@ -461,11 +461,15 @@ fn context_payload_has_exactly_the_contracted_top_level_keys() {
     fs::create_dir_all(built_in.join("directives")).unwrap();
     fs::write(
         built_in.join("directives/001-arch.directive.yaml"),
-        "id: DIRECTIVE_001\ntitle: Architecture\n",
+        "id: DIRECTIVE_001\nschema_version: '1.0'\ntitle: Architecture\nintent: Keep seams\nenforcement: required\n",
     )
     .unwrap();
     fs::create_dir_all(built_in.join("tactics")).unwrap();
-    fs::write(built_in.join("tactics/hard.tactic.yaml"), "id: hard\n").unwrap();
+    fs::write(
+        built_in.join("tactics/hard.tactic.yaml"),
+        "id: hard\nschema_version: '1.0'\nname: Hard\nsteps:\n  - title: one\n",
+    )
+    .unwrap();
     let identity = IdentityIndex::from_roots(&built_in, &[], None);
     let profiles = ProfileRepository::load(&built_in, &[], None).unwrap();
     let ledger = ActivationLedger::default();
@@ -521,9 +525,14 @@ fn context_payload_has_exactly_the_contracted_top_level_keys() {
         context.directives[0]
             .body
             .as_ref()
-            .and_then(|body| body.get("id"))
-            .and_then(|value| value.as_str()),
-        Some("DIRECTIVE_001")
+            .and_then(|body| body.field("id"))
+            .and_then(|value| match value {
+                sk_kernel::python_json::PythonJsonValue::String(text) => {
+                    text.to_scalar_string().ok()
+                }
+                _ => None,
+            }),
+        Some("DIRECTIVE_001".to_owned())
     );
 }
 
@@ -550,14 +559,28 @@ fn baseline_valid_profile_fixture_loads_and_composes() {
     )
     .unwrap();
     let profile = repository
-        .resolve("architect-alphonso", &graph)
+        .resolve_str("architect-alphonso", &graph)
         .expect("profile");
-    assert_eq!(profile.name(), Some("Architect Alphonso"));
     assert_eq!(
-        profile.directive_references(),
-        vec!["ARCH-001", "DESIGN-002"]
+        profile.name().and_then(|name| name.to_scalar_string().ok()),
+        Some("Architect Alphonso".to_owned())
     );
-    assert_eq!(profile.lineage, vec!["architect-alphonso".to_owned()]);
+    assert_eq!(
+        profile
+            .directive_references()
+            .iter()
+            .filter_map(|id| id.to_scalar_string().ok())
+            .collect::<Vec<_>>(),
+        vec!["ARCH-001".to_owned(), "DESIGN-002".to_owned()]
+    );
+    assert_eq!(
+        profile
+            .lineage
+            .iter()
+            .filter_map(|id| id.to_scalar_string().ok())
+            .collect::<Vec<_>>(),
+        vec!["architect-alphonso".to_owned()]
+    );
 }
 
 #[test]

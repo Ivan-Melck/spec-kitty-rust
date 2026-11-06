@@ -1,0 +1,46 @@
+target:
+  term: Source pathlib spelling and independently asserted child Source root
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Add ONE POSIX Path spelling helper in Kernel paths, used by existing codec; path text before metadata/id/clock; no new codec/parser.
+  import_paths:
+    action: manual_review
+    notes: Existing canonical codec and path owners only, no dependencies or authority clones.
+  filesystem_paths:
+    action: manual_review
+    notes: Source Path construction drops empty/dot/repeated separators, preserves parents and exactly double leading slash, no IO/resolution.
+  serialized_keys:
+    action: do_not_change
+    notes: Provenance file_path wire shape retained with correct authored spelling.
+  cli_commands:
+    action: do_not_change
+    notes: No flags/routes/registration changes.
+  user_facing_strings:
+    action: manual_review
+    notes: Distinguish raw os.fsdecode bytes from str(Path) spelling; retain typed Native path-decoding cause.
+  tests_fixtures:
+    action: manual_review
+    notes: Actual Source path/provenance probes before Native current-API red; prospective independent expected Source root and module-origin assertions.
+  logs_telemetry:
+    action: manual_review
+    notes: Producer Source-root tautology not retroactively upgraded, helper/operational control not new paired features.
+exceptions:
+  - path: crates/sk-kernel/src/paths.rs
+    action: manual_review
+    reason: New pure source_posix_path_spelling, not resolve/normalize-parent policy.
+  - path: crates/sk-kernel/src/python_os_encoding.rs
+    action: manual_review
+    reason: Existing decode_path uses same path authority then same decoder; bytes decoder unchanged.
+  - path: crates/sk-kernel/src/encoding_provenance.rs
+    action: manual_review
+    reason: Source constructs path text before metadata/id/clock; private tiny failure-order unit only.
+  - path: crates/sk-kernel/tests/cf69_parent_path_spelling.rs
+    action: manual_review
+    reason: New Source-derived current API controls and raw-bytes distinction.
+  - path: crates/sk-doctrine/tests/cf69_filesystem_filename_reads.rs
+    action: manual_review
+    reason: Independently supplied absolute expected Source root, Native and Source checks before business reads.
+status:
+  accepted: false
+  phase: prospective parent path and child correction

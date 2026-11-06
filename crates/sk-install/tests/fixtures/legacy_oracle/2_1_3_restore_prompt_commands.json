@@ -1,0 +1,24 @@
+{
+  "case": "2_1_3_restore_prompt_commands",
+  "meta": {
+    "can_apply": [
+      true,
+      ""
+    ],
+    "changes": [
+      "Restored: .claude/commands/spec-kitty.specify.md"
+    ],
+    "detect": true,
+    "error": null,
+    "success": true,
+    "warnings": []
+  },
+  "tree": {
+    ".claude/": "DIR",
+    ".claude/commands/": "DIR",
+    ".claude/commands/spec-kitty.specify.md": "835f7214c3aad96b3117901eafdd3eff494af3ac8b7d50882a7b0e5f4ce034af",
+    ".kittify/": "DIR",
+    ".kittify/config.yaml": "8651825cb7451bc86266533190d6b1672500d8e23825eebf8bba0b4de89b732c",
+    ".kittify/metadata.yaml": "b971bb8541fce2b073582d78ca9c0aa3a1c5f78b928075c1c6d2f0cc52356a35"
+  }
+}

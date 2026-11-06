@@ -1,0 +1,219 @@
+# CF32 — occurrence classification (PRE-EDIT; canonical merged/denied/lazy include serving)
+#
+# Lane: non-template `charter context --include` serving now consumes the canonical
+# `CanonicalOfferingService` merged records, the real effective-deny annotation and a
+# lazily constructed per-kind authority instead of the identity index's declaring file.
+#
+# Written BEFORE any CF32 edit, from the real pre-edit inventory receipts in
+# /tmp/cf32-evidence-root/ (see `command-log-index.tsv`). This is a NEW lane map: no
+# invented Mission/Op metadata, no `accepted: true`, no fictional kitty-specs/ mission,
+# no backdated approval, and no copy of the invalid L7 map.
+#
+# Non-additive surface (declared here, both mechanical):
+#   * `IncludeInputs` loses its `identity`/`profiles` fields and gains one
+#     `access: &IncludeAccess` authority. Operation `rename` (field move), not a
+#     semantic rename of a user-facing or wire identifier. Exactly three construction
+#     sites exist pre-edit: the CLI compatibility layer and two test files whose
+#     assertions stay byte-identical.
+#   * the source-message surface gains two message families: the Source deactivated
+#     note and typed setup/config failures. No existing reference message text changes.
+#
+# KEEP list (must NOT change):
+#   * the `--include` flag, its `<kind>:<id>` grammar and the `section`/`artifact`/
+#     `template` selector spellings
+#   * `Expected --include selector in '<kind>:<id>' form.`,
+#     `Unsupported --include selector kind '<kind>'.`,
+#     `No <kind> found for selector '<kind>:<id>'.`,
+#     `No directive/tactic found for selector '<selector>'.`,
+#     `No artifact found for selector 'artifact:<id>'.`,
+#     `Ambiguous artifact selector 'artifact:<id>' matched kinds: …`,
+#     the `mission-type` refusal and every `template:` refusal
+#   * the success envelopes (`{result, success, include, context, text}`) and the
+#     shared `{result, success, error}` / `{error, code}` refusal envelopes
+#   * `<Label> <id>: <title>` headings, inline body labels and the `Full artifact:`
+#     block; the canonical model dump (never raw authored YAML)
+#   * `CONTEXT_INCLUDE_PENDING` (still only a Native projection gap, never a refusal of
+#     Source-valid input)
+#   * `src/**` (pinned Source), packs/pins/goldens, manifests/locks/dependencies
+target:
+  term: IncludeInputs
+  operation: rename
+  replacement: "IncludeInputs { project_root, access: &IncludeAccess }"
+categories:
+  code_symbols:
+    action: rename
+    notes: >-
+      `IncludeInputs.identity`/`.profiles` move behind `IncludeAccess`
+      (`sk_doctrine::offering::include_access`, re-exported from the existing public
+      `sk_doctrine::context_include`). Additive only beyond that: `MergedArtifact` and
+      `CanonicalOfferingService::{artifact, artifact_with_gate, profile_with_gate,
+      profile_repository}` in `offering.rs`, and `IncludeAccess`/`denied_kind` in the new
+      file. No existing canonical type, function or policy in `identity.rs`,
+      `effective_set.rs`, `ledger.rs`, `org_charter.rs`, `profile.rs`, `body.rs`,
+      `offering/model.rs` or `offering/gate.rs` is renamed or re-implemented.
+  import_paths:
+    action: rename
+    notes: >-
+      `use sk_doctrine::context_include::{IncludeError, IncludeInputs, IncludeSelector,
+      render_include}` (CLI) keeps its module path and gains `IncludeAccess`;
+      `use sk_doctrine::{IdentityIndex, ProfileRepository}` in the CF26 test is replaced by
+      `IncludeAccess`/`OfferingRoots` imports; `crates/sk-doctrine/src/context_include.rs`
+      drops `crate::profile::ProfileRepository` and the raw `ArtifactDocument` import.
+      `crates/sk-doctrine/src/lib.rs` declares `mod offering;` privately, so the new
+      subtree module stays `pub(crate)` inside `offering` and is re-exported through the
+      already-public `context_include` module: no parent-owned `lib.rs` edit, no new
+      dependency edge, no manifest/lock change.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No file, pack, pin, bundle or state path moves. The project layer keeps using the
+      existing `sk_charter::resolve_source_project_layer` authority (presence of
+      `.kittify/charter-packs`, else `src/charter/offering`) instead of a cloned candidate
+      list; the new file is `crates/sk-doctrine/src/offering/include_access.rs`.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No serialized key changes. The include JSON envelope, the error envelopes and the
+      canonical model-dump keys are untouched; the deactivated note is plain text, exactly
+      as the reference prints it.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command, subcommand, flag, alias or exit code changes. The CLI half of the lane
+      only stops building the whole doctrine bundle for a non-template include and passes
+      the canonical access authority instead.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      NEW: the Source deactivated note
+      `'<kind>:<id> is deactivated in this project (charter activate <restore-kind> <id> restores it)'`
+      for an activatable selector, and the `artifact:` form that names the denied kind.
+      NEW: typed setup/config failure text (no Python traceback reconstruction). Every
+      existing reference message text is preserved verbatim.
+  tests_fixtures:
+    action: rename
+    notes: >-
+      Construction-only ripple in `crates/sk-doctrine/tests/cf26_context_include.rs` and
+      `crates/sk-doctrine/tests/cf30_template_include.rs`: assertions, fixtures and
+      expected strings are NOT edited. NEW files carry this lane's proof:
+      `crates/sk-doctrine/tests/cf32_effective_include.rs` and
+      `crates/sk-cli/tests/cf32_include_serving_cli.rs`.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric, event or telemetry key is added or renamed. The reference's
+      `ArtifactLayerCollisionWarning` logging on an overlay merge is NOT reproduced, and no
+      fake diagnostics are invented.
+exceptions:
+  - path: crates/sk-doctrine/src/context_include.rs
+    action: manual_review
+    reason: >-
+      Non-template serving branches, imports and error composition only. Parse/kinds/
+      template/section dispatch and every existing message stay intact; the directive arm
+      keeps the declaring-document read because Native has no merged directive repository
+      (reported gap, see report §6).
+  - path: crates/sk-cli/src/compat/charter/context_include.rs
+    action: manual_review
+    reason: >-
+      Non-template service construction and error composition only. The `section:` and
+      `template:` fast paths keep zero bundle construction.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: >-
+      Adds the merged-document accessor, the gate-aware accessors and the memoised profile
+      repository to the existing canonical service; no whole-file reformat and no change to
+      the existing activation/overlay policy.
+status:
+  lane: cf32-effective-include-serving
+  change_mode: bulk_edit
+  source_baseline: "9aed3a8012cb5eb22c0128b14d525039f95fea7a"
+  owned_paths:
+    - crates/sk-doctrine/src/offering.rs
+    - crates/sk-doctrine/src/offering/include_access.rs
+    - crates/sk-doctrine/src/context_include.rs
+    - crates/sk-cli/src/compat/charter/context_include.rs
+    - crates/sk-doctrine/tests/cf32_effective_include.rs
+    - crates/sk-cli/tests/cf32_include_serving_cli.rs
+    - crates/sk-doctrine/tests/cf26_context_include.rs
+    - crates/sk-doctrine/tests/cf30_template_include.rs
+    - docs/rust/occurrence-maps/cf32-effective-include-serving.yaml
+  declared_non_edits:
+    - crates/sk-doctrine/src/lib.rs
+    - crates/sk-doctrine/src/offering/model.rs
+    - crates/sk-doctrine/src/offering/body.rs
+    - crates/sk-doctrine/src/body.rs
+    - crates/sk-doctrine/src/identity.rs
+    - crates/sk-doctrine/src/effective_set.rs
+    - crates/sk-doctrine/src/ledger.rs
+    - crates/sk-doctrine/src/org_charter.rs
+    - crates/sk-doctrine/src/profile.rs
+    - crates/sk-doctrine/src/context.rs
+    - crates/sk-cli/src/compat/runtime.rs
+    - Cargo.toml
+    - Cargo.lock
+    - src/**
+    - packs/**
+  added_literals:
+    - literal: "is deactivated in this project"
+      where: crates/sk-doctrine/src/context_include.rs
+      reason: The reference `_deactivated_note` wording; annotate, never refuse.
+    - literal: "ACTIVE_CHARTER_CONFIG_INVALID"
+      where: crates/sk-cli/src/compat/charter/context_include.rs
+      reason: >-
+        The reference exception code for an activation-ledger/org-floor failure read while
+        deciding the deny annotation (`ActiveCharterConfigError`), so the machine code the
+        CLI emits matches the Source exception family.
+  reviewed_by: "CF32 implementer pre-edit classification (not independent approval)"
+  accepted: false
+
+# ---------------------------------------------------------------------------
+# ADENDUM (appended AFTER the pre-edit classification above; not a rewrite)
+#
+# The parent extended this lane's scope while it was running: CF31 delivered the
+# canonical model dumps for `glossary_pack`/`paradigm`/`skill`/`mission_step_contract`
+# and CF32 was granted `context_render.rs`'s `include_body_lines` (the four new
+# inline-body arms plus the ONE shared `python_strip` helper) so those kinds render
+# their Source inline shape instead of only a `Full artifact:` block.
+#
+# Same categories as above; ADDITIVE only (new match arms / new private helper):
+#   * code_symbols: `context_render::include_body_lines` gains `skill`,
+#     `glossary_pack` and `mission_step_contract` arms, `include_string_fields` gains
+#     `paradigm`/`skill`/`mission_step_contract`, and one private `python_strip`
+#     helper. No existing renderer, signature, payload or parser changed.
+#   * import_paths: none (the new helper uses the already-imported Kernel text
+#     authority).
+#   * serialized_keys / cli_commands / filesystem_paths / logs_telemetry: unchanged.
+#   * user_facing_strings: the four inline bodies are NEW user-visible lines; their
+#     wording and indentation come from the pinned Source formatters
+#     (`_format_inline_glossary_pack_body`'s two-space shape;
+#     `_format_inline_skill_body` / `_format_inline_step_contract_body`'s 4/6-space
+#     shape). No existing message changed.
+#   * tests_fixtures: `crates/sk-doctrine/tests/cf32_effective_include.rs` gains the
+#     four-kind fixtures and assertions; no CF31 file was edited.
+adendum:
+  appended_after: "the pre-edit classification and the first green feature build"
+  owned_paths_added:
+    - crates/sk-doctrine/src/context_render.rs
+    - crates/sk-cli/tests/cf30_template_include_cli.rs
+  touched_test_assertions_changed_by_this_lane:
+    - path: crates/sk-cli/tests/cf30_template_include_cli.rs
+      what: >-
+        The second half of `the_template_path_does_not_construct_the_doctrine_bundle`
+        asserted that an artifact selector on a project with an unreadable
+        `.kittify/config.yaml` fails (the old bundle path). The pinned Source renders it
+        successfully (lenient `resolve_pack_chain`, observed on the oracle), so the
+        assertion now requires success; the test's purpose is unchanged.
+    - path: crates/sk-doctrine/tests/cf26_context_include.rs
+      what: >-
+        Construction-only: `IncludeAccess` instead of `identity`+`profiles`, the project
+        layer moved under a real `.kittify/charter-packs` root, the glossary fixture made
+        Source-model-valid (it previously was not, and Source would skip it), and the
+        obsolete "pending projection" expectation became
+        `kinds_with_a_canonical_model_dump_render_it_instead_of_raw_yaml` after CF31
+        landed those dumps. All other assertions are unchanged.
+  not_touched:
+    - crates/sk-doctrine/src/body.rs
+    - crates/sk-doctrine/src/offering/model.rs
+    - crates/sk-doctrine/tests/cf31_canonical_include_models.rs
+    - docs/rust/occurrence-maps/cf31-canonical-include-models.yaml
+  accepted: false

@@ -124,18 +124,30 @@ fn a_complete_native_path_applies_the_gitignore_family_in_catalog_order() {
     assert!(report.success);
     assert_eq!(report.from_version, "4.0.0rc7");
     assert_eq!(report.to_version, "4.0.0rc8");
+    // The runner evaluates each guard in catalogue order, AFTER the previous migration's
+    // effects (Source `_apply_migration`). `3.2.3_encoding_provenance_gitignore_backfill`
+    // is a verbatim delegate of `3.2.0rc35_kittify_runtime_git_hygiene` (same `detect()`
+    // and same `apply()`), so once the earlier migration has written those entries the
+    // delegate's `detect()` is false at its own turn and Source records it `skipped`
+    // ("Not applicable") instead of re-applying an identical repair. This expectation is
+    // the sequential Source verdict, not a relaxation: the effect assertions below and
+    // the per-record assertions still prove the project really received the repair.
+    let delegated = "3.2.3_encoding_provenance_gitignore_backfill";
     let expected: Vec<String> = MigrationCatalog::embedded()
         .unwrap()
         .specs()
         .iter()
-        .filter(|spec| REPORTED_FAMILY.contains(&spec.id.as_str()))
+        .filter(|spec| REPORTED_FAMILY.contains(&spec.id.as_str()) && spec.id.as_str() != delegated)
         .map(|spec| spec.id.clone())
         .collect();
     assert_eq!(report.applied(), expected, "catalog order preserved");
     let mut skipped = report.skipped();
     skipped.sort();
-    let mut expected_skipped: Vec<String> =
-        RETIRED_FAMILY.iter().map(|id| (*id).to_string()).collect();
+    let mut expected_skipped: Vec<String> = RETIRED_FAMILY
+        .iter()
+        .map(|id| (*id).to_string())
+        .chain(std::iter::once(delegated.to_string()))
+        .collect();
     expected_skipped.sort();
     assert_eq!(skipped, expected_skipped);
     assert_eq!(
@@ -253,8 +265,18 @@ fn an_unevaluable_project_is_a_recorded_failure_that_does_not_advance_the_versio
     std::fs::write(root.join("elsewhere"), "keep me\n").unwrap();
     symlink("elsewhere", root.join(".gitignore")).unwrap();
 
-    let error = run_upgrade(&UpgradeRequest::new(root, "4.0.0rc8")).expect_err("refused");
-    assert_eq!(error.code(), "ignore_file_unsafe");
+    // CF16: Source `_detect_failure` RETURNS a failed result for this guard class, so
+    // the run ends with a report (stamp restored) rather than a raised error.
+    let report = run_upgrade(&UpgradeRequest::new(root, "4.0.0rc8")).expect("report");
+    assert!(!report.success && report.failed);
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|error| error.starts_with("Cannot safely detect 2.0.9_state_gitignore: ")),
+        "{:?}",
+        report.errors
+    );
     assert_eq!(
         std::fs::read_to_string(root.join("elsewhere")).unwrap(),
         "keep me\n",

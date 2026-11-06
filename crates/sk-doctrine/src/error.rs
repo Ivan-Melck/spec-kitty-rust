@@ -259,6 +259,21 @@ pub enum DoctrineError {
     #[error("invalid agent profile {path}: {message}")]
     InvalidProfile { path: PathBuf, message: String },
 
+    /// A profile document makes the reference's loader raise an uncaught Python
+    /// exception, or a Native capability failure ends the read.
+    ///
+    /// The reference catches only `(YAMLError, OSError)` per file, so a real Python
+    /// exception is a *load* failure, not a skipped file: the command exits nonzero
+    /// and prints no profile list. The typed cause keeps the real Source class and
+    /// message (or the CF83 Native capability/start-up cause); its rendered view is
+    /// `path: class: message`, not the data authority.
+    #[error("agent profile load aborted by {path}: {cause}")]
+    ProfileLoadAborted {
+        path: PathBuf,
+        #[source]
+        cause: Box<crate::profile::ProfileLoadAbortCause>,
+    },
+
     /// An agent profile does not exist in any layer.
     #[error("agent profile {profile:?} was not found in the built-in, org or project layer")]
     ProfileNotFound { profile: String },
@@ -314,9 +329,65 @@ pub enum DoctrineError {
     #[error("invalid org charter {path}: {message}")]
     InvalidOrgCharter { path: PathBuf, message: String },
 
+    /// A raw org-charter document makes the reference's per-document catch
+    /// useless: its `except (OSError, YAMLError, ValueError)` does not cover this
+    /// exception, so the whole read aborts instead of skipping or refusing the
+    /// pack.
+    ///
+    /// `exception` is the Python class name (`KeyError` for an invalid `!!bool`
+    /// spelling, `TypeError` for an unhashable `!!set` key, `AssertionError` for a
+    /// duplicate `!!omap` key) and `message` its message. This is deliberately a
+    /// distinct variant from [`DoctrineError::InvalidOrgCharter`]: a caught
+    /// failure is a skip (lenient) or a typed refusal (strict), while this one
+    /// escapes both postures exactly as the reference's exception does.
+    #[error("org charter raw read aborted by {path}: {exception}: {message}")]
+    OrgCharterReadAborted {
+        path: PathBuf,
+        exception: String,
+        message: String,
+    },
+
     /// An org-charter `extends:` chain is invalid.
     #[error("org charter {path}: invalid extends chain: {message}")]
     OrgCharterExtends { path: PathBuf, message: String },
+
+    /// An `org-charter.yaml` still carries a field the charter-pack cutover
+    /// retired.
+    ///
+    /// The reference's typed loader raises `RetiredPackFieldError` (code
+    /// `RETIRED_PACK_FIELD`) naming the field and its replacement, and its
+    /// cross-pack fold **re-raises** that error instead of skipping the pack:
+    /// dropping the pack would silently lose its required ids, governance
+    /// policies and activations (fail closed, FR-003). This variant is that
+    /// refusal, located at the file that carries the field. It is deliberately
+    /// distinct from [`DoctrineError::InvalidOrgCharter`], which the fold skips
+    /// exactly as the reference skips a schema-invalid pack.
+    #[error(
+        "org charter {path}: field '{field}' was removed. Replacement: {replacement}. \
+         See {runbook}."
+    )]
+    OrgCharterRetiredField {
+        /// The `org-charter.yaml` that still carries the retired field.
+        path: PathBuf,
+        /// The retired field name (`doctrine_pack_id`).
+        field: String,
+        /// The field that replaced it (`charter_pack_id`).
+        replacement: String,
+        /// The migration runbook the reference names.
+        runbook: &'static str,
+    },
+
+    /// An org pack declares an invalid `skill_namespace`.
+    ///
+    /// The reference's `read_org_skill_namespace` validates **every** value it
+    /// encounters while folding (`require_valid_skill_namespace`) and raises
+    /// `SkillPreparationError` for the first invalid one — even when a later
+    /// pack would override it — so this is a refusal, not a diagnostic. `pack`
+    /// is the pack whose document was being read (the reference names that pack
+    /// in its remedy text) and `message` is the canonical grammar violation plus
+    /// that remedy.
+    #[error("org skill namespace: {message}")]
+    OrgSkillNamespaceInvalid { pack: String, message: String },
 
     /// The charter synthesis lock could not be acquired within the bounded wait.
     #[error(
@@ -363,6 +434,36 @@ pub enum DoctrineError {
     /// A required content file is missing (never invented as a built-in).
     #[error("missing pinned pack content: {path} does not exist")]
     MissingPinnedContent { path: PathBuf },
+
+    /// An exact activation-read failure that has no existing doctrine variant.
+    ///
+    /// The exact reader's own doctrinal refusals arrive here already unwrapped
+    /// (the SAME existing variant, never a nested cause); this carries only the
+    /// two remaining typed causes: a checked scalar projection of a Source-valid
+    /// token that has no scalar form, and a runtime constructor abort the
+    /// reference loader does not catch. The real phase, path, Python class and
+    /// message are kept — no fake IO error, no stringified cause and no healthy
+    /// fallback.
+    #[error("activation read failed: {source}")]
+    ActivationRead {
+        /// The exact reader's typed cause.
+        #[source]
+        source: Box<crate::ledger::ActivationReadError>,
+    },
+
+    /// A lazy progressive record delivery phase failed.
+    ///
+    /// The reference reads a delivered artifact's metadata from its model
+    /// properties and dumps the model only for an inline body; a setup failure,
+    /// a raising layered repository, or a payload the reference's own dump
+    /// refuses is not a healthy miss. This is the ONE carrier for those phases
+    /// (see [`crate::context::ProgressiveDeliveryError`]).
+    #[error("progressive record delivery failed: {source}")]
+    ProgressiveDelivery {
+        /// The phase and its real cause.
+        #[source]
+        source: Box<crate::context::ProgressiveDeliveryError>,
+    },
 }
 
 /// The migration runbook the reference names in its retired-key refusal.

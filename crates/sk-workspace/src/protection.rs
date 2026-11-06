@@ -435,28 +435,11 @@ fn python_repr(value: &serde_yaml_ng::Value) -> String {
 }
 
 fn python_string_repr(text: &str) -> String {
-    let quote = if text.contains('\'') && !text.contains('"') {
-        '"'
-    } else {
-        '\''
-    };
-    let mut out = String::with_capacity(text.len() + 2);
-    out.push(quote);
-    for character in text.chars() {
-        match character {
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            character if character == quote => {
-                out.push('\\');
-                out.push(character);
-            }
-            other => out.push(other),
-        }
-    }
-    out.push(quote);
-    out
+    // ONE canonical CPython repr: Kernel's formatter is the verified
+    // CPython3.11.15 / UCD14 authority. A local re-implementation diverged on
+    // non-printables (NBSP/ZWSP stayed raw), NUL, and quote choice, so the
+    // protection set could name a branch the reference never names.
+    sk_kernel::python_repr(text)
 }
 
 /// Python `str()` of a YAML scalar number.

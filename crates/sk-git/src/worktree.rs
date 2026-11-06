@@ -9,6 +9,8 @@ use std::path::{Path, PathBuf};
 
 use crate::error::GitError;
 use crate::path::{os_string_from_git_bytes, utf8_field};
+use crate::process::GitProcess;
+use crate::repository::GitRepository;
 
 /// One registered worktree of a repository.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -145,6 +147,94 @@ fn apply_field(worktree: &mut Worktree, field: &[u8]) -> Result<(), GitError> {
     // Unknown fields are ignored so a newer git can add them without breaking
     // an older adapter.
     Ok(())
+}
+
+/// The raw text of one `git worktree list --porcelain` invocation (no `-z`).
+///
+/// This is the Source-shaped *observation*, deliberately separate from the
+/// typed [`Worktree`] roster: the reference's lane registration searches for
+/// the resolved lane path as a plain substring anywhere in this text, without
+/// requiring a `worktree ` prefix. A consumer needing that exact decision reads
+/// the text Git printed instead of a parsed model.
+/// Nothing here parses fields, so a field the typed parser does not recognise
+/// (or a record shape a newer Git adds) is never an early failure — the bytes
+/// are returned exactly as Git wrote them.
+///
+/// A completed non-zero exit is part of the observation, not an error: the
+/// reference catches that failure itself (its doctor treats it as an empty
+/// listing), so [`WorktreePorcelainObservation::status_code`], `stdout_bytes`
+/// and `stderr_lossy` expose the real outcome. Only a failure to start or
+/// finish the process (missing Git, timeout, capture bound, I/O) is a
+/// [`GitError`]; an empty success is never fabricated for a failed command.
+#[derive(Debug, Clone)]
+pub struct WorktreePorcelainObservation {
+    status_code: Option<i32>,
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
+}
+
+impl WorktreePorcelainObservation {
+    /// The completed process status, or `None` when Git was signalled.
+    pub fn status_code(&self) -> Option<i32> {
+        self.status_code
+    }
+
+    /// Whether Git exited zero.
+    pub fn succeeded(&self) -> bool {
+        self.status_code == Some(0)
+    }
+
+    /// The stdout bytes exactly as Git printed them.
+    pub fn stdout_bytes(&self) -> &[u8] {
+        &self.stdout
+    }
+
+    /// The stdout bytes as UTF-8 text, exactly (no lossy replacement).
+    ///
+    /// `Err(GitError::NonUtf8)` means the bytes are not valid UTF-8; the caller
+    /// decides how to handle that platform/encoding case. Source uses Python's
+    /// locale-dependent text codec; this accessor supplies only a UTF-8 view,
+    /// not equivalence for other process locales.
+    pub fn stdout_text(&self) -> Result<&str, GitError> {
+        std::str::from_utf8(&self.stdout).map_err(|_| GitError::NonUtf8 {
+            field: "worktree porcelain stdout",
+        })
+    }
+
+    /// Git's stderr, lossily decoded for diagnostics only. Never parse it.
+    pub fn stderr_lossy(&self) -> String {
+        String::from_utf8_lossy(&self.stderr).into_owned()
+    }
+}
+
+/// Run the one `git worktree list --porcelain` read (Source's exact argv).
+///
+/// The invocation is not zero-terminated (`-z` is omitted on purpose): the
+/// reference's lane registration searches for the resolved path as a plain
+/// substring in the text Git printed. Spawn,
+/// timeout and capture failures are errors; a completed non-zero exit is
+/// returned in the observation so the caller can apply Source's own
+/// failure handling.
+pub(crate) fn worktree_porcelain_text_at(
+    process: &GitProcess,
+) -> Result<WorktreePorcelainObservation, GitError> {
+    let output = process.run(&["worktree", "list", "--porcelain"])?;
+    Ok(WorktreePorcelainObservation {
+        status_code: output.status.code(),
+        stdout: output.stdout,
+        stderr: output.stderr,
+    })
+}
+
+impl GitRepository {
+    /// The raw `git worktree list --porcelain` observation for this repository.
+    ///
+    /// See [`WorktreePorcelainObservation`] for the contract. This is the
+    /// Source-compatible *text* read; [`GitRepository::worktrees`] remains the
+    /// typed roster and is not replaced or duplicated by it.
+    pub fn worktree_porcelain_observation(&self) -> Result<WorktreePorcelainObservation, GitError> {
+        worktree_porcelain_text_at(self.process())
+    }
 }
 
 #[cfg(test)]

@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+pub mod oracle;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 

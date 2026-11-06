@@ -1,4 +1,4 @@
-//! Private CPython `json.loads` compatibility reader for raw legacy Op rows.
+//! Legacy CPython `json.loads` compatibility adapter over the canonical codec.
 //!
 //! The executor's best-effort commit reads the **first line** of an Op record
 //! with `path.read_text(encoding="utf-8").splitlines()[0]` and then
@@ -14,46 +14,42 @@
 //!   `e` or `E`) decode like CPython `float`, so overflow becomes `±inf` and
 //!   underflow becomes signed zero.
 //!
-//! `serde_json::Value` cannot carry non-finite values or an ordered map without
-//! a workspace-wide `preserve_order` feature change, so this focused private
-//! value tree exists instead. It is not a general JSON library, wire writer or
-//! public capability.
+//! The parser, the value tree, the Python-truthiness walk and the value `repr`
+//! walk now live in `sk-kernel` (`sk_kernel::python_json`). This module is the
+//! Op-specific **adapter**, not a second implementation: it keeps the legacy
+//! names, the object-only `Option` facade and the exact-op semantics
+//! (`parse_object` still accepts only a top-level object, `None` otherwise),
+//! while the canonical reader accepts any root value and reports typed Source
+//! errors with positions.
 //!
-//! The whole first line is still validated: exactly one JSON value wrapped in
-//! optional JSON whitespace (no trailing data), object keys must be strings,
-//! and every nested member is parsed. Missing/empty/non-object/bad rows remain
-//! the executor's `Invalid invocation record: <id>` failure.
-//!
-//! Genuine remaining gaps (not claimed as arbitrary-JSON equivalence): Python
-//! strings are preserved as code points rather than Rust `String`, so lone and
-//! non-paired `\uD800`-style surrogate escapes parse exactly like CPython and
-//! nested `repr` renders through the one canonical formatter (whose
-//! printability table is the verified CPython 3.11.15 `str.isprintable()` data
-//! owned by `sk-kernel`). A used *top-level* string keeps its surrogate code
-//! points too; encoding the composed message through the application-owned
-//! filesystem encoder is the caller's one late step, so nothing here replaces or
-//! drops a code unit. Integer conversion follows the reference interpreter's
-//! default 4300-digit ceiling (or its existing `PYTHONINTMAXSTRDIGITS` startup
-//! setting, including zero for unlimited). A native operational budget of 1000 value frames
-//! (the reference's default recursion budget) prevents process stack loss on
-//! source-refused nesting. This is NOT a fixed JSON-format limit or exact
-//! emulation of the source's caller-dependent ~992–994 acceptance ceiling.
-//! Customized interpreter recursion settings, runtime Python integer-limit
-//! mutations and the small acceptance band below this native budget remain
-//! explicit compatibility differences.
+//! Genuine remaining gaps (not claimed as arbitrary-JSON equivalence): a used
+//! *top-level* string keeps its surrogate code points and encoding the composed
+//! message through the application-owned filesystem encoder is the caller's one
+//! late step, so nothing here replaces or drops a code unit. Integer conversion
+//! follows the reference interpreter's default 4300-digit ceiling (or its
+//! existing `PYTHONINTMAXSTRDIGITS` startup setting, including zero for
+//! unlimited). The canonical reader's native operational budget of 1000 value
+//! frames (the reference's default recursion budget) prevents process stack
+//! loss on source-refused nesting; measured Source acceptance in the released
+//! caller contexts is 989–994, i.e. below that budget. This is NOT a fixed
+//! JSON-format limit or exact emulation of the source's caller-dependent
+//! acceptance ceiling. Customized interpreter recursion settings, runtime Python
+//! integer-limit mutations and a bytes (`json.loads(bytes)`) document are
+//! caller-specific phases outside this adapter.
 
-use crate::python_json::python_float_repr;
-
-// Verified against the pinned CPython 3.11.15 defaults. In particular the
-// recursion budget is operational, not a claim about a JSON wire-format depth.
-const SOURCE_DEFAULT_RECURSION_BUDGET: usize = 1000;
-const SOURCE_DEFAULT_INTEGER_DIGITS: usize = 4300;
-
-// The canonical Python-string authority now lives in `sk-kernel`; this module
-// re-exports the EXACT same type and error (not a wrapper or a second nominal
-// type). Existing `sk_invocation` paths, methods and traits are retained;
-// kernel and invocation aliases have the same `TypeId` within each build.
+// The canonical Python-string authority lives in `sk-kernel`; re-export the
+// EXACT same type and error (not a wrapper or a second nominal type).
 pub use sk_kernel::{InvalidCodepoint, PythonString};
+
+// The canonical JSON model and value-text walkers, under the legacy names the
+// Op reader/callers already use. These are aliases/re-exports of one model.
+pub(crate) use sk_kernel::python_json::{is_falsy, python_repr_value, source_integer_digit_limit};
+
+/// One decoded `json.loads` value (the canonical tree).
+pub(crate) type LegacyValue = sk_kernel::python_json::PythonJsonValue;
+
+/// A Python-dict-ordered JSON object with exact code-point keys.
+pub(crate) type LegacyObject = sk_kernel::python_json::PythonJsonDict;
 
 /// Python `str(value)` before UTF-8 encoding.
 ///
@@ -105,111 +101,22 @@ fn units_to_utf8(units: &[u32]) -> Result<String, u32> {
     Ok(out)
 }
 
-/// One decoded `json.loads` value.
-#[derive(Clone, Debug)]
-pub(crate) enum LegacyValue {
-    /// The `null` constant.
-    Null,
-    /// `true` / `false`.
-    Bool(bool),
-    /// An exact integer token (`-0` is normalised to `0`).
-    Integer(String),
-    /// A float token, decoded like CPython `float` (`±inf`, signed zero, NaN).
-    Float(f64),
-    /// A decoded string (Python code points, including lone surrogates).
-    String(PythonString),
-    /// An ordered JSON array.
-    Array(Vec<LegacyValue>),
-    /// An ordered JSON object.
-    Object(LegacyObject),
-}
-
-/// A Python-dict-ordered JSON object with duplicate-key semantics.
-///
-/// A duplicate key replaces the value in place, so the first insertion position
-/// is kept, exactly like `dict` assignment during `json.loads`.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct LegacyObject {
-    entries: Vec<(PythonString, LegacyValue)>,
-}
-
-impl LegacyObject {
-    /// The value stored under `key`, if any.
-    pub(crate) fn get(&self, key: &str) -> Option<&LegacyValue> {
-        self.entries
-            .iter()
-            .find_map(|(name, value)| code_units_eq_str(name.codepoints(), key).then_some(value))
-    }
-
-    fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
-    fn insert(&mut self, key: PythonString, value: LegacyValue) {
-        if let Some(position) = self.entries.iter().position(|(name, _)| name == &key) {
-            self.entries[position].1 = value;
-        } else {
-            self.entries.push((key, value));
-        }
-    }
-}
-
-/// Code-point equality between a Python string and Rust text.
-fn code_units_eq_str(units: &[u32], key: &str) -> bool {
-    units.len() == key.chars().count() && units.iter().copied().eq(key.chars().map(u32::from))
-}
-
 /// Decode the first row as a Python `dict`, or `None` for the invalid cases.
+///
+/// The facade keeps its legacy contract: only a top-level object is accepted,
+/// and every Source error (syntax, non-object root, a startup-invalid
+/// `PYTHONINTMAXSTRDIGITS` value, the integer digit ceiling, the operational
+/// frame budget) is the executor's `Invalid invocation record` failure.
 pub(crate) fn parse_object(text: &str) -> Option<LegacyObject> {
     let setting = match std::env::var("PYTHONINTMAXSTRDIGITS") {
         Ok(value) => Some(value),
         Err(std::env::VarError::NotPresent) => None,
         Err(std::env::VarError::NotUnicode(_)) => return None,
     };
-    let integer_digits = integer_digit_limit(setting.as_deref()).ok()?;
-    let mut reader = Reader {
-        text,
-        bytes: text.as_bytes(),
-        index: 0,
-        depth: 0,
-        integer_digits,
-    };
-    let value = reader.value().ok()?;
-    reader.skip_whitespace();
-    if reader.index != reader.bytes.len() {
-        return None;
-    }
-    match value {
-        LegacyValue::Object(object) => Some(object),
+    let integer_digits = source_integer_digit_limit(setting.as_deref()).ok()?;
+    match sk_kernel::python_json::parse_str_with_integer_digits(text, integer_digits).ok()? {
+        LegacyValue::ExactObject(object) => Some(object),
         _ => None,
-    }
-}
-
-// CPython startup uses a signed C int with leading ASCII whitespace accepted,
-// but no trailing data; empty means default, 0 unlimited, otherwise >= 640.
-fn integer_digit_limit(setting: Option<&str>) -> Result<usize, ()> {
-    let Some(setting) = setting.filter(|value| !value.is_empty()) else {
-        return Ok(SOURCE_DEFAULT_INTEGER_DIGITS);
-    };
-    let value = setting.trim_start_matches([' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}']);
-    let limit = value.parse::<i32>().map_err(|_| ())?;
-    if limit == 0 || limit >= 640 {
-        usize::try_from(limit).map_err(|_| ())
-    } else {
-        Err(())
-    }
-}
-
-/// Python truthiness, as used by `started.get(key) or "unknown"`.
-pub(crate) fn is_falsy(value: &LegacyValue) -> bool {
-    match value {
-        LegacyValue::Null => true,
-        LegacyValue::Bool(value) => !value,
-        LegacyValue::Integer(digits) => digits == "0",
-        LegacyValue::Float(value) => *value == 0.0,
-        LegacyValue::String(text) => text.is_empty(),
-        LegacyValue::Array(items) => items.is_empty(),
-        LegacyValue::Object(object) => object.is_empty(),
     }
 }
 
@@ -217,307 +124,12 @@ pub(crate) fn is_falsy(value: &LegacyValue) -> bool {
 ///
 /// A top-level string is verbatim (code points preserved, including surrogates);
 /// every other value uses its `repr`, because `str(list)`/`str(dict)` delegate
-/// to element `repr` in CPython.
+/// to element `repr` in CPython. The repr walk itself is the Kernel's single
+/// value-text authority.
 pub(crate) fn python_str(value: &LegacyValue) -> PythonText {
     match value {
         LegacyValue::String(text) => PythonText::Verbatim(text.clone()),
         other => PythonText::Rendered(python_repr_value(other)),
-    }
-}
-
-fn python_repr_value(value: &LegacyValue) -> String {
-    match value {
-        LegacyValue::Null => "None".to_owned(),
-        LegacyValue::Bool(true) => "True".to_owned(),
-        LegacyValue::Bool(false) => "False".to_owned(),
-        LegacyValue::Integer(digits) => digits.clone(),
-        LegacyValue::Float(value) => python_float_repr(*value),
-        LegacyValue::String(text) => text.repr(),
-        LegacyValue::Array(items) => {
-            let rendered: Vec<String> = items.iter().map(python_repr_value).collect();
-            format!("[{}]", rendered.join(", "))
-        }
-        LegacyValue::Object(object) => {
-            let rendered: Vec<String> = object
-                .entries
-                .iter()
-                .map(|(key, value)| format!("{}: {}", key.repr(), python_repr_value(value)))
-                .collect();
-            format!("{{{}}}", rendered.join(", "))
-        }
-    }
-}
-
-/// Checked append of one decoded parser unit; parser input is always in range.
-fn push_unit(out: &mut PythonString, code: u32) -> Result<(), ()> {
-    out.push_codepoint(code).map_err(|_| ())
-}
-
-/// A recursive-descent reader for the CPython `json.loads` lexical grammar.
-struct Reader<'a> {
-    text: &'a str,
-    bytes: &'a [u8],
-    index: usize,
-    depth: usize,
-    integer_digits: usize,
-}
-
-impl Reader<'_> {
-    fn peek(&self) -> Option<u8> {
-        self.bytes.get(self.index).copied()
-    }
-
-    fn bump(&mut self) -> Option<u8> {
-        let byte = self.peek()?;
-        self.index += 1;
-        Some(byte)
-    }
-
-    fn skip_whitespace(&mut self) {
-        while matches!(self.peek(), Some(b' ' | b'\t' | b'\n' | b'\r')) {
-            self.index += 1;
-        }
-    }
-
-    fn expect(&mut self, expected: &[u8]) -> Result<(), ()> {
-        if self.bytes.get(self.index..self.index + expected.len()) == Some(expected) {
-            self.index += expected.len();
-            Ok(())
-        } else {
-            Err(())
-        }
-    }
-
-    fn value(&mut self) -> Result<LegacyValue, ()> {
-        self.skip_whitespace();
-        if self.depth >= SOURCE_DEFAULT_RECURSION_BUDGET {
-            return Err(());
-        }
-        self.depth += 1;
-        // Any error discards the entire reader; only successful returns need
-        // to restore the counter before a sibling value is decoded.
-        let result = match self.peek().ok_or(())? {
-            b'n' => {
-                self.expect(b"null")?;
-                Ok(LegacyValue::Null)
-            }
-            b't' => {
-                self.expect(b"true")?;
-                Ok(LegacyValue::Bool(true))
-            }
-            b'f' => {
-                self.expect(b"false")?;
-                Ok(LegacyValue::Bool(false))
-            }
-            b'N' => {
-                self.expect(b"NaN")?;
-                Ok(LegacyValue::Float(f64::NAN))
-            }
-            b'I' => {
-                self.expect(b"Infinity")?;
-                Ok(LegacyValue::Float(f64::INFINITY))
-            }
-            b'-' if self.bytes[self.index..].starts_with(b"-Infinity") => {
-                self.index += b"-Infinity".len();
-                Ok(LegacyValue::Float(f64::NEG_INFINITY))
-            }
-            b'-' | b'0'..=b'9' => self.number(),
-            b'[' => self.array(),
-            b'{' => self.object(),
-            b'"' => self.string().map(LegacyValue::String),
-            _ => Err(()),
-        };
-        self.depth -= 1;
-        result
-    }
-
-    fn number(&mut self) -> Result<LegacyValue, ()> {
-        let start = self.index;
-        if self.peek() == Some(b'-') {
-            self.index += 1;
-        }
-        match self.peek().ok_or(())? {
-            b'0' => self.index += 1,
-            b'1'..=b'9' => {
-                self.index += 1;
-                while self.peek().is_some_and(|byte| byte.is_ascii_digit()) {
-                    self.index += 1;
-                }
-            }
-            _ => return Err(()),
-        }
-        let mut is_float = false;
-        if self.peek() == Some(b'.') {
-            is_float = true;
-            self.index += 1;
-            if !self.peek().is_some_and(|byte| byte.is_ascii_digit()) {
-                return Err(());
-            }
-            while self.peek().is_some_and(|byte| byte.is_ascii_digit()) {
-                self.index += 1;
-            }
-        }
-        if matches!(self.peek(), Some(b'e' | b'E')) {
-            is_float = true;
-            self.index += 1;
-            if matches!(self.peek(), Some(b'+' | b'-')) {
-                self.index += 1;
-            }
-            if !self.peek().is_some_and(|byte| byte.is_ascii_digit()) {
-                return Err(());
-            }
-            while self.peek().is_some_and(|byte| byte.is_ascii_digit()) {
-                self.index += 1;
-            }
-        }
-        let token = &self.text[start..self.index];
-        if is_float {
-            // CPython `float` and Rust `f64` share the JSON number grammar and
-            // correctly-rounded parsing: overflow is `±inf`, underflow keeps a
-            // signed zero. Integer tokens never pass through `f64`.
-            token.parse().map(LegacyValue::Float).map_err(|_| ())
-        } else if self.integer_digits != 0
-            && token.strip_prefix('-').unwrap_or(token).len() > self.integer_digits
-        {
-            // CPython's default int conversion counts digits, not the sign.
-            // Float mantissas/exponents do not have this integer-only ceiling.
-            Err(())
-        } else if token == "-0" {
-            Ok(LegacyValue::Integer("0".to_owned()))
-        } else {
-            Ok(LegacyValue::Integer(token.to_owned()))
-        }
-    }
-
-    fn string(&mut self) -> Result<PythonString, ()> {
-        self.expect(b"\"")?;
-        let mut out = PythonString::default();
-        let mut chunk_start = self.index;
-        loop {
-            match self.peek().ok_or(())? {
-                b'"' => {
-                    out.push_scalars(self.text.get(chunk_start..self.index).ok_or(())?);
-                    self.index += 1;
-                    return Ok(out);
-                }
-                b'\\' => {
-                    out.push_scalars(self.text.get(chunk_start..self.index).ok_or(())?);
-                    self.index += 1;
-                    self.escape(&mut out)?;
-                    chunk_start = self.index;
-                }
-                byte if byte < 0x20 => return Err(()),
-                _ => self.index += 1,
-            }
-        }
-    }
-
-    fn escape(&mut self, out: &mut PythonString) -> Result<(), ()> {
-        match self.bump().ok_or(())? {
-            b'"' => push_unit(out, 0x22)?,
-            b'\\' => push_unit(out, 0x5c)?,
-            b'/' => push_unit(out, 0x2f)?,
-            b'b' => push_unit(out, 0x08)?,
-            b'f' => push_unit(out, 0x0c)?,
-            b'n' => push_unit(out, 0x0a)?,
-            b'r' => push_unit(out, 0x0d)?,
-            b't' => push_unit(out, 0x09)?,
-            b'u' => self.unicode_escape(out)?,
-            _ => return Err(()),
-        }
-        Ok(())
-    }
-
-    /// One `\uXXXX` escape, with CPython's exact surrogate rule.
-    ///
-    /// A high surrogate combines with an immediately following low-surrogate
-    /// escape into one astral scalar. A malformed second escape is still a
-    /// decode error, but a *valid* non-low second unit is not consumed: the lone
-    /// high surrogate is kept and the following escape is scanned normally, so
-    /// `"\uD800\u0041"` is two code points (`\uD800`, `A`). Low surrogates are
-    /// always kept as lone units. Like CPython's scanner, pairing is greedy from
-    /// left to right (`"\uD800\uD800\uDC00"` is `[U+D800, U+10000]`).
-    fn unicode_escape(&mut self, out: &mut PythonString) -> Result<(), ()> {
-        let first = self.hex4()?;
-        if (0xd800..=0xdbff).contains(&first)
-            && self.bytes.get(self.index..self.index + 2) == Some(&b"\\u"[..])
-        {
-            let second = self.peek_hex4(self.index + 2).ok_or(())?;
-            if (0xdc00..=0xdfff).contains(&second) {
-                self.index += 6;
-                let combined = 0x1_0000 + ((first - 0xd800) << 10) + (second - 0xdc00);
-                push_unit(out, combined)?;
-                return Ok(());
-            }
-        }
-        push_unit(out, first)?;
-        Ok(())
-    }
-
-    /// Four hex digits at `offset`, without consuming them.
-    fn peek_hex4(&self, offset: usize) -> Option<u32> {
-        let mut value = 0u32;
-        for index in 0..4 {
-            let byte = *self.bytes.get(offset + index)?;
-            let digit = match byte {
-                b'0'..=b'9' => u32::from(byte - b'0'),
-                b'a'..=b'f' => u32::from(byte - b'a') + 10,
-                b'A'..=b'F' => u32::from(byte - b'A') + 10,
-                _ => return None,
-            };
-            value = value * 16 + digit;
-        }
-        Some(value)
-    }
-
-    fn hex4(&mut self) -> Result<u32, ()> {
-        let value = self.peek_hex4(self.index).ok_or(())?;
-        self.index += 4;
-        Ok(value)
-    }
-
-    fn array(&mut self) -> Result<LegacyValue, ()> {
-        self.expect(b"[")?;
-        self.skip_whitespace();
-        let mut items = Vec::new();
-        if self.peek() == Some(b']') {
-            self.index += 1;
-            return Ok(LegacyValue::Array(items));
-        }
-        loop {
-            items.push(self.value()?);
-            self.skip_whitespace();
-            match self.bump().ok_or(())? {
-                b',' => self.skip_whitespace(),
-                b']' => return Ok(LegacyValue::Array(items)),
-                _ => return Err(()),
-            }
-        }
-    }
-
-    fn object(&mut self) -> Result<LegacyValue, ()> {
-        self.expect(b"{")?;
-        self.skip_whitespace();
-        let mut object = LegacyObject::default();
-        if self.peek() == Some(b'}') {
-            self.index += 1;
-            return Ok(LegacyValue::Object(object));
-        }
-        loop {
-            self.skip_whitespace();
-            // JSON object keys are strings; Python rejects anything else.
-            let key = self.string()?;
-            self.skip_whitespace();
-            self.expect(b":")?;
-            let value = self.value()?;
-            object.insert(key, value);
-            self.skip_whitespace();
-            match self.bump().ok_or(())? {
-                b',' => self.skip_whitespace(),
-                b'}' => return Ok(LegacyValue::Object(object)),
-                _ => return Err(()),
-            }
-        }
     }
 }
 
@@ -536,24 +148,6 @@ mod tests {
         python_str(value)
             .to_utf8()
             .expect("fixture text is representable as UTF-8")
-    }
-
-    #[test]
-    fn integer_startup_configuration_matches_pinned_cpython_facts() {
-        assert_eq!(integer_digit_limit(None), Ok(4300));
-        for value in ["", "0", "640", "+640", "-0", " 640", "000640"] {
-            let expected = if value.is_empty() {
-                4300
-            } else if value == "0" || value == "-0" {
-                0
-            } else {
-                640
-            };
-            assert_eq!(integer_digit_limit(Some(value)), Ok(expected), "{value:?}");
-        }
-        for value in ["640 ", "639", "bad", "2147483648"] {
-            assert!(integer_digit_limit(Some(value)).is_err(), "{value:?}");
-        }
     }
 
     #[test]
@@ -601,10 +195,6 @@ mod tests {
         );
         assert_eq!(
             python_text(parse_object(r#"{"p": -0.0}"#).unwrap().get("p").unwrap()),
-            "-0.0"
-        );
-        assert_eq!(
-            python_text(parse_object(r#"{"p": -1e-400}"#).unwrap().get("p").unwrap()),
             "-0.0"
         );
     }
@@ -699,6 +289,15 @@ mod tests {
     }
 
     #[test]
+    fn the_facade_stays_object_only_and_option_shaped() {
+        for text in ["null", "true", "1", "[]", "\"x\"", "-0.5"] {
+            assert!(parse_object(text).is_none(), "non-object {text:?}");
+        }
+        assert!(parse_object("").is_none());
+        assert!(parse_object("[] x").is_none());
+    }
+
+    #[test]
     fn bad_syntax_and_non_objects_are_rejected() {
         for text in [
             "",
@@ -736,6 +335,201 @@ control"}"#,
             "\u{feff}{\"p\": 1}",
         ] {
             assert!(parse_object(text).is_none(), "must reject {text:?}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod source_tests {
+    //! Source-first binding for the legacy Op adapter.
+    //!
+    //! The pinned CPython reference reads the first Op line with
+    //! `json.loads`; every expectation below comes from that run first, under
+    //! asserted isolated roots. The adapter (`parse_object`) is only exercised
+    //! after the Source assertions pass.
+
+    use super::*;
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    const HEADER: &str = concat!(
+        "import json, os, sys\n",
+        "from pathlib import Path\n",
+        "assert sys.version.split()[0] == '3.11.15', sys.version\n",
+        "root = Path(os.environ['SK_J1_ROOT'])\n",
+        "assert Path.cwd() == root, Path.cwd()\n",
+        "for key in ('HOME','TMPDIR','XDG_CONFIG_HOME','XDG_CACHE_HOME','XDG_DATA_HOME','XDG_STATE_HOME'):\n",
+        "    assert Path(os.environ[key]).parent == root, (key, os.environ[key])\n",
+        "assert os.environ.get('PYTHONDONTWRITEBYTECODE') == '1'\n",
+    );
+
+    fn python() -> PathBuf {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let executable = if cfg!(windows) {
+            "Scripts/python.exe"
+        } else {
+            "bin/python"
+        };
+        let python = root.join(".venv-rust-oracle").join(executable);
+        assert!(
+            python.is_file(),
+            "required Python oracle is missing at {}",
+            python.display()
+        );
+        python
+    }
+
+    fn run_source(script: &str, args: &[&str]) -> serde_json::Value {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let root = std::env::temp_dir().join(format!(
+            "sk-j1-legacy-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::SeqCst)
+        ));
+        std::fs::create_dir_all(&root).expect("isolated Source root");
+        for name in ["home", "config", "cache", "data", "state", "tmp"] {
+            std::fs::create_dir_all(root.join(name)).expect("isolated directory");
+        }
+        let output = Command::new(python())
+            .arg("-c")
+            .arg(format!("{HEADER}{script}"))
+            .args(args)
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin")
+            .env("HOME", root.join("home"))
+            .env("TMPDIR", root.join("tmp"))
+            .env("XDG_CONFIG_HOME", root.join("config"))
+            .env("XDG_CACHE_HOME", root.join("cache"))
+            .env("XDG_DATA_HOME", root.join("data"))
+            .env("XDG_STATE_HOME", root.join("state"))
+            .env("SK_J1_ROOT", &root)
+            .env("PYTHONDONTWRITEBYTECODE", "1")
+            .current_dir(&root)
+            .output()
+            .expect("pinned Source oracle");
+        let _ = std::fs::remove_dir_all(&root);
+        assert!(
+            output.status.success(),
+            "Source must run and assert first: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice(&output.stdout).expect("Source JSON report")
+    }
+
+    fn field_codepoints(object: &LegacyObject, key: &str) -> Vec<u32> {
+        match object.get(key) {
+            Some(value) if !is_falsy(value) => match python_str(value) {
+                PythonText::Verbatim(text) => text.codepoints().to_vec(),
+                PythonText::Rendered(text) => text.chars().map(u32::from).collect(),
+            },
+            _ => "unknown".chars().map(u32::from).collect(),
+        }
+    }
+
+    fn units(value: &serde_json::Value) -> Vec<u32> {
+        value
+            .as_array()
+            .expect("code point array")
+            .iter()
+            .map(|unit| unit.as_u64().expect("code point") as u32)
+            .collect()
+    }
+
+    #[test]
+    fn source_first_op_first_line_semantics_match_the_adapter() {
+        let cases = [
+            (
+                r#"{"invocation_id": "01X", "profile_id": "architect", "action": "implement"}"#,
+                "profile_id",
+            ),
+            (r#"{"profile_id": "", "action": "a"}"#, "profile_id"),
+            (r#"{"profile_id": null, "action": "a"}"#, "profile_id"),
+            (r#"{"a": 1, "a": 3, "profile_id": "dup"}"#, "a"),
+            (r#"{"profile_id": {"b": 1, "a": 2, "b": 3}}"#, "profile_id"),
+            (
+                r#"{"profile_id": ["\ud800", 1, NaN, -Infinity]}"#,
+                "profile_id",
+            ),
+            (r#"{"profile_id": "\udc80"}"#, "profile_id"),
+            (r#"{"profile_id": 1e400}"#, "profile_id"),
+            (r#"{"profile_id": -0.0}"#, "profile_id"),
+            (
+                r#"{"profile_id": 123456789012345678901234567890}"#,
+                "profile_id",
+            ),
+            (
+                r#"{"profile_id": {"\ud800": 1}, "action": "a"}"#,
+                "profile_id",
+            ),
+            (r#"{"profile_id": true}"#, "profile_id"),
+            (r#"{"profile_id": 1, "profile_id": 2}"#, "profile_id"),
+            // Rejections: the facade stays `Option`/object-only.
+            (r#"{"a": 1,}"#, "a"),
+            (r#"{"a": 1} x"#, "a"),
+            ("[1]", "a"),
+            ("NaN", "a"),
+            (r#"{"a": }"#, "a"),
+            (r#"{"a": [1, 2, ]}"#, "a"),
+        ];
+        let documents: Vec<&str> = cases.iter().map(|(document, _)| *document).collect();
+        let keys: Vec<&str> = cases.iter().map(|(_, key)| *key).collect();
+        let source = run_source(
+            concat!(
+                "documents = json.loads(sys.argv[1])\n",
+                "keys = json.loads(sys.argv[2])\n",
+                "report = []\n",
+                "for document, key in zip(documents, keys):\n",
+                "    try:\n",
+                "        value = json.loads(document)\n",
+                "    except json.JSONDecodeError:\n",
+                "        report.append(['reject'])\n",
+                "        continue\n",
+                "    if not isinstance(value, dict):\n",
+                "        report.append(['reject'])\n",
+                "        continue\n",
+                "    field = value.get(key)\n",
+                "    text = field if field else 'unknown'\n",
+                "    report.append([\n",
+                "        'accept',\n",
+                "        [ord(c) for c in json.dumps(value)],\n",
+                "        [[ord(c) for c in name] for name in value],\n",
+                "        [ord(c) for c in str(text)],\n",
+                "    ])\n",
+                "print(json.dumps(report))\n",
+            ),
+            &[
+                &serde_json::to_string(&documents).expect("documents"),
+                &serde_json::to_string(&keys).expect("keys"),
+            ],
+        );
+        let rows = source.as_array().expect("Source rows");
+        assert_eq!(rows.len(), cases.len());
+        for ((document, key), row) in cases.iter().zip(rows) {
+            let row = row.as_array().expect("row");
+            let object = parse_object(document);
+            if row[0] == "reject" {
+                assert!(object.is_none(), "the adapter must reject {document:?}");
+                continue;
+            }
+            let object = object.unwrap_or_else(|| panic!("adapter must accept {document:?}"));
+            let rendered: Vec<u32> =
+                sk_kernel::python_json::PythonJsonValue::ExactObject(object.clone())
+                    .render_python(None, true)
+                    .codepoints()
+                    .to_vec();
+            assert_eq!(rendered, units(&row[1]), "{document:?} dumps");
+            let order: Vec<Vec<u32>> = row[2].as_array().expect("keys").iter().map(units).collect();
+            let actual: Vec<Vec<u32>> = object
+                .keys()
+                .map(|name| name.codepoints().to_vec())
+                .collect();
+            assert_eq!(actual, order, "{document:?} key order");
+            assert_eq!(
+                field_codepoints(&object, key),
+                units(&row[3]),
+                "{document:?} field"
+            );
         }
     }
 }

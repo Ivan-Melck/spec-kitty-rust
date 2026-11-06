@@ -828,6 +828,37 @@ impl<'a> LaneAllocator<'a> {
         Ok(())
     }
 
+    /// Delete a retired lane's local branch, allowing its unique commits for a
+    /// recorded reason.
+    ///
+    /// A squash landing carries the lane *content* without carrying the lane
+    /// commits as ancestors, so the guarded unique-commit analysis legitimately
+    /// reports them as unique. The caller that proved the content landed (with a
+    /// real baseline commit) supplies that reason explicitly; nothing else may.
+    pub fn retire_branch_allowing_unique_commits(
+        &self,
+        branch: &BranchName,
+        creation_base: Option<&Oid>,
+        reason: &str,
+    ) -> Result<(), WorkspaceError> {
+        if self.protected.contains(branch) {
+            return Err(WorkspaceError::OwnedRefused {
+                code: "OWNED_BRANCH_REFUSED",
+                message: format!("refusing to delete protected branch {branch}"),
+            });
+        }
+        let options = BranchDeletionOptions::default().allow_unique_commits(reason);
+        let plan = self.repository.plan_branch_deletion(
+            branch,
+            &self.protected,
+            creation_base,
+            options,
+            "spec-kitty: retire lane branch",
+        )?;
+        self.repository.apply_branch_deletion(&plan)?;
+        Ok(())
+    }
+
     /// Plan (but do not apply) a guarded fast-forward of a mission branch.
     ///
     /// Present so callers have one place that names the protection and

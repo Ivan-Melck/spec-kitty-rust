@@ -24,20 +24,31 @@
 //! A non-bootstrap action delivers no action grain, but every payload still
 //! carries the governance blocks and diagnostics.
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use serde::Serialize;
 
 use sk_charter::ArtifactKind;
+use sk_kernel::PythonString;
+use sk_kernel::python_json::PythonJsonValue;
 
 use crate::activation::{ActivationState, filter_graph_by_activation};
+use crate::body::{PayloadError, PayloadFailure, selected_text_field};
 use crate::error::DoctrineError;
-use crate::graph::{DrgEdge, DrgGraph, NodeKind, Relation, is_valid_urn, split_urn};
+use crate::graph::{DrgEdge, DrgGraph, NodeKind, Relation, is_valid_urn};
 use crate::identity::{IdentityIndex, IdentityLayer};
 use crate::ledger::ActivationLedger;
-use crate::org_charter::{self, load_org_charter_policy};
+use crate::offering::OfferingLoadError;
+use crate::offering::include_access::IncludeAccess;
+use crate::org_charter::{self, AuthoredScalar, ExactText, load_org_charter_policy};
 use crate::profile::ProfileRepository;
+use crate::project_governance::{
+    CharterConfigSections, CharterDocument, CharterSectionsError, DirectiveSelectionOutcome,
+    LocalDirective, read_charter_document, read_charter_sections, resolve_directive_selection,
+};
 use crate::query::deliver_action_context;
 
 /// The top-level `charter context --json` contract version.
@@ -68,6 +79,90 @@ pub const BOOTSTRAP_ACTIONS: [&str; 4] = ["specify", "plan", "implement", "revie
 /// The `when` text rendered for a `suggests` edge that authored none.
 pub const STATED_DEFAULT_WHEN: &str = "Fetch when this artefact's guidance applies to the work at hand (no specific trigger authored yet).";
 
+/// A lazy progressive record phase that could not answer.
+///
+/// The reference reads a delivered artifact's metadata from its **model
+/// properties** and only dumps the model (JSON mode) for an inline `body`.
+/// A missing id is a healthy miss (`Ok(None)`), but a setup failure, a raising
+/// layered repository, or a payload the reference's own dump refuses is not an
+/// absence. This is the ONE narrow carrier for those phases; it is boxed by
+/// [`DoctrineError::ProgressiveDelivery`] so the action build can propagate it
+/// without a second global error hierarchy.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProgressiveDeliveryError {
+    /// The canonical offering access could not be built (the reference's
+    /// raising service builder). `config` marks the reference's
+    /// `ActiveCharterConfigError` family.
+    Setup {
+        /// The rendered reason.
+        message: String,
+        /// Whether this is the activation-config family.
+        config: bool,
+    },
+    /// A layered repository load failed. `aborted` carries the Python exception
+    /// the reference's per-file catch does not cover, when this is one.
+    Repository {
+        /// The repository's own message.
+        message: String,
+        /// The `(Python exception, message)` of a constructor abort.
+        aborted: Option<(String, String)>,
+    },
+    /// This crate has no canonical model view for the merged record (a Native
+    /// capability boundary, never a Source refusal).
+    NativeBoundary {
+        /// The artifact kind.
+        kind: ArtifactKind,
+        /// What projection is missing.
+        detail: &'static str,
+    },
+    /// The reference's own model-JSON dump refuses this merged record.
+    Payload {
+        /// The artifact kind.
+        kind: ArtifactKind,
+        /// The reference's real cause.
+        cause: PayloadFailure,
+    },
+}
+
+impl std::fmt::Display for ProgressiveDeliveryError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Setup { message, .. } | Self::Repository { message, .. } => {
+                formatter.write_str(message)
+            }
+            Self::NativeBoundary { kind, detail } => write!(
+                formatter,
+                "no canonical model view for {}: {detail}",
+                kind.canonical()
+            ),
+            Self::Payload { kind, cause } => write!(
+                formatter,
+                "cannot serialize the {} record: {cause}",
+                kind.canonical()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ProgressiveDeliveryError {}
+
+/// Box the one progressive-delivery carrier into the doctrine error channel.
+fn progressive_delivery(error: ProgressiveDeliveryError) -> DoctrineError {
+    DoctrineError::ProgressiveDelivery {
+        source: Box::new(error),
+    }
+}
+
+/// Turn a repository load failure into its phase, preserving a constructor abort.
+fn repository_delivery_error(error: OfferingLoadError) -> ProgressiveDeliveryError {
+    ProgressiveDeliveryError::Repository {
+        message: error.message().to_owned(),
+        aborted: error
+            .abort()
+            .map(|abort| (abort.python.to_owned(), abort.message.clone())),
+    }
+}
+
 /// The delivery cadence of one artifact.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -93,7 +188,7 @@ pub struct EdgeReference {
 }
 
 impl EdgeReference {
-    fn project(edge: &DrgEdge) -> Self {
+    pub(crate) fn project(edge: &DrgEdge) -> Self {
         // The reference replaces a missing OR empty `when` on a `suggests` edge
         // with the stated default (`if not when and relation is SUGGESTS`).
         let when = edge
@@ -113,6 +208,13 @@ impl EdgeReference {
 }
 
 /// Orthogonal to [`Delivery`]; part of the compact steady-state envelope.
+///
+/// The reference's `CharterContextResult.mode` has exactly three spellings:
+/// `bootstrap`, `compact` and `missing`. `missing` is a **text-rail only**
+/// result (neither `charter.yaml` nor `charter.md` exists under the canonical
+/// read root); the structured `--json` builder never emits it, so a `--json`
+/// run reports it on the first (text) stage's envelope and a `bootstrap`
+/// structured payload beside it, exactly like the reference CLI.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ContextMode {
@@ -120,6 +222,119 @@ pub enum ContextMode {
     Bootstrap,
     /// The small steady-state payload (no action grain).
     Compact,
+    /// No charter surface exists at all (text rail only).
+    Missing,
+}
+
+/// Which of the reference's four **text** rails a context build took.
+///
+/// `build_charter_context` has four mutually exclusive branches, each with its
+/// own first-load/depth/mark/prose-read/reference-count policy. The structured
+/// `build_charter_context_json` builder has only two (`bootstrap` / `compact`):
+/// it never consults charter presence and never applies the depth tier, so
+/// [`TextRail`] belongs to the text stage alone.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TextRail {
+    /// A non-bootstrap action whose action node is not declared in the merged
+    /// graph: compact, `first_load=false`, no state mark, and it returns
+    /// *before* the charter-presence gate.
+    NonBootstrap,
+    /// A grain-delivering action with neither `charter.yaml` nor `charter.md`:
+    /// the fixed missing-charter text, the state's own first-load/depth, no mark.
+    Missing,
+    /// A grain-delivering action below the minimum effective depth: the widened
+    /// compact bundle; marks before rendering.
+    CompactBundle,
+    /// A grain-delivering action at or above the minimum effective depth: the
+    /// full bootstrap text; renders, then marks.
+    Bootstrap,
+}
+
+impl TextRail {
+    /// The `mode` this rail reports (`compact` for both compact rails).
+    #[must_use]
+    pub fn mode(self) -> ContextMode {
+        match self {
+            Self::NonBootstrap | Self::CompactBundle => ContextMode::Compact,
+            Self::Missing => ContextMode::Missing,
+            Self::Bootstrap => ContextMode::Bootstrap,
+        }
+    }
+
+    /// Whether the first-load mark may be written on this rail.
+    ///
+    /// Only the two grain-delivering, non-missing rails mark, and only when the
+    /// prepared snapshot says this action is a first load.
+    #[must_use]
+    pub fn marks_first_load(self) -> bool {
+        matches!(self, Self::Bootstrap | Self::CompactBundle)
+    }
+
+    /// Whether this rail reads the `charter.md` prose at all.
+    #[must_use]
+    pub fn reads_prose(self) -> bool {
+        !matches!(self, Self::Missing)
+    }
+}
+
+/// Select the reference's text rail in the reference's own order.
+///
+/// Order is load-bearing (`build_charter_context`):
+///
+/// 1. a non-bootstrap action whose action node is **not declared** in the merged
+///    graph returns here, *before* the charter-presence gate — so a typeless or
+///    undeclared non-bootstrap action still renders compact governance for a
+///    project whose charter is absent, and it never marks state;
+/// 2. otherwise the charter-presence gate (`charter.yaml` OR `charter.md`);
+/// 3. otherwise the below-minimum-depth tier (the widened compact bundle);
+/// 4. otherwise bootstrap.
+///
+/// `action_is_bootstrap` is the reference's 4-token fast path, which renders
+/// bootstrap without consulting the predicate. `action_declared` is **node-URN
+/// membership**, never an empty grain: a declared-but-activation-starved node is
+/// declared and therefore bootstrap-capable.
+#[must_use]
+pub fn select_text_rail(
+    action_is_bootstrap: bool,
+    action_declared: bool,
+    charter_present: bool,
+    effective_depth: usize,
+) -> TextRail {
+    if !action_is_bootstrap && !action_declared {
+        return TextRail::NonBootstrap;
+    }
+    if !charter_present {
+        return TextRail::Missing;
+    }
+    if effective_depth < crate::context_state::MIN_EFFECTIVE_DEPTH {
+        return TextRail::CompactBundle;
+    }
+    TextRail::Bootstrap
+}
+
+/// The reference's **prose**-presence gate: `charter.yaml` OR `charter.md`.
+///
+/// This is deliberately not the structured authority's yaml-only
+/// `project_charter.present` signal: `charter.yaml` takes precedence for
+/// governance and `charter.md` is the readable secondary surface, so a
+/// `charter.md`-only project still renders. It is not an authority/presence
+/// gate for any other reader — the catalogue read stays yaml-only.
+///
+/// Source's unignored stat errors escape, and yaml existence short-circuits
+/// the md probe. The undeclared rail must not call this function at all.
+///
+/// # Errors
+/// An existence failure Source does not ignore (for example EACCES).
+pub fn charter_present(canonical_root: &Path) -> Result<bool, DoctrineError> {
+    for relative in [sk_charter::CHARTER_YAML, sk_charter::CHARTER_MD] {
+        let path = canonical_root.join(relative);
+        if sk_kernel::paths::source_path_exists(&path)
+            .map_err(|source| DoctrineError::io("inspect charter presence", path, source))?
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// A closed-set context diagnostic code.
@@ -149,10 +364,15 @@ pub struct Diagnostic {
 
 /// One delivered typed artifact, in the reference entry shape.
 ///
-/// Serializes to `{id, source, title?, summary?, references, delivery,
-/// body?}` — exactly the contract's per-entry keys. The URN, kind and `when`
-/// are API data and never appear in the JSON.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+/// Carries `{id, source, title?, summary?, references, delivery, body?}` —
+/// exactly the contract's per-entry keys, built by
+/// [`CharterContext::to_json_exact`]. The URN, kind and `when` are API data and
+/// never appear in the JSON.
+///
+/// `Eq` is deliberately absent: [`PythonJsonValue::Float`] is a float, so the
+/// exact body has no total equality. `PartialEq` is order-sensitive for
+/// `Object`/`ExactObject`, which is what the payload comparison needs.
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ArtifactEntry {
     /// The bare artifact id.
     pub id: String,
@@ -165,18 +385,30 @@ pub struct ArtifactEntry {
     /// Artifact origin (`built-in`, `org`, `project`).
     pub source: String,
     /// The display label, when one is declared.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
+    ///
+    /// Exact code points (the merged model's own value). The text renderer
+    /// projects it for the `String` line it must produce; the JSON payload keeps
+    /// it exact.
+    #[serde(skip)]
+    pub title: Option<PythonString>,
     /// The one-line intent/purpose, when declared.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub summary: Option<String>,
+    #[serde(skip)]
+    pub summary: Option<PythonString>,
     /// Every outbound DRG edge of this artifact.
     pub references: Vec<EdgeReference>,
     /// The delivery cadence.
     pub delivery: Delivery,
     /// The artifact body, for an inline delivery.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub body: Option<serde_json::Value>,
+    ///
+    /// The **merged** record's canonical model dump (inherited and overridden
+    /// fields, exact code points, arbitrary-width integers, non-finite floats),
+    /// produced by the one payload authority in [`crate::body`] over
+    /// `MergedArtifact::exact_root`. It is never a reopened declaring file and
+    /// never a scalar projection of one. Serialized by
+    /// [`CharterContext::to_json_exact`], not by the derive (a `serde_json` value
+    /// cannot carry a lone surrogate or an arbitrary-width integer).
+    #[serde(skip)]
+    pub body: Option<PythonJsonValue>,
     /// A `suggests` link's `when` clause (API data, rendered through
     /// `references[]` in the JSON contract).
     #[serde(skip)]
@@ -190,12 +422,12 @@ pub struct DirectiveEntry {
     pub id: String,
     /// Artifact origin (`built-in`, `org`, `project`).
     pub source: String,
-    /// The display label, when one is declared.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-    /// The directive description, when declared.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub summary: Option<String>,
+    /// The display label, when one is declared (exact code points).
+    #[serde(skip)]
+    pub title: Option<PythonString>,
+    /// The directive description, when declared (exact code points).
+    #[serde(skip)]
+    pub summary: Option<PythonString>,
 }
 
 /// A profile-cited artifact entry.
@@ -246,14 +478,20 @@ pub struct ProjectCharterBlock {
 }
 
 /// One governance policy in the org-charter block.
+///
+/// Every field is the authored value, exactly: `value` is the reference's
+/// `str | bool` (a JSON boolean stays a boolean, never the string `'True'`), and
+/// `field`/`enforcement` keep their exact code points. The derived `Serialize`
+/// is the finite `serde_json` view; [`CharterContext::to_json_exact`] is the
+/// payload authority.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct OrgGovernancePolicy {
     /// The policy field.
-    pub field: String,
-    /// The policy value.
-    pub value: String,
+    pub field: ExactText,
+    /// The policy value, as authored (`str | bool`).
+    pub value: AuthoredScalar,
     /// The enforcement level.
-    pub enforcement: String,
+    pub enforcement: ExactText,
     /// Always `org` (the block only describes org-tier policy).
     pub source: String,
 }
@@ -261,12 +499,13 @@ pub struct OrgGovernancePolicy {
 /// One org pack's summary in the org-charter block.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct OrgCharterPack {
-    /// The pack name (its org name when declared).
-    pub pack_name: String,
+    /// The pack name (its org name when declared, else the pack directory name).
+    pub pack_name: ExactText,
     /// The pack's governance policies.
     pub governance_policies: Vec<OrgGovernancePolicy>,
-    /// The pack's `required_directives`, verbatim.
-    pub required_directives: Vec<String>,
+    /// The pack's `required_directives`, verbatim (exact code points, so a lone
+    /// surrogate survives; the reference emits the authored list unchanged).
+    pub required_directives: Vec<ExactText>,
 }
 
 /// The org-charter block.
@@ -276,6 +515,18 @@ pub struct OrgCharterBlock {
     pub present: bool,
     /// One entry per pack that ships an `org-charter.yaml`.
     pub packs: Vec<OrgCharterPack>,
+}
+
+impl OrgCharterBlock {
+    /// The block's **exact** payload (`{present, packs}`), in contract order.
+    ///
+    /// Every authored value is carried as authored: an `str | bool` policy value
+    /// stays a JSON boolean when it was a Python `bool` (never the string
+    /// `'True'`), and a string keeps its exact code points (a lone surrogate
+    /// included). The derived `Serialize` is only the finite `serde_json` view.
+    pub fn to_json_value(&self) -> PythonJsonValue {
+        self.to_json_exact()
+    }
 }
 
 /// One `governance_references` status entry.
@@ -341,26 +592,368 @@ pub struct CharterContext {
 impl CharterContext {
     /// The contract keys this payload actually carries.
     pub fn top_level_keys(&self) -> BTreeSet<&'static str> {
-        let value = self.to_json();
-        value
-            .as_object()
-            .map(|object| {
-                object
-                    .keys()
-                    .filter_map(|key| {
-                        CONTEXT_CONTRACT_TOP_LEVEL_KEYS
-                            .iter()
-                            .copied()
-                            .find(|known| known == key)
-                    })
-                    .collect()
+        let value = self.to_json_exact();
+        let PythonJsonValue::ExactObject(object) = &value else {
+            return BTreeSet::new();
+        };
+        object
+            .entries()
+            .iter()
+            .filter_map(|(key, _value)| key.to_scalar_string().ok())
+            .filter_map(|key| {
+                CONTEXT_CONTRACT_TOP_LEVEL_KEYS
+                    .iter()
+                    .copied()
+                    .find(|known| *known == key)
             })
-            .unwrap_or_default()
+            .collect()
     }
 
-    /// Serialize the payload to its JSON contract value.
+    /// The payload as the canonical ordered value graph (the ONE payload owner).
+    ///
+    /// Every block is built here, in the contract's key order, and each delivered
+    /// entry's `body` is inserted as the **exact** merged model dump, so a value
+    /// the scalar JSON model cannot carry (a lone surrogate, an arbitrary-width
+    /// integer, a non-finite float) still reaches the caller. A caller that must
+    /// write JSON uses the canonical Kernel encoder over this value
+    /// ([`PythonJsonValue::render_python_with`]); [`Self::to_json`] is the finite
+    /// `serde_json` adapter for callers that can only hold scalars.
+    pub fn to_json_exact(&self) -> PythonJsonValue {
+        object(vec![
+            (
+                "context_schema_version",
+                PythonJsonValue::scalar(&self.context_schema_version),
+            ),
+            ("action", PythonJsonValue::scalar(&self.action)),
+            ("mode", enum_text(&self.mode)),
+            (
+                "directives",
+                PythonJsonValue::Array(
+                    self.directives
+                        .iter()
+                        .map(ArtifactEntry::to_json_exact)
+                        .collect(),
+                ),
+            ),
+            (
+                "tactics",
+                PythonJsonValue::Array(
+                    self.tactics
+                        .iter()
+                        .map(ArtifactEntry::to_json_exact)
+                        .collect(),
+                ),
+            ),
+            (
+                "styleguides",
+                PythonJsonValue::Array(
+                    self.styleguides
+                        .iter()
+                        .map(ArtifactEntry::to_json_exact)
+                        .collect(),
+                ),
+            ),
+            (
+                "toolguides",
+                PythonJsonValue::Array(
+                    self.toolguides
+                        .iter()
+                        .map(ArtifactEntry::to_json_exact)
+                        .collect(),
+                ),
+            ),
+            (
+                "procedures",
+                PythonJsonValue::Array(
+                    self.procedures
+                        .iter()
+                        .map(ArtifactEntry::to_json_exact)
+                        .collect(),
+                ),
+            ),
+            (
+                "all_directives",
+                PythonJsonValue::Array(
+                    self.all_directives
+                        .iter()
+                        .map(DirectiveEntry::to_json_exact)
+                        .collect(),
+                ),
+            ),
+            (
+                "directives_source",
+                PythonJsonValue::optional_scalar(self.directives_source.as_deref()),
+            ),
+            (
+                "diagnostics",
+                PythonJsonValue::Array(
+                    self.diagnostics
+                        .iter()
+                        .map(Diagnostic::to_json_exact)
+                        .collect(),
+                ),
+            ),
+            (
+                "references",
+                PythonJsonValue::Array(
+                    self.references
+                        .iter()
+                        .map(EdgeReference::to_json_exact)
+                        .collect(),
+                ),
+            ),
+            ("project_charter", self.project_charter.to_json_exact()),
+            ("org_charter", self.org_charter.to_json_exact()),
+            (
+                "governance_references",
+                PythonJsonValue::Array(
+                    self.governance_references
+                        .iter()
+                        .map(GovernanceReferenceStatus::to_json_exact)
+                        .collect(),
+                ),
+            ),
+        ])
+    }
+
+    /// The payload as a `serde_json` value — the explicit FINITE adapter.
+    ///
+    /// Returns [`serde_json::Value::Null`] only when the exact payload has no
+    /// scalar JSON form at all (a lone-surrogate string/key or a non-finite
+    /// float inside a body). Every CLI surface writes [`Self::to_json_exact`]
+    /// through the canonical Kernel encoder, so this adapter is for in-process
+    /// callers whose model cannot carry exact data; it never reformats one.
     pub fn to_json(&self) -> serde_json::Value {
-        serde_json::to_value(self).unwrap_or(serde_json::Value::Null)
+        self.to_json_exact()
+            .to_serde()
+            .unwrap_or(serde_json::Value::Null)
+    }
+}
+
+/// One ordered JSON object from its fields, in the order given.
+fn object(fields: Vec<(&str, PythonJsonValue)>) -> PythonJsonValue {
+    PythonJsonValue::Object(
+        fields
+            .into_iter()
+            .map(|(key, value)| (key.to_owned(), value))
+            .collect(),
+    )
+}
+
+/// A closed-set enum's contract spelling, taken from its ONE `serde` rename
+/// authority (never a second hand-written mapping).
+fn enum_text<T: Serialize>(value: &T) -> PythonJsonValue {
+    match serde_json::to_value(value) {
+        Ok(serde_json::Value::String(text)) => PythonJsonValue::scalar(&text),
+        Ok(other) => PythonJsonValue::from_serde(&other),
+        Err(_) => PythonJsonValue::Null,
+    }
+}
+
+impl ArtifactEntry {
+    /// The contract entry, in the reference's key order.
+    fn to_json_exact(&self) -> PythonJsonValue {
+        let mut fields = vec![
+            ("id", PythonJsonValue::scalar(&self.id)),
+            ("source", PythonJsonValue::scalar(&self.source)),
+        ];
+        push_optional_exact(&mut fields, "title", self.title.as_ref());
+        push_optional_exact(&mut fields, "summary", self.summary.as_ref());
+        fields.push((
+            "references",
+            PythonJsonValue::Array(
+                self.references
+                    .iter()
+                    .map(EdgeReference::to_json_exact)
+                    .collect(),
+            ),
+        ));
+        fields.push(("delivery", enum_text(&self.delivery)));
+        if let Some(body) = &self.body {
+            fields.push(("body", body.clone()));
+        }
+        object(fields)
+    }
+}
+
+impl DirectiveEntry {
+    /// The plain provenance DTO, in the reference's key order.
+    fn to_json_exact(&self) -> PythonJsonValue {
+        let mut fields = vec![
+            ("id", PythonJsonValue::scalar(&self.id)),
+            ("source", PythonJsonValue::scalar(&self.source)),
+        ];
+        push_optional_exact(&mut fields, "title", self.title.as_ref());
+        push_optional_exact(&mut fields, "summary", self.summary.as_ref());
+        object(fields)
+    }
+}
+
+impl EdgeReference {
+    /// The reference DTO, in the reference's key order.
+    fn to_json_exact(&self) -> PythonJsonValue {
+        object(vec![
+            ("id", PythonJsonValue::scalar(&self.id)),
+            ("relation", PythonJsonValue::scalar(&self.relation)),
+            (
+                "when",
+                PythonJsonValue::optional_scalar(self.when.as_deref()),
+            ),
+            (
+                "reason",
+                PythonJsonValue::optional_scalar(self.reason.as_deref()),
+            ),
+        ])
+    }
+}
+
+impl Diagnostic {
+    /// `{code, message}`.
+    fn to_json_exact(&self) -> PythonJsonValue {
+        object(vec![
+            ("code", enum_text(&self.code)),
+            ("message", PythonJsonValue::scalar(&self.message)),
+        ])
+    }
+}
+
+impl ProjectCharterBlock {
+    /// The presence/metadata block, in declaration order.
+    fn to_json_exact(&self) -> PythonJsonValue {
+        let mut fields = vec![
+            ("present", PythonJsonValue::Bool(self.present)),
+            ("path", PythonJsonValue::scalar(&self.path)),
+            (
+                "charter_md_present",
+                PythonJsonValue::Bool(self.charter_md_present),
+            ),
+            (
+                "charter_md_path",
+                PythonJsonValue::scalar(&self.charter_md_path),
+            ),
+        ];
+        if let Some(bytes) = self.bytes {
+            fields.push(("bytes", PythonJsonValue::Integer(bytes.to_string())));
+        }
+        push_optional_scalar(&mut fields, "hash", self.hash.as_deref());
+        push_optional_scalar(&mut fields, "source_path", self.source_path.as_deref());
+        if let Some(version) = self.bundle_schema_version {
+            fields.push((
+                "bundle_schema_version",
+                PythonJsonValue::Integer(version.to_string()),
+            ));
+        }
+        push_optional_scalar(
+            &mut fields,
+            "schema_version",
+            self.schema_version.as_deref(),
+        );
+        object(fields)
+    }
+}
+
+impl OrgCharterBlock {
+    /// `{present, packs}`.
+    fn to_json_exact(&self) -> PythonJsonValue {
+        object(vec![
+            ("present", PythonJsonValue::Bool(self.present)),
+            (
+                "packs",
+                PythonJsonValue::Array(
+                    self.packs
+                        .iter()
+                        .map(OrgCharterPack::to_json_exact)
+                        .collect(),
+                ),
+            ),
+        ])
+    }
+}
+
+impl OrgCharterPack {
+    /// `{pack_name, governance_policies, required_directives}`.
+    fn to_json_exact(&self) -> PythonJsonValue {
+        object(vec![
+            (
+                "pack_name",
+                PythonJsonValue::String(self.pack_name.as_python().clone()),
+            ),
+            (
+                "governance_policies",
+                PythonJsonValue::Array(
+                    self.governance_policies
+                        .iter()
+                        .map(OrgGovernancePolicy::to_json_exact)
+                        .collect(),
+                ),
+            ),
+            (
+                "required_directives",
+                PythonJsonValue::Array(
+                    self.required_directives
+                        .iter()
+                        .map(|id| PythonJsonValue::String(id.as_python().clone()))
+                        .collect(),
+                ),
+            ),
+        ])
+    }
+}
+
+impl OrgGovernancePolicy {
+    /// `{field, value, enforcement, source}` — the reference's `model_dump()`
+    /// entry plus its `source` tag, with the authored `str | bool` value exact.
+    fn to_json_exact(&self) -> PythonJsonValue {
+        object(vec![
+            (
+                "field",
+                PythonJsonValue::String(self.field.as_python().clone()),
+            ),
+            ("value", self.value.to_json_value()),
+            (
+                "enforcement",
+                PythonJsonValue::String(self.enforcement.as_python().clone()),
+            ),
+            ("source", PythonJsonValue::scalar(&self.source)),
+        ])
+    }
+}
+
+impl GovernanceReferenceStatus {
+    /// `{path, exists, safe, warning}`.
+    fn to_json_exact(&self) -> PythonJsonValue {
+        object(vec![
+            ("path", PythonJsonValue::scalar(&self.path)),
+            ("exists", PythonJsonValue::Bool(self.exists)),
+            ("safe", PythonJsonValue::Bool(self.safe)),
+            (
+                "warning",
+                PythonJsonValue::optional_scalar(self.warning.as_deref()),
+            ),
+        ])
+    }
+}
+
+/// Append a declared string field, or nothing when it is absent (the
+/// reference's `exclude_none=True`).
+fn push_optional_scalar(
+    fields: &mut Vec<(&'static str, PythonJsonValue)>,
+    key: &'static str,
+    value: Option<&str>,
+) {
+    if let Some(value) = value {
+        fields.push((key, PythonJsonValue::scalar(value)));
+    }
+}
+
+/// Append a declared **exact** string field, or nothing when it is absent.
+fn push_optional_exact(
+    fields: &mut Vec<(&'static str, PythonJsonValue)>,
+    key: &'static str,
+    value: Option<&PythonString>,
+) {
+    if let Some(value) = value {
+        fields.push((key, PythonJsonValue::String(value.clone())));
     }
 }
 
@@ -410,31 +1003,201 @@ pub struct ContextInputs<'a> {
     pub project_warnings: &'a [String],
 }
 
-/// Build the action-scoped governance payload.
+/// Which ordered Source stage a context build answers.
+///
+/// The reference `charter context` command executes two real builds for
+/// `--json`: `build_charter_context` renders the text first (that builder has
+/// **no** `include_all` parameter and is the only one that receives
+/// `--profile`), then `build_charter_context_json` builds the structured
+/// payload second (that builder has **no** profile parameter at all). A text
+/// CLI run executes only the first stage. The two stages therefore disagree by
+/// design about the profile channel, `--include-all` and record bodies.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ContextPhase {
+    /// One combined build, profile and `include_all` both applied and inline
+    /// bodies serialized. This is the legacy single-build helper mode; it is
+    /// **not** the reference CLI's two-stage contract.
+    Single,
+    /// The text stage: the profile channel applies, `--include-all` is not a
+    /// text input, and no record body is serialized (the reference text
+    /// renderers read model properties, never the JSON-mode model dump).
+    Text,
+    /// The structured stage: no profile channel, `include_all` applies, and
+    /// inline bodies are serialized outside any lookup catch.
+    Structured,
+}
+
+impl ContextPhase {
+    /// Whether this stage contributes the profile channel (`--profile`).
+    fn uses_profile(self) -> bool {
+        self != Self::Structured
+    }
+
+    /// Whether this stage treats `--include-all` as a request parameter.
+    fn uses_include_all(self) -> bool {
+        self != Self::Text
+    }
+
+    /// Whether this stage serializes inline record bodies (the JSON-mode dump).
+    fn serializes_bodies(self) -> bool {
+        self != Self::Text
+    }
+
+    /// Whether this stage assembles the `all_directives` DTOs.
+    ///
+    /// The reference text build never produces that block; only the structured
+    /// builder resolves it, so the text stage must not pay its record lookups.
+    fn assembles_all_directives(self) -> bool {
+        self != Self::Text
+    }
+}
+
+/// Build the action-scoped governance payload in ONE combined build.
+///
+/// This is an explicitly **single-build helper**: it applies the profile and
+/// `--include-all` together and serializes inline bodies, which is what the
+/// pre-CF66 CLI happened to do. It is not the reference's ordered execution.
+/// A CLI consumer that must follow the reference's phases calls
+/// [`build_action_context_text`] first and, for `--json`, then
+/// [`build_action_context_structured`] with the first result's depth.
 pub fn build_action_context(
     inputs: &ContextInputs<'_>,
     request: &ContextRequest<'_>,
 ) -> Result<CharterContext, DoctrineError> {
-    let raw_action = request.action.trim();
+    build_action_context_phased(inputs, request, ContextPhase::Single, None)
+}
+
+/// Build the reference's **text** stage.
+///
+/// The profile channel applies; `--include-all` is ignored because the
+/// reference text builder has no such parameter; no record body is serialized.
+/// A failure here prevents the structured stage and its later side effects.
+///
+/// This is the pre-CF68 helper: it assumes the charter surface is present, so
+/// it never takes the `missing` rail. A caller that owns the canonical read
+/// root uses [`build_text_stage`], which takes the presence fact and reports
+/// the rail it selected.
+pub fn build_action_context_text(
+    inputs: &ContextInputs<'_>,
+    request: &ContextRequest<'_>,
+) -> Result<CharterContext, DoctrineError> {
+    build_action_context_phased(inputs, request, ContextPhase::Text, None)
+}
+
+/// The reference's text stage plus the [`TextRail`] it took.
+#[derive(Clone, Debug)]
+pub struct TextStageBuild {
+    /// The payload the text stage built (its `mode` is the rail's mode).
+    pub context: CharterContext,
+    /// The rail the reference's `build_charter_context` would have taken.
+    pub rail: TextRail,
+}
+
+/// Build the reference's **text** stage on the rail the reference selects.
+///
+/// `charter_present` is the caller's [`charter_present`] answer for the
+/// canonical read root the caller actually read (the reference's presence gate
+/// runs against `sync_result.canonical_root`). Rail selection is
+/// [`select_text_rail`] — the ONE place the reference's four-branch order lives.
+/// The structured stage is deliberately **not** rail-gated: this function's
+/// rail applies to the text stage only.
+pub fn build_text_stage(
+    inputs: &ContextInputs<'_>,
+    request: &ContextRequest<'_>,
+    charter_present: bool,
+) -> Result<TextStageBuild, DoctrineError> {
+    build_text_stage_with_presence(inputs, request, || Ok(charter_present))
+}
+
+/// Build text with a fallible, deferred presence probe. The live CLI uses this
+/// seam so an undeclared action returns before probing charter existence.
+/// The bool-input adapter above remains an explicit already-observed fact view.
+///
+/// # Errors
+/// Resolution/build failures, or presence errors only on grain-delivering rails.
+pub fn build_text_stage_with_presence(
+    inputs: &ContextInputs<'_>,
+    request: &ContextRequest<'_>,
+    presence: impl FnOnce() -> Result<bool, DoctrineError>,
+) -> Result<TextStageBuild, DoctrineError> {
+    let normalized = normalize_context_action(request.action);
+    let action_is_bootstrap = BOOTSTRAP_ACTIONS.contains(&normalized.as_str());
+    // Declared means **node-URN membership in the merged graph**, not "the name
+    // resolved to a URN": the reference's `_action_node_declared` tests
+    // `f"action:{mission}/{action}" in bundle.merged.node_urns()`, and a
+    // resolved-but-absent node is exactly the activation-starved case that must
+    // still take the undeclared/non-bootstrap rail.
+    let declared = declared_action_urn(inputs, request, &normalized, action_is_bootstrap)?
+        .is_some_and(|urn| inputs.graph.node(&urn).is_some());
+    let present = if action_is_bootstrap || declared {
+        presence()?
+    } else {
+        false
+    };
+    let rail = select_text_rail(action_is_bootstrap, declared, present, request.depth);
+    let context = build_action_context_phased(inputs, request, ContextPhase::Text, Some(rail))?;
+    Ok(TextStageBuild { context, rail })
+}
+
+/// Build the reference's **structured** stage.
+///
+/// The profile channel is absent here (the reference JSON builder takes no
+/// profile argument), `include_all` applies, and inline bodies are serialized
+/// outside the lookup phase. The caller passes the text stage's depth.
+pub fn build_action_context_structured(
+    inputs: &ContextInputs<'_>,
+    request: &ContextRequest<'_>,
+) -> Result<CharterContext, DoctrineError> {
+    build_action_context_phased(inputs, request, ContextPhase::Structured, None)
+}
+
+/// The reference's action resolution for one build: the action node URN, or
+/// `None` when the graph does not declare it (or, for a fast-path action, when
+/// resolution failed and the reference tolerates the empty grain).
+///
+/// One seam for both stages and for the rail predicate, so "declared" can never
+/// mean two different things in one invocation.
+fn declared_action_urn(
+    inputs: &ContextInputs<'_>,
+    request: &ContextRequest<'_>,
+    normalized_action: &str,
+    action_is_bootstrap: bool,
+) -> Result<Option<String>, DoctrineError> {
+    // A bootstrap action is delivered even when the project declares no such
+    // action node (or declares several with different mission types): the
+    // reference payload then simply carries the governance blocks with an
+    // empty action grain. Every other action must resolve to one node.
+    match resolve_action_urn(inputs.graph, normalized_action, request.mission_type) {
+        Ok(urn) => Ok(Some(urn)),
+        Err(error) if action_is_bootstrap => {
+            let _ = error;
+            Ok(None)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn build_action_context_phased(
+    inputs: &ContextInputs<'_>,
+    request: &ContextRequest<'_>,
+    phase: ContextPhase,
+    rail: Option<TextRail>,
+) -> Result<CharterContext, DoctrineError> {
+    // The reference's two builders differ by construction: the text builder
+    // receives `profile` and never `include_all`; the JSON builder receives
+    // `include_all` and has no profile parameter. Forcing the unused inputs off
+    // here keeps one resolution path from pretending both stages are the same.
+    let profile_id = request.profile.filter(|_| phase.uses_profile());
+    let include_all = request.include_all && phase.uses_include_all();
+    let normalized_action = normalize_context_action(request.action);
+    let raw_action = normalized_action.as_str();
     if raw_action.is_empty() {
         return Err(DoctrineError::InvalidAction {
             action: request.action.to_owned(),
         });
     }
-    let normalized_action = normalize_action_name(raw_action);
     let bootstrap_action = BOOTSTRAP_ACTIONS.contains(&normalized_action.as_str());
-    // A bootstrap action is delivered even when the project declares no such
-    // action node (or declares several with different mission types): the
-    // reference payload then simply carries the governance blocks with an
-    // empty action grain. Every other action must resolve to one node.
-    let action_urn = match resolve_action_urn(inputs.graph, raw_action, request.mission_type) {
-        Ok(urn) => Some(urn),
-        Err(error) if bootstrap_action => {
-            let _ = error;
-            None
-        }
-        Err(error) => return Err(error),
-    };
+    let action_urn = declared_action_urn(inputs, request, raw_action, bootstrap_action)?;
 
     let state =
         ActivationState::from_ledger(inputs.ledger, inputs.identity, inputs.required_floor)?;
@@ -456,16 +1219,24 @@ pub fn build_action_context(
     let action_declared = action_urn
         .as_deref()
         .is_some_and(|urn| inputs.graph.node(urn).is_some());
-    let mode = if bootstrap_action || action_declared {
-        ContextMode::Bootstrap
-    } else {
-        ContextMode::Compact
+    // The text stage reports the rail the reference selected (which can be
+    // `missing` or either compact rail); the structured stage has only the two
+    // envelope modes and never consults charter presence or the depth tier.
+    let mode = match rail {
+        Some(rail) => rail.mode(),
+        None if bootstrap_action || action_declared => ContextMode::Bootstrap,
+        None => ContextMode::Compact,
     };
 
     let mut delivery = action_urn
         .as_deref()
         .map(|urn| deliver_action_context(&filtered, urn, request.depth))
         .unwrap_or_default();
+    // One merged-record source for every body/title this build delivers. It is
+    // the canonical include authority, built on first demand: the action payload
+    // answers "what does the repository hold for (kind, id)" the same way the
+    // `--include` fetch does, instead of reopening the declaring file.
+    let records = ActionRecords::new(inputs.project_root);
     // One canonical-root probe drives every charter-config read in this build:
     // the reference anchors the directive/local/charter reads on the same
     // `resolve_canonical_repo_root` facade.
@@ -484,9 +1255,11 @@ pub fn build_action_context(
     let governance = resolve_directives(
         inputs.graph,
         inputs.identity,
+        &records,
         inputs.ledger,
         &state,
         &charter_sections,
+        phase.assembles_all_directives(),
     )?;
     // The reference resolves the project/org seed sets only inside
     // `_load_action_governance_bundle`'s `resolved_type is not None` branch. A
@@ -512,7 +1285,7 @@ pub fn build_action_context(
     roots.extend(seeds.roots.iter().cloned());
 
     let mut profile_links = Vec::new();
-    if let Some(profile_id) = request.profile {
+    if let Some(profile_id) = profile_id {
         if !state.admits_profile(profile_id) {
             diagnostics.push(Diagnostic {
                 code: DiagnosticCode::UnresolvedReference,
@@ -521,16 +1294,23 @@ pub fn build_action_context(
                 ),
             });
         } else {
-            match inputs.profiles.resolve(profile_id, inputs.graph) {
+            match inputs.profiles.resolve_str(profile_id, inputs.graph) {
                 Ok(profile) => {
-                    let urn = format!("agent_profile:{}", profile.id);
-                    if inputs.graph.node(&urn).is_some() {
-                        delivery.eager.insert(urn.clone());
-                        delivery.all_artifacts.insert(urn.clone());
+                    // The DRG is a `String`-keyed graph, so only a scalar id
+                    // can name one of its nodes. A non-scalar identity keeps its
+                    // exact profile (and its exact lineage answer) without
+                    // inventing a URN: the reference's own
+                    // `graph.node(urn)` lookup finds nothing there either.
+                    if let Some(id) = profile.scalar_id() {
+                        let urn = format!("agent_profile:{id}");
+                        if inputs.graph.node(&urn).is_some() {
+                            delivery.eager.insert(urn.clone());
+                            delivery.all_artifacts.insert(urn.clone());
+                        }
                     }
                     for link in inputs
                         .profiles
-                        .channel_deliveries(profile_id, inputs.graph)?
+                        .channel_deliveries_str(profile_id, inputs.graph)?
                     {
                         if link.relation == Relation::Suggests {
                             delivery.suggested.insert(link.urn.clone());
@@ -612,10 +1392,13 @@ pub fn build_action_context(
             let Some(entry) = artifact_entry(
                 &filtered,
                 inputs.identity,
+                &records,
                 urn,
                 &inline_urns,
-                request.include_all,
-            ) else {
+                include_all,
+                phase.serializes_bodies(),
+            )?
+            else {
                 continue;
             };
             typed.entry(entry.kind).or_default().push(entry);
@@ -687,12 +1470,16 @@ pub fn build_action_context(
     })
 }
 
-fn normalize_action_name(action: &str) -> String {
-    let body = split_urn(action).map(|(_, body)| body).unwrap_or(action);
-    body.split_once('/')
-        .map(|(_, action)| action)
-        .unwrap_or(body)
-        .to_owned()
+/// Source action/state key: Python str.strip().lower(), without selector shortening.
+/// Uses the existing pinned Unicode whitespace and lower-case authorities.
+pub fn normalize_context_action(action: &str) -> String {
+    let stripped =
+        action.trim_matches(|code: char| sk_kernel::python_text::is_whitespace(code as u32));
+    let points: Vec<u32> = stripped.chars().map(u32::from).collect();
+    PythonString::from_units(sk_kernel::python_text::lower_codepoints(&points))
+        .expect("Unicode lowercase retains valid code points")
+        .to_scalar_string()
+        .expect("lowercase of scalar text remains scalar")
 }
 
 fn bare_id(urn: &str) -> String {
@@ -731,71 +1518,340 @@ fn source_label(node: &crate::graph::DrgNode) -> String {
 fn artifact_entry(
     graph: &DrgGraph,
     identity: &IdentityIndex,
+    records: &ActionRecords,
     urn: &str,
     inline: &BTreeSet<String>,
     include_all: bool,
-) -> Option<ArtifactEntry> {
-    let node = graph.node(urn)?;
+    serialize_body: bool,
+) -> Result<Option<ArtifactEntry>, DoctrineError> {
+    let Some(node) = graph.node(urn) else {
+        return Ok(None);
+    };
     let kind = node.kind();
     if !requested_kind(kind) {
-        return None;
+        return Ok(None);
     }
-    let artifact_kind = kind.artifact_kind()?;
-    let body = artifact_document(identity, artifact_kind, &bare_id(urn));
+    let Some(artifact_kind) = kind.artifact_kind() else {
+        return Ok(None);
+    };
+    let artifact_id = bare_id(urn);
     // The reference `artifact_to_dict` reads the artifact MODEL's `title`
-    // (then `name`) and never the DRG node label. The label is graph metadata
-    // that may differ from the authored body title (a real org-pack repro),
-    // and an unresolvable artifact has no title at all rather than a
-    // label-derived one.
-    let title = text_field(&body, "title").or_else(|| text_field(&body, "name"));
-    let summary = text_field(&body, "intent").or_else(|| text_field(&body, "purpose"));
+    // (then `name`) and `intent` (then `purpose`) and never the DRG node label.
+    // The model property read is a different phase from the JSON-mode dump: a
+    // bad unstructured member the reference never serializes for metadata must
+    // not fail a link. `meta` walks only the selected text fields.
+    let meta = records
+        .meta(identity, artifact_kind, &artifact_id)
+        .map_err(progressive_delivery)?;
     let references = graph
         .edges_from(urn, None)
         .into_iter()
         .map(EdgeReference::project)
         .collect();
     let is_inline = include_all || inline.contains(urn);
-    Some(ArtifactEntry {
-        id: bare_id(urn),
+    // The body is requested only for an inline entry, exactly like the
+    // reference `_decorate_entry` calling `body_of` only when `is_inline` — and
+    // only in a stage that serializes bodies at all. The reference TEXT build
+    // reads model properties (`title`/`name`, `intent`/`purpose`) and never
+    // dumps the model, so a body that cannot be JSON-serialized is a structured-
+    // stage failure, not a text-stage one.
+    let body = if is_inline && serialize_body {
+        artifact_payload(records, identity, artifact_kind, &artifact_id)?
+    } else {
+        None
+    };
+    // The entry's `source` names the layer that supplied the record actually
+    // delivered, exactly like the reference's `repository.get_provenance(id)`: a
+    // project/org overlay shadows the built-in file, so the DRG node's tag (built
+    // from the graph layer that declared the node) is only the fallback for an
+    // artifact with no layered file.
+    let source = identity
+        .source_layer(artifact_kind, &artifact_id)
+        .map(|layer| layer.as_str().to_owned())
+        .unwrap_or_else(|| {
+            // The reference `collect_typed_artifacts` falls back to the
+            // built-in tier when `repository.get_provenance(id)` is absent
+            // (a genuinely missing record, including a graph-only node).
+            if meta.present {
+                source_label(node)
+            } else {
+                "built-in".to_owned()
+            }
+        });
+    Ok(Some(ArtifactEntry {
+        id: artifact_id,
         urn: urn.to_owned(),
         kind,
-        source: source_label(node),
-        title,
-        summary,
+        source,
+        title: meta.title,
+        summary: meta.summary,
         references,
         delivery: if is_inline {
             Delivery::Inline
         } else {
             Delivery::Link
         },
-        body: if is_inline { body } else { None },
+        body,
         when: None,
-    })
+    }))
 }
 
-/// Read a typed artifact's body as the reference model dump.
+/// One merged record's selected metadata fields (never its full model dump).
 ///
-/// This is the canonical nested body, not the raw YAML: model defaults the
-/// author omitted (empty lists/mappings, a defaulted nested field) are present
-/// and `null` optionals are absent, exactly as the reference
-/// `model_dump(by_alias=True, mode="json", exclude_none=True)` renders it.
-fn artifact_document(
+/// The reference `artifact_to_dict` uses the fallback chain
+/// `title -> name` and `intent -> purpose`, so only the fields actually needed
+/// by that chain are selected. A missing record yields `None` fields; a setup,
+/// repository or selected-field failure is returned, never cached as absence.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct RecordMeta {
+    /// Whether the layered repository held a record (false is a true miss).
+    present: bool,
+    title: Option<PythonString>,
+    summary: Option<PythonString>,
+}
+
+/// The canonical merged-record body payload of one delivered artifact.
+///
+/// This replaces the previous declaring-file read (a second `serde_yaml_ng`
+/// parse feeding the finite `canonical_artifact_body`). The reference's action
+/// payload dumps the *repository model*
+/// (`_jsonable_artifact_value(model_dump(...))`) and that model is the **merged**
+/// record: an org/project overlay replaces the fields it declares and inherits
+/// the rest from the earlier layers. [`ActionRecords`] resolves that record
+/// through the same canonical offering service the `--include` fetch reads, so
+/// an inherited or overridden field cannot be spelled one way on one surface and
+/// another way on the other.
+///
+/// A genuine absent record contributes no body; a setup/repository/payload
+/// failure is a typed error, not a healthy miss.
+fn artifact_payload(
+    records: &ActionRecords,
     identity: &IdentityIndex,
     kind: ArtifactKind,
     artifact_id: &str,
-) -> Option<serde_json::Value> {
-    let path = identity.path_for(kind, artifact_id)?;
-    let text = std::fs::read_to_string(path).ok()?;
-    let value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&text).ok()?;
-    crate::body::canonical_artifact_body(kind, &value)
+) -> Result<Option<PythonJsonValue>, DoctrineError> {
+    records
+        .body(identity, kind, artifact_id)
+        .map_err(progressive_delivery)
 }
 
-fn text_field(body: &Option<serde_json::Value>, field: &str) -> Option<String> {
-    body.as_ref()?
-        .get(field)
-        .and_then(serde_json::Value::as_str)
-        .filter(|text| !text.trim().is_empty())
-        .map(str::to_owned)
+/// The selected-metadata cache: one phase result per `(kind, record key)`.
+type RecordMetaCache =
+    RefCell<BTreeMap<(ArtifactKind, String), Result<RecordMeta, ProgressiveDeliveryError>>>;
+
+/// The requested-inline-body cache: one phase result per `(kind, record key)`.
+type RecordBodyCache = RefCell<
+    BTreeMap<(ArtifactKind, String), Result<Option<PythonJsonValue>, ProgressiveDeliveryError>>,
+>;
+
+/// The lazily built merged-record source one action build reads.
+///
+/// The offering service is the canonical [`IncludeAccess`] authority — the same one
+/// the `--include` fetch path reads — built over **this build's own layer set**
+/// (the roots the identity index and the merged graph came from), so a payload can
+/// never mix records from one root set with identities from another. The service is
+/// built on first demand (a compact build never needs it) and each selected field
+/// set/body is memoised, which keeps a repeated id from being merged twice.
+struct ActionRecords {
+    project_root: PathBuf,
+    access: OnceLock<Result<IncludeAccess, ProgressiveDeliveryError>>,
+    meta_cache: RecordMetaCache,
+    body_cache: RecordBodyCache,
+}
+
+impl ActionRecords {
+    fn new(project_root: &Path) -> Self {
+        Self {
+            project_root: project_root.to_path_buf(),
+            access: OnceLock::new(),
+            meta_cache: RefCell::new(BTreeMap::new()),
+            body_cache: RefCell::new(BTreeMap::new()),
+        }
+    }
+
+    /// The selected metadata fields of one record.
+    fn meta(
+        &self,
+        identity: &IdentityIndex,
+        kind: ArtifactKind,
+        artifact_id: &str,
+    ) -> Result<RecordMeta, ProgressiveDeliveryError> {
+        let key = (kind, artifact_id.to_owned());
+        if let Some(cached) = self.meta_cache.borrow().get(&key) {
+            return cached.clone();
+        }
+        let computed = self.load_meta(identity, kind, artifact_id);
+        self.meta_cache.borrow_mut().insert(key, computed.clone());
+        computed
+    }
+
+    /// The requested inline body of one record (evaluated on demand only).
+    fn body(
+        &self,
+        identity: &IdentityIndex,
+        kind: ArtifactKind,
+        artifact_id: &str,
+    ) -> Result<Option<PythonJsonValue>, ProgressiveDeliveryError> {
+        let key = (kind, artifact_id.to_owned());
+        if let Some(cached) = self.body_cache.borrow().get(&key) {
+            return cached.clone();
+        }
+        let computed = self.load_body(identity, kind, artifact_id);
+        self.body_cache.borrow_mut().insert(key, computed.clone());
+        computed
+    }
+
+    fn load_meta(
+        &self,
+        identity: &IdentityIndex,
+        kind: ArtifactKind,
+        artifact_id: &str,
+    ) -> Result<RecordMeta, ProgressiveDeliveryError> {
+        // The graph/resource-only kinds have no merged document record here.
+        // The reference's repository lookup yields no model, so this is the
+        // true-miss branch rather than a failure.
+        if !crate::offering::CanonicalOfferingService::serves_documents(kind) {
+            return Ok(RecordMeta::default());
+        }
+        let access = self.access(identity)?;
+        let offering = access
+            .offering()
+            .map_err(|error| ProgressiveDeliveryError::Setup {
+                message: error.message().to_owned(),
+                config: error.is_config(),
+            })?;
+        let key = record_key(identity, kind, artifact_id);
+        let Some(record) = offering
+            .artifact(kind, &key)
+            .map_err(repository_delivery_error)?
+        else {
+            return Ok(RecordMeta::default());
+        };
+        let Some(root) = record.exact_root() else {
+            return Err(ProgressiveDeliveryError::NativeBoundary {
+                kind,
+                detail: "the merged record has no canonical graph",
+            });
+        };
+        Ok(RecordMeta {
+            present: true,
+            title: speech_field(kind, root, "title", "name")?,
+            summary: speech_field(kind, root, "intent", "purpose")?,
+        })
+    }
+
+    fn load_body(
+        &self,
+        identity: &IdentityIndex,
+        kind: ArtifactKind,
+        artifact_id: &str,
+    ) -> Result<Option<PythonJsonValue>, ProgressiveDeliveryError> {
+        if !crate::offering::CanonicalOfferingService::serves_documents(kind) {
+            return Ok(None);
+        }
+        let access = self.access(identity)?;
+        let offering = access
+            .offering()
+            .map_err(|error| ProgressiveDeliveryError::Setup {
+                message: error.message().to_owned(),
+                config: error.is_config(),
+            })?;
+        let key = record_key(identity, kind, artifact_id);
+        let Some(record) = offering
+            .artifact(kind, &key)
+            .map_err(repository_delivery_error)?
+        else {
+            return Ok(None);
+        };
+        let Some(root) = record.exact_root() else {
+            return Err(ProgressiveDeliveryError::NativeBoundary {
+                kind,
+                detail: "the merged record has no canonical graph",
+            });
+        };
+        match crate::body::exact_payload(kind, root) {
+            Ok(payload) => Ok(Some(payload)),
+            Err(PayloadError::NoSchema) => Err(ProgressiveDeliveryError::NativeBoundary {
+                kind,
+                detail: "this crate has no typed model for the kind",
+            }),
+            Err(PayloadError::Failed(cause)) => {
+                Err(ProgressiveDeliveryError::Payload { kind, cause })
+            }
+        }
+    }
+
+    /// The offering access over the identity index's own layer set.
+    ///
+    /// A missing built-in tier is the reference builder's raising setup phase,
+    /// not a healthy absence; the same value is cached either way so a repeated
+    /// read cannot turn a caught failure into a miss.
+    fn access(&self, identity: &IdentityIndex) -> Result<&IncludeAccess, ProgressiveDeliveryError> {
+        let slot = self.access.get_or_init(|| {
+            if identity.built_in_root.as_os_str().is_empty() {
+                return Err(ProgressiveDeliveryError::Setup {
+                    message: "no pack root could be resolved for built-in".to_owned(),
+                    config: false,
+                });
+            }
+            let roots = crate::effective_set::OfferingRoots {
+                built_in: Some(identity.built_in_root.clone()),
+                org_roots: identity.org_roots.clone(),
+                project: identity.project_root.clone(),
+            };
+            IncludeAccess::with_roots(&self.project_root, roots).map_err(|error| {
+                ProgressiveDeliveryError::Setup {
+                    message: error.message().to_owned(),
+                    config: error.is_config(),
+                }
+            })
+        });
+        match slot {
+            Ok(access) => Ok(access),
+            Err(error) => Err(error.clone()),
+        }
+    }
+}
+
+/// The reference `artifact_to_dict` speech-field chain: the first selected text
+/// field that `entry_text` accepts, never a full model dump.
+fn speech_field(
+    kind: ArtifactKind,
+    root: sk_kernel::python_yaml::NodeRef<'_>,
+    primary: &str,
+    fallback: &str,
+) -> Result<Option<PythonString>, ProgressiveDeliveryError> {
+    for name in [primary, fallback] {
+        let selected = selected_text_field(kind, root, name).map_err(|error| match error {
+            PayloadError::NoSchema => ProgressiveDeliveryError::NativeBoundary {
+                kind,
+                detail: "this crate has no typed model for the kind",
+            },
+            PayloadError::Failed(cause) => ProgressiveDeliveryError::Payload { kind, cause },
+        })?;
+        if let Some(text) = entry_text(selected.as_ref()) {
+            return Ok(Some(text.clone()));
+        }
+    }
+    Ok(None)
+}
+
+/// The repository key an action-delivered id names: its declared id when the
+/// index knows it, else the id verbatim, exactly like the include path's
+/// `lookup_id`.
+fn record_key(identity: &IdentityIndex, kind: ArtifactKind, artifact_id: &str) -> String {
+    match identity.try_declared_id(kind, artifact_id) {
+        Ok(Some(declared)) => declared,
+        _ => IdentityIndex::unindexed_key(Some(kind), artifact_id),
+    }
+}
+
+/// The authored speech field when Python string truthiness is nonempty.
+///
+/// Source preserves whitespace-only text and exact surrogate units here;
+/// this is not str.strip() or a scalar projection.
+pub fn entry_text(value: Option<&PythonString>) -> Option<&PythonString> {
+    value.filter(|text| !text.is_empty())
 }
 
 /// The complete link set naming every delivered artifact.
@@ -805,7 +1861,7 @@ fn text_field(body: &Option<serde_json::Value>, field: &str) -> Option<String> {
 /// delivered artifact, or an action-resolution *bridge* URN, and whose target is
 /// delivered. Sources are walked in sorted order and edges in graph order, which
 /// is the reference's deterministic order; deduplication is by `(id, relation)`.
-fn link_references(
+pub(crate) fn link_references(
     graph: &DrgGraph,
     roots: &BTreeSet<String>,
     delivered: &BTreeSet<String>,
@@ -929,10 +1985,22 @@ fn governance_seeds(
                 .map(|token| identity.activation_id(kind, token, &mut warnings))
                 .collect(),
         };
+        // The org `required_<plural>` overlay is the reference's COERCING
+        // selection reader (`_read_org_required_selections` /
+        // `read_org_required_ids`: `isinstance(value, list)` then
+        // `str(item).strip()`), NOT the strict required-floor reader
+        // (`_required_values`, which drops a whole field containing one
+        // non-string member). The two answer different questions and both stay
+        // distinct APIs. A token with no scalar projection cannot name a
+        // `String`-keyed graph node, so it simply reaches no root — never a
+        // substituted spelling.
         for token in
-            org_charter::read_org_required_tokens(project_root, kind, false).unwrap_or_default()
+            org_charter::read_org_required_ids_exact(project_root, kind).unwrap_or_default()
         {
-            ids.push(identity.activation_id(kind, &token, &mut warnings));
+            let declared = identity.activation_id_exact(kind, &token);
+            if let Ok(id) = declared.to_scalar_string() {
+                ids.push(id);
+            }
         }
         // Unknown activation tokens are logged by the reference, never added
         // to the payload diagnostics (`_drop_unknown` is for charter
@@ -964,7 +2032,7 @@ fn governance_seeds(
 }
 
 /// The `requires` closure of `roots`, including the roots themselves.
-fn requires_closure(graph: &DrgGraph, roots: &BTreeSet<String>) -> BTreeSet<String> {
+pub(crate) fn requires_closure(graph: &DrgGraph, roots: &BTreeSet<String>) -> BTreeSet<String> {
     crate::query::walk_edges(graph, roots, &BTreeSet::from([Relation::Requires]), None)
 }
 
@@ -1070,278 +2138,42 @@ fn charter_config_read(project_root: &Path) -> CharterConfigRead {
     }
 }
 
-/// The authored charter sections the reference's charter-config readers see.
-///
-/// The reference runs two independent, broadly-caught reads before it builds
-/// `all_directives` / `directives_source`:
-///
-/// * `sync.load_directives_config` over the `directives:` section
-///   (`DirectivesConfig`, a Pydantic model), and
-/// * `resolver.resolve_project_governance`, whose first step is
-///   `sync.load_governance_config` over the `governance:` section
-///   (`GovernanceConfig`) after `require_canonical_governance` refuses the
-///   retired `doctrine` selection key.
-///
-/// A malformed shape in either is caught by
-/// `context_json._load_project_directives_with_diagnostics`, which returns the
-/// directly-loaded local ids, a `null` source and no diagnostics. A retired
-/// key is NOT caught there: the separate governance-reference read re-raises
-/// it and the whole payload build fails. Both behaviours are modelled here so
-/// the source is either resolved or explicitly refused, never invented.
-struct CharterConfigSections {
-    /// The parsed `charter.yaml` document, when the canonical root allowed a
-    /// read. `None` on a non-Git root (both reference reads raise before they
-    /// can return a local directive).
-    charter: Option<serde_yaml_ng::Value>,
-    /// Whether `governance:` passes the reference `GovernanceConfig` shape.
-    governance_valid: bool,
-    /// Whether `directives:` passes the reference `DirectivesConfig` shape.
-    directives_valid: bool,
-}
-
-impl CharterConfigSections {
-    /// The directly-loaded local directives, when that read succeeded.
-    fn local_directives(&self) -> Vec<LocalDirective> {
-        if !self.directives_valid {
-            return Vec::new();
-        }
-        local_directives(&self.charter)
-    }
-}
-
 /// Read the authored charter sections for a project root.
 ///
-/// The retired-key refusal is raised here, from the same charter read the
-/// reference's governance-reference seam performs, so a payload can never
-/// succeed while honouring or silently ignoring `governance.doctrine`.
+/// The action build's broad catch maps an unreadable file and a retired pack
+/// field to its documented degrade; the retired `governance.doctrine` key stays
+/// a typed hard refusal. The project resolver classifies the same outcomes
+/// through its own typed error, so neither caller invents provenance.
 fn charter_sections(
     project_root: &Path,
     resolution_available: bool,
 ) -> Result<CharterConfigSections, DoctrineError> {
     if !resolution_available {
         // Every reference charter-config read shares the canonical-root gate,
-        // so a non-Git root degrades (see `resolve_directives`) instead of
-        // refusing: nothing was loaded, and the reference's governance
-        // reference read is best-effort over the same gate.
+        // so a non-Git root degrades instead of refusing: nothing was loaded.
         return Ok(CharterConfigSections {
             charter: None,
             governance_valid: false,
             directives_valid: false,
-        });
-    }
-    let charter = match read_charter_document(project_root) {
-        CharterDocument::Parsed(document) => Some(document),
-        CharterDocument::Absent => None,
-        CharterDocument::Unreadable => {
-            // `load_charter_yaml` raises on malformed YAML, so BOTH reference
-            // reads fail and the documented degrade applies (the file is still
-            // described by `project_charter`, which reads its bytes directly).
-            return Ok(CharterConfigSections {
-                charter: None,
-                governance_valid: false,
-                directives_valid: false,
-            });
-        }
-    };
-    require_canonical_governance(&charter, project_root)?;
-    let governance_valid = governance_section_valid(&charter);
-    let directives_valid = directives_section_valid(&charter);
-    Ok(CharterConfigSections {
-        charter,
-        governance_valid,
-        directives_valid,
-    })
-}
-
-/// Refuse the retired `governance.doctrine` selection key.
-///
-/// Mirrors `sync.require_canonical_governance`: only a `governance` MAPPING is
-/// checked (a non-mapping `governance:` is a shape failure the resolver
-/// catches and degrades on, not a retired-key refusal). The reference raises
-/// `ActiveCharterConfigError` / `ACTIVE_CHARTER_CONFIG_INVALID` naming the
-/// charter path, the key, `spec-kitty upgrade` and the cutover runbook.
-fn require_canonical_governance(
-    charter: &Option<serde_yaml_ng::Value>,
-    project_root: &Path,
-) -> Result<(), DoctrineError> {
-    let Some(governance) = charter
-        .as_ref()
-        .and_then(|charter| charter.get("governance"))
-    else {
-        return Ok(());
-    };
-    if governance.as_mapping().is_some() && governance.get("doctrine").is_some() {
-        return Err(DoctrineError::RetiredGovernanceSelection {
             path: project_root.join(sk_charter::CHARTER_YAML),
-            runbook: crate::error::RETIRED_GOVERNANCE_RUNBOOK,
         });
     }
-    Ok(())
-}
-
-fn is_string_sequence(value: &serde_yaml_ng::Value) -> bool {
-    value
-        .as_sequence()
-        .is_some_and(|items| items.iter().all(serde_yaml_ng::Value::is_string))
-}
-
-/// The list fields `GovernanceCharterConfig` validates as `list[str]`.
-const GOVERNANCE_STRING_LISTS: [&str; 10] = [
-    "selected_paradigms",
-    "selected_directives",
-    "selected_tactics",
-    "selected_styleguides",
-    "selected_toolguides",
-    "selected_procedures",
-    "selected_agent_profiles",
-    "selected_mission_step_contracts",
-    "selected_glossary_packs",
-    "selected_assets",
-];
-
-/// Whether `governance:` passes the reference `GovernanceConfig` shape.
-///
-/// This is a structural surface, not a full Pydantic port: the shapes the
-/// reference rejects outright (a non-mapping section, a scalar `charter`, a
-/// scalar `selected_directives`, a `null` list) degrade the resolution, so the
-/// native read must not pretend it resolved. Unknown keys are ignored, exactly
-/// as Pydantic's default `extra="ignore"` does.
-fn governance_section_valid(charter: &Option<serde_yaml_ng::Value>) -> bool {
-    let Some(governance) = charter
-        .as_ref()
-        .and_then(|charter| charter.get("governance"))
-    else {
-        // No governance section (or no charter file) is an empty config.
-        return true;
-    };
-    if governance.is_null() {
-        // `_load_charter_yaml_section` returns `None` for an explicit null
-        // section, which `load_governance_config` treats as absent.
-        return true;
-    }
-    let Some(governance) = governance.as_mapping() else {
-        return false;
-    };
-    for section in [
-        "testing",
-        "quality",
-        "commits",
-        "performance",
-        "branch_strategy",
-    ] {
-        if let Some(value) = governance.get(section)
-            && !value.is_mapping()
-        {
-            return false;
+    match read_charter_sections(project_root) {
+        Ok(sections) => Ok(sections),
+        Err(CharterSectionsError::Unreadable { .. })
+        | Err(CharterSectionsError::RetiredPackField { .. }) => Ok(CharterConfigSections {
+            charter: None,
+            governance_valid: false,
+            directives_valid: false,
+            path: project_root.join(sk_charter::CHARTER_YAML),
+        }),
+        Err(CharterSectionsError::RetiredGovernanceSelection { path }) => {
+            Err(DoctrineError::RetiredGovernanceSelection {
+                path,
+                runbook: crate::error::RETIRED_GOVERNANCE_RUNBOOK,
+            })
         }
     }
-    if let Some(value) = governance.get("charter") {
-        let Some(charter_block) = value.as_mapping() else {
-            return false;
-        };
-        for key in GOVERNANCE_STRING_LISTS {
-            if let Some(value) = charter_block.get(key)
-                && !is_string_sequence(value)
-            {
-                return false;
-            }
-        }
-        for key in [
-            "available_tools",
-            "authority_paths",
-            "governance_references",
-        ] {
-            if let Some(value) = charter_block.get(key)
-                && !is_string_sequence(value)
-            {
-                return false;
-            }
-        }
-        if let Some(value) = charter_block.get("template_set")
-            && !value.is_string()
-            && !value.is_null()
-        {
-            return false;
-        }
-    }
-    if let Some(value) = governance.get("activations") {
-        let Some(items) = value.as_sequence() else {
-            return false;
-        };
-        if !items.iter().all(serde_yaml_ng::Value::is_mapping) {
-            return false;
-        }
-    }
-    if let Some(value) = governance.get("retrospective")
-        && !value.is_null()
-        && !value.is_mapping()
-    {
-        return false;
-    }
-    true
-}
-
-/// Whether the `directives:` section passes the reference `DirectivesConfig`
-/// shape.
-///
-/// The compiled charter authors `directives: {directives: [{id, title, ...}]}`.
-/// Pydantic requires the section to be a mapping, the `directives` field to be
-/// a list, and each entry to be a mapping with the two REQUIRED string fields
-/// `id` and `title`; an unknown key is ignored. A shape failure means
-/// `load_directives_config` raises, which is part of the resolver-failure
-/// degrade (never a silent partial load).
-fn directives_section_valid(charter: &Option<serde_yaml_ng::Value>) -> bool {
-    let Some(section) = charter
-        .as_ref()
-        .and_then(|charter| charter.get("directives"))
-    else {
-        return true;
-    };
-    if section.is_null() {
-        return true;
-    }
-    let Some(section) = section.as_mapping() else {
-        return false;
-    };
-    let Some(items) = section.get("directives") else {
-        return true;
-    };
-    let Some(items) = items.as_sequence() else {
-        return false;
-    };
-    items.iter().all(|item| {
-        let Some(item) = item.as_mapping() else {
-            return false;
-        };
-        if !item.get("id").is_some_and(serde_yaml_ng::Value::is_string)
-            || !item
-                .get("title")
-                .is_some_and(serde_yaml_ng::Value::is_string)
-        {
-            return false;
-        }
-        for key in ["description", "severity"] {
-            if let Some(value) = item.get(key)
-                && !value.is_string()
-            {
-                return false;
-            }
-        }
-        if let Some(value) = item.get("references")
-            && !is_string_sequence(value)
-        {
-            return false;
-        }
-        true
-    })
-}
-
-/// A project-local `directives:` entry from `charter.yaml`.
-#[derive(Clone, Debug, Default)]
-struct LocalDirective {
-    id: String,
-    title: Option<String>,
-    description: Option<String>,
 }
 
 /// Resolve the effective directive set and its provenance label.
@@ -1361,182 +2193,91 @@ struct LocalDirective {
 fn resolve_directives(
     graph: &DrgGraph,
     identity: &IdentityIndex,
+    records: &ActionRecords,
     ledger: &ActivationLedger,
     state: &ActivationState,
     sections: &CharterConfigSections,
+    assemble_entries: bool,
 ) -> Result<DirectiveResolution, DoctrineError> {
-    if !sections.governance_valid || !sections.directives_valid {
-        // `context_json._load_project_directives_with_diagnostics` catches a
-        // `load_governance_config`/`resolve_project_governance` failure and
-        // returns exactly the directly-loaded set (empty when
-        // `load_directives_config` failed too), `directives_source: None`
-        // (provenance unavailable is the documented operator signal) and NO
-        // resolution diagnostics. This is a degrade, not a refusal: typed
-        // delivery, links and every other governance block stay intact.
-        let local = sections.local_directives();
-        return Ok(DirectiveResolution {
-            entries: local
-                .iter()
-                .map(|entry| local_directive_entry(&entry.id, entry))
-                .collect(),
-            source: None,
-            diagnostics: Vec::new(),
-        });
-    }
-    let mut diagnostics = Vec::new();
-    let charter = &sections.charter;
-    let local = sections.local_directives();
-    let local_ids: BTreeSet<String> = local.iter().map(|entry| entry.id.clone()).collect();
+    // The graph's built-in provenance is this caller's catalogue source; the
+    // selection/union/diagnostic policy is the one shared owner.
     let catalog_ids: BTreeSet<String> = graph
         .nodes()
         .iter()
         .filter(|node| node.kind() == NodeKind::Directive && node.provenance() == Some("built-in"))
         .map(|node| crate::org::normalize_directive_id(&bare_id(node.urn())))
         .collect();
-
-    let activated = ledger.allow_for(ArtifactKind::Directive);
-    let (mut resolved, mut base_source) = match activated {
-        None => {
-            let mut base: Vec<String> = catalog_ids.iter().cloned().collect();
-            base.sort();
-            diagnostics.push(Diagnostic {
-                code: DiagnosticCode::CatalogDefaultApplied,
-                message: format!(
-                    "No activated directive set configured; using built-in catalog default ({} directives).",
-                    base.len()
-                ),
-            });
-            (base, "catalog_fallback".to_owned())
-        }
-        Some(tokens) => {
-            let mut warnings = Vec::new();
-            let mut base: BTreeSet<String> = BTreeSet::new();
-            for token in tokens {
-                let declared =
-                    identity.activation_id(ArtifactKind::Directive, token, &mut warnings);
-                // A deny that names this artifact removes it from the base
-                // (the reference `PackContext` nets the allow list by D*).
-                let denied = state
-                    .deny_for(ArtifactKind::Directive)
-                    .is_some_and(|deny| !deny.admits(&declared));
-                if !denied {
-                    base.insert(declared);
-                }
-            }
-            // Unknown activation tokens are WARNINGS in the reference
-            // (`_resolve_directive_base` logs them); they are not
-            // `UNKNOWN_SELECTION_DROPPED` diagnostics, which are reserved for
-            // charter `selected_*` tokens (`_drop_unknown`).
-            let _ = warnings;
-            (base.into_iter().collect(), "activation".to_owned())
-        }
-    };
-
-    // NOTE: `resolve_project_governance` (the JSON entrypoint's resolver) reads
-    // the charter's own selection only; the org `required_*` overlay is applied
-    // by the *renderer* helper, not here. Org requirements still form the
-    // required floor that protects them from deny, which is a separate seam.
-    let selected = selected_directives(charter);
-    if !selected.is_empty() {
-        // Mirrors `_resolve_selected_directives` + `_report_charter_selection`:
-        // resolved ids are de-duplicated in token order, and the merged
-        // diagnostic reports the SELECTION (not the base) when nothing was
-        // added.
-        let mut selection: Vec<String> = Vec::new();
-        for token in &selected {
-            let declared = identity
-                .selection_id(ArtifactKind::Directive, token)
-                .or_else(|| {
-                    let legacy = crate::org::normalize_directive_id(token);
-                    (local_ids.contains(&legacy) || catalog_ids.contains(&legacy)).then_some(legacy)
+    match resolve_directive_selection(
+        sections,
+        &catalog_ids,
+        identity,
+        ledger,
+        state.deny_for(ArtifactKind::Directive),
+    ) {
+        DirectiveSelectionOutcome::Degraded { local } => Ok(DirectiveResolution {
+            entries: if assemble_entries {
+                local
+                    .iter()
+                    .map(|entry| local_directive_entry(&entry.id, entry))
+                    .collect()
+            } else {
+                Vec::new()
+            },
+            source: None,
+            diagnostics: Vec::new(),
+        }),
+        DirectiveSelectionOutcome::Resolved {
+            ids,
+            source,
+            diagnostics,
+        } => {
+            // The reference text stage never resolves `all_directives`; only the
+            // JSON builder does. Skipping the DTO assembly keeps a text-stage
+            // run from paying record lookups the reference never performs.
+            if !assemble_entries {
+                return Ok(DirectiveResolution {
+                    entries: Vec::new(),
+                    source: Some(source),
+                    diagnostics,
                 });
-            match declared {
-                Some(declared) => {
-                    if !selection.contains(&declared) {
-                        selection.push(declared);
-                    }
-                }
-                None => diagnostics.push(Diagnostic {
-                    code: DiagnosticCode::UnknownSelectionDropped,
-                    message: format!(
-                        "Unknown selected directive '{token}' dropped: not found in built-in, org packs (charter_packs.org.packs) or .kittify/charter-packs/; see 'spec-kitty charter list'."
-                    ),
-                }),
             }
-        }
-        if !selection.is_empty() {
-            let added: Vec<String> = selection
+            let local = sections.local_directives();
+            let local_by_id: BTreeMap<&str, &LocalDirective> = local
                 .iter()
-                .filter(|id| !resolved.contains(id))
-                .cloned()
+                .map(|entry| (entry.id.as_str(), entry))
                 .collect();
-            diagnostics.push(charter_selection_merged_diagnostic(
-                "directive",
-                &selection,
-                &added,
-                &base_source,
-            ));
-            for declared in added {
-                resolved.push(declared);
-            }
-            base_source = format!("{base_source}+charter");
+            let entries = ids
+                .iter()
+                .map(|id| match local_by_id.get(id.as_str()) {
+                    Some(local) => Ok(local_directive_entry(id, local)),
+                    None => {
+                        // The reference reads the directive model's
+                        // `title`/`intent` properties here, never its JSON-mode
+                        // body; a bad unrelated unstructured member must not
+                        // break `all_directives`.
+                        let meta = records
+                            .meta(identity, ArtifactKind::Directive, id)
+                            .map_err(progressive_delivery)?;
+                        Ok(DirectiveEntry {
+                            id: id.clone(),
+                            source: identity
+                                .source_layer(ArtifactKind::Directive, id)
+                                .map(IdentityLayer::as_str)
+                                .unwrap_or("built-in")
+                                .to_owned(),
+                            title: meta.title,
+                            summary: meta.summary,
+                        })
+                    }
+                })
+                .collect::<Result<Vec<_>, DoctrineError>>()?;
+            Ok(DirectiveResolution {
+                entries,
+                source: Some(source),
+                diagnostics,
+            })
         }
     }
-
-    if !local_ids.is_empty() {
-        let local_order: Vec<String> = local.iter().map(|entry| entry.id.clone()).collect();
-        let added: Vec<String> = local_order
-            .iter()
-            .filter(|id| !resolved.contains(id))
-            .cloned()
-            .collect();
-        diagnostics.push(project_local_merged_diagnostic(
-            &local_order,
-            &added,
-            &base_source,
-        ));
-        for entry in &local {
-            if !resolved.contains(&entry.id) {
-                resolved.push(entry.id.clone());
-            }
-        }
-        base_source = format!("{base_source}+project_local");
-    }
-
-    // The effective deny applies after every union (activation base, charter
-    // selection, project-local); it never holds a required-floor id.
-    let denied = state.deny_for(ArtifactKind::Directive);
-    resolved.retain(|id| denied.is_none_or(|deny| deny.admits(id)));
-
-    let local_by_id: BTreeMap<&str, &LocalDirective> = local
-        .iter()
-        .map(|entry| (entry.id.as_str(), entry))
-        .collect();
-    let entries = resolved
-        .iter()
-        .map(|id| match local_by_id.get(id.as_str()) {
-            Some(local) => local_directive_entry(id, local),
-            None => {
-                let body = artifact_document(identity, ArtifactKind::Directive, id);
-                DirectiveEntry {
-                    id: id.clone(),
-                    source: identity
-                        .source_layer(ArtifactKind::Directive, id)
-                        .map(IdentityLayer::as_str)
-                        .unwrap_or("built-in")
-                        .to_owned(),
-                    title: text_field(&body, "title").or_else(|| text_field(&body, "name")),
-                    summary: text_field(&body, "intent").or_else(|| text_field(&body, "purpose")),
-                }
-            }
-        })
-        .collect();
-
-    Ok(DirectiveResolution {
-        entries,
-        source: Some(base_source),
-        diagnostics,
-    })
 }
 
 /// The reference `_local_directive_entry` DTO: id + `project` origin + the
@@ -1545,163 +2286,9 @@ fn local_directive_entry(id: &str, local: &LocalDirective) -> DirectiveEntry {
     DirectiveEntry {
         id: id.to_owned(),
         source: "project".to_owned(),
-        title: local.title.clone(),
-        summary: local.description.clone(),
+        title: local.title.as_deref().map(PythonString::from_scalars),
+        summary: local.description.as_deref().map(PythonString::from_scalars),
     }
-}
-
-/// The reference `_report_charter_selection` diagnostic.
-///
-/// `selection` is the de-duplicated resolved charter selection, `added` the
-/// subset beyond the base. The "none added" branch names the SELECTION, not
-/// the base set (a wording difference the previous lenient check missed).
-fn charter_selection_merged_diagnostic(
-    noun: &str,
-    selection: &[String],
-    added: &[String],
-    base_source: &str,
-) -> Diagnostic {
-    if !added.is_empty() {
-        return Diagnostic {
-            code: DiagnosticCode::SelectionMerged,
-            message: format!(
-                "Charter selected {} {noun}(s) beyond the {base_source} base: {}.",
-                added.len(),
-                added.join(", ")
-            ),
-        };
-    }
-    Diagnostic {
-        code: DiagnosticCode::SelectionMerged,
-        message: format!(
-            "All {} charter-selected {noun}(s) already present in the {base_source} base; none added: {}.",
-            selection.len(),
-            selection.join(", ")
-        ),
-    }
-}
-
-/// The reference `_resolve_directives_selection` project-local diagnostic.
-fn project_local_merged_diagnostic(
-    local: &[String],
-    added: &[String],
-    base_source: &str,
-) -> Diagnostic {
-    if !added.is_empty() {
-        return Diagnostic {
-            code: DiagnosticCode::SelectionMerged,
-            message: format!(
-                "Merged {} project-local directive(s) onto the {base_source} set: {}.",
-                added.len(),
-                added.join(", ")
-            ),
-        };
-    }
-    Diagnostic {
-        code: DiagnosticCode::SelectionMerged,
-        message: format!(
-            "All {} project-local directive(s) already present in the {base_source} set; none added: {}.",
-            local.len(),
-            local.join(", ")
-        ),
-    }
-}
-
-/// The authored charter document, distinguishing "absent" from "unparseable".
-///
-/// The reference's `_load_charter_yaml_section` returns `None` for an absent
-/// file (or no section) but lets a malformed YAML document raise, which the
-/// two best-effort readers catch and degrade on. Treating an unparseable file
-/// as absent would invent a resolved catalogue provenance instead.
-enum CharterDocument {
-    /// No charter file (or the path could not be resolved inside the root).
-    Absent,
-    /// A parsed document (any YAML shape; non-mapping roots read as no section).
-    Parsed(serde_yaml_ng::Value),
-    /// The file exists but could not be read or parsed.
-    Unreadable,
-}
-
-fn read_charter_document(project_root: &Path) -> CharterDocument {
-    // The charter file is user-authored: resolve it under the project root so a
-    // symlink cannot redirect the governance read outside the checkout.
-    let Ok(path) = sk_kernel::resolve_within(project_root, Path::new(sk_charter::CHARTER_YAML))
-    else {
-        return CharterDocument::Absent;
-    };
-    if !path.is_file() {
-        return CharterDocument::Absent;
-    }
-    let Ok(text) = std::fs::read_to_string(path) else {
-        return CharterDocument::Unreadable;
-    };
-    match serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&text) {
-        Ok(document) => CharterDocument::Parsed(document),
-        Err(_) => CharterDocument::Unreadable,
-    }
-}
-
-fn local_directives(charter: &Option<serde_yaml_ng::Value>) -> Vec<LocalDirective> {
-    let Some(charter) = charter else {
-        return Vec::new();
-    };
-    // The authored section is `directives: {directives: [...]}` in the
-    // compiled charter. Whether that shape is the reference `DirectivesConfig`
-    // is `directives_section_valid`'s job; this reader only extracts entries
-    // from an accepted section.
-    let Some(section) = charter.get("directives") else {
-        return Vec::new();
-    };
-    let Some(items) = section
-        .get("directives")
-        .and_then(|value| value.as_sequence())
-    else {
-        return Vec::new();
-    };
-    items
-        .iter()
-        .filter_map(|item| {
-            let id = item.get("id").and_then(serde_yaml_ng::Value::as_str)?;
-            if id.trim().is_empty() {
-                return None;
-            }
-            Some(LocalDirective {
-                id: id.trim().to_owned(),
-                title: item
-                    .get("title")
-                    .and_then(serde_yaml_ng::Value::as_str)
-                    .map(str::to_owned),
-                description: item
-                    .get("description")
-                    .and_then(serde_yaml_ng::Value::as_str)
-                    .map(str::to_owned),
-            })
-        })
-        .collect()
-}
-
-/// The charter's `governance.charter.selected_directives`, when readable.
-///
-/// The retired `governance.doctrine` key is NEVER a fallback: it is refused in
-/// [`require_canonical_governance`] before any reader runs.
-fn selected_directives(charter: &Option<serde_yaml_ng::Value>) -> Vec<String> {
-    let Some(charter) = charter else {
-        return Vec::new();
-    };
-    let selection = charter
-        .get("governance")
-        .and_then(|governance| governance.get("charter"));
-    selection
-        .and_then(|selection| selection.get("selected_directives"))
-        .and_then(|value| value.as_sequence())
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(serde_yaml_ng::Value::as_str)
-                .map(str::to_owned)
-                .collect()
-        })
-        .unwrap_or_default()
 }
 
 fn project_charter_block(project_root: &Path) -> ProjectCharterBlock {
@@ -1768,24 +2355,42 @@ pub fn org_charter_block(project_root: &Path) -> OrgCharterBlock {
         packs.push(OrgCharterPack {
             // The reference falls back to the pack DIRECTORY basename
             // (`getattr(policy, "org_name", None) or org_root.name`), never the
-            // configured display name.
-            pack_name: policy.org_name.clone().unwrap_or_else(|| {
-                root.file_name()
-                    .and_then(|name| name.to_str())
-                    .unwrap_or(declared.as_str())
-                    .to_owned()
-            }),
+            // configured display name. `org_name` truthiness is Python `str`
+            // truthiness (non-empty), and the chosen name keeps its exact code
+            // points; only a non-UTF-8 directory name has no exact `str` spelling
+            // and keeps the previous scalar fallback.
+            pack_name: ExactText::new(
+                policy
+                    .org_name
+                    .clone()
+                    .filter(|name| !name.is_empty())
+                    .unwrap_or_else(|| {
+                        PythonString::from_scalars(
+                            root.file_name()
+                                .and_then(|name| name.to_str())
+                                .unwrap_or(declared.as_str()),
+                        )
+                    }),
+            ),
             governance_policies: policy
                 .governance_policies
                 .iter()
                 .map(|policy| OrgGovernancePolicy {
-                    field: policy.field.clone(),
+                    field: ExactText::new(policy.field.clone()),
                     value: policy.value.clone(),
-                    enforcement: policy.enforcement.clone(),
+                    enforcement: ExactText::new(policy.enforcement.clone()),
                     source: "org".to_owned(),
                 })
                 .collect(),
-            required_directives: policy.required_for(ArtifactKind::Directive).to_vec(),
+            // The reference emits the authored list unchanged (`list(...)`), so an
+            // id carrying a lone surrogate stays in the payload instead of being
+            // dropped by a scalar filter.
+            required_directives: policy
+                .required_for(ArtifactKind::Directive)
+                .iter()
+                .cloned()
+                .map(ExactText::new)
+                .collect(),
         });
     }
     OrgCharterBlock {
@@ -1810,7 +2415,7 @@ fn governance_reference_status(
     if !governance_valid || !charter_config_read(project_root).is_available() {
         return Vec::new();
     }
-    let CharterDocument::Parsed(charter) = read_charter_document(project_root) else {
+    let (CharterDocument::Parsed(charter), _) = read_charter_document(project_root) else {
         return Vec::new();
     };
     let references = charter
@@ -2125,13 +2730,16 @@ mod tests {
 
     fn fixture(root: &Path) -> IdentityIndex {
         let built_in = root.join("packs/built-in");
+        // Model-admitted documents: the action payload now reads the repository
+        // record (the merged model), so a fixture the canonical Directive/Tactic
+        // model refuses would be skipped exactly as the reference skips it.
         write(
             &built_in.join("directives/001-arch.directive.yaml"),
-            "id: DIRECTIVE_001\nschema_version: '1.0'\ntitle: Arch\nintent: Keep seams\nscope: x\n",
+            "id: DIRECTIVE_001\nschema_version: '1.0'\ntitle: Arch\nintent: Keep seams\nenforcement: required\nscope: x\n",
         );
         write(
             &built_in.join("directives/002-style.directive.yaml"),
-            "id: DIRECTIVE_002\nschema_version: '1.0'\ntitle: Style\nintent: Be clear\n",
+            "id: DIRECTIVE_002\nschema_version: '1.0'\ntitle: Style\nintent: Be clear\nenforcement: advisory\n",
         );
         write(
             &built_in.join("tactics/hard.tactic.yaml"),
@@ -2178,16 +2786,31 @@ mod tests {
         assert_eq!(first.mode, ContextMode::Bootstrap);
         assert_eq!(first.directives.len(), 1);
         assert_eq!(first.directives[0].delivery, Delivery::Inline);
-        assert_eq!(first.directives[0].title.as_deref(), Some("Arch"));
-        assert_eq!(first.directives[0].summary.as_deref(), Some("Keep seams"));
-        // The inline body is the real artifact document.
+        assert_eq!(
+            first.directives[0]
+                .title
+                .as_ref()
+                .and_then(|text| text.to_scalar_string().ok()),
+            Some("Arch".to_owned())
+        );
+        assert_eq!(
+            first.directives[0]
+                .summary
+                .as_ref()
+                .and_then(|text| text.to_scalar_string().ok()),
+            Some("Keep seams".to_owned())
+        );
+        // The inline body is the merged record's canonical model dump.
         assert_eq!(
             first.directives[0]
                 .body
                 .as_ref()
-                .and_then(|body| body.get("scope"))
-                .and_then(|value| value.as_str()),
-            Some("x")
+                .and_then(|body| body.field("scope"))
+                .and_then(|value| match value {
+                    PythonJsonValue::String(text) => text.to_scalar_string().ok(),
+                    _ => None,
+                }),
+            Some("x".to_owned())
         );
         // The explicit tactic allow list gates `soft` out of the filtered graph,
         // so the `suggests` edge to it is not delivered at all.
@@ -2427,7 +3050,13 @@ mod tests {
             .find(|entry| entry.id == "DIRECTIVE_009")
             .unwrap();
         assert_eq!(local.source, "project");
-        assert_eq!(local.title.as_deref(), Some("Local"));
+        assert_eq!(
+            local
+                .title
+                .as_ref()
+                .and_then(|text| text.to_scalar_string().ok()),
+            Some("Local".to_owned())
+        );
         assert!(
             context
                 .diagnostics
@@ -2485,12 +3114,125 @@ mod tests {
         let block = org_charter_block(root);
         assert!(block.present);
         assert_eq!(block.packs.len(), 1);
-        assert_eq!(block.packs[0].pack_name, "Acme");
         assert_eq!(
-            block.packs[0].required_directives,
+            block.packs[0]
+                .pack_name
+                .as_python()
+                .to_scalar_string()
+                .unwrap(),
+            "Acme"
+        );
+        assert_eq!(
+            block.packs[0]
+                .required_directives
+                .iter()
+                .map(|id| id.as_python().to_scalar_string().unwrap())
+                .collect::<Vec<_>>(),
             vec!["DIRECTIVE_001".to_owned()]
         );
         assert_eq!(block.packs[0].governance_policies[0].source, "org");
+        assert_eq!(
+            block.packs[0].governance_policies[0].value,
+            AuthoredScalar::Text(PythonString::from_scalars("signed"))
+        );
+        let payload = block.to_json_exact();
+        let PythonJsonValue::Object(fields) = &payload else {
+            panic!("the block is an object");
+        };
+        assert_eq!(fields[0].0, "present");
+        let PythonJsonValue::Array(packs) = &fields[1].1 else {
+            panic!("packs is a list");
+        };
+        let PythonJsonValue::Object(entry) = &packs[0] else {
+            panic!("a pack is an object");
+        };
+        let keys: Vec<&str> = entry.iter().map(|(key, _)| key.as_str()).collect();
+        assert_eq!(
+            keys,
+            ["pack_name", "governance_policies", "required_directives"]
+        );
+        assert_eq!(
+            entry[0].1,
+            PythonJsonValue::String(PythonString::from_scalars("Acme"))
+        );
+        let PythonJsonValue::Array(policies) = &entry[1].1 else {
+            panic!("governance_policies is a list");
+        };
+        let PythonJsonValue::Object(policy) = &policies[0] else {
+            panic!("a policy is an object");
+        };
+        let policy_keys: Vec<&str> = policy.iter().map(|(key, _)| key.as_str()).collect();
+        assert_eq!(policy_keys, ["field", "value", "enforcement", "source"]);
+        assert_eq!(
+            policy[1].1,
+            PythonJsonValue::String(PythonString::from_scalars("signed")),
+            "an authored string stays a JSON string"
+        );
+        assert_eq!(policy[3].1, PythonJsonValue::scalar("org"));
+    }
+
+    #[test]
+    fn org_charter_block_keeps_authored_booleans_and_exact_ids() {
+        // Probed against the pinned Source: the block's `value` is the reference
+        // `model_dump()` value, so an authored `true` is a JSON boolean and is
+        // never collapsed into the string `'True'`; `required_directives` is the
+        // authored list unchanged, so an id holding a lone surrogate survives.
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        let pack = root.join("packs/acme");
+        write(
+            &pack.join(org_charter::ORG_CHARTER),
+            "governance_policies:\n  - {field: f, value: true}\n  - {field: g, value: 'True'}\n  - {field: h, value: false}\nrequired_directives: [\"author\\ud800\", ok-id]\n",
+        );
+        write(
+            &root.join("packs/built-in/pack.yaml"),
+            "name: built-in\npack_level: built-in\n",
+        );
+        write(
+            &root.join(".kittify/config.yaml"),
+            &format!(
+                "charter_packs:\n  org:\n    packs:\n      - name: acme\n        local_path: {}\n",
+                pack.display()
+            ),
+        );
+        let block = org_charter_block(root);
+        let values: Vec<AuthoredScalar> = block.packs[0]
+            .governance_policies
+            .iter()
+            .map(|policy| policy.value.clone())
+            .collect();
+        assert_eq!(
+            values,
+            vec![
+                AuthoredScalar::Bool(true),
+                AuthoredScalar::Text(PythonString::from_scalars("True")),
+                AuthoredScalar::Bool(false),
+            ],
+            "authored bools stay bools and the text 'True' stays text"
+        );
+        assert_eq!(
+            block.packs[0].required_directives[0]
+                .as_python()
+                .codepoints(),
+            &[0x61, 0x75, 0x74, 0x68, 0x6f, 0x72, 0xd800],
+            "the surrogate-bearing id is not dropped"
+        );
+
+        let payload = block.to_json_exact();
+        let rendered = payload.render_python(None, true);
+        let rendered = rendered.to_scalar_string().unwrap();
+        assert!(
+            rendered.contains("\"value\": true"),
+            "the boolean renders as JSON true: {rendered}"
+        );
+        assert!(
+            rendered.contains("\"value\": \"True\""),
+            "the text renders as a JSON string: {rendered}"
+        );
+        assert!(
+            rendered.contains("author\\ud800"),
+            "the surrogate id renders as a JSON escape: {rendered}"
+        );
     }
 
     #[test]
@@ -2624,5 +3366,75 @@ mod tests {
         );
         assert_eq!(leaf_org.len(), 1);
         assert!(leaf_project.is_none());
+    }
+
+    #[test]
+    fn record_setup_failure_is_not_a_healthy_miss() {
+        // An unresolved built-in tier is the reference builder's raising setup
+        // phase, never "this artifact is absent". The record source must return
+        // the phase and keep returning it (cached), not a healthy `None`.
+        let identity = IdentityIndex::from_roots(Path::new(""), &[], None);
+        let records = ActionRecords::new(Path::new("/nonexistent-cf61"));
+        for _ in 0..2 {
+            let error = records
+                .meta(&identity, ArtifactKind::Directive, "DIRECTIVE_001")
+                .expect_err("setup failure is not a miss");
+            assert!(
+                matches!(error, ProgressiveDeliveryError::Setup { .. }),
+                "unexpected phase: {error:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn repository_abort_is_not_a_missing_record() {
+        // A constructor abort the reference's per-file catch does not cover
+        // aborts the layered repository load. It must surface as a repository
+        // phase, not as an entry with no title/body.
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        let built_in = root.join("packs/built-in");
+        write(
+            &built_in.join("directives/001-arch.directive.yaml"),
+            "schema_version: '1.0'\nid: DIRECTIVE_001\ntitle: T\nintent: I\nenforcement: required\nscope: x\n",
+        );
+        write(
+            &built_in.join("directives/999-abort.directive.yaml"),
+            "schema_version: '1.0'\nid: DIRECTIVE_999\ntitle: T\nintent: I\nenforcement: required\nscope: x\nreferences: !!omap\n  - a: 1\n  - a: 2\n",
+        );
+        let identity = IdentityIndex::from_roots(&built_in, &[], None);
+        let records = ActionRecords::new(root);
+        let error = records
+            .meta(&identity, ArtifactKind::Directive, "DIRECTIVE_001")
+            .expect_err("the repository abort is not a miss");
+        assert!(
+            matches!(
+                error,
+                ProgressiveDeliveryError::Repository {
+                    aborted: Some(_),
+                    ..
+                }
+            ),
+            "unexpected phase: {error:?}"
+        );
+    }
+
+    #[test]
+    fn unknown_record_key_is_a_healthy_miss() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        let identity = fixture(root);
+        let records = ActionRecords::new(root);
+        let meta = records
+            .meta(&identity, ArtifactKind::Directive, "DIRECTIVE_404")
+            .expect("a missing id is not a failure");
+        assert!(!meta.present);
+        assert!(meta.title.is_none());
+        assert!(
+            records
+                .body(&identity, ArtifactKind::Directive, "DIRECTIVE_404")
+                .expect("a missing body is not a failure")
+                .is_none()
+        );
     }
 }

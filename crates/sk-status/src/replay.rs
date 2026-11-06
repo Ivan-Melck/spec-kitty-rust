@@ -18,9 +18,21 @@
 //! - annotations fold in a separate post-transition pass and never touch
 //!   `force_count`.
 //!
-//! This module parses and reduces; it performs no I/O and never writes.
+//! This module parses and reduces; it never writes.
+//!
+//! It also owns the **Source event-store admission** seam
+//! ([`read_source_event_stream_from_text`]): the reference's
+//! `specify_cli.status.store.read_events_from_text` runs a per-row model check
+//! before any row reaches the fold, and committed-log consumers select it. JSON
+//! syntactic success is not model admission (CF49).
+//!
+//! Admission and the diary parse are deliberately distinct capabilities: the
+//! parser mirrors the pinned *external* `spec_kitty_events.diary` contract, while
+//! admission mirrors the reference CLI's own event store, which resolves a legacy
+//! `mission_id` and refuses a row whose identity the reference's fold cannot key
+//! on. A consumer that answers "healthy / no strand" must use admission.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Map, Value, json};
 
@@ -103,7 +115,7 @@ pub struct ReviewApproval {
 }
 
 impl ReviewApproval {
-    fn to_json_value(&self) -> Value {
+    pub(crate) fn to_json_value(&self) -> Value {
         json!({
             "reviewer": self.reviewer,
             "verdict": self.verdict,
@@ -122,7 +134,7 @@ pub struct RepoEvidence {
 }
 
 impl RepoEvidence {
-    fn to_json_value(&self) -> Value {
+    pub(crate) fn to_json_value(&self) -> Value {
         let mut map = Map::new();
         map.insert("repo".to_owned(), Value::String(self.repo.clone()));
         map.insert("branch".to_owned(), Value::String(self.branch.clone()));
@@ -152,7 +164,7 @@ pub struct VerificationResult {
 }
 
 impl VerificationResult {
-    fn to_json_value(&self) -> Value {
+    pub(crate) fn to_json_value(&self) -> Value {
         json!({
             "command": self.command,
             "result": self.result,
@@ -170,7 +182,7 @@ pub struct DoneEvidence {
 }
 
 impl DoneEvidence {
-    fn to_json_value(&self) -> Value {
+    pub(crate) fn to_json_value(&self) -> Value {
         let mut map = Map::new();
         map.insert("review".to_owned(), self.review.to_json_value());
         if !self.repos.is_empty() {
@@ -204,7 +216,7 @@ pub struct ReviewOutcome {
 }
 
 impl ReviewOutcome {
-    fn to_json_value(&self) -> Value {
+    pub(crate) fn to_json_value(&self) -> Value {
         let mut map = Map::new();
         map.insert("reviewer".to_owned(), Value::String(self.reviewer.clone()));
         map.insert("verdict".to_owned(), Value::String(self.verdict.clone()));
@@ -304,51 +316,9 @@ impl StatusEvent {
         Value::Object(map)
     }
 
-    fn canonical_key(&self) -> String {
-        crate::mutation_json::python_compact_json(&self.to_json_value())
-    }
-
     /// True when this event is a `migration:` reconstruction seed.
     pub fn is_reconstruction_seed(&self) -> bool {
         self.actor.is_reconstruction_seed()
-    }
-
-    fn is_rollback_event(&self) -> bool {
-        const REJECTION_TARGETS: [Lane; 3] = [Lane::Planned, Lane::Claimed, Lane::InProgress];
-        if self.from_lane == Lane::InReview {
-            return REJECTION_TARGETS.contains(&self.to_lane);
-        }
-        if self.from_lane == Lane::ForReview && self.review_ref.is_some() {
-            return REJECTION_TARGETS.contains(&self.to_lane);
-        }
-        false
-    }
-
-    fn is_rollback_seed(&self) -> bool {
-        self.is_reconstruction_seed() && self.is_rollback_event()
-    }
-
-    fn writes_verdict(&self) -> bool {
-        self.review_result.is_some() || self.from_lane == Lane::InReview
-    }
-
-    fn claim_sidecar_writes(&self) -> BTreeMap<String, Value> {
-        let mut writes = BTreeMap::new();
-        if self.from_lane != Lane::Planned || self.to_lane != Lane::Claimed {
-            return writes;
-        }
-        let Some(Value::Object(meta)) = self.policy_metadata.as_ref() else {
-            return writes;
-        };
-        for slot in ["shell_pid", "shell_pid_created_at"] {
-            if let Some(value) = meta.get(slot).filter(|value| !value.is_null()) {
-                writes.insert(slot.to_owned(), value.clone());
-            }
-        }
-        if let Some(agent) = meta.get("agent").filter(|value| is_truthy(value)) {
-            writes.insert("agent".to_owned(), agent.clone());
-        }
-        writes
     }
 }
 
@@ -362,14 +332,14 @@ pub struct ReviewOverride {
 }
 
 impl ReviewOverride {
-    fn is_release_sentinel(&self) -> bool {
+    pub(crate) fn is_release_sentinel(&self) -> bool {
         self.at.is_empty()
             && self.actor.is_empty()
             && self.wp_id.is_empty()
             && self.reason.is_empty()
     }
 
-    fn to_json_value(&self) -> Value {
+    pub(crate) fn to_json_value(&self) -> Value {
         json!({
             "at": self.at,
             "actor": self.actor,
@@ -414,7 +384,7 @@ const SCALAR_SLOTS: [&str; 8] = [
 ];
 
 impl InnerStateDelta {
-    fn scalar(&self, name: &str) -> Option<&Value> {
+    pub(crate) fn scalar(&self, name: &str) -> Option<&Value> {
         match name {
             "shell_pid_created_at" => self.shell_pid_created_at.as_ref(),
             "agent" => self.agent.as_ref(),
@@ -555,7 +525,9 @@ fn parse_status_event(object: &Map<String, Value>) -> Result<StatusEvent, DiaryE
     })
 }
 
-fn parse_annotation(object: &Map<String, Value>) -> Result<InnerStateChanged, DiaryError> {
+pub(crate) fn parse_annotation(
+    object: &Map<String, Value>,
+) -> Result<InnerStateChanged, DiaryError> {
     let event_id = required_string(object, "event_id")?;
     if !is_ulid(&event_id) {
         return Err(annotation(format!(
@@ -797,6 +769,30 @@ fn parse_lane(object: &Map<String, Value>, name: &str) -> Result<Lane, DiaryErro
     Lane::parse_canonical(&text).map_err(|error| transition(format!("{name}: {error}")))
 }
 
+// ---------------------------------------------------------------------------
+// The ONE Source-valued model/admission/fold lives in `crate::source_event`
+// ---------------------------------------------------------------------------
+//
+// `replay` keeps this finite typed view (the `spec_kitty_events.diary`
+// contract) and the re-exports below, so existing callers keep their names.
+// The Source admission/model/fold itself is not duplicated here.
+
+pub use crate::source_annotation::{
+    CLAIM_RELEASE_SLOTS, DELTA_SCALAR_FIELDS, ReviewFold, SourceAnnotation, SourceDelta,
+    SourceReviewOverride, python_int_coercion, python_int_value, python_list_coercion,
+    python_list_value,
+};
+pub use crate::source_event::{
+    SourceEventLogError, SourceEventStream, SourceFoldError, SourceSnapshot, SourceStatusEvent,
+    SourceWpState, read_source_event_stream_from_text, read_source_transitions_from_text,
+    reduce_source_diary,
+};
+pub use crate::source_execution::{
+    SourceAnnotationPass, SourceExecution, SourceExecutionError, SourceExecutionPhase,
+    SourceOperational, SourcePythonClass, SourcePythonFailure, SourceRaised, execute_source_diary,
+};
+pub use crate::source_metadata::{SourceResolverFailure, SourceSlugResolver};
+
 fn mission_slug(object: &Map<String, Value>) -> String {
     if let Some(value) = object.get("mission_slug").filter(|value| is_truthy(value)) {
         return python_str(value);
@@ -843,568 +839,14 @@ fn decode_actor(value: &Value) -> Result<Actor, DiaryError> {
 
 /// Reduce parsed transitions and annotations into a canonical snapshot.
 ///
-/// This is the diary-only fold: no CLI attribution/cancellation projections,
-/// no mission metadata, no retrospective attachment, no schema marker.
+/// This is the finite typed view (the external `spec_kitty_events.diary`
+/// contract). It feeds the ONE Source-valued fold through its typed adapter, so
+/// there is no second reducer; the snapshot shape is unchanged.
 pub fn reduce_diary(
     transitions: &[StatusEvent],
     annotations: &[InnerStateChanged],
 ) -> crate::snapshot::Snapshot {
-    let unique = dedup_transitions(transitions);
-    let sorted = order_transitions(&unique);
-    let mut work_packages = fold_transitions(&sorted);
-
-    let mut sorted_annotations: Vec<&InnerStateChanged> = annotations.iter().collect();
-    sorted_annotations.sort_by(|left, right| {
-        (left.at.as_str(), left.event_id.as_str())
-            .cmp(&(right.at.as_str(), right.event_id.as_str()))
-    });
-    for annotation in sorted_annotations {
-        let state = work_packages
-            .entry(annotation.wp_id.clone())
-            .or_insert_with(|| runtime_only_wp_state(&annotation.actor));
-        apply_annotation_delta(state, &annotation.delta);
-    }
-
-    let mut summary: BTreeMap<String, u64> = DISPLAY_LANES
-        .iter()
-        .map(|lane| (lane.as_str().to_owned(), 0))
-        .collect();
-    for state in work_packages.values() {
-        if let Some(lane) = state.lane_string()
-            && let Some(count) = summary.get_mut(lane)
-        {
-            *count += 1;
-        }
-    }
-
-    let mission_slug = sorted
-        .first()
-        .map(|event| safe_mission_slug(&event.mission_slug, ""))
-        .unwrap_or_default();
-    let last = sorted.last();
-    crate::snapshot::Snapshot {
-        mission_slug,
-        materialized_at: last.map(|event| event.at.clone()).unwrap_or_default(),
-        event_count: sorted.len(),
-        last_event_id: last.map(|event| event.event_id.clone()),
-        work_packages,
-        summary,
-        mission_number: None,
-        mission_type: None,
-        retrospective: None,
-        schema_version: None,
-    }
-}
-
-fn dedup_transitions(transitions: &[StatusEvent]) -> Vec<StatusEvent> {
-    let mut order: Vec<String> = Vec::new();
-    let mut groups: HashMap<String, Vec<&StatusEvent>> = HashMap::new();
-    for event in transitions {
-        if !groups.contains_key(&event.event_id) {
-            order.push(event.event_id.clone());
-        }
-        groups
-            .entry(event.event_id.clone())
-            .or_default()
-            .push(event);
-    }
-    let mut unique = Vec::with_capacity(order.len());
-    for event_id in order {
-        let rows = groups.remove(&event_id).unwrap_or_default();
-        if rows.len() > 1 && rows.iter().all(|row| row.is_reconstruction_seed()) {
-            let winner = rows
-                .iter()
-                .min_by(|left, right| left.canonical_key().cmp(&right.canonical_key()))
-                .expect("non-empty group");
-            unique.push((*winner).clone());
-        } else if let Some(first) = rows.first() {
-            unique.push((*first).clone());
-        }
-    }
-    unique
-}
-
-fn order_transitions(events: &[StatusEvent]) -> Vec<StatusEvent> {
-    let approvals: HashSet<(String, String)> = events
-        .iter()
-        .filter(|event| {
-            event.to_lane == Lane::Approved
-                && event.from_lane != Lane::Approved
-                && !event.is_reconstruction_seed()
-        })
-        .map(|event| (event.wp_id.clone(), event.at.clone()))
-        .collect();
-
-    let lifted = approved_departure_sort_at(events);
-    let (effective, seq) = carry_lifted_sort_at(events, &lifted);
-
-    let mut sorted: Vec<StatusEvent> = events.to_vec();
-    sorted.sort_by(|left, right| {
-        let left_at = effective.get(&left.event_id).unwrap_or(&left.at);
-        let right_at = effective.get(&right.event_id).unwrap_or(&right.at);
-        let left_second = seq.contains_key(&left.event_id)
-            || (left.from_lane == Lane::Approved
-                && !left.is_reconstruction_seed()
-                && approvals.contains(&(left.wp_id.clone(), left.at.clone())));
-        let right_second = seq.contains_key(&right.event_id)
-            || (right.from_lane == Lane::Approved
-                && !right.is_reconstruction_seed()
-                && approvals.contains(&(right.wp_id.clone(), right.at.clone())));
-        (
-            left_at,
-            left_second,
-            seq.get(&left.event_id).copied().unwrap_or(0),
-            &left.event_id,
-        )
-            .cmp(&(
-                right_at,
-                right_second,
-                seq.get(&right.event_id).copied().unwrap_or(0),
-                &right.event_id,
-            ))
-    });
-    sorted
-}
-
-fn approved_departure_sort_at(events: &[StatusEvent]) -> HashMap<String, String> {
-    let mut arrivals: HashMap<String, Vec<&StatusEvent>> = HashMap::new();
-    let mut departures: HashMap<String, Vec<&StatusEvent>> = HashMap::new();
-    for event in events {
-        if event.is_reconstruction_seed() {
-            continue;
-        }
-        if event.to_lane == Lane::Approved && event.from_lane != Lane::Approved {
-            arrivals.entry(event.wp_id.clone()).or_default().push(event);
-        } else if event.from_lane == Lane::Approved && event.to_lane != Lane::Approved {
-            departures
-                .entry(event.wp_id.clone())
-                .or_default()
-                .push(event);
-        }
-    }
-
-    let mut lifted = HashMap::new();
-    for (wp_id, wp_departures) in departures {
-        let mut unbound = arrivals.remove(&wp_id).unwrap_or_default();
-        unbound.sort_by(|left, right| event_order_key(left).cmp(&event_order_key(right)));
-        let mut ordered = wp_departures;
-        ordered.sort_by(|left, right| event_order_key(left).cmp(&event_order_key(right)));
-
-        let mut skewed = Vec::new();
-        for departure in ordered {
-            let earlier = unbound
-                .iter()
-                .rposition(|arrival| arrival.at <= departure.at);
-            if let Some(index) = earlier {
-                unbound.remove(index);
-            } else {
-                skewed.push(departure);
-            }
-        }
-        for departure in skewed {
-            if let Some(index) = unbound.iter().position(|arrival| arrival.at > departure.at) {
-                let arrival = unbound.remove(index);
-                lifted.insert(departure.event_id.clone(), arrival.at.clone());
-            }
-        }
-    }
-    lifted
-}
-
-fn event_order_key(event: &StatusEvent) -> (&str, &str) {
-    (event.at.as_str(), event.event_id.as_str())
-}
-
-fn carry_lifted_sort_at(
-    events: &[StatusEvent],
-    lifted: &HashMap<String, String>,
-) -> (HashMap<String, String>, HashMap<String, usize>) {
-    if lifted.is_empty() {
-        return (HashMap::new(), HashMap::new());
-    }
-    let mut effective = lifted.clone();
-    let mut seq = HashMap::new();
-    let mut floors: HashMap<String, String> = HashMap::new();
-    let mut ordered: Vec<&StatusEvent> = events.iter().collect();
-    ordered.sort_by(|left, right| event_order_key(left).cmp(&event_order_key(right)));
-    for (position, event) in ordered.into_iter().enumerate() {
-        let floor = floors.get(&event.wp_id).cloned();
-        if let Some(lifted_at) = lifted.get(&event.event_id) {
-            let next = floor
-                .as_deref()
-                .map(|floor| floor.max(lifted_at.as_str()))
-                .unwrap_or(lifted_at.as_str())
-                .to_owned();
-            floors.insert(event.wp_id.clone(), next);
-            seq.insert(event.event_id.clone(), position + 1);
-        } else if let Some(floor) = floor
-            && event.at < floor
-        {
-            effective.insert(event.event_id.clone(), floor);
-            seq.insert(event.event_id.clone(), position + 1);
-        }
-    }
-    (effective, seq)
-}
-
-#[derive(Debug, Default)]
-struct SlotProvenance {
-    real: HashSet<String>,
-    seed: HashSet<String>,
-}
-
-fn fold_transitions(sorted: &[StatusEvent]) -> BTreeMap<String, crate::snapshot::WorkPackageState> {
-    let mut states: BTreeMap<String, crate::snapshot::WorkPackageState> = BTreeMap::new();
-    let mut provenance: HashMap<String, SlotProvenance> = HashMap::new();
-    for event in sorted {
-        let current = states.get(&event.wp_id).cloned();
-        let prov = provenance.entry(event.wp_id.clone()).or_default();
-        match arbitrate_event(current.as_ref(), event, sorted) {
-            Arbitration::Apply => {
-                let mut next = state_from_event(event, current.as_ref());
-                record_applied_event(event, &mut next, prov);
-                states.insert(event.wp_id.clone(), next);
-            }
-            Arbitration::LostOnContinuity
-                if current.is_some() && event.is_reconstruction_seed() =>
-            {
-                let mut next = current.expect("checked");
-                fold_losing_seed(event, &mut next, prov);
-                states.insert(event.wp_id.clone(), next);
-            }
-            Arbitration::LostOnContinuity | Arbitration::LostToRollback => {}
-        }
-    }
-    states
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Arbitration {
-    Apply,
-    LostToRollback,
-    LostOnContinuity,
-}
-
-fn arbitrate_event(
-    current: Option<&crate::snapshot::WorkPackageState>,
-    new_event: &StatusEvent,
-    all_events: &[StatusEvent],
-) -> Arbitration {
-    let Some(current) = current else {
-        return Arbitration::Apply;
-    };
-
-    let current_setter = current
-        .last_event_id()
-        .and_then(|event_id| all_events.iter().find(|event| event.event_id == event_id));
-    let current_timestamp = current.last_transition_at();
-    let current_lane = current.lane_string();
-
-    if current_timestamp == Some(new_event.at.as_str())
-        && let Some(verdict) = same_timestamp_verdict(new_event, current_setter, all_events)
-    {
-        return verdict;
-    }
-
-    if let Some(setter) = current_setter
-        && !new_event.force
-        && Some(new_event.from_lane.as_str()) != current_lane
-        && !continuity_exempt(new_event, setter, all_events)
-    {
-        return Arbitration::LostOnContinuity;
-    }
-
-    Arbitration::Apply
-}
-
-fn same_timestamp_verdict(
-    new_event: &StatusEvent,
-    current_setter: Option<&StatusEvent>,
-    all_events: &[StatusEvent],
-) -> Option<Arbitration> {
-    let current_setter = current_setter?;
-    if new_event.is_rollback_event() {
-        if current_setter.is_rollback_event() {
-            return None;
-        }
-        if !new_event.is_reconstruction_seed()
-            || is_bare_sibling(current_setter, new_event, all_events)
-        {
-            return Some(Arbitration::Apply);
-        }
-        return None;
-    }
-    if current_setter.is_rollback_event() && !yields_to_real(current_setter, new_event, all_events)
-    {
-        return Some(Arbitration::LostToRollback);
-    }
-    None
-}
-
-fn continuity_exempt(
-    new_event: &StatusEvent,
-    current_setter: &StatusEvent,
-    all_events: &[StatusEvent],
-) -> bool {
-    if new_event.is_rollback_event() {
-        if !new_event.is_reconstruction_seed() {
-            return true;
-        }
-        return current_setter.is_rollback_seed()
-            || is_bare_sibling(current_setter, new_event, all_events);
-    }
-    if new_event.is_reconstruction_seed() {
-        return false;
-    }
-    if current_setter.is_reconstruction_seed() && !current_setter.is_rollback_event() {
-        return true;
-    }
-    yields_to_real(current_setter, new_event, all_events)
-}
-
-fn yields_to_real(
-    setter: &StatusEvent,
-    new_event: &StatusEvent,
-    all_events: &[StatusEvent],
-) -> bool {
-    setter.is_rollback_seed()
-        && !new_event.is_reconstruction_seed()
-        && !is_bare_sibling(new_event, setter, all_events)
-}
-
-fn is_bare_sibling(approval: &StatusEvent, seed: &StatusEvent, all_events: &[StatusEvent]) -> bool {
-    if approval.is_rollback_event()
-        || approval.to_lane != Lane::Approved
-        || approval.from_lane != seed.from_lane
-    {
-        return false;
-    }
-    let key = (approval.at.as_str(), approval.event_id.as_str());
-    !all_events.iter().any(|event| {
-        event.wp_id == approval.wp_id
-            && event.from_lane == Lane::Approved
-            && !event.is_reconstruction_seed()
-            && (event.at.as_str(), event.event_id.as_str()) > key
-    })
-}
-
-fn state_from_event(
-    event: &StatusEvent,
-    previous: Option<&crate::snapshot::WorkPackageState>,
-) -> crate::snapshot::WorkPackageState {
-    const RUNTIME_SLOTS: [&str; 13] = [
-        "shell_pid",
-        "shell_pid_created_at",
-        "subtasks",
-        "notes",
-        "tracker_refs",
-        "agent",
-        "assignee",
-        "review",
-        "role",
-        "agent_profile",
-        "agent_profile_version",
-        "model",
-        "provider",
-    ];
-
-    let prior_force_count = previous
-        .and_then(|state| state.get("force_count"))
-        .and_then(Value::as_u64)
-        .unwrap_or(0);
-    let mut state = crate::snapshot::WorkPackageState::default();
-    state.insert("lane", Value::String(event.to_lane.as_str().to_owned()));
-    state.insert("actor", Value::String(event.actor.identity()));
-    state.insert("last_transition_at", Value::String(event.at.clone()));
-    state.insert("last_event_id", Value::String(event.event_id.clone()));
-    state.insert(
-        "force_count",
-        Value::Number(serde_json::Number::from(
-            prior_force_count + u64::from(event.force),
-        )),
-    );
-    if let Some(previous) = previous {
-        for slot in RUNTIME_SLOTS {
-            if let Some(value) = previous.get(slot) {
-                state.insert(slot, value.clone());
-            }
-        }
-    }
-    for (slot, value) in event.claim_sidecar_writes() {
-        state.insert(slot, value);
-    }
-    if event.review_result.is_some() || event.from_lane == Lane::InReview {
-        state.insert(
-            "review_result",
-            event
-                .review_result
-                .as_ref()
-                .map(ReviewOutcome::to_json_value)
-                .unwrap_or(Value::Null),
-        );
-    } else if let Some(previous) = previous
-        && let Some(value) = previous.get("review_result")
-    {
-        state.insert("review_result", value.clone());
-    }
-    state
-}
-
-fn record_applied_event(
-    event: &StatusEvent,
-    state: &mut crate::snapshot::WorkPackageState,
-    provenance: &mut SlotProvenance,
-) {
-    let writes = event.claim_sidecar_writes();
-    let mut wrote: HashSet<String> = writes.keys().cloned().collect();
-    if event.writes_verdict() {
-        wrote.insert("review_result".to_owned());
-    }
-
-    if event.is_reconstruction_seed() && !event.is_rollback_event() {
-        provenance.seed.extend(wrote);
-        return;
-    }
-
-    if writes.contains_key("shell_pid")
-        && !writes.contains_key("shell_pid_created_at")
-        && provenance.seed.contains("shell_pid_created_at")
-    {
-        state.remove("shell_pid_created_at");
-        provenance.seed.remove("shell_pid_created_at");
-    }
-    provenance.real.extend(wrote.iter().cloned());
-    for slot in wrote {
-        provenance.seed.remove(&slot);
-    }
-}
-
-fn fold_losing_seed(
-    event: &StatusEvent,
-    state: &mut crate::snapshot::WorkPackageState,
-    provenance: &mut SlotProvenance,
-) {
-    for (slot, value) in event.claim_sidecar_writes() {
-        if provenance.real.contains(&slot) {
-            continue;
-        }
-        if slot == "shell_pid_created_at" && provenance.real.contains("shell_pid") {
-            continue;
-        }
-        state.insert(&slot, value);
-        provenance.seed.insert(slot);
-    }
-    if let Some(result) = &event.review_result
-        && !provenance.real.contains("review_result")
-    {
-        state.insert("review_result", result.to_json_value());
-        provenance.seed.insert("review_result".to_owned());
-    }
-}
-
-fn runtime_only_wp_state(actor: &Actor) -> crate::snapshot::WorkPackageState {
-    let mut state = crate::snapshot::WorkPackageState::default();
-    state.insert(
-        "lane",
-        Value::String(Lane::Uninitialized.as_str().to_owned()),
-    );
-    state.insert("actor", Value::String(actor.identity()));
-    state.insert("last_transition_at", Value::Null);
-    state.insert("last_event_id", Value::Null);
-    state.insert("force_count", Value::Number(serde_json::Number::from(0u64)));
-    state
-}
-
-fn apply_annotation_delta(state: &mut crate::snapshot::WorkPackageState, delta: &InnerStateDelta) {
-    if delta.release_runtime_claim {
-        for slot in ["agent", "shell_pid", "shell_pid_created_at"] {
-            state.insert(slot, Value::Null);
-        }
-    }
-
-    for slot in [
-        "shell_pid",
-        "shell_pid_created_at",
-        "agent",
-        "assignee",
-        "role",
-        "agent_profile",
-        "agent_profile_version",
-        "model",
-        "provider",
-    ] {
-        let value = if slot == "shell_pid" {
-            delta.shell_pid.as_ref()
-        } else {
-            delta.scalar(slot)
-        };
-        if let Some(value) = value
-            && !matches!(value, Value::String(text) if text.is_empty())
-        {
-            state.insert(slot, value.clone());
-        }
-    }
-
-    if let Some(subtasks) = &delta.subtasks {
-        let mut current = state
-            .get("subtasks")
-            .and_then(Value::as_object)
-            .cloned()
-            .unwrap_or_default();
-        for (id, status) in subtasks {
-            current.insert(id.clone(), Value::String(status.clone()));
-        }
-        state.insert("subtasks", Value::Object(current));
-    }
-
-    if let Some(note) = &delta.note {
-        let mut notes = state
-            .get("notes")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-        notes.push(note.clone());
-        state.insert("notes", Value::Array(notes));
-    }
-
-    if let Some(replace) = &delta.tracker_refs_replace {
-        state.insert("tracker_refs", Value::Array(dedup_preserve_order(replace)));
-    } else if let Some(add) = &delta.tracker_refs {
-        let mut merged = state
-            .get("tracker_refs")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-        for reference in add {
-            if !merged.contains(reference) {
-                merged.push(reference.clone());
-            }
-        }
-        state.insert("tracker_refs", Value::Array(merged));
-    }
-
-    if let Some(review) = &delta.review {
-        state.insert(
-            "review",
-            if review.is_release_sentinel() {
-                Value::Null
-            } else {
-                review.to_json_value()
-            },
-        );
-    }
-}
-
-fn dedup_preserve_order(refs: &[Value]) -> Vec<Value> {
-    let mut seen: Vec<&Value> = Vec::new();
-    let mut result = Vec::with_capacity(refs.len());
-    for reference in refs {
-        if !seen.contains(&reference) {
-            seen.push(reference);
-            result.push(reference.clone());
-        }
-    }
-    result
+    crate::source_event::reduce_typed_diary(transitions, annotations)
 }
 
 // ---------------------------------------------------------------------------

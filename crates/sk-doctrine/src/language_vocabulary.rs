@@ -158,7 +158,7 @@ fn scoped_tokens_in_dir(directory: &Path, suffix: &str) -> BTreeSet<String> {
 /// helper. With no explicit value the process `SPEC_KITTY_PACKS_ROOT` and the
 /// ancestor walk of [`crate::org_charter::built_in_search`] are used, anchored
 /// on `repo_root` (the current directory for an in-memory, rootless read).
-fn built_in_root(
+pub(crate) fn built_in_root(
     repo_root: Option<&Path>,
     packs_root: Option<&Path>,
 ) -> Result<PathBuf, DoctrineError> {
@@ -270,6 +270,62 @@ pub fn scoped_language_vocabulary(
     }
     tokens.retain(|token| !is_reserved_or_sentinel(token));
     Ok(tokens)
+}
+
+/// The pack roots the invocation profile catalogue reads.
+///
+/// This is the **catalogue's** root resolution, and it deliberately reuses the
+/// exact same private helpers as the language-vocabulary scan rather than
+/// copying a chain:
+///
+/// * `built_in` is the module's `built_in_root` (the native
+///   `SPEC_KITTY_PACKS_ROOT` / ancestor-walk seam);
+/// * `org_roots` is the module's `existing_org_roots`, the reference's lenient
+///   `resolve_pack_chain(strict=False)` chain (unparseable registry ⇒ empty,
+///   not-yet-materialised root ⇒ dropped, unexpandable `local_path` ⇒ real
+///   error);
+/// * `project` is the `.kittify/charter-packs` overlay when that directory
+///   exists — the reference's `ActiveCharterService` project layer;
+/// * `legacy_project` is `.kittify/profiles` when it exists: the invocation
+///   registry's separate, **ungated and language-unfiltered** overlay. It is
+///   reported distinctly because it has different gates, not because it has a
+///   different loader.
+///
+/// The strict `configured_org_roots` / `context_roots` chains stay strict for
+/// their own consumers; routing the catalogue through them would invent
+/// refusals the reference does not have.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct CatalogueRoots {
+    /// The built-in pack root (`packs/built-in`).
+    pub built_in: PathBuf,
+    /// Configured org pack roots, in declaration order.
+    pub org_roots: Vec<PathBuf>,
+    /// The project charter-pack root (`.kittify/charter-packs`), when present.
+    pub project: Option<PathBuf>,
+    /// The legacy `.kittify/profiles` invocation overlay, when present.
+    pub legacy_project: Option<PathBuf>,
+}
+
+/// Resolve the catalogue roots for `repo_root`.
+pub fn catalogue_roots(repo_root: &Path) -> Result<CatalogueRoots, DoctrineError> {
+    Ok(CatalogueRoots {
+        built_in: built_in_root(Some(repo_root), None)?,
+        org_roots: existing_org_roots(repo_root)?,
+        project: existing_project_pack_root(repo_root),
+        legacy_project: existing_legacy_profile_root(repo_root),
+    })
+}
+
+/// The `.kittify/charter-packs` overlay root, when it exists.
+pub(crate) fn existing_project_pack_root(repo_root: &Path) -> Option<PathBuf> {
+    let root = repo_root.join(PROJECT_PACK_DIR);
+    root.is_dir().then_some(root)
+}
+
+/// The legacy `.kittify/profiles` invocation overlay root, when it exists.
+fn existing_legacy_profile_root(repo_root: &Path) -> Option<PathBuf> {
+    let root = repo_root.join(".kittify").join("profiles");
+    root.is_dir().then_some(root)
 }
 
 /// Whether `token` is `unknown` (reserved) or `any`/`all` (sentinel).

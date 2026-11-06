@@ -1,0 +1,52 @@
+target:
+  term: "Source session existence/read phase and real binary BOM composition"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Existing Source path-exists helper and byte-stream reader, new typed orientation stat failure mapping. Normalize-newlines wrapper delegates to existing canonical universal_newlines, no second algorithm.
+  import_paths:
+    action: manual_review
+    notes: Reuse namespaced Kernel paths/source reader/newline APIs; no dependencies/error-enum/root-export edits.
+  filesystem_paths:
+    action: manual_review
+    notes: Source Path.exists first (ENOENT/ENOTDIR/EBADF/ELOOP false; other stat errors escape), then actual unbounded stream read. No Source-incompatible regular-file/FIFO refusal. Fresh controlled FIFO/loop/parent fixtures only, no real project changes.
+  serialized_keys:
+    action: do_not_change
+    notes: Keep report and Native error envelope; explicitly not Source traceback/no-JSON wire parity. No extra evidence or readiness fields.
+  cli_commands:
+    action: manual_review
+    notes: Real existing doctor tool-surfaces runner exercised through binary; no flag/route/count change.
+  user_facing_strings:
+    action: manual_review
+    notes: Kernel README acknowledges real decoder while remaining scoped; capabilities name implemented BOM/error propagation with wire/JSON-parser/phase debt, not full parity.
+  tests_fixtures:
+    action: manual_review
+    notes: Add Source-intended stat escapes/absent non-directory or loop and controlled stream tests, retain prior decoder/probe assertions. Add actual binary BOM/unsafe/escaping-failure/no-write controls. No faux paired claim.
+  logs_telemetry:
+    action: do_not_change
+    notes: Preserve producer unwrapped/masked/out-of-list/overscoped attempts and Source-only observations; do not retrofit receipt or acceptance.
+exceptions:
+  - path: crates/sk-install/src/session.rs
+    action: manual_review
+    reason: Source exists/read phase only; no writer/roster/JSON hook predicate rewrite. Legacy bounded-inspection enum variant retained separately.
+  - path: crates/sk-install/src/tool_surface_diagnostics/session_presence.rs
+    action: manual_review
+    reason: Actual inspection failure escapes via existing local read carrier; no missing/unsafe substitution.
+  - path: crates/sk-kernel/src/text_decode.rs
+    action: manual_review
+    reason: normalize_newlines shares existing canonical TextIO newline primitive, decoder unchanged.
+  - path: crates/sk-install/tests/cf33_parent_source_streams.rs
+    action: manual_review
+    reason: Fresh source-cause controls, controlled FIFO means no indefinite test wait without writer.
+  - path: crates/sk-cli/tests/cf33_parent_session_binary.rs
+    action: manual_review
+    reason: Real binary route and current Native envelope only; not Source wire approval.
+  - path: crates/sk-kernel/README.md
+    action: manual_review
+    reason: Decoder no longer absent; deep matrix/consumer verification remains pending.
+  - path: crates/sk-cli/src/compat/capabilities.rs
+    action: manual_review
+    reason: Only truthful bounded session decoder/phase debt wording, active charter/other-lane facts untouched.
+status:
+  accepted: false
+  phase: parent pre-edit Source phase correction

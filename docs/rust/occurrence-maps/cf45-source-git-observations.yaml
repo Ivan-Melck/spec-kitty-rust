@@ -1,0 +1,102 @@
+# CF45 ADDITIVE lane classification; no active host Mission/Op and no approval.
+#
+# Scope: the NEW Source-compatible Git READ capabilities that actual read-only
+# doctor consumers need, added on top of the ONE existing `sk-git` subprocess
+# seam / parsers / codecs (`crates/sk-git/src/{status,refs,worktree,sparse,
+# objects}.rs`) plus the NEW non-duplicating composition module
+# `crates/sk-git/src/source_observations.rs`, the exact additive `mod`/
+# re-export lines in `crates/sk-git/src/lib.rs`, and the new
+# `crates/sk-git/tests/cf45_*.rs` tests.
+#
+# No pre-existing identifier is renamed, removed or deprecated: every existing
+# read/mutation signature, error variant, parser and `UntrackedMode` value keeps
+# its meaning. The only edit to an existing enum is the ADDED
+# `UntrackedMode::Config` variant, which leaves `StatusOptions::default()` and
+# every explicit `No`/`Normal`/`All` caller byte-identical, so
+# `target.operation` is omitted (additive). This map is a PRE-edit
+# classification record, not an approval, a Mission event or a gate waiver.
+#
+# Composition, not a second authority: the new capabilities reuse
+# `process::GitProcess` (the one subprocess seam), `status::parse_status_z`
+# (the one parsed-status owner), `refs`' `for-each-ref`/`Oid`/`RefName` reads,
+# `worktree`'s existing typed roster (left untouched), `sparse`'s existing
+# `rev-parse --git-path info/sparse-checkout` resolver, `objects`'
+# `parse_ls_tree_record`/`read_entry_blob` and `sk_kernel::python_text`
+# (`universal_newlines`/`splitlines`/`is_whitespace`). No private Git process,
+# second parsed-status/ref/worktree model or lossy decode is introduced.
+target:
+  term: "new CF45 Source-compatible sk-git read capability identifiers (sk_git::source_observations::*, SourceRevision, WorktreePorcelainObservation, RemoteTrackingRoster, UntrackedMode::Config, sparse_pattern_file_text_source / sparse_pattern_file_patterns_source)"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      NEW public symbols only, one home each: `status::UntrackedMode::Config`
+      (added variant; every existing variant and `Default` unchanged),
+      `status::StatusOptions::source_defaults`, `refs::RefListingEntry` +
+      `GitRepository::refs_under` (one `for-each-ref` read reused by the roster),
+      `worktree::WorktreePorcelainObservation` +
+      `GitRepository::worktree_porcelain_observation`,
+      `sparse::{sparse_pattern_file_text_source,
+      sparse_pattern_file_patterns_source}`,
+      `objects::SourceRevision` + `tree_entry_at_revision` /
+      `read_blob_at_revision` / `read_blob_at_revision_bounded` /
+      `tree_paths_at_revision` (which delegate to the same private
+      `parse_ls_tree_record` / `read_entry_blob`), and
+      `source_observations::{RemoteTrackingRef, RemoteTrackingRoster,
+      GitRepository::remote_tracking_roster, GitRepository::status_source_observed}`.
+      No existing symbol's meaning, signature or visibility changes.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No dependency edge, manifest, lockfile, feature or registry change. The
+      new module uses only `std`, the crate's own modules and already-declared
+      `sk-kernel` (`python_text`, `no_follow` where the existing bounded reader
+      needs it). The only path-level changes are the additive `mod
+      source_observations;` declaration and the additive re-export lines in
+      `crates/sk-git/src/lib.rs`.
+  filesystem_paths:
+    action: manual_review
+    notes: >-
+      NEW paths created: `crates/sk-git/src/source_observations.rs`, the new
+      `crates/sk-git/tests/cf45_source_observations.rs` test file and this map.
+      Every path these capabilities READ is resolved by the existing owner
+      (`sparse::sparse_pattern_file` → `git rev-parse --git-path
+      info/sparse-checkout`, exactly the Source spelling); no new path is
+      guessed, no directory is created and nothing is written.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No serialized/document key, wire field, env var or config key is added or
+      changed. The Source status capability only OMITS `--untracked-files`, so
+      the user's own `status.showUntrackedFiles` config value governs exactly as
+      Source's `git status --short` does; this lane never writes that config.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No CLI command, flag or script name changes. The new capabilities are
+      library reads only; wiring them into `doctor`/Workspace/health consumers
+      belongs to CF47 and the parent, not this lane.
+  user_facing_strings:
+    action: do_not_change
+    notes: >-
+      No user-facing message is introduced. Doc comments only. The Source
+      failure text (git's own stderr) is carried as data by the observation/
+      error types, never rewritten into a new message.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      NEW tests only (`crates/sk-git/tests/cf45_source_observations.rs`), built
+      on fresh `tempfile` + real `git` repositories created inside the test
+      (mktemp semantics); no existing fixture, golden or corpus is edited. The
+      tests cover: config `status.showUntrackedFiles` no/normal/all through the
+      canonical status owner; a symbolic remote `HEAD` plus an ordinary remote
+      in the roster; the raw `worktree {path}` porcelain spelling; failed-command
+      metadata (completed non-zero exit exposed, not turned into an empty list);
+      sparse newlines/whitespace/symlink and an unbounded read beyond the
+      existing 1 MiB bounded reader; and the Source revision seam at a short
+      branch, a tag and a remote-tracking name.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log key, metric name or telemetry event is added or changed. No
+      tracing/`eprintln!` diagnostics are added by the new read paths.

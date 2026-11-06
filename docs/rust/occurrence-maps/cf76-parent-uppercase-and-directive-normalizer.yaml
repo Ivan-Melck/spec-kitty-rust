@@ -1,0 +1,110 @@
+# CF76 PRE occurrence classification (PROSPECTIVE for the remaining edits).
+#
+# CHRONOLOGY, NOT BACKDATED: the pinned generator extension
+# (scripts/rust/generate_router_unicode.py), the generated data file
+# (crates/sk-kernel/src/python_text_upper_data.rs) and the Kernel additions
+# (python_text::upper_codepoints, PythonString::upper, lib.rs module line) were
+# written BEFORE this map existed. This map is therefore PRE for the remaining
+# Doctrine/test edits only; the report records the actual order and does not
+# claim retroactive PRE compliance for the earlier ones.
+#
+# This is an additive capability plus ONE fidelity correction, not a rename:
+# `normalize_directive_id` keeps its name and `&str -> String` signature.
+target:
+  term: Rust `to_uppercase`/ASCII-digit directive-id normalisation instead of CPython 3.11.15/UCD14 `str.upper` with Unicode Nd prefix
+  replacement: CPython 3.11.15/Unicode 14.0.0 full `str.upper` over exact PythonString plus Source `normalize_directive_id` policy
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      One new Kernel text primitive (`python_text::upper_codepoints`) plus the
+      same-item `PythonString::upper` method; the existing Doctrine policy owner
+      `org::normalize_directive_id` is corrected in place and gains one exact
+      PythonString API. `identity::IdentityIndex::unindexed_key_exact` /
+      `lookup_key_exact` and the scalar fallbacks route through that one owner;
+      the Cs hyphen-only arm is removed, not replaced by a second normaliser.
+  import_paths:
+    action: manual_review
+    notes: >-
+      Only `mod python_text_upper_data;` in the Kernel crate root and its two
+      `use` lines inside `python_text.rs`; no re-export, wrapper, alias module or
+      dependency edge is added.
+  filesystem_paths:
+    action: do_not_change
+    notes: No path authority, placement, writer, pin, pack or Source path change.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No wire/model/serialized key changes. A normalized directive id can still
+      reach rendered text and warnings, which is user_facing_strings, not a key.
+  cli_commands:
+    action: do_not_change
+    notes: No CLI flag/subcommand/default change; existing routes only.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Directive ids in rendered governance text, activation warnings and
+      collision messages now carry the Source's exact uppercase (expansions,
+      Unicode Nd prefixes, preserved surrogate/NUL units, trailing newline).
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New named Kernel unit tests and one new sk-doctrine integration target
+      (cf76_uppercase_normalizer) with a Source-first existing-API red and a
+      two-children Source/Native primitive+policy+identity pair.
+  logs_telemetry:
+    action: manual_review
+    notes: >-
+      Failed append/compile attempts, generator check before/after and every
+      focused Cargo receipt are retained; no aggregate/count/release promotion.
+exceptions:
+  - path: crates/sk-kernel/src/python_text.rs
+    action: manual_review
+    reason: >-
+      The one shared text authority gains `upper_codepoints` plus its focused
+      unit tests, next to the existing `lower_codepoints`; no second table.
+  - path: crates/sk-kernel/src/python_text_upper_data.rs
+    action: manual_review
+    reason: >-
+      Generated data file (new) produced by the existing pinned generator from
+      the lock-exact oracle; existing lower/word/cased tables stay byte-identical.
+  - path: crates/sk-kernel/src/codepoint.rs
+    action: manual_review
+    reason: >-
+      Same-item `PythonString::upper` delegating to the one text authority; the
+      type, its validation and its repr are unchanged.
+  - path: crates/sk-kernel/src/lib.rs
+    action: manual_review
+    reason: One additive private module declaration; no other export changes.
+  - path: crates/sk-doctrine/src/org.rs
+    action: manual_review
+    reason: >-
+      The existing single directive-id policy owner is corrected to the Source
+      regex/strip/zfill/hyphen/`str.upper` phases over exact code points.
+  - path: crates/sk-doctrine/src/identity.rs
+    action: manual_review
+    reason: >-
+      Exact unindexed/lookup and scalar fallbacks share that owner; the temporary
+      Cs hyphen-only branch and scalar-only normalisation drops are removed.
+  - path: scripts/rust/generate_router_unicode.py
+    action: manual_review
+    reason: >-
+      The existing generator gains `upper_facts`/`render_upper` and checks both
+      outputs; its oracle/version/Unicode/digest/refusal guards are unchanged.
+  - path: scripts/rust/tests/test_generate_router_unicode.py
+    action: manual_review
+    reason: Focused generator controls for the new output; no test weakened.
+  - path: crates/sk-doctrine/tests/cf76_uppercase_normalizer.rs
+    action: manual_review
+    reason: New Source-first primitive/policy/identity control target.
+structural_targets:
+  - path: crates/sk-kernel/src/python_text_upper_data.rs
+    reason: >-
+      New generated table file (structural addition), not a find/replace of an
+      existing term.
+  - path: crates/sk-doctrine/tests/cf76_uppercase_normalizer.rs
+    reason: New named test target implementing the two-children pair, not a bulk
+      edit of an existing test.
+status:
+  accepted: false
+  phase: prospective parent corrections

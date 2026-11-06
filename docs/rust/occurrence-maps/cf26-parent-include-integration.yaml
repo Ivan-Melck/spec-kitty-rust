@@ -1,0 +1,61 @@
+# Parent PRE-EDIT map after actual CF26 report/code and Source context.py,
+# template_include.py, artifact_bodies.py and charter/_common.py review.
+# Native/caller census: .wd8FoO and .Uu6ifo. No producer map retroapproval.
+target:
+  term: "context include canonical text JSON and failure integration"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Parser delegates whitespace/lower to existing pinned Kernel; payload delegates to Kernel PythonJson encoder. Generic probe cannot claim a unique rendered kind when another present kind has a pending projection. Fix parent single-element doctor test loop, assertions preserved.
+  import_paths:
+    action: manual_review
+    notes: Existing canonical Kernel text/JSON APIs and CompatError result-envelope carrier, no new dependency/parser/model/writer.
+  filesystem_paths:
+    action: do_not_change
+    notes: No Source/pack/pin/template/manifest paths changed. New temporary fixtures only, no active lane files or whole-file charter formatting.
+  serialized_keys:
+    action: manual_review
+    notes: Source charter errors carry result/error/success, optional code not error_code. Remove Native-only section unknown code on this Source ValueError path. Keep success body and include/context/text; body JSON uses ensure_ascii/CPython float spellings/sorted keys.
+  cli_commands:
+    action: do_not_change
+    notes: Same context --include flags/selectors/exits; pending kinds remain explicit partial functionality, not claimed supported. Doctor dispatch/arrays remain untouched.
+  user_facing_strings:
+    action: manual_review
+    notes: Narrow only non-section capability gap wording; retain model/deny/overlay/template/encoding/errorphase/depth debts and unrelated preset gap owned by CF29. Native partial refusal code stays explicit, not a Source exception.
+  tests_fixtures:
+    action: manual_review
+    notes: New focused text/JSON/control-space/UCD14/ambiguity/errors tests before fixes; preserve old supported selector assertions. Correct pending JSON assertion to Source code field/family, verify absence of obsolete error_code; no guard bypass or weaker expected health.
+  logs_telemetry:
+    action: do_not_change
+    notes: Retain every red/compile/foreign result; finite Native smoke not Source paired proof, no release/global/performance promotion.
+exceptions:
+  - path: crates/sk-doctrine/src/context_include.rs
+    action: manual_review
+    reason: Released CF26 parser/unique-probe correction only; template arm reserved for next distinct feature after parent freeze.
+  - path: crates/sk-doctrine/src/context_render.rs
+    action: manual_review
+    reason: Only new include payload/inline trim helpers, not existing action rendering.
+  - path: crates/sk-cli/src/compat/charter/context_include.rs
+    action: manual_review
+    reason: Released adapter only, existing chosen-exit envelope reused; no charter.rs/CF29 preset edit.
+  - path: crates/sk-cli/src/compat/doctor.rs
+    action: manual_review
+    reason: Parent unit test body only; CF27 owns one separate registry module declaration, no formatting/import/dispatch changes.
+  - path: crates/sk-cli/src/compat/capabilities.rs
+    action: manual_review
+    reason: Only non-section includes gap wording narrowed; no full charter promotion or preset claim.
+  - path: crates/sk-doctrine/tests/cf26_context_include.rs
+    action: manual_review
+    reason: Add genuine cross-kind ambiguity with pending model projection using existing fixture; existing assertions retained.
+  - path: crates/sk-doctrine/tests/cf26_parent_include_projection.rs
+    action: manual_review
+    reason: New focused pinned text/JSON boundary regressions, not an exhaustive or paired matrix.
+  - path: crates/sk-cli/tests/cf26_context_include_cli.rs
+    action: manual_review
+    reason: Pending error assertion follows actual Source charter envelope with no loss of exit/message/code checks.
+  - path: crates/sk-cli/tests/cf26_parent_include_errors.rs
+    action: manual_review
+    reason: New actual binary malformed/missing/section error envelope tests plus read-only footprint.
+status:
+  accepted: false
+  phase: parent pre-edit bounded integration

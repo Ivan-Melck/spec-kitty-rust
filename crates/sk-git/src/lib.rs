@@ -87,6 +87,16 @@
 //! bases, unmerged conflict entries, and bounded typed tree/blob reads at a
 //! validated revision and literal path.
 //!
+//! Source-compatible read seams over the same owners: a status observation whose
+//! untracked mode follows the repository's `status.showUntrackedFiles`
+//! ([`UntrackedMode::Config`]), raw `git worktree list --porcelain` text
+//! ([`WorktreePorcelainObservation`]), the full remote-tracking ref roster
+//! ([`RemoteTrackingRoster`]), the reference's ordinary unbounded sparse
+//! pattern-file read, and a tree/blob read at a Source-valid revision
+//! ([`SourceRevision`]) that is not restricted to a fully-qualified ref. Each is
+//! a separate, additively named API: the typed roster, the bounded readers and
+//! the existing explicit status modes keep their contracts.
+//!
 //! Mutating, each with an explicit plan: branch create, fast-forward (or
 //! explicitly allowed non-fast-forward) advance with optional clean-checkout
 //! resync, guarded branch delete with unique-commit analysis and optional tip
@@ -138,6 +148,13 @@
 //!   `core.autocrlf`, `status.showUntrackedFiles`, `safe.directory`, and
 //!   attributes). The adapter does not rewrite configuration and does not claim
 //!   byte-for-byte parity with every possible configuration.
+//! * The Source-compatible reads are deliberately shaped like the reference: the
+//!   raw worktree observation and the remote-tracking roster carry the text and
+//!   names Git itself produced (no re-parse into the typed models), and the
+//!   Source sparse read has no byte bound and follows a final symlink, unlike the
+//!   bounded no-follow [`GitRepository::sparse_pattern_file_text`]. A completed
+//!   non-zero command exit is exposed to the caller where the reference catches
+//!   it; it is never turned into an empty success.
 //! * The exact-ref family is the ordinary path-only route. Index-only removals, a
 //!   pinned parent and exact raw-byte assertions remain on the short-branch API,
 //!   and are refused for an unborn destination rather than faked. A destination
@@ -167,6 +184,8 @@
 #![deny(missing_docs)]
 
 mod branch;
+pub mod commit_history;
+pub mod consolidation;
 mod error;
 mod ignore;
 mod index_authority;
@@ -175,7 +194,9 @@ mod merge_start;
 mod message;
 mod objects;
 mod oid;
+mod origin_gate;
 mod path;
+mod pr_merge;
 mod process;
 mod refname;
 mod refs;
@@ -186,6 +207,7 @@ mod safe_commit;
 mod safe_commit_paths;
 mod safe_commit_physical;
 mod safe_commit_transaction;
+mod source_observations;
 mod sparse;
 mod status;
 mod symbolic;
@@ -198,6 +220,12 @@ pub use branch::{
     BranchCreationPlan, BranchDeletionOptions, BranchDeletionOutcome, BranchDeletionPlan,
     BranchDeletionPreflight, ProtectedBranches,
 };
+pub use commit_history::{commit_paths, commits_in_range};
+pub use consolidation::{
+    DiffEntry, DriverInstallOutcome, MERGE_DRIVER_CONFIGS, MergeDriverActivation,
+    MergeDriverConfig, MergeNoFfStatus, RebaseStatus, SquashMergeStatus,
+    merge_driver_attribute_lines, merge_driver_config,
+};
 pub use error::{GitError, MergeConclusionUnconfirmed, SafeCommitLandedKind};
 pub use index_authority::{OperatorIndex, OperatorIndexSource};
 pub use merge::{
@@ -208,17 +236,32 @@ pub use merge_start::{
 };
 pub use message::{CommitMessage, MessageOrigin};
 pub use objects::{
-    BlobLookup, DEFAULT_MAX_BLOB_BYTES, MAX_BLOB_BYTES, SymbolicHeadObservation, TreeEntry,
-    TreeEntryKind, UnmergedPath, UnmergedStage,
+    BlobLookup, DEFAULT_MAX_BLOB_BYTES, IndexEntry, MAX_BLOB_BYTES, SourceRevision,
+    SymbolicHeadObservation, TreeEntry, TreeEntryKind, UnmergedPath, UnmergedStage,
 };
 pub use oid::Oid;
+pub use origin_gate::{
+    ORIGIN_CHECK_CHOICES, ORIGIN_CHECK_ENV, ORIGIN_COMPARE_FAILED, ORIGIN_LANE_DIVERGED,
+    ORIGIN_LANE_STALE, ORIGIN_REMOTE_AMBIGUOUS, ORIGIN_STATUS_STALE, ORIGIN_UNREACHABLE,
+    OriginCheckMode, OriginCheckSetting, OriginFacts, OriginFreshnessRefused, check_branches,
+    enforce_merge_gate, origin_not_checked_warning, read_only_setting, refresh_branch_facts,
+    refusal_headline, resolve_origin_check_mode,
+};
 pub use path::GitPath;
+pub use pr_merge::{
+    ANCHOR_EVIDENCE_CORPUS_PARENT_ATTESTED, ANCHOR_EVIDENCE_MERGE_COMMIT_PARENT_ATTESTED,
+    PrMergeEvidence, PrMergeEvidenceError, verify_pr_merge_evidence,
+};
 pub use process::{DEFAULT_TIMEOUT, GitOptions};
 pub use refname::{BranchName, RefName, StartPoint};
-pub use refs::{RefChange, RefState, RefTransactionOutcome, RefTransactionPlan};
+pub use refs::{
+    RefChange, RefListingEntry, RefState, RefTransactionOutcome, RefTransactionPlan,
+    SilentRefTransaction,
+};
 pub use remote::{
-    AheadBehind, FreshnessState, FreshnessVerdict, RemoteBranchLookup, RemoteHead,
-    RemoteHeadTarget, RemoteHeads, RemoteName,
+    AheadBehind, FreshnessState, FreshnessVerdict, RefreshedFreshness, RemoteBranchLookup,
+    RemoteHead, RemoteHeadTarget, RemoteHeads, RemoteName, SOURCE_FETCH_TIMEOUT,
+    SOURCE_LS_REMOTE_TIMEOUT,
 };
 pub use repo_state::{GitDirs, InProgressOperation, MERGE_TREE_WRITE_TREE_MIN_VERSION};
 pub use repository::{CommitMessagePath, GitRepository};
@@ -236,12 +279,13 @@ pub use safe_commit_physical::{
     SafeCommitLateMessage, SafeCommitPhysicalGuardVerdict, SafeCommitPhysicalMessagePlan,
     SafeCommitPhysicalOutcome, SafeCommitPhysicalPlan, SafeCommitPhysicalRequest,
 };
+pub use source_observations::{RemoteTrackingRef, RemoteTrackingRoster};
 pub use sparse::{
     MAX_SPARSE_PATTERN_FILE_BYTES, SPARSE_CHECKOUT_MIN_VERSION, SparseCheckoutMode,
     SparseCheckoutOutcome, SparseCheckoutPlan, SparseCheckoutState,
 };
 pub use status::{StatusEntry, StatusOptions, UntrackedMode};
-pub use worktree::Worktree;
+pub use worktree::{Worktree, WorktreePorcelainObservation};
 pub use worktree_ops::{
     WorktreeAddOutcome, WorktreeAddPlan, WorktreeDiscardPolicy, WorktreeRemovalOutcome,
     WorktreeRemovalPlan, WorktreeStart,

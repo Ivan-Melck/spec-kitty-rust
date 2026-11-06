@@ -31,6 +31,7 @@ use crate::error::GitError;
 use crate::index_authority::OperatorIndex;
 use crate::path::GitPath;
 use crate::repository::GitRepository;
+use sk_kernel::python_text::{is_whitespace, splitlines, universal_newlines};
 
 /// How patterns are interpreted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -224,6 +225,61 @@ impl GitRepository {
             &bytes,
             "sparse-checkout pattern file",
         )?))
+    }
+
+    /// The per-worktree sparse pattern file text as the reference reads it.
+    ///
+    /// This is the Source-shaped, **ordinary** read, separate from the bounded
+    /// [`GitRepository::sparse_pattern_file_text`] capability above:
+    ///
+    /// * the path is still resolved by the one canonical owner
+    ///   (`git rev-parse --git-path info/sparse-checkout`, per worktree), never
+    ///   guessed;
+    /// * the file is read with an ordinary read, so a final symlink is followed
+    ///   and there is **no byte bound** (the existing reader's 1 MiB guard is a
+    ///   deliberately stricter Native capability, not Source equivalence);
+    /// * the bytes are decoded as exact UTF-8 (a decode failure is
+    ///   [`GitError::NonUtf8`], never U+FFFD replacement);
+    /// * TextIOWrapper's `newline=None` translation is applied, so `\r\n` and
+    ///   lone `\r` become `\n`, exactly like Python's `Path.read_text()`;
+    /// * Source's `Path.exists()` phase runs before the read: its ignored
+    ///   stat errors mean `Ok(None)`, while other stat failures escape;
+    /// * after existence is established, every read failure remains
+    ///   [`GitError::Io`], including a file disappearing before it is opened.
+    pub fn sparse_pattern_file_text_source(&self) -> Result<Option<String>, GitError> {
+        let path = self.sparse_pattern_file()?;
+        if !sk_kernel::paths::source_path_exists(&path).map_err(|source| GitError::Io {
+            context: "inspect the sparse-checkout pattern file (Source exists)",
+            source,
+        })? {
+            return Ok(None);
+        }
+        let bytes = sk_kernel::read_source_bytes(&path).map_err(|error| GitError::Io {
+            context: "read the sparse-checkout pattern file (Source read)",
+            source: match error {
+                sk_kernel::KernelError::Io { source, .. } => source,
+                other => std::io::Error::other(other),
+            },
+        })?;
+        let text = crate::path::utf8_field(&bytes, "sparse-checkout pattern file")?;
+        Ok(Some(universal_newlines(&text).into_owned()))
+    }
+
+    /// The pattern lines the reference derives from the pattern file, or `None`
+    /// when the file is absent.
+    ///
+    /// Reproduces the reference's comprehension
+    /// `{"line.strip() for line in file.read_text().splitlines() if line.strip()}`
+    /// on top of [`GitRepository::sparse_pattern_file_text_source`]: CPython
+    /// `str.splitlines()`, Python `str.strip()` whitespace, and empty lines
+    /// dropped. The reference builds an unordered set, so duplicates are
+    /// dropped here too; the returned order is the file's first-seen order and
+    /// is not part of the contract.
+    pub fn sparse_pattern_file_patterns_source(&self) -> Result<Option<Vec<String>>, GitError> {
+        let Some(text) = self.sparse_pattern_file_text_source()? else {
+            return Ok(None);
+        };
+        Ok(Some(source_pattern_lines(&text)))
     }
 
     /// Every index entry currently marked skip-worktree in this checkout.
@@ -488,6 +544,41 @@ impl GitRepository {
             }),
         }
     }
+}
+
+/// The reference's `{"line.strip() for line in text.splitlines() if line.strip()}`
+/// over already universal-newline-translated text: CPython line boundaries,
+/// Python whitespace `strip`, empty lines dropped, duplicates collapsed.
+fn source_pattern_lines(text: &str) -> Vec<String> {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut patterns = Vec::new();
+    for line in splitlines(text) {
+        let stripped = strip_python_whitespace(line);
+        if !stripped.is_empty() && seen.insert(stripped.to_string()) {
+            patterns.push(stripped.to_string());
+        }
+    }
+    patterns
+}
+
+/// Python `str.strip()`: strip code points where `str.isspace()` is true.
+///
+/// The predicate is the one pinned CPython/UCD14 authority
+/// (`sk_kernel::python_text::is_whitespace`); this is only the surrounding
+/// borrow-preserving trim, not a second whitespace table.
+fn strip_python_whitespace(text: &str) -> &str {
+    let start = text
+        .char_indices()
+        .find(|(_, character)| !is_whitespace(*character as u32))
+        .map(|(index, _)| index)
+        .unwrap_or(text.len());
+    let end = text
+        .char_indices()
+        .rev()
+        .find(|(_, character)| !is_whitespace(*character as u32))
+        .map(|(index, character)| index + character.len_utf8())
+        .unwrap_or(start);
+    &text[start..end.max(start)]
 }
 
 fn validate_patterns(patterns: &[String]) -> Result<Vec<String>, GitError> {

@@ -8,6 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use sk_charter::ArtifactKind;
+use sk_kernel::PythonString;
 
 use crate::error::DoctrineError;
 use crate::ledger::{
@@ -18,6 +19,13 @@ use crate::ledger::{
 use crate::yaml::{PreparedWrite, YamlDocument};
 
 /// What is effective for one activation key while that key is absent.
+///
+/// `ids` and `fallback_ids` are exact Kernel [`PythonString`]s: the reference
+/// keys its sets on Python `str`, so a service-only id or an id a pack file
+/// declares with a code point a Rust `String` cannot hold is carried exactly,
+/// never dropped or substituted. A caller that wants Rust text asks for the
+/// explicit scalar projection ([`EffectiveSet::scalar_ids`]); the scalar view is
+/// a capability, not the authority.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EffectiveSet {
     /// The artifact kind operator token.
@@ -25,13 +33,39 @@ pub struct EffectiveSet {
     /// The activation key.
     pub yaml_key: String,
     /// The effective ids, as activation stems.
-    pub ids: Vec<String>,
+    pub ids: Vec<PythonString>,
     /// Best-effort readable-chain union; never written by promotion.
-    pub fallback_ids: Vec<String>,
+    pub fallback_ids: Vec<PythonString>,
     /// Whether the offering could be resolved.
     pub resolved: bool,
     /// Why the set is unresolved, when it is.
     pub reason: Option<String>,
+}
+
+impl EffectiveSet {
+    /// The explicit scalar capability view of [`EffectiveSet::ids`].
+    ///
+    /// `None` when any id has no scalar projection (it holds a lone surrogate or
+    /// similar non-UTF-8 code point). A caller must not read that as an empty
+    /// set: the exact ids remain available on the field.
+    #[must_use]
+    pub fn scalar_ids(&self) -> Option<Vec<String>> {
+        self.ids
+            .iter()
+            .map(|id| id.to_scalar_string().ok())
+            .collect()
+    }
+
+    /// The explicit scalar capability view of [`EffectiveSet::fallback_ids`].
+    ///
+    /// `None` for the same reason as [`EffectiveSet::scalar_ids`].
+    #[must_use]
+    pub fn scalar_fallback_ids(&self) -> Option<Vec<String>> {
+        self.fallback_ids
+            .iter()
+            .map(|id| id.to_scalar_string().ok())
+            .collect()
+    }
 }
 
 /// The in-memory post-state of one activation or deactivation.

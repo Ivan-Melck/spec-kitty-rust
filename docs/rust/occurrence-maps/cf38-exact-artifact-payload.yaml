@@ -1,0 +1,120 @@
+# CF38 PRE-EDIT occurrence classification (additive; no rename/remove/deprecate).
+# Written before any Source/Native code edit. Derived from the actual pre-edit
+# probes in /tmp/cf38-evidence-20261106-01/ (command-log-index.tsv) plus
+# crates/sk-doctrine/src/body.rs, context_render.rs, context_include.rs read
+# before editing. No host Mission/Op/approval is invented by this map.
+target:
+  term: "CF31 finite serde artifact model dump (canonical_artifact_body / include_full_payload_lines)"
+  replacement: "exact PythonJsonValue artifact model dump over the canonical YAML graph, with the finite serde dump retained as an explicit legacy scalar adapter"
+  # No `operation:` key: this map authorises an ADDITIVE lane (new module, new
+  # public entry points, new tests). The allowed operations are rename/remove/
+  # deprecate; none applies, so the operation is intentionally omitted.
+categories:
+  code_symbols:
+    action: do_not_change
+    notes: >-
+      No existing symbol is renamed, removed or deprecated. ADDED:
+      crates/sk-doctrine/src/body/exact.rs (private module `body::exact`) with
+      `canonical_artifact_body_exact` (NodeRef input) and
+      `canonical_artifact_body_exact_value` (serde_yaml_ng::Value input), plus
+      `context_render::include_full_payload_lines_exact` and the lib.rs
+      same-item re-export. `canonical_artifact_body`,
+      `include_full_payload_lines`, `include_body_lines` and every CF32 include
+      arm keep their names and signatures.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No manifest, module path, re-export root or dependency edge changes. The
+      new module is declared inside the already-owned `body` module
+      (`mod exact;` in body.rs), so `sk-doctrine`'s public module map is
+      unchanged apart from the one additive lib.rs re-export.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No authored YAML, pack, pin, golden or Source path is touched. New test
+      fixtures are created in fresh temporary directories only.
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      The serialized key set of an artifact payload is UNCHANGED (same
+      Field/Spec names, same model defaults, same exclude_none dropping). Only
+      VALUE fidelity widens for keys that already exist: typed `float` fields
+      keep NaN/Infinity/-Infinity and signed zero, exact code points (including
+      lone surrogates) are emitted as CPython `\uXXXX` escapes, and
+      unstructured (`dict[str, Any]`) content keeps Python array nulls while
+      dropping mapping nulls, mapping sets/pairs/omap onto array/array/object
+      shapes in the constructed order. No new key is invented and no summary_json
+      exception is used or extended.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No CLI wiring, flag, alias, registration, catalogue or command surface is
+      added or changed by this lane. `--include` dispatch stays CF32-owned; the
+      parent wires the exact renderer after CF32 completes.
+  user_facing_strings:
+    action: do_not_change
+    notes: >-
+      No user-facing prose changes. The `Full artifact:` heading and its
+      six-space continuation indent are byte-identical to the reference.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      ADDED only: crates/sk-doctrine/tests/cf38_exact_artifact_payload.rs
+      (finite old/new equivalence, NaN/+-Infinity/-0.0/large-int/exact
+      surrogate key+value associations, optional defaults and nested nulls,
+      admitted constructed set/pairs/omap/bytes shapes and order, nine-kind
+      dumps, full payload text) with both actual children asserting CWD/HOME/
+      all seven XDG roots (including XDG_CONFIG_DIRS and XDG_DATA_DIRS),
+      TMPDIR/TMP/TEMP, absolute PYTHONPATH and the pinned packs root, plus
+      PYTHONHASHSEED=0 so the set-order authority is observable on both legs.
+      KEEP: cf31_canonical_include_models.rs, cf26_parent_include_projection.rs,
+      cf32_effective_include.rs and the inline body.rs tests, unchanged.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No event, metric or telemetry identity changes; no readiness, approval,
+      acceptance or performance status is written by this lane.
+exceptions:
+  - path: crates/sk-doctrine/src/body.rs
+    action: manual_review
+    reason: >-
+      Additive module declaration + exact entry-point docs; the existing struct
+      Field / enum Spec metadata stays the ONE schema surface and becomes
+      crate-visible so exactly one walker uses it. no whole-file formatting.
+  - path: crates/sk-doctrine/src/body/exact.rs
+    action: manual_review
+    reason: >-
+      NEW file: the single exact schema walker/coercion owner over Kernel
+      PythonJsonValue/PythonString and the canonical graph/constructed-value
+      authorities. No second parser, model, schema walker or set-order logic.
+  - path: crates/sk-doctrine/src/context_render.rs
+    action: manual_review
+    reason: >-
+      Only the include_full_payload_lines block plus the new exact renderer it
+      delegates to. The CF32-owned include_body_lines kind arms are untouched.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: >-
+      One additive same-item re-export of the exact body API beside the existing
+      canonical_artifact_body export; no module map or ordering change.
+  - path: crates/sk-doctrine/tests/cf38_exact_artifact_payload.rs
+    action: manual_review
+    reason: >-
+      NEW test file only; no existing test is edited, weakened or removed.
+  - path: crates/sk-doctrine/src/offering/model.rs
+    action: do_not_change
+    reason: >-
+      CF31 read-only admission/coercion authority. The exact walker consumes
+      its lax_float_text/lax_bool_text and the shared constructed-value
+      accessors; it adds no coercion rule of its own.
+  - path: crates/sk-doctrine/src/context_include.rs
+    action: do_not_change
+    reason: >-
+      CF32/CF31-owned include dispatch. Parent re-wires it onto the exact API
+      after CF32 completes; this lane only reports the typed contract.
+  - path: src/**
+    action: do_not_change
+    reason: Pinned Source remains the read-only oracle.
+status:
+  reviewed_by: "parent pre-edit classification; not independent approval"
+  accepted: false

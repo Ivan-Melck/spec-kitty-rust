@@ -1,0 +1,108 @@
+{
+ "_provenance": "Recorded by the pinned Source (CPython 3.11.15, .venv-rust-oracle) running the ACTUAL m_4_0_0rc8_promote_interview_selections migration against the pinned built-in pack: a present activated_directives list that holds EVERY available directive (asked from the Source's own resolve_effective_sets, 38 at the pin) while the interview selected two, so the run only warns and narrows nothing. `dry_result` is the reference's apply(dry_run=True). No placeholder is needed: no recorded text carries the project path. Regenerate with /tmp/sk-cf11/probe_promote_seeded_hint.py through /tmp/sk-a5/source-probe.sh and /tmp/sk-cf11/build_fixture.py.",
+ "resolved": {
+  "activated_directives": {
+   "count": 38,
+   "first": [
+    "033-targeted-staging-policy",
+    "041-tests-as-scaffold-not-friction",
+    "029-agent-commit-signing-policy"
+   ],
+   "reason": null,
+   "resolved": true
+  },
+  "activated_tactics": {
+   "count": 121,
+   "first": [
+    "semantic-compression-redundancy-discovery",
+    "test-pyramid-progression",
+    "refactoring-replace-magic-number-with-symbolic-constant"
+   ],
+   "reason": null,
+   "resolved": true
+  }
+ },
+ "seeded_hint": {
+  "after": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "d8206c19e9546a9edc711e0894911a6e8bd701c8dc9278aa6b779a74951bd7ef",
+    "text": "governance:\n  charter:\n    selected_directives: []\ncatalog:\n  references: []\nmetadata:\n  bundle_schema_version: 2\nactivated_directives:\n- 033-targeted-staging-policy\n- 041-tests-as-scaffold-not-friction\n- 029-agent-commit-signing-policy\n- 050-credential-handling-discipline\n- disciplined-refactoring\n- use-c4-model-techniques\n- 010-specification-fidelity-requirement\n- 051-supply-chain-install-safety\n- 038-structured-prompt-boundary\n- use-mutation-testing-to-validate-test-quality\n- 030-test-and-typecheck-quality-gate\n- 044-canonical-sources-and-unification\n- 028-search-tool-discipline\n- 001-architectural-integrity-standard\n- 035-bulk-edit-occurrence-classification\n- action-item-attribution\n- 039-lynn-cole-engineering-culture\n- 031-context-aware-design\n- 045-prs-only-and-read-intent\n- minutes-stand-alone\n- 034-test-first-development\n- 043-close-defect-class-by-construction\n- 024-locality-of-change\n- 048-version-governance\n- 047-audience-oriented-writing\n- 036-black-box-integration-testing\n- 042-common-docs\n- 037-living-documentation-sync\n- reconcile-change-scope-tensions\n- 040-recurring-bug-structural-intervention\n- 025-boy-scout-rule\n- 032-conceptual-alignment\n- 018-doctrine-versioning-requirement\n- 052-prefer-durable-fixes\n- 003-decision-documentation-requirement\n- 053-choose-op-or-mission-before-starting\n- 046-readable-consistent-prs\n- 049-agent-declaration-and-self-introduction\n"
+   },
+   ".kittify/charter/interview": {
+    "kind": "dir"
+   },
+   ".kittify/charter/interview/answers.yaml": {
+    "kind": "file",
+    "sha256": "5736e275845ec6d8dbe5cffdc5367d9ee30ae8c234e65ee69567e97639200f43",
+    "text": "mission: software-dev\nselected_directives:\n- DIRECTIVE_001\n- DIRECTIVE_010\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "65854816fe10e1e55be219f5f49245ba204f749ed4ceaf054c26cd41419f5bcb",
+    "text": "agents:\n  available:\n  - claude\ncharter: .kittify/charter/charter.yaml\n"
+   }
+  },
+  "before": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "d8206c19e9546a9edc711e0894911a6e8bd701c8dc9278aa6b779a74951bd7ef",
+    "text": "governance:\n  charter:\n    selected_directives: []\ncatalog:\n  references: []\nmetadata:\n  bundle_schema_version: 2\nactivated_directives:\n- 033-targeted-staging-policy\n- 041-tests-as-scaffold-not-friction\n- 029-agent-commit-signing-policy\n- 050-credential-handling-discipline\n- disciplined-refactoring\n- use-c4-model-techniques\n- 010-specification-fidelity-requirement\n- 051-supply-chain-install-safety\n- 038-structured-prompt-boundary\n- use-mutation-testing-to-validate-test-quality\n- 030-test-and-typecheck-quality-gate\n- 044-canonical-sources-and-unification\n- 028-search-tool-discipline\n- 001-architectural-integrity-standard\n- 035-bulk-edit-occurrence-classification\n- action-item-attribution\n- 039-lynn-cole-engineering-culture\n- 031-context-aware-design\n- 045-prs-only-and-read-intent\n- minutes-stand-alone\n- 034-test-first-development\n- 043-close-defect-class-by-construction\n- 024-locality-of-change\n- 048-version-governance\n- 047-audience-oriented-writing\n- 036-black-box-integration-testing\n- 042-common-docs\n- 037-living-documentation-sync\n- reconcile-change-scope-tensions\n- 040-recurring-bug-structural-intervention\n- 025-boy-scout-rule\n- 032-conceptual-alignment\n- 018-doctrine-versioning-requirement\n- 052-prefer-durable-fixes\n- 003-decision-documentation-requirement\n- 053-choose-op-or-mission-before-starting\n- 046-readable-consistent-prs\n- 049-agent-declaration-and-self-introduction\n"
+   },
+   ".kittify/charter/interview": {
+    "kind": "dir"
+   },
+   ".kittify/charter/interview/answers.yaml": {
+    "kind": "file",
+    "sha256": "5736e275845ec6d8dbe5cffdc5367d9ee30ae8c234e65ee69567e97639200f43",
+    "text": "mission: software-dev\nselected_directives:\n- DIRECTIVE_001\n- DIRECTIVE_010\n"
+   },
+   ".kittify/config.yaml": {
+    "kind": "file",
+    "sha256": "65854816fe10e1e55be219f5f49245ba204f749ed4ceaf054c26cd41419f5bcb",
+    "text": "agents:\n  available:\n  - claude\ncharter: .kittify/charter/charter.yaml\n"
+   }
+  },
+  "can_apply": [
+   true,
+   ""
+  ],
+  "detect": true,
+  "dry_result": {
+   "changes_made": [
+    "dry-run: nothing would be promoted"
+   ],
+   "errors": [],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": [
+    "activated_directives lists every available directive (38), as an upgrade before 4.0.0rc8 wrote it; the interview selected 2. To keep only those, run `spec-kitty charter interview --narrow-activation` or `spec-kitty charter activate directive <id> --only`; `charter synthesize` then asks for companion tactics only for what you keep."
+   ]
+  },
+  "result": {
+   "changes_made": [
+    "No interview selections to promote: every selection is already in force"
+   ],
+   "errors": [],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": [
+    "activated_directives lists every available directive (38), as an upgrade before 4.0.0rc8 wrote it; the interview selected 2. To keep only those, run `spec-kitty charter interview --narrow-activation` or `spec-kitty charter activate directive <id> --only`; `charter synthesize` then asks for companion tactics only for what you keep."
+   ]
+  }
+ }
+}

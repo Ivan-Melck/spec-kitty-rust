@@ -25,6 +25,27 @@ const BUILT_IN_SIBLING: &str = "packs/built-in";
 const BUILT_IN_PIN: &str = "packs/built-in.source.yaml";
 const PROJECT_PACK_DIR: &str = ".kittify/charter-packs";
 
+/// Source's offering project-layer candidate, not the repository root.
+///
+/// Mirrors `_project_root_candidates.resolve_project_root`: the first existing
+/// directory wins, including an empty or externally symlinked directory. No
+/// configuration is read. Contained inspection remains a separate policy.
+pub fn resolve_source_project_layer(project_root: &Path) -> Option<PathBuf> {
+    [
+        project_root.join(PROJECT_PACK_DIR),
+        project_root.join("src/charter/offering"),
+    ]
+    .into_iter()
+    .find(|candidate| candidate.is_dir())
+}
+
+// Inspection containment is a distinct capability, not a compatible execution
+// refusal: Source reads an existing lexical project overlay through symlinks.
+enum ProjectPosture {
+    Contained,
+    SourceLexical,
+}
+
 /// Locates the built-in pack tier.
 ///
 /// Order: `SPEC_KITTY_PACKS_ROOT` + `built-in` when it exists, otherwise the
@@ -33,6 +54,7 @@ const PROJECT_PACK_DIR: &str = ".kittify/charter-packs";
 #[derive(Debug)]
 pub struct BuiltInSearch {
     anchor: PathBuf,
+    fallback_anchors: Vec<PathBuf>,
     packs_root_env: Option<PathBuf>,
     warnings: Mutex<Vec<String>>,
     max_ancestor_hops: usize,
@@ -42,6 +64,7 @@ impl Clone for BuiltInSearch {
     fn clone(&self) -> Self {
         Self {
             anchor: self.anchor.clone(),
+            fallback_anchors: self.fallback_anchors.clone(),
             packs_root_env: self.packs_root_env.clone(),
             warnings: Mutex::new(self.warnings()),
             max_ancestor_hops: self.max_ancestor_hops,
@@ -54,6 +77,7 @@ impl BuiltInSearch {
     pub fn new(anchor: impl Into<PathBuf>) -> Self {
         Self {
             anchor: anchor.into(),
+            fallback_anchors: Vec::new(),
             packs_root_env: None,
             warnings: Mutex::new(Vec::new()),
             max_ancestor_hops: Limits::default().max_ancestor_hops,
@@ -67,6 +91,25 @@ impl BuiltInSearch {
             packs_root_env,
             ..Self::new(anchor)
         }
+    }
+
+    /// Resolve resources beside the running Native distribution, independently
+    /// of the inspected project's location. Developer binaries may also read
+    /// their build-tree package resources. A pinned but incomplete installed
+    /// tree remains an error; it never silently selects the developer tree.
+    pub fn packaged() -> Self {
+        let development_package = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        match std::env::current_exe() {
+            Ok(executable) => Self::from_env(executable).with_fallback_anchor(development_package),
+            Err(_) => Self::from_env(development_package),
+        }
+    }
+
+    /// Try another resource anchor only if the earlier anchor has neither a
+    /// pack directory nor a pin identifying an incomplete packaged tree.
+    pub fn with_fallback_anchor(mut self, anchor: impl Into<PathBuf>) -> Self {
+        self.fallback_anchors.push(anchor.into());
+        self
     }
 
     /// Use an explicit `SPEC_KITTY_PACKS_ROOT` value (the parent of `built-in`).
@@ -107,21 +150,22 @@ impl BuiltInSearch {
             ));
         }
 
-        for ancestor in self.anchor.ancestors().take(self.max_ancestor_hops + 1) {
-            let candidate = ancestor.join(BUILT_IN_SIBLING);
-            if candidate.is_dir() {
-                if !candidate.join(PACK_DESCRIPTOR).is_file()
-                    && ancestor.join(BUILT_IN_PIN).is_file()
-                {
+        for anchor in std::iter::once(&self.anchor).chain(&self.fallback_anchors) {
+            for ancestor in anchor.ancestors().take(self.max_ancestor_hops + 1) {
+                let candidate = ancestor.join(BUILT_IN_SIBLING);
+                if candidate.is_dir() {
+                    if !candidate.join(PACK_DESCRIPTOR).is_file()
+                        && ancestor.join(BUILT_IN_PIN).is_file()
+                    {
+                        return Err(CharterError::BuiltInPackMissing);
+                    }
+                    return canonical(&candidate);
+                }
+            }
+            for ancestor in anchor.ancestors().take(self.max_ancestor_hops + 1) {
+                if ancestor.join(BUILT_IN_PIN).is_file() {
                     return Err(CharterError::BuiltInPackMissing);
                 }
-                return canonical(&candidate);
-            }
-        }
-
-        for ancestor in self.anchor.ancestors().take(self.max_ancestor_hops + 1) {
-            if ancestor.join(BUILT_IN_PIN).is_file() {
-                return Err(CharterError::BuiltInPackMissing);
             }
         }
         Err(CharterError::PackRootNotFound {
@@ -166,38 +210,124 @@ impl PackRoots {
         expansion: &PathExpansion,
         built_in: Option<&BuiltInSearch>,
     ) -> Result<Self, CharterError> {
+        Self::resolve_with_org_posture(
+            project_root,
+            Some(config),
+            expansion,
+            built_in,
+            true,
+            ProjectPosture::Contained,
+        )
+    }
+
+    /// Resolve readable tiers with the same path authority and declaration order.
+    /// Missing/non-directory org packs are omitted. An unreadable registry is
+    /// represented by `None`: it contributes no org roots, never erases the
+    /// independently readable project layer. Other path errors remain errors.
+    pub fn resolve_existing(
+        project_root: &Path,
+        config: Option<&ProjectConfig>,
+        expansion: &PathExpansion,
+        built_in: Option<&BuiltInSearch>,
+    ) -> Result<Self, CharterError> {
+        Self::resolve_with_org_posture(
+            project_root,
+            config,
+            expansion,
+            built_in,
+            false,
+            ProjectPosture::Contained,
+        )
+    }
+
+    /// Source-compatible tier resolution. Declared org roots are required;
+    /// an existing project overlay retains its lexical path, including an
+    /// external symlink target. Use [`Self::resolve`] for contained inspection.
+    pub fn resolve_source(
+        project_root: &Path,
+        config: &ProjectConfig,
+        expansion: &PathExpansion,
+        built_in: Option<&BuiltInSearch>,
+    ) -> Result<Self, CharterError> {
+        Self::resolve_with_org_posture(
+            project_root,
+            Some(config),
+            expansion,
+            built_in,
+            true,
+            ProjectPosture::SourceLexical,
+        )
+    }
+
+    /// Readable Source-compatible tiers. An unreadable registry omits only
+    /// org roots; it cannot erase a readable lexical project overlay.
+    pub fn resolve_existing_source(
+        project_root: &Path,
+        config: Option<&ProjectConfig>,
+        expansion: &PathExpansion,
+        built_in: Option<&BuiltInSearch>,
+    ) -> Result<Self, CharterError> {
+        Self::resolve_with_org_posture(
+            project_root,
+            config,
+            expansion,
+            built_in,
+            false,
+            ProjectPosture::SourceLexical,
+        )
+    }
+
+    fn resolve_with_org_posture(
+        project_root: &Path,
+        config: Option<&ProjectConfig>,
+        expansion: &PathExpansion,
+        built_in: Option<&BuiltInSearch>,
+        missing_org_is_error: bool,
+        project_posture: ProjectPosture,
+    ) -> Result<Self, CharterError> {
         let (built_in_root, warnings) = match built_in {
             Some(search) => (Some(search.find_root()?), search.warnings()),
             None => (None, Vec::new()),
         };
 
-        let mut organizations = Vec::with_capacity(config.org_packs.len());
-        for pack in &config.org_packs {
-            let base = pack.local_path_root(project_root, expansion)?;
-            if !base.is_dir() {
-                return Err(CharterError::OrgPackMissing {
+        let mut organizations = Vec::new();
+        if let Some(config) = config {
+            for pack in &config.org_packs {
+                let base = pack.local_path_root(project_root, expansion)?;
+                if !base.is_dir() {
+                    if !missing_org_is_error {
+                        continue;
+                    }
+                    return Err(CharterError::OrgPackMissing {
+                        name: pack.name.clone(),
+                        path: config.path.clone(),
+                        root: base,
+                    });
+                }
+                let root = pack.effective_root(project_root, expansion)?;
+                if !root.is_dir() {
+                    if !missing_org_is_error {
+                        continue;
+                    }
+                    return Err(CharterError::OrgPackMissing {
+                        name: pack.name.clone(),
+                        path: config.path.clone(),
+                        root,
+                    });
+                }
+                organizations.push(OrgPackRoot {
                     name: pack.name.clone(),
-                    path: config.path.clone(),
-                    root: base,
+                    root: canonical(&root)?,
                 });
             }
-            let root = pack.effective_root(project_root, expansion)?;
-            if !root.is_dir() {
-                return Err(CharterError::OrgPackMissing {
-                    name: pack.name.clone(),
-                    path: config.path.clone(),
-                    root,
-                });
-            }
-            organizations.push(OrgPackRoot {
-                name: pack.name.clone(),
-                root: canonical(&root)?,
-            });
         }
 
         let project_lexical = project_root.join(PROJECT_PACK_DIR);
         let project = if project_lexical.is_dir() {
-            Some(resolve_contained(project_root, PROJECT_PACK_DIR)?)
+            Some(match project_posture {
+                ProjectPosture::Contained => resolve_contained(project_root, PROJECT_PACK_DIR)?,
+                ProjectPosture::SourceLexical => project_lexical,
+            })
         } else {
             None
         };

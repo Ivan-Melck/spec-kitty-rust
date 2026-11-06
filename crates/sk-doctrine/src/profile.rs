@@ -1,7 +1,18 @@
 //! Agent-profile loading, lineage composition and profile-channel delivery.
 //!
-//! Mirrors `src/charter/offering/agent_profiles/repository.py` and
+//! Mirrors `src/charter/offering/agent_profiles/repository.py`,
+//! `src/charter/offering/agent_profiles/profile.py` and
 //! `src/charter/activation/profile_resolution.py`.
+//!
+//! **Identity is exact.** The reference model's `profile_id` (and every other
+//! authored string) is a Python `str`, which may hold code points that a Rust
+//! `String` cannot (a lone surrogate produced by a `\uD800`-style escape). The
+//! loaded profile therefore keys on [`sk_kernel::PythonString`] and keeps the
+//! authored body losslessly: see [`crate::profile_text`] for the transport. A
+//! profile is **never** dropped, renamed or refused because its authored string
+//! happens to be non-scalar; a scalar compatibility projection is offered
+//! explicitly ([`AgentProfile::scalar_id`], [`ProfileBody::scalar_projection`])
+//! and it is not the parity authority.
 //!
 //! Loading is layered exactly as the reference repository does it:
 //!
@@ -17,6 +28,11 @@
 //! * `applies_to_languages` filters a scoped profile against the project's
 //!   active languages (family-expanded), and a filtered id is recorded.
 //!
+//! `<<` merge keys are resolved before validation (the reference reader
+//! flattens them; `serde_yaml_ng`'s self-describing `Value` keeps them
+//! literal), with the reference precedence: an explicitly authored key wins,
+//! and an earlier merge source wins over a later one.
+//!
 //! Lineage is read from the DRG (`agent_profile --specializes_from-->
 //! agent_profile`) only; a missing parent, a cycle, or more than one declared
 //! parent is a typed refusal. The resolving (leaf) profile's `excluding`
@@ -26,9 +42,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use serde_yaml_ng::{Mapping, Value};
+use sk_kernel::PythonString;
+use sk_kernel::python_yaml::{GraphDocument, NodeRef, ObjectGraph};
 
 use crate::error::DoctrineError;
 use crate::graph::{DrgGraph, NodeKind, Relation};
+use crate::offering::{ConstructorAbort, NativeOfferingFailure};
+use crate::profile_schema::Values;
+use crate::profile_text::{self, ProfileTextError};
 use crate::query::profile_channel_relations;
 
 /// List-valued profile fields that inherit by union up the lineage chain.
@@ -40,54 +61,8 @@ pub const UNION_LIST_FIELDS: [&str; 5] = [
     "tactic-references",
 ];
 
-/// Top-level keys the agent-profile schema declares (`extra="forbid"` upstream).
-///
-/// Every entry is accepted by the reference model: the kebab-case serialization
-/// alias AND its Python field name (`populate_by_name=True`), so both spellings
-/// load. Omitting a field name here would silently skip a real built-in profile
-/// (the reproduced `self-review-protocol` loss).
-const PROFILE_KEYS: [&str; 40] = [
-    "profile-id",
-    "profile_id",
-    "name",
-    "description",
-    "schema-version",
-    "schema_version",
-    "role",
-    "roles",
-    "avatar-image",
-    "avatar_image",
-    "capabilities",
-    "routing-priority",
-    "routing_priority",
-    "max-concurrent-tasks",
-    "max_concurrent_tasks",
-    "model",
-    "preferred_model",
-    "effort",
-    "purpose",
-    "specialization",
-    "collaboration",
-    "mode-defaults",
-    "mode_defaults",
-    "initialization-declaration",
-    "initialization_declaration",
-    "sentinel",
-    "specialization-context",
-    "specialization_context",
-    "self-review-protocol",
-    "self_review_protocol",
-    "applies_to_languages",
-    "directive-references",
-    "directive_references",
-    "tactic-references",
-    "tactic_references",
-    "toolguide-references",
-    "toolguide_references",
-    "styleguide-references",
-    "styleguide_references",
-    "excluding",
-];
+/// Fields rejected on any artifact as a retired inline reference channel.
+const FORBIDDEN_INLINE_REFERENCE_FIELDS: [&str; 3] = ["tactic_refs", "paradigm_refs", "applies_to"];
 
 /// Relationship fields retired in the DRG hard cutover.
 const RETIRED_RELATIONSHIP_KEYS: [&str; 4] = [
@@ -97,117 +72,735 @@ const RETIRED_RELATIONSHIP_KEYS: [&str; 4] = [
     "overrides",
 ];
 
+/// The reference model's default `routing-priority`.
+pub const DEFAULT_ROUTING_PRIORITY: i64 = 50;
+/// The reference model's default `max-concurrent-tasks`.
+pub const DEFAULT_MAX_CONCURRENT_TASKS: i64 = 5;
+/// The reference model's default `schema-version`.
+pub const DEFAULT_SCHEMA_VERSION: &str = "1.0";
+
+/// Render an exact id for a diagnostic message.
+///
+/// The scalar projection is used when it exists (so ordinary ids read
+/// normally); otherwise the escaped `repr` names the exact code points, which is
+/// a truthful diagnostic and never a substituted id.
+pub fn profile_id_label(id: &PythonString) -> String {
+    match id.to_scalar_string() {
+        Ok(scalar) => scalar,
+        Err(_) => id.repr(),
+    }
+}
+
+/// Lower-case a role the way the reference's `Role(value)` does.
+///
+/// Half-open custom roles use the same pinned CPython full/contextual mapping
+/// as invocation routing, including Final Sigma and non-scalar code points.
+pub(crate) fn lowercase_role(value: &PythonString) -> PythonString {
+    PythonString::from_units(sk_kernel::python_text::lower_codepoints(value.codepoints()))
+        .expect("lowercasing valid Python code points keeps them in range")
+}
+
+/// An exact Python `int` carried by a profile field.
+///
+/// The reference model's `int` fields are Python's arbitrary-precision `int`,
+/// so a documented value such as `max-concurrent-tasks: 10**30` is valid data.
+/// `i64` cannot hold it; projecting it to `i64` would either drop the digits or
+/// substitute the declared default, and neither is the Source value. This type
+/// is the canonical exact representation for those fields: it keeps the decimal
+/// digits, compares exactly, and offers the `i64` projection as an explicit
+/// capability view ([`ExactInteger::scalar`]).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ExactInteger {
+    /// A value `i64` can represent.
+    InRange(i64),
+    /// A magnitude outside `i64`, kept as exact decimal digits.
+    Big {
+        /// Whether the value is negative.
+        negative: bool,
+        /// The decimal magnitude, without a sign and without leading zeros.
+        digits: String,
+    },
+}
+
+impl ExactInteger {
+    /// A value from an `i64`.
+    pub fn from_i64(value: i64) -> Self {
+        Self::InRange(value)
+    }
+
+    /// The exact value of an already-constructed YAML node, when it is an int.
+    pub fn from_value(value: &Value) -> Option<Self> {
+        match value {
+            Value::Number(number) => {
+                if let Some(integer) = number.as_i64() {
+                    return Some(Self::InRange(integer));
+                }
+                number.as_u64().map(|unsigned| Self::Big {
+                    negative: false,
+                    digits: unsigned.to_string(),
+                })
+            }
+            other => crate::profile_construct::constructed_big_integer(other).map(Self::parse),
+        }
+    }
+
+    /// The exact value of a decimal spelling with an optional sign.
+    pub fn parse(text: &str) -> Self {
+        match text.parse::<i64>() {
+            Ok(value) => Self::InRange(value),
+            Err(_) => {
+                let (negative, body) = match text.strip_prefix('-') {
+                    Some(body) => (true, body),
+                    None => (false, text.strip_prefix('+').unwrap_or(text)),
+                };
+                let digits = body.trim_start_matches('0');
+                if digits.is_empty() {
+                    return Self::InRange(0);
+                }
+                Self::Big {
+                    negative,
+                    digits: digits.to_owned(),
+                }
+            }
+        }
+    }
+
+    /// The value as `i64`, when it fits — the explicit scalar capability view.
+    ///
+    /// `None` is a real capability boundary (the authored value is wider than
+    /// `i64`), never a substituted default.
+    pub fn scalar(&self) -> Option<i64> {
+        match self {
+            Self::InRange(value) => Some(*value),
+            Self::Big { negative, digits } => {
+                let magnitude = digits.parse::<i128>().ok()?;
+                let value = if *negative { -magnitude } else { magnitude };
+                i64::try_from(value).ok()
+            }
+        }
+    }
+
+    /// The exact decimal spelling (CPython `str(int)`), sign included.
+    pub fn decimal(&self) -> String {
+        match self {
+            Self::InRange(value) => value.to_string(),
+            Self::Big { negative, digits } => {
+                if *negative {
+                    format!("-{digits}")
+                } else {
+                    digits.clone()
+                }
+            }
+        }
+    }
+
+    /// Whether the value is greater than zero.
+    pub fn is_positive(&self) -> bool {
+        match self {
+            Self::InRange(value) => *value > 0,
+            Self::Big { negative, digits } => !*negative && digits != "0",
+        }
+    }
+
+    /// Exact comparison against an `i64` bound.
+    pub fn cmp_i64(&self, other: i64) -> std::cmp::Ordering {
+        match self {
+            Self::InRange(value) => value.cmp(&other),
+            Self::Big { negative, .. } => {
+                if *negative {
+                    std::cmp::Ordering::Less
+                } else {
+                    std::cmp::Ordering::Greater
+                }
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for ExactInteger {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.decimal())
+    }
+}
+
+/// Why a profile load aborted: a real Source exception or a Native capability failure.
+///
+/// The reference's loader catches `(YAMLError, OSError)` per file. Anything else —
+/// `KeyError` from an invalid `!!bool`, `ValueError` from `int()`/`float()` or an
+/// impossible date, `TypeError` from an unhashable `!!set` key, `AssertionError`
+/// from a duplicate `!!omap` key, or `AttributeError` from a non-mapping document —
+/// propagates out of the layer load: the command exits nonzero, prints no list and
+/// no partial success is observable. This is the canonical [`ConstructorAbort`]
+/// carrier, not a second exception enum or class-string map.
+///
+/// A Native capability/start-up failure (an unusable `PYTHONHASHSEED`) is **not** a
+/// Source Python class: CPython dies before user code, so it stays the CF83 typed
+/// [`NativeOfferingFailure`] with its real phase, path and Kernel cause.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProfileLoadAbortCause {
+    /// The Python exception the reference does not catch.
+    Source(ConstructorAbort),
+    /// A Native capability/start-up failure with no Source class.
+    Native(NativeOfferingFailure),
+}
+
+impl std::fmt::Display for ProfileLoadAbortCause {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Source(abort) => std::fmt::Display::fmt(abort, formatter),
+            Self::Native(native) => std::fmt::Display::fmt(native, formatter),
+        }
+    }
+}
+
+impl std::error::Error for ProfileLoadAbortCause {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Source(abort) => Some(abort),
+            Self::Native(native) => Some(native),
+        }
+    }
+}
+
+/// A profile document that makes the reference crash while it loads.
+///
+/// The reference's loader catches `(YAMLError, OSError)` per file. Anything else
+/// — `KeyError` from an invalid `!!bool`, `ValueError` from `int()`/`float()` or
+/// an impossible date, `TypeError` from an unhashable `!!set` key,
+/// `AssertionError` from a duplicate `!!omap` key, `AttributeError` from a
+/// non-mapping document, or the fatal `PYTHONHASHSEED` line — propagates out of
+/// the layer load: the command exits nonzero, prints no list and no partial
+/// success is observable. This type carries that phase and cause.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProfileLoadAbort {
+    /// The file whose construction raised.
+    pub path: PathBuf,
+    /// The typed cause (a real Source class or a Native capability failure).
+    pub cause: ProfileLoadAbortCause,
+}
+
+impl ProfileLoadAbort {
+    /// `ExceptionClass: message`, the last line of the reference's traceback.
+    pub fn diagnostic(&self) -> String {
+        self.cause.to_string()
+    }
+}
+
+impl From<ProfileLoadAbort> for DoctrineError {
+    fn from(abort: ProfileLoadAbort) -> Self {
+        DoctrineError::ProfileLoadAborted {
+            path: abort.path,
+            cause: Box::new(abort.cause),
+        }
+    }
+}
+
 /// One file the repository refused to load, with the reason.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SkippedProfile {
     /// The refused file.
     pub path: PathBuf,
-    /// Its declared id, when one could be read.
+    /// Its declared id, exactly, when one could be read.
+    pub exact_profile_id: Option<PythonString>,
+    /// The scalar projection of the declared id, when it has one.
+    ///
+    /// Kept as a separate field so existing scalar diagnostics consumers keep
+    /// their shape; a non-scalar id is *not* projected lossily here.
     pub profile_id: Option<String>,
     /// Why it was skipped.
     pub summary: String,
 }
 
-/// One loaded agent profile.
-#[derive(Clone, Debug)]
-pub struct AgentProfile {
-    /// The profile id.
-    pub id: String,
-    /// The declaring file.
-    pub path: PathBuf,
-    /// The profile body after the layer merge (before lineage composition).
-    pub body: Mapping,
-    /// The lineage chain, root first, leaf last.
-    pub lineage: Vec<String>,
+impl SkippedProfile {
+    /// The declared id's diagnostic label (scalar text or escaped `repr`).
+    pub fn profile_id_label(&self) -> Option<String> {
+        self.exact_profile_id.as_ref().map(profile_id_label)
+    }
 }
 
-impl AgentProfile {
-    /// The display name, when one is declared.
-    pub fn name(&self) -> Option<&str> {
-        self.body
-            .get("name")
-            .and_then(Value::as_str)
-            .filter(|name| !name.is_empty())
+/// The authored profile body: exact keys and exact scalar values.
+///
+/// The `Mapping` inside is the semantic *transport* view: every lossy
+/// double-quoted scalar is replaced by an invertible marker string, so
+/// structure, typing, key identity and merge behaviour keep their exact
+/// meaning. Use [`ProfileBody::string`], [`ProfileBody::strings`],
+/// [`ProfileBody::keys`] and the other typed accessors to read authored values;
+/// [`ProfileBody::shadow`] is deliberately not the data authority.
+///
+/// The body is *also* the canonical Kernel object graph of that same document
+/// ([`ProfileBody::root`]), and that graph — not the tree — is what the schema
+/// and model layers read. A body is always a document this crate constructed
+/// (a `model_dump` view, or a merged model body); an authored file is read as a
+/// [`GraphDocument`] directly, so a Source-valid cycle never has to be
+/// materialised into this tree.
+#[derive(Clone, Debug, Default)]
+pub struct ProfileBody {
+    shadow: Mapping,
+    markers: BTreeMap<String, PythonString>,
+    graph: Option<ObjectGraph>,
+}
+
+impl PartialEq for ProfileBody {
+    fn eq(&self, other: &Self) -> bool {
+        self.shadow == other.shadow && self.markers == other.markers
+    }
+}
+
+impl ProfileBody {
+    /// Build a body from a semantic mapping and its exact scalar table.
+    pub fn from_parts(shadow: Mapping, markers: BTreeMap<String, PythonString>) -> Self {
+        // The tree is the document this body *is*; the graph is built from it by
+        // the ONE canonical constructor, so both views name the same objects.
+        let document = Value::Mapping(shadow.clone());
+        let graph = sk_kernel::python_yaml::build_from_value_with_markers(
+            &document,
+            &markers,
+            profile_text::DIALECT,
+        )
+        .ok();
+        Self {
+            shadow,
+            markers,
+            graph,
+        }
     }
 
-    /// The title, when one is declared.
-    pub fn title(&self) -> Option<&str> {
-        self.body
-            .get("title")
-            .and_then(Value::as_str)
-            .filter(|title| !title.is_empty())
+    /// The constructed document's root as a borrowed canonical graph view.
+    ///
+    /// `None` is an explicit capability boundary: the mapping could not be
+    /// canonicalised (a shape this crate never produces).
+    pub fn root(&self) -> Option<NodeRef<'_>> {
+        self.graph.as_ref().map(ObjectGraph::root_view)
     }
 
-    /// The purpose, when one is declared.
-    pub fn purpose(&self) -> Option<&str> {
-        self.body
-            .get("purpose")
-            .and_then(Value::as_str)
-            .filter(|purpose| !purpose.is_empty())
+    /// The semantic transport view (markers in place of lossy scalars).
+    ///
+    /// Exposed for structural work (nested lookups, iteration); an authored
+    /// string must be read through [`ProfileBody::string`] or
+    /// [`ProfileBody::exact_string`].
+    pub fn shadow(&self) -> &Mapping {
+        &self.shadow
     }
 
-    /// The primary role (`roles[0]`), when declared.
-    pub fn role(&self) -> Option<&str> {
-        self.body
-            .get("roles")
-            .and_then(Value::as_sequence)
-            .and_then(|roles| roles.first())
-            .and_then(Value::as_str)
-            .or_else(|| self.body.get("role").and_then(Value::as_str))
+    /// The exact values the transport recovered, keyed by marker.
+    pub fn markers(&self) -> &BTreeMap<String, PythonString> {
+        &self.markers
     }
 
-    /// The structural sentinel flag.
-    pub fn sentinel(&self) -> bool {
-        self.body
-            .get("sentinel")
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
+    /// The exact value of a transport scalar (identity for a scalar string).
+    pub fn exact_string(&self, value: &str) -> PythonString {
+        match self.markers.get(value) {
+            Some(exact) => exact.clone(),
+            None => PythonString::from_scalars(value),
+        }
+    }
+
+    /// A value by authored key.
+    pub fn get(&self, key: &str) -> Option<&Value> {
+        self.shadow.get(key)
+    }
+
+    /// Whether an authored key is present.
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.shadow.contains_key(key)
+    }
+
+    /// A string field, exactly.
+    pub fn string(&self, key: &str) -> Option<PythonString> {
+        self.get(key)
+            .and_then(Value::as_str)
+            .map(|value| self.exact_string(value))
+    }
+
+    /// A string field's scalar projection (`None` when it is not a scalar).
+    pub fn scalar_string(&self, key: &str) -> Option<String> {
+        self.string(key)?.to_scalar_string().ok()
     }
 
     /// A list field's entries.
-    pub fn list(&self, field: &str) -> Vec<&Value> {
-        self.body
-            .get(field)
+    pub fn list(&self, key: &str) -> Vec<&Value> {
+        self.get(key)
             .and_then(Value::as_sequence)
             .map(|items| items.iter().collect())
             .unwrap_or_default()
     }
 
-    /// Directive reference codes cited by this profile (including inherited ones).
-    pub fn directive_references(&self) -> Vec<String> {
-        reference_ids(self.list("directive-references"))
+    /// A list field's string entries, exactly.
+    pub fn strings(&self, key: &str) -> Vec<PythonString> {
+        self.list(key)
+            .into_iter()
+            .filter_map(Value::as_str)
+            .map(|value| self.exact_string(value))
+            .collect()
     }
 
-    /// Tactic reference ids cited by this profile (including inherited ones).
-    pub fn tactic_references(&self) -> Vec<String> {
-        reference_ids(self.list("tactic-references"))
+    /// A nested mapping's string field, exactly.
+    pub fn nested_string(&self, key: &str, nested: &str) -> Option<PythonString> {
+        self.get(key)
+            .and_then(Value::as_mapping)
+            .and_then(|mapping| mapping.get(nested))
+            .and_then(Value::as_str)
+            .map(|value| self.exact_string(value))
+    }
+
+    /// A nested mapping's list field, exactly.
+    pub fn nested_strings(&self, key: &str, nested: &str) -> Vec<PythonString> {
+        self.get(key)
+            .and_then(Value::as_mapping)
+            .and_then(|mapping| mapping.get(nested))
+            .and_then(Value::as_sequence)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(|value| self.exact_string(value))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// An integer field.
+    pub fn integer(&self, key: &str) -> Option<i64> {
+        self.get(key).and_then(Value::as_i64)
+    }
+
+    /// A boolean field.
+    pub fn boolean(&self, key: &str) -> Option<bool> {
+        self.get(key).and_then(Value::as_bool)
+    }
+
+    /// The authored keys, in document order, exactly.
+    pub fn keys(&self) -> Vec<PythonString> {
+        self.shadow
+            .keys()
+            .filter_map(Value::as_str)
+            .map(|key| self.exact_string(key))
+            .collect()
+    }
+
+    /// The authored keys, in document order, as the transport spells them.
+    pub fn shadow_keys(&self) -> Vec<String> {
+        self.shadow
+            .keys()
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// The scalar projection of the body, when every authored string is a
+    /// Unicode scalar sequence.
+    ///
+    /// This is the explicit compatibility view for existing `serde`-shaped
+    /// consumers. It is derived from the exact body — never a second read — and
+    /// `None` means "this document has a non-scalar authored string", not
+    /// "invalid".
+    pub fn scalar_projection(&self) -> Option<Mapping> {
+        project_mapping(&self.shadow, &self.markers)
+    }
+
+    /// The exact model-JSON view of this body.
+    ///
+    /// This is the reference's
+    /// `_jsonable_artifact_value(model_dump(by_alias=True, mode="json",
+    /// exclude_none=True))` for a body that already *is* the model dump: every
+    /// authored code point survives (a lone surrogate is not a scalar string, so
+    /// [`ProfileBody::scalar_projection`] refuses it while this view carries it),
+    /// a `None` member is absent at every depth (`exclude_none=True`), and the
+    /// container rules are the shared ones in [`crate::body::exact_json_value`].
+    ///
+    /// It is the exact **projection** only: the model schema, defaults and
+    /// lineage stay with [`crate::profile_model`], which produced this body.
+    /// [`PayloadError::NoSchema`] means the body has no canonical graph (a Native
+    /// capability boundary); [`PayloadError::Failed`] carries the reference's real
+    /// cause (an unpaired-surrogate mapping key, or non-UTF-8 `!!binary` bytes). A
+    /// caller turns that into its own refusal rather than printing a substituted
+    /// value. A conforming body has text keys only (model validation admitted every
+    /// typed mapping), so the key codec is not exercised by normal data.
+    ///
+    /// # Errors
+    ///
+    /// [`PayloadError`] as above.
+    pub fn model_json_exact(
+        &self,
+    ) -> Result<sk_kernel::python_json::PythonJsonValue, crate::body::PayloadError> {
+        let Some(root) = self.root() else {
+            return Err(crate::body::PayloadError::NoSchema);
+        };
+        crate::body::exact_json_value(root).map_err(crate::body::PayloadError::Failed)
+    }
+
+    /// Whether any authored scalar needed exact transport.
+    pub fn has_non_scalar_strings(&self) -> bool {
+        self.markers
+            .values()
+            .any(|exact| exact.to_scalar_string().is_err())
     }
 }
 
-fn reference_ids(items: Vec<&Value>) -> Vec<String> {
-    let mut ids: Vec<String> = items
-        .into_iter()
-        .filter_map(|item| {
-            item.as_str().map(str::to_owned).or_else(|| {
-                item.get("code")
-                    .or_else(|| item.get("id"))
-                    .and_then(Value::as_str)
-                    .map(str::to_owned)
+fn project_mapping(mapping: &Mapping, markers: &BTreeMap<String, PythonString>) -> Option<Mapping> {
+    let mut projected = Mapping::new();
+    for (key, value) in mapping {
+        projected.insert(project_value(key, markers)?, project_value(value, markers)?);
+    }
+    Some(projected)
+}
+
+fn project_value(value: &Value, markers: &BTreeMap<String, PythonString>) -> Option<Value> {
+    match value {
+        Value::String(text) => match markers.get(text) {
+            Some(exact) => Some(Value::String(exact.to_scalar_string().ok()?)),
+            None => Some(Value::String(text.clone())),
+        },
+        Value::Sequence(items) => {
+            let mut projected = Vec::with_capacity(items.len());
+            for item in items {
+                projected.push(project_value(item, markers)?);
+            }
+            Some(Value::Sequence(projected))
+        }
+        Value::Mapping(mapping) => Some(Value::Mapping(project_mapping(mapping, markers)?)),
+        Value::Tagged(tagged) => {
+            let mut projected = (**tagged).clone();
+            projected.value = project_value(&tagged.value, markers)?;
+            Some(Value::Tagged(Box::new(projected)))
+        }
+        other => Some(other.clone()),
+    }
+}
+
+/// One loaded agent profile, with its authored identity intact.
+#[derive(Clone, Debug)]
+pub struct AgentProfile {
+    /// The profile id, exactly as authored.
+    pub id: PythonString,
+    /// The declaring file.
+    pub path: PathBuf,
+    /// The profile body after the layer merge (before lineage composition).
+    pub body: ProfileBody,
+    /// The lineage chain, root first, leaf last (empty before `resolve`).
+    pub lineage: Vec<PythonString>,
+}
+
+impl AgentProfile {
+    /// The reference `model_dump(by_alias=True)` of a loaded or resolved
+    /// profile: every declared field, defaults filled.
+    ///
+    /// `body` carries the `exclude_unset` view used for lineage composition, so
+    /// the defaults are reconstructed here rather than stored twice. A loaded
+    /// profile is already validated, so this cannot fail; the `expect` documents
+    /// that invariant rather than inventing a fallback shape.
+    pub fn model_dump(&self) -> ProfileBody {
+        crate::profile_model::normalize_body(&self.body)
+            .expect("a loaded profile body satisfies the model")
+            .full
+    }
+
+    /// [`AgentProfile::model_dump`] for the `exclude_unset` view (`= body`).
+    pub fn model_dump_unset(&self) -> &ProfileBody {
+        &self.body
+    }
+
+    /// The scalar projection of the id, when it has one.
+    ///
+    /// A compatibility view for scalar-only consumers; `None` is a real
+    /// capability boundary, never a substituted identity.
+    pub fn scalar_id(&self) -> Option<String> {
+        self.id.to_scalar_string().ok()
+    }
+
+    /// The display name, when one is declared and non-empty.
+    pub fn name(&self) -> Option<PythonString> {
+        self.body.string("name").filter(|name| !name.is_empty())
+    }
+
+    /// The title, when one is declared and non-empty.
+    ///
+    /// Not part of the reference model (`extra="forbid"`), kept because the
+    /// accessor predates it; a document that authors `title:` is skipped by
+    /// validation exactly like the reference.
+    pub fn title(&self) -> Option<PythonString> {
+        self.body.string("title").filter(|title| !title.is_empty())
+    }
+
+    /// The purpose, when one is declared and non-empty.
+    pub fn purpose(&self) -> Option<PythonString> {
+        self.body
+            .string("purpose")
+            .filter(|purpose| !purpose.is_empty())
+    }
+
+    /// The normalized `roles` list (`Role(value)` lower-cases in the reference).
+    pub fn roles(&self) -> Vec<PythonString> {
+        self.body
+            .strings("roles")
+            .into_iter()
+            .map(|role| lowercase_role(&role))
+            .collect()
+    }
+
+    /// The primary role (`roles[0]`, normalized), when declared.
+    pub fn role(&self) -> Option<PythonString> {
+        self.roles()
+            .into_iter()
+            .next()
+            .or_else(|| self.body.string("role").map(|role| lowercase_role(&role)))
+    }
+
+    /// The structural sentinel flag.
+    pub fn sentinel(&self) -> bool {
+        self.body.boolean("sentinel").unwrap_or(false)
+    }
+
+    /// `routing-priority` with the reference model's default applied.
+    pub fn routing_priority(&self) -> i64 {
+        self.body
+            .integer("routing-priority")
+            .or_else(|| self.body.integer("routing_priority"))
+            .unwrap_or(DEFAULT_ROUTING_PRIORITY)
+    }
+
+    /// `max-concurrent-tasks` with the reference model's default applied,
+    /// **exactly**.
+    ///
+    /// Python's `int` is arbitrary precision and `max-concurrent-tasks` has no
+    /// upper bound, so a documented value may exceed `i64`. This accessor keeps
+    /// the authored value whole instead of falling back to the model default
+    /// (which would invent a Source value the profile never declared).
+    pub fn max_concurrent_tasks_exact(&self) -> ExactInteger {
+        match self
+            .body
+            .get("max-concurrent-tasks")
+            .or_else(|| self.body.get("max_concurrent_tasks"))
+        {
+            Some(value) => ExactInteger::from_value(value)
+                .unwrap_or(ExactInteger::InRange(DEFAULT_MAX_CONCURRENT_TASKS)),
+            None => ExactInteger::InRange(DEFAULT_MAX_CONCURRENT_TASKS),
+        }
+    }
+
+    /// `max-concurrent-tasks` as an `i64` — an **explicit scalar capability
+    /// view**.
+    ///
+    /// `None` means the authored value is a Python `int` outside `i64`'s range:
+    /// it is a real capability boundary of this view, never a substituted
+    /// default. Use [`AgentProfile::max_concurrent_tasks_exact`] for the value.
+    pub fn max_concurrent_tasks(&self) -> Option<i64> {
+        self.max_concurrent_tasks_exact().scalar()
+    }
+
+    /// `schema-version` with the reference model's default applied.
+    pub fn schema_version(&self) -> PythonString {
+        self.body
+            .string("schema-version")
+            .or_else(|| self.body.string("schema_version"))
+            .unwrap_or_else(|| PythonString::from_scalars(DEFAULT_SCHEMA_VERSION))
+    }
+
+    /// The `model:` routing hint.
+    pub fn preferred_model(&self) -> Option<PythonString> {
+        self.body
+            .string("model")
+            .or_else(|| self.body.string("preferred_model"))
+    }
+
+    /// The `effort:` routing hint.
+    pub fn effort(&self) -> Option<PythonString> {
+        self.body.string("effort")
+    }
+
+    /// The free-form description.
+    pub fn description(&self) -> Option<PythonString> {
+        self.body.string("description")
+    }
+
+    /// `specialization.primary-focus`, when declared.
+    pub fn primary_focus(&self) -> Option<PythonString> {
+        self.body
+            .nested_string("specialization", "primary-focus")
+            .or_else(|| self.body.nested_string("specialization", "primary_focus"))
+    }
+
+    /// `specialization-context.domain-keywords`.
+    pub fn domain_keywords(&self) -> Vec<PythonString> {
+        let mut keywords = self
+            .body
+            .nested_strings("specialization-context", "domain-keywords");
+        if keywords.is_empty() {
+            keywords = self
+                .body
+                .nested_strings("specialization_context", "domain_keywords");
+        }
+        keywords
+    }
+
+    /// `collaboration.canonical-verbs`.
+    pub fn canonical_verbs(&self) -> Vec<PythonString> {
+        self.body.nested_strings("collaboration", "canonical-verbs")
+    }
+
+    /// A list field's entries.
+    pub fn list(&self, field: &str) -> Vec<&Value> {
+        self.body.list(field)
+    }
+
+    /// A list field's string entries, exactly.
+    pub fn strings(&self, field: &str) -> Vec<PythonString> {
+        self.body.strings(field)
+    }
+
+    /// `applies_to_languages`, exactly.
+    pub fn applies_to_languages(&self) -> Vec<PythonString> {
+        self.body.strings("applies_to_languages")
+    }
+
+    /// Directive reference codes cited by this profile (including inherited ones).
+    pub fn directive_references(&self) -> Vec<PythonString> {
+        self.reference_ids("directive-references")
+    }
+
+    /// Tactic reference ids cited by this profile (including inherited ones).
+    pub fn tactic_references(&self) -> Vec<PythonString> {
+        self.reference_ids("tactic-references")
+    }
+
+    /// Reference ids in authored order (de-duplicated by first occurrence).
+    ///
+    /// The reference model keeps `*-references` in document order; sorting them
+    /// here would silently reorder authored data, so order is preserved and only
+    /// an exact duplicate is dropped.
+    fn reference_ids(&self, field: &str) -> Vec<PythonString> {
+        let ids: Vec<PythonString> = self
+            .list(field)
+            .into_iter()
+            .filter_map(|item| {
+                item.as_str()
+                    .map(|text| self.body.exact_string(text))
+                    .or_else(|| {
+                        item.get("code")
+                            .or_else(|| item.get("id"))
+                            .and_then(Value::as_str)
+                            .map(|text| self.body.exact_string(text))
+                    })
             })
-        })
-        .collect();
-    ids.sort();
-    ids.dedup();
-    ids
+            .collect();
+        let mut seen: Vec<PythonString> = Vec::with_capacity(ids.len());
+        for id in ids {
+            if !seen.contains(&id) {
+                seen.push(id);
+            }
+        }
+        seen
+    }
 }
 
 /// A repository over the built-in, org and project profile layers.
 #[derive(Clone, Debug, Default)]
 pub struct ProfileRepository {
     layers: Vec<(usize, PathBuf, ProfileLayer)>,
-    profiles: BTreeMap<String, (AgentProfile, usize)>,
+    profiles: BTreeMap<PythonString, (AgentProfile, usize)>,
     skipped: Vec<SkippedProfile>,
     scope_filtered_ids: BTreeSet<String>,
+    scope_filtered_exact_ids: BTreeSet<PythonString>,
     active_languages: Option<Vec<String>>,
 }
 
@@ -223,7 +816,8 @@ pub enum ProfileLayer {
 }
 
 impl ProfileLayer {
-    fn as_str(self) -> &'static str {
+    /// The reference provenance label.
+    pub fn as_str(self) -> &'static str {
         match self {
             Self::BuiltIn => "built-in",
             Self::Org => "org",
@@ -244,26 +838,53 @@ impl ProfileRepository {
     }
 
     /// Load with an active-language filter (`None` disables the filter).
+    ///
+    /// `*_root` arguments are *pack* roots: the profile directory of a layer is
+    /// `<root>/agent_profiles`, exactly as the reference resolves
+    /// `built_in_dir(ArtifactKind.AGENT_PROFILE)`.
     pub fn load_with_languages(
         built_in_root: &Path,
         org_roots: &[PathBuf],
         project_root: Option<&Path>,
         active_languages: Option<&[String]>,
     ) -> Result<Self, DoctrineError> {
+        let org_directories: Vec<PathBuf> = org_roots
+            .iter()
+            .map(|root| root.join("agent_profiles"))
+            .collect();
+        let project_directory = project_root.map(|root| root.join("agent_profiles"));
+        Self::load_profile_directories(
+            &built_in_root.join("agent_profiles"),
+            &org_directories,
+            project_directory.as_deref(),
+            active_languages,
+        )
+    }
+
+    /// Load from explicit per-layer *profile directories*.
+    ///
+    /// This is the same loader with the layer directories supplied directly, for
+    /// a caller whose directory is not a pack root — the reference's legacy
+    /// `.kittify/profiles` invocation overlay is such a directory (`project_dir`
+    /// points straight at it). No second parser, scan rule or merge policy is
+    /// involved: [`ProfileRepository::load_with_languages`] is this function plus
+    /// the `agent_profiles` suffix.
+    pub fn load_profile_directories(
+        built_in_dir: &Path,
+        org_dirs: &[PathBuf],
+        project_dir: Option<&Path>,
+        active_languages: Option<&[String]>,
+    ) -> Result<Self, DoctrineError> {
         let active_languages = active_languages.map(normalize_languages);
         let mut layers: Vec<(usize, PathBuf, ProfileLayer)> = Vec::new();
-        layers.push((
-            0,
-            built_in_root.join("agent_profiles"),
-            ProfileLayer::BuiltIn,
-        ));
-        for (position, root) in org_roots.iter().enumerate() {
-            layers.push((position + 1, root.join("agent_profiles"), ProfileLayer::Org));
+        layers.push((0, built_in_dir.to_path_buf(), ProfileLayer::BuiltIn));
+        for (position, directory) in org_dirs.iter().enumerate() {
+            layers.push((position + 1, directory.clone(), ProfileLayer::Org));
         }
-        if let Some(project) = project_root {
+        if let Some(project) = project_dir {
             layers.push((
-                org_roots.len() + 1,
-                project.join("agent_profiles"),
+                org_dirs.len() + 1,
+                project.to_path_buf(),
                 ProfileLayer::Project,
             ));
         }
@@ -272,12 +893,13 @@ impl ProfileRepository {
             profiles: BTreeMap::new(),
             skipped: Vec::new(),
             scope_filtered_ids: BTreeSet::new(),
+            scope_filtered_exact_ids: BTreeSet::new(),
             active_languages,
         };
-        let mut built_in_bodies: BTreeMap<String, Mapping> = BTreeMap::new();
+        let mut built_in_bodies: BTreeMap<PythonString, ProfileBody> = BTreeMap::new();
         for (layer, directory, layer_name) in repository.layers.clone() {
             for path in sorted_files(&directory, ".agent.yaml") {
-                repository.load_one(&path, layer, layer_name, &mut built_in_bodies);
+                repository.load_one(&path, layer, layer_name, &mut built_in_bodies)?;
             }
         }
         Ok(repository)
@@ -288,103 +910,187 @@ impl ProfileRepository {
         path: &Path,
         layer: usize,
         layer_name: ProfileLayer,
-        built_in_bodies: &mut BTreeMap<String, Mapping>,
-    ) {
-        let text = match std::fs::read_to_string(path) {
+        built_in_bodies: &mut BTreeMap<PythonString, ProfileBody>,
+    ) -> Result<(), ProfileLoadAbort> {
+        let bytes = match std::fs::read(path) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                self.skip(path, None, format!("YAML/read error: {error}"));
+                return Ok(());
+            }
+        };
+        // `yaml.load(path)` uses the canonical ruamel byte Reader, including
+        // UTF-16 BOM admission and caught ReaderError decode failures. This is
+        // distinct from the identity index's strict UTF-8 text probe.
+        let text = match sk_kernel::python_yaml::read_document_text(&bytes, profile_text::DIALECT) {
             Ok(text) => text,
-            Err(error) => {
-                self.skip(path, None, format!("read error: {error}"));
-                return;
-            }
+            Err(error) => return self.read_failure(path, error),
         };
-        let value: Value = match serde_yaml_ng::from_str(&text) {
-            Ok(value) => value,
-            Err(error) => {
-                self.skip(path, None, format!("YAML error: {error}"));
-                return;
-            }
+        // ONE construction: the canonical Kernel object graph. Anchor/alias
+        // sites become real graph links, so a Source-valid cycle (or shared
+        // node) survives instead of being expanded or refused by a tree
+        // projection. Transport, dialect, tag construction and merge-key
+        // flattening are the same phases the reference's safe loader runs.
+        let document = match sk_kernel::python_yaml::decode_graph(&text, profile_text::DIALECT) {
+            Ok(graph) => GraphDocument::new(graph),
+            Err(error) => return self.read_failure(path, error),
         };
-        if value.is_null() {
-            self.skip(path, None, "empty profile file".to_owned());
-            return;
+        let fields = Values::single(document.root());
+        if fields.is_null() {
+            self.skip(
+                path,
+                None,
+                "Empty profile file (no YAML document)".to_owned(),
+            );
+            return Ok(());
         }
-        let Some(mapping) = value.as_mapping() else {
-            self.skip(path, None, "expected a YAML mapping".to_owned());
-            return;
+        if !fields.is_mapping() {
+            // `reject_inline_refs(data, …)` calls `data.get("id", "?")`, so a
+            // document whose root is not a mapping raises `AttributeError`
+            // inside the loader. The reference does not catch it: the whole
+            // repository load aborts and no profile is listed.
+            return Err(ProfileLoadAbort {
+                path: path.to_path_buf(),
+                cause: ProfileLoadAbortCause::Source(ConstructorAbort {
+                    python: "AttributeError",
+                    message: format!("'{}' object has no attribute 'get'", fields.type_name()),
+                }),
+            });
         };
+        // The reference reads `data.get("profile-id") or data.get("profile_id")`
+        // and requires the result to be truthy; a non-string id still reaches
+        // model validation, where it is a type error.
         let declared_id = ["profile-id", "profile_id"]
             .iter()
-            .find_map(|key| mapping.get(*key).and_then(Value::as_str))
-            .filter(|id| !id.is_empty())
-            .map(str::to_owned);
-        if let Some(key) = mapping
-            .keys()
-            .filter_map(Value::as_str)
-            .find(|key| RETIRED_RELATIONSHIP_KEYS.contains(key))
+            .find_map(|key| fields.field(key))
+            .filter(|value| !value.is_falsy())
+            .and_then(|value| value.as_str().cloned())
+            .filter(|id| !id.is_empty());
+        if RETIRED_RELATIONSHIP_KEYS
+            .iter()
+            .any(|key| fields.contains_key(key))
+        {
+            // The authored schema has no such property, so the reference's
+            // summary is the JSON-schema additional-properties sentence.
+            let summary = crate::profile_schema::agent_profile_schema_errors(&fields).join("; ");
+            self.skip(path, declared_id, summary);
+            return Ok(());
+        }
+        if let Some(field) = FORBIDDEN_INLINE_REFERENCE_FIELDS
+            .into_iter()
+            .find(|field| fields.contains_key(field))
         {
             self.skip(
                 path,
                 declared_id,
                 format!(
-                    "retired relationship field {key:?}; author lineage as a DRG specializes_from edge"
+                    "Forbidden inline-reference field '{field}'. Remove {field} from YAML; add edge \
+                     {{source: agent_profile:?, target: <target-kind>:<target-id>, relation: requires}} \
+                     to packs/built-in/agent_profile.graph.yaml"
                 ),
             );
-            return;
+            return Ok(());
         }
         let Some(profile_id) = declared_id else {
-            self.skip(
-                path,
-                None,
-                "missing required 'profile-id' (a profile is never named after its file stem)"
-                    .to_owned(),
-            );
-            return;
+            // `validate_agent_profile_yaml(data)` drives the wording; the
+            // missing-id fallback is the reference's own sentence.
+            let schema_errors = crate::profile_schema::agent_profile_schema_errors(&fields);
+            let summary = if schema_errors.is_empty() {
+                "Missing required 'profile-id'".to_owned()
+            } else {
+                schema_errors.join("; ")
+            };
+            self.skip(path, None, summary);
+            return Ok(());
         };
 
-        let merged = if layer_name != ProfileLayer::BuiltIn {
-            match built_in_bodies.get(&profile_id) {
-                Some(base) => deep_merge(base, mapping),
-                None => mapping.clone(),
-            }
-        } else {
-            mapping.clone()
+        // Layer overlay: the reference deep-merges the raw overlay onto the
+        // built-in *model dump* (every declared field with its default), then
+        // validates the result. A fresh profile is validated on its own. The
+        // merge is a read-time layer stack over the two graphs, so a cycle in an
+        // ignored nested value is never materialised.
+        let normalized = match (
+            layer_name != ProfileLayer::BuiltIn,
+            built_in_bodies.get(&profile_id),
+        ) {
+            (true, Some(base)) => crate::profile_model::normalize_overlay(&fields, base),
+            _ => crate::profile_model::normalize(&fields),
         };
-        if let Err(error) = validate_profile(&merged) {
-            self.skip(path, Some(profile_id), error);
-            return;
-        }
-        let applies = merged
-            .get("applies_to_languages")
-            .and_then(Value::as_sequence)
-            .map(|items| {
-                items
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .map(str::to_owned)
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        if !applies_to_languages_match(&applies, self.active_languages.as_deref()) {
-            self.scope_filtered_ids.insert(profile_id);
-            return;
+        let normalized = match normalized {
+            Ok(normalized) => normalized,
+            Err(error) => {
+                // The reference's summary is the JSON-schema error list when it
+                // has one, and the model error otherwise.
+                let schema_errors = crate::profile_schema::agent_profile_schema_errors(&fields);
+                let summary = if schema_errors.is_empty() {
+                    error
+                } else {
+                    schema_errors.join("; ")
+                };
+                self.skip(path, Some(profile_id), summary);
+                return Ok(());
+            }
+        };
+        let applies: Vec<PythonString> = normalized.set.strings("applies_to_languages");
+        if !applies_to_languages_match_exact(&applies, self.active_languages.as_deref()) {
+            self.scope_filtered_ids
+                .insert(profile_id_label(&profile_id));
+            self.scope_filtered_exact_ids.insert(profile_id.clone());
+            return Ok(());
         }
         let profile = AgentProfile {
             id: profile_id.clone(),
             path: path.to_path_buf(),
-            body: merged.clone(),
+            body: normalized.set.clone(),
             lineage: Vec::new(),
         };
         if layer_name == ProfileLayer::BuiltIn {
-            built_in_bodies.insert(profile_id.clone(), merged);
+            built_in_bodies.insert(profile_id.clone(), normalized.set);
         }
-        self.scope_filtered_ids.remove(&profile_id);
+        self.scope_filtered_ids
+            .remove(&profile_id_label(&profile_id));
+        self.scope_filtered_exact_ids.remove(&profile_id);
         self.profiles.insert(profile_id, (profile, layer));
+        Ok(())
     }
 
-    fn skip(&mut self, path: &Path, profile_id: Option<String>, summary: String) {
+    /// Classify a read-phase failure the way the reference's loader does.
+    ///
+    /// A transport/constructor error the reference raises as a `YAMLError`
+    /// skips this file; a bare Python exception aborts the whole load.
+    fn read_failure(
+        &mut self,
+        path: &Path,
+        error: ProfileTextError,
+    ) -> Result<(), ProfileLoadAbort> {
+        match error {
+            ProfileTextError::Runtime { cause, message } => Err(ProfileLoadAbort {
+                path: path.to_path_buf(),
+                cause: ProfileLoadAbortCause::Source(ConstructorAbort {
+                    python: cause.python_name(),
+                    message,
+                }),
+            }),
+            ProfileTextError::HashSeed(error) => Err(ProfileLoadAbort {
+                path: path.to_path_buf(),
+                cause: ProfileLoadAbortCause::Native(NativeOfferingFailure::ActivationSetOrder {
+                    phase: "agent profile read".to_owned(),
+                    path: path.to_path_buf(),
+                    cause: error,
+                }),
+            }),
+            other => {
+                self.skip(path, None, format!("YAML/read error: {other}"));
+                Ok(())
+            }
+        }
+    }
+
+    fn skip(&mut self, path: &Path, profile_id: Option<PythonString>, summary: String) {
         self.skipped.push(SkippedProfile {
             path: path.to_path_buf(),
-            profile_id,
+            exact_profile_id: profile_id.clone(),
+            profile_id: profile_id.and_then(|id| id.to_scalar_string().ok()),
             summary,
         });
     }
@@ -394,23 +1100,47 @@ impl ProfileRepository {
         &self.skipped
     }
 
-    /// Profile ids present but filtered out by `applies_to_languages`.
+    /// Profile ids present but filtered out by `applies_to_languages` (scalar
+    /// projection; see [`ProfileRepository::scope_filtered_exact_ids`]).
     pub fn scope_filtered_ids(&self) -> &BTreeSet<String> {
         &self.scope_filtered_ids
     }
 
+    /// Profile ids present but filtered out by `applies_to_languages`, exactly.
+    pub fn scope_filtered_exact_ids(&self) -> &BTreeSet<PythonString> {
+        &self.scope_filtered_exact_ids
+    }
+
     /// All profile ids, sorted.
-    pub fn ids(&self) -> Vec<String> {
+    pub fn ids(&self) -> Vec<PythonString> {
         self.profiles.keys().cloned().collect()
     }
 
+    /// All profile ids as their scalar projections.
+    ///
+    /// A compatibility view for scalar-only consumers (`Vec<String>` JSON
+    /// arrays, CLI listings). It is *not* the identity authority: ids that have
+    /// no scalar projection are omitted here and remain present in [`Self::ids`],
+    /// so a caller that needs every profile uses the exact API.
+    pub fn scalar_ids(&self) -> Vec<String> {
+        self.profiles
+            .keys()
+            .filter_map(|id| id.to_scalar_string().ok())
+            .collect()
+    }
+
     /// The raw (uncomposed) profile record.
-    pub fn get(&self, id: &str) -> Option<&AgentProfile> {
+    pub fn get(&self, id: &PythonString) -> Option<&AgentProfile> {
         self.profiles.get(id).map(|(profile, _)| profile)
     }
 
+    /// The raw record for a scalar id (a convenience over [`Self::get`]).
+    pub fn get_str(&self, id: &str) -> Option<&AgentProfile> {
+        self.get(&PythonString::from_scalars(id))
+    }
+
     /// The provenance layer of `id`.
-    pub fn layer_of(&self, id: &str) -> Option<ProfileLayer> {
+    pub fn layer_of(&self, id: &PythonString) -> Option<ProfileLayer> {
         self.profiles
             .get(id)
             .and_then(|(_, layer)| self.layers.iter().find(|(index, _, _)| index == layer))
@@ -418,23 +1148,32 @@ impl ProfileRepository {
     }
 
     /// The provenance layer label of `id`.
-    pub fn provenance(&self, id: &str) -> Option<&'static str> {
+    pub fn provenance(&self, id: &PythonString) -> Option<&'static str> {
         self.layer_of(id).map(ProfileLayer::as_str)
     }
 
     /// Resolve `id` with its `specializes_from` lineage composed and its own
     /// `excluding` declaration applied.
-    pub fn resolve(&self, id: &str, graph: &DrgGraph) -> Result<AgentProfile, DoctrineError> {
+    ///
+    /// A non-scalar id cannot appear in the `String`-keyed DRG, so its lineage
+    /// has no parent — exactly what the reference observes when its exact
+    /// `agent_profile:<id>` URN matches no edge. That is the authored graph's
+    /// answer, not a refused capability: the profile itself resolves normally.
+    pub fn resolve(
+        &self,
+        id: &PythonString,
+        graph: &DrgGraph,
+    ) -> Result<AgentProfile, DoctrineError> {
         let leaf = self
             .get(id)
             .ok_or_else(|| DoctrineError::ProfileNotFound {
-                profile: id.to_owned(),
+                profile: profile_id_label(id),
             })?
             .clone();
         let leaf_id = leaf.id.clone();
         let leaf_path = leaf.path.clone();
         let mut chain: Vec<AgentProfile> = vec![leaf];
-        let mut visited: BTreeSet<String> = BTreeSet::from([chain[0].id.clone()]);
+        let mut visited: BTreeSet<PythonString> = BTreeSet::from([chain[0].id.clone()]);
         loop {
             let current = chain.last().expect("chain is non-empty").id.clone();
             let parents = self.lineage_parents(&current, graph)?;
@@ -442,29 +1181,38 @@ impl ProfileRepository {
                 break;
             };
             if visited.contains(&parent_id) {
-                let mut cycle: Vec<String> = visited.iter().cloned().collect();
-                cycle.push(parent_id);
+                let mut cycle: Vec<String> = visited.iter().map(profile_id_label).collect();
+                cycle.push(profile_id_label(&parent_id));
                 return Err(DoctrineError::LineageCycle { chain: cycle });
             }
             let parent = self
                 .get(&parent_id)
                 .ok_or_else(|| DoctrineError::MissingLineageParent {
-                    profile: current.clone(),
-                    parent: parent_id.clone(),
+                    profile: profile_id_label(&current),
+                    parent: profile_id_label(&parent_id),
                 })?
                 .clone();
             visited.insert(parent_id);
             chain.push(parent);
         }
 
-        let mut merged = Mapping::new();
+        let mut merged = ProfileBody::default();
         for profile in chain.iter().rev() {
             merged = union_merge(&merged, &profile.body);
         }
         if let Some(excluding) = chain[0].body.get("excluding") {
             merged = apply_excluding(merged, excluding);
         }
-        let lineage: Vec<String> = chain
+        // The reference re-validates the merged mapping (`model_validate`) and
+        // returns the model, so `excluding` can never remove a required field
+        // silently and the resolved body is canonical.
+        let merged = crate::profile_model::normalize_body(&merged).map_err(|message| {
+            DoctrineError::InvalidProfile {
+                path: leaf_path.clone(),
+                message,
+            }
+        })?;
+        let lineage: Vec<PythonString> = chain
             .iter()
             .rev()
             .map(|profile| profile.id.clone())
@@ -472,61 +1220,60 @@ impl ProfileRepository {
         Ok(AgentProfile {
             id: leaf_id,
             path: leaf_path,
-            body: merged,
+            body: merged.set,
             lineage,
         })
     }
 
+    /// Resolve a scalar id (a convenience over [`Self::resolve`]).
+    pub fn resolve_str(&self, id: &str, graph: &DrgGraph) -> Result<AgentProfile, DoctrineError> {
+        self.resolve(&PythonString::from_scalars(id), graph)
+    }
+
     fn lineage_parents(
         &self,
-        profile_id: &str,
+        profile_id: &PythonString,
         graph: &DrgGraph,
-    ) -> Result<Vec<String>, DoctrineError> {
-        let urn = format!("agent_profile:{profile_id}");
-        let mut parents: BTreeSet<String> = graph
+    ) -> Result<Vec<PythonString>, DoctrineError> {
+        // `_lineage_parent` builds the URN from the exact Python id and reads
+        // the graph; a graph URN is ASCII-only (its model rejects anything
+        // else), so a non-scalar id can never name a node and has no parent.
+        // The reference then sorts the targets and returns the *first* — it does
+        // not refuse a profile that declares several parents, and it never
+        // consults a retired inline relationship field.
+        let Ok(scalar) = profile_id.to_scalar_string() else {
+            return Ok(Vec::new());
+        };
+        let urn = format!("agent_profile:{scalar}");
+        let mut parents: Vec<PythonString> = graph
             .edges_from(&urn, Some(Relation::SpecializesFrom))
             .into_iter()
-            .filter_map(|edge| edge.target().strip_prefix("agent_profile:"))
-            .map(str::to_owned)
+            .map(|edge| {
+                // `_profile_id_from_urn` splits at the first ':' only; it does
+                // not verify the prefix, so an authored edge to another kind
+                // still yields the same target id the reference derives.
+                let target = edge.target();
+                let body = target.split_once(':').map_or(target, |(_, body)| body);
+                PythonString::from_scalars(body)
+            })
             .collect();
-        // An authored project field is only a compatibility fallback when the
-        // graph has no edge; the graph remains the authority.
-        if parents.is_empty()
-            && let Some(profile) = self.get(profile_id)
-            && let Some(value) = profile.body.get("specializes_from")
-        {
-            match value {
-                Value::String(parent) => {
-                    parents.insert(parent.clone());
-                }
-                Value::Sequence(items) => {
-                    for item in items {
-                        if let Some(parent) = item.as_str() {
-                            parents.insert(parent.to_owned());
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-        if parents.len() > 1 {
-            return Err(DoctrineError::AmbiguousLineage {
-                profile: profile_id.to_owned(),
-                parents: parents.into_iter().collect(),
-            });
-        }
-        Ok(parents.into_iter().collect())
+        parents.sort();
+        parents.truncate(1);
+        Ok(parents)
     }
 
     /// The artefact URNs a profile reaches through the profile channel, with
     /// `when` clauses for `suggests` deliveries.
     pub fn channel_deliveries(
         &self,
-        id: &str,
+        id: &PythonString,
         graph: &DrgGraph,
     ) -> Result<Vec<ProfileDelivery>, DoctrineError> {
         let profile = self.resolve(id, graph)?;
-        let urn = format!("agent_profile:{}", profile.id);
+        let Ok(scalar) = profile.id.to_scalar_string() else {
+            return Ok(Vec::new());
+        };
+        let urn = format!("agent_profile:{scalar}");
         if graph
             .node(&urn)
             .is_none_or(|node| node.kind() != NodeKind::AgentProfile)
@@ -543,7 +1290,7 @@ impl ProfileRepository {
                     continue;
                 }
                 deliveries.push(ProfileDelivery {
-                    profile: profile.id.clone(),
+                    profile: scalar.clone(),
                     urn: edge.target().to_owned(),
                     relation: edge.relation(),
                     when: edge.when().map(str::to_owned),
@@ -558,6 +1305,15 @@ impl ProfileRepository {
         });
         deliveries.dedup();
         Ok(deliveries)
+    }
+
+    /// [`Self::channel_deliveries`] for a scalar id.
+    pub fn channel_deliveries_str(
+        &self,
+        id: &str,
+        graph: &DrgGraph,
+    ) -> Result<Vec<ProfileDelivery>, DoctrineError> {
+        self.channel_deliveries(&PythonString::from_scalars(id), graph)
     }
 }
 
@@ -574,134 +1330,66 @@ pub struct ProfileDelivery {
     pub when: Option<String>,
 }
 
-/// Field-level merge of a higher layer's profile data into its built-in base.
-///
-/// Nested mappings merge recursively; every other value (including a list)
-/// is replaced by the higher layer's value. This is the reference
-/// `_merge_profiles` deep merge, not the lineage union merge.
-fn deep_merge(base: &Mapping, overlay: &Mapping) -> Mapping {
-    let mut merged = base.clone();
-    for (key, overlay_value) in overlay {
-        match (merged.get(key), overlay_value) {
-            (Some(Value::Mapping(base_map)), Value::Mapping(overlay_map)) => {
-                merged.insert(
-                    key.clone(),
-                    Value::Mapping(deep_merge(base_map, overlay_map)),
-                );
-            }
-            _ => {
-                merged.insert(key.clone(), overlay_value.clone());
-            }
-        }
+/// Keep every exact value the merged body can still reference.
+fn merge_marker_tables(
+    first: &BTreeMap<String, PythonString>,
+    second: &BTreeMap<String, PythonString>,
+) -> BTreeMap<String, PythonString> {
+    let mut merged = first.clone();
+    for (marker, exact) in second {
+        merged.insert(marker.clone(), exact.clone());
     }
     merged
 }
 
-/// The reference `AgentProfile` schema's load-time requirements.
-fn validate_profile(mapping: &Mapping) -> Result<(), String> {
-    let allowed: BTreeSet<&str> = PROFILE_KEYS.into_iter().collect();
-    for key in mapping.keys() {
-        let Some(key) = key.as_str() else {
-            return Err("profile keys must be strings".to_owned());
-        };
-        if !allowed.contains(key) && !RETIRED_RELATIONSHIP_KEYS.contains(&key) {
-            return Err(format!("unknown profile field {key:?}"));
-        }
-    }
-    for (field, rule) in [
-        ("name", "a non-empty string"),
-        ("purpose", "a non-empty string"),
-    ] {
-        if mapping
-            .get(field)
-            .and_then(Value::as_str)
-            .is_none_or(str::is_empty)
-        {
-            return Err(format!("{field:?} must be {rule}"));
-        }
-    }
-    if mapping
-        .get("profile-id")
-        .or_else(|| mapping.get("profile_id"))
-        .and_then(Value::as_str)
-        .is_none_or(str::is_empty)
-    {
-        return Err("'profile-id' must be a non-empty string".to_owned());
-    }
-    let has_role = mapping.get("role").is_some();
-    let has_roles = mapping.get("roles").is_some();
-    if has_role && has_roles {
-        return Err(
-            "declares both the deprecated scalar 'role:' and the canonical 'roles:'; keep 'roles:'"
-                .to_owned(),
-        );
-    }
-    let roles = match (has_roles, has_role) {
-        (true, _) => mapping
-            .get("roles")
-            .and_then(Value::as_sequence)
-            .cloned()
-            .unwrap_or_default(),
-        (false, true) => vec![mapping.get("role").cloned().unwrap_or(Value::Null)],
-        (false, false) => Vec::new(),
-    };
-    if roles.is_empty() || roles.iter().any(|role| role.as_str().is_none()) {
-        return Err("'roles' must be a non-empty list of strings".to_owned());
-    }
-    let Some(specialization) = mapping.get("specialization").and_then(Value::as_mapping) else {
-        return Err("'specialization' must be a mapping with a 'primary-focus'".to_owned());
-    };
-    // `specialization.primary-focus` (alias) or `primary_focus` (populate-by-name).
-    let primary_focus = specialization
-        .get("primary-focus")
-        .or_else(|| specialization.get("primary_focus"))
-        .and_then(Value::as_str);
-    if primary_focus.is_none_or(str::is_empty) {
-        return Err("'specialization.primary-focus' must be a non-empty string".to_owned());
-    }
-    if let Some(priority) = mapping
-        .get("routing-priority")
-        .or_else(|| mapping.get("routing_priority"))
-    {
-        let Some(priority) = priority.as_i64() else {
-            return Err("'routing-priority' must be an integer".to_owned());
-        };
-        if !(0..=100).contains(&priority) {
-            return Err("'routing-priority' must be between 0 and 100".to_owned());
-        }
-    }
-    if let Some(tasks) = mapping
-        .get("max-concurrent-tasks")
-        .or_else(|| mapping.get("max_concurrent_tasks"))
-    {
-        let Some(tasks) = tasks.as_i64() else {
-            return Err("'max-concurrent-tasks' must be an integer".to_owned());
-        };
-        if tasks <= 0 {
-            return Err("'max-concurrent-tasks' must be greater than 0".to_owned());
-        }
-    }
-    Ok(())
+/// Lineage union merge of a parent's and a child's model bodies.
+///
+/// This merges two **model documents** this crate constructed, not authored
+/// input, so it stays a document-level operation; the merged body is
+/// re-validated through the canonical graph by
+/// [`crate::profile_model::normalize_body`].
+fn union_merge(parent: &ProfileBody, child: &ProfileBody) -> ProfileBody {
+    ProfileBody::from_parts(
+        union_merge_mapping(parent.shadow(), child.shadow()),
+        merge_marker_tables(parent.markers(), child.markers()),
+    )
 }
 
-fn union_merge(parent: &Mapping, child: &Mapping) -> Mapping {
+fn union_merge_mapping(parent: &Mapping, child: &Mapping) -> Mapping {
     let mut merged = parent.clone();
     for (key, child_value) in child {
         let key_name = key.as_str().unwrap_or_default();
         match (merged.get(key), child_value) {
-            (Some(Value::Sequence(parent_items)), Value::Sequence(child_items))
-                if UNION_LIST_FIELDS.contains(&key_name) =>
-            {
-                let mut seen: BTreeSet<String> = parent_items.iter().map(item_key).collect();
-                let mut union = parent_items.clone();
-                for item in child_items {
-                    if seen.insert(item_key(item)) {
-                        union.push(item.clone());
+            (Some(parent_value), _) if UNION_LIST_FIELDS.contains(&key_name) => {
+                // A constructed `!!set`/`!!pairs` is a Python set/list of the same
+                // items, so it unions exactly like an authored list (the reference
+                // iterates the constructed value). The union itself is a plain
+                // list, which is what the reference's merge stores.
+                let parent_items = crate::profile_construct::constructed_sequence(parent_value);
+                let child_items = crate::profile_construct::constructed_sequence(child_value);
+                match (parent_items, child_items) {
+                    (Some(parent_items), Some(child_items)) => {
+                        let mut seen: BTreeSet<String> =
+                            parent_items.iter().map(item_key).collect();
+                        let mut union = parent_items.clone();
+                        for item in child_items {
+                            if seen.insert(item_key(item)) {
+                                union.push(item.clone());
+                            }
+                        }
+                        merged.insert(key.clone(), Value::Sequence(union));
+                    }
+                    _ => {
+                        merged.insert(key.clone(), child_value.clone());
                     }
                 }
-                merged.insert(key.clone(), Value::Sequence(union));
             }
-            (Some(Value::Mapping(parent_map)), Value::Mapping(child_map)) => {
+            (Some(parent_value), Value::Mapping(child_map))
+                if crate::profile_construct::constructed_mapping(parent_value).is_some() =>
+            {
+                let parent_map = crate::profile_construct::constructed_mapping(parent_value)
+                    .expect("guarded by the match arm")
+                    .clone();
                 // The reference `_union_merge` updates nested sections one
                 // level deep; only the layer merge (`_merge_profiles`) recurses.
                 let mut nested = parent_map.clone();
@@ -721,13 +1409,16 @@ fn union_merge(parent: &Mapping, child: &Mapping) -> Mapping {
 /// Apply a leaf profile's `excluding` declaration to its merged body.
 ///
 /// A list form removes whole fields; a mapping form removes the named values
-/// from the list field they name (matched by the reference item key).
-fn apply_excluding(mut merged: Mapping, excluding: &Value) -> Mapping {
+/// from the list field they name (matched by the reference item key). Merged
+/// values keep their transport markers, so an exact (non-scalar) reference is
+/// matched exactly rather than by a lossy projection.
+fn apply_excluding(merged: ProfileBody, excluding: &Value) -> ProfileBody {
+    let mut shadow = merged.shadow().clone();
     match excluding {
         Value::Sequence(fields) => {
             for field in fields {
                 if let Some(field) = field.as_str() {
-                    merged.remove(field);
+                    shadow.remove(field);
                 }
             }
         }
@@ -746,7 +1437,7 @@ fn apply_excluding(mut merged: Mapping, excluding: &Value) -> Mapping {
                         other => format!("{other:?}"),
                     })
                     .collect();
-                let Some(items) = merged.get(field).and_then(Value::as_sequence) else {
+                let Some(items) = shadow.get(field).and_then(Value::as_sequence) else {
                     continue;
                 };
                 let kept: Vec<Value> = items
@@ -754,12 +1445,52 @@ fn apply_excluding(mut merged: Mapping, excluding: &Value) -> Mapping {
                     .filter(|item| !remove.contains(&item_key(item)))
                     .cloned()
                     .collect();
-                merged.insert(field.into(), Value::Sequence(kept));
+                shadow.insert(field.into(), Value::Sequence(kept));
             }
         }
         _ => {}
     }
-    merged
+    // Only the excluded entries disappear; a marker for a value that is no
+    // longer referenced is harmless but prune the unused ones so two
+    // semantically equal bodies also compare equal.
+    let used = used_markers(&Value::Mapping(shadow.clone()));
+    let markers = merged
+        .markers()
+        .iter()
+        .filter(|(marker, _)| used.contains(*marker))
+        .map(|(marker, exact)| (marker.clone(), exact.clone()))
+        .collect();
+    ProfileBody::from_parts(shadow, markers)
+}
+
+/// Every transport marker still referenced by `value`.
+fn used_markers(value: &Value) -> BTreeSet<String> {
+    let mut used = BTreeSet::new();
+    collect_markers(value, &mut used);
+    used
+}
+
+fn collect_markers(value: &Value, used: &mut BTreeSet<String>) {
+    match value {
+        Value::String(text) => {
+            if text.starts_with('\u{fdd0}') && text.ends_with('\u{fdef}') {
+                used.insert(text.clone());
+            }
+        }
+        Value::Sequence(items) => {
+            for item in items {
+                collect_markers(item, used);
+            }
+        }
+        Value::Mapping(mapping) => {
+            for (key, item) in mapping {
+                collect_markers(key, used);
+                collect_markers(item, used);
+            }
+        }
+        Value::Tagged(tagged) => collect_markers(&tagged.value, used),
+        Value::Null | Value::Bool(_) | Value::Number(_) => {}
+    }
 }
 
 /// Normalize a language list: lowercase, de-duplicated, non-empty.
@@ -786,11 +1517,33 @@ pub fn applies_to_languages_match(
     artifact_languages: &[String],
     active_languages: Option<&[String]>,
 ) -> bool {
-    let raw: BTreeSet<String> = normalize_languages(artifact_languages)
-        .into_iter()
+    let exact: Vec<PythonString> = artifact_languages
+        .iter()
+        .map(|language| PythonString::from_scalars(language))
         .collect();
+    applies_to_languages_match_exact(&exact, active_languages)
+}
+
+/// [`applies_to_languages_match`] over exact authored code points.
+///
+/// The scope tokens themselves are matched through their scalar projection: the
+/// language vocabulary is a closed ASCII token set, so a non-scalar scope token
+/// can never match an active language (which is the reference's own string
+/// comparison result).
+pub fn applies_to_languages_match_exact(
+    artifact_languages: &[PythonString],
+    active_languages: Option<&[String]>,
+) -> bool {
+    let raw: BTreeSet<String> = normalize_languages(
+        &artifact_languages
+            .iter()
+            .filter_map(|token| token.to_scalar_string().ok())
+            .collect::<Vec<_>>(),
+    )
+    .into_iter()
+    .collect();
     if raw.is_empty() {
-        return true;
+        return artifact_languages.is_empty();
     }
     let artifact_scope: BTreeSet<String> = raw
         .into_iter()
@@ -879,6 +1632,10 @@ mod tests {
         )
     }
 
+    fn scalar(value: Option<PythonString>) -> Option<String> {
+        value.and_then(|value| value.to_scalar_string().ok())
+    }
+
     fn graph(edges: Vec<DrgEdge>) -> DrgGraph {
         let mut nodes = vec![
             DrgNode::new(
@@ -914,7 +1671,7 @@ mod tests {
             "node-norris",
             "python-pedro",
         ] {
-            assert!(profiles.get(id).is_some(), "missing {id}");
+            assert!(profiles.get_str(id).is_some(), "missing {id}");
         }
     }
 
@@ -935,10 +1692,14 @@ mod tests {
             "profile-id: ivan\ndescription: Org\nspecialization-context:\n  frameworks: [flask]\n",
         );
         let repository = ProfileRepository::load(&built_in, &[org], None).unwrap();
-        let loaded = repository.get("ivan").unwrap();
-        assert_eq!(loaded.name(), Some("ivan"));
+        let loaded = repository.get_str("ivan").unwrap();
+        assert_eq!(scalar(loaded.name()).as_deref(), Some("ivan"));
         assert_eq!(
-            loaded.body.get("description").and_then(Value::as_str),
+            loaded
+                .description()
+                .as_ref()
+                .and_then(|d| scalar(Some(d.clone())))
+                .as_deref(),
             Some("Org")
         );
         assert_eq!(loaded.list("capabilities").len(), 2);
@@ -956,7 +1717,10 @@ mod tests {
             context.get("frameworks").unwrap().as_sequence().unwrap()[0].as_str(),
             Some("flask")
         );
-        assert_eq!(repository.provenance("ivan"), Some("org"));
+        assert_eq!(
+            repository.provenance(&PythonString::from_scalars("ivan")),
+            Some("org")
+        );
     }
 
     #[test]
@@ -980,10 +1744,10 @@ mod tests {
             "profile-id: both-roles\nname: B\npurpose: p\nrole: reviewer\nroles: [reviewer]\nspecialization:\n  primary-focus: x\n",
         );
         let repository = ProfileRepository::load(&built_in, &[], None).unwrap();
-        assert!(repository.get("valid").is_some());
-        assert!(repository.get("stem-named").is_none());
-        assert!(repository.get("unknown-field").is_none());
-        assert!(repository.get("both-roles").is_none());
+        assert!(repository.get_str("valid").is_some());
+        assert!(repository.get_str("stem-named").is_none());
+        assert!(repository.get_str("unknown-field").is_none());
+        assert!(repository.get_str("both-roles").is_none());
         let summaries: Vec<&str> = repository
             .skipped()
             .iter()
@@ -995,11 +1759,14 @@ mod tests {
                 .any(|summary| summary.contains("profile-id"))
         );
         assert!(
-            summaries
-                .iter()
-                .any(|summary| summary.contains("unknown profile field"))
+            summaries.iter().any(|summary| summary
+                .contains("Additional properties are not allowed ('mystery' was unexpected)")),
+            "the reference's JSON-schema sentence is the skip summary: {summaries:?}"
         );
-        assert!(summaries.iter().any(|summary| summary.contains("both")));
+        assert!(
+            summaries.iter().any(|summary| summary.contains("role")),
+            "the both-role model error keeps its own sentence: {summaries:?}"
+        );
     }
 
     #[test]
@@ -1021,16 +1788,16 @@ mod tests {
         let active = vec!["kotlin".to_owned()];
         let repository =
             ProfileRepository::load_with_languages(&built_in, &[], None, Some(&active)).unwrap();
-        assert!(repository.get("jvm").is_some());
-        assert!(repository.get("unscoped").is_some());
-        assert!(repository.get("python").is_none());
+        assert!(repository.get_str("jvm").is_some());
+        assert!(repository.get_str("unscoped").is_some());
+        assert!(repository.get_str("python").is_none());
         assert!(repository.scope_filtered_ids().contains("python"));
 
         let unknown = vec!["unknown".to_owned()];
         let repository =
             ProfileRepository::load_with_languages(&built_in, &[], None, Some(&unknown)).unwrap();
-        assert!(repository.get("jvm").is_none());
-        assert!(repository.get("unscoped").is_some());
+        assert!(repository.get_str("jvm").is_none());
+        assert!(repository.get_str("unscoped").is_some());
     }
 
     #[test]
@@ -1041,14 +1808,14 @@ mod tests {
             &built_in.join("agent_profiles/base.agent.yaml"),
             &profile(
                 "base",
-                "directive-references:\n  - code: 001\ncapabilities: [a]\n",
+                "directive-references:\n  - code: '001'\n    name: one\n    rationale: base\ncapabilities: [a]\n",
             ),
         );
         write(
             &built_in.join("agent_profiles/leaf.agent.yaml"),
             &profile(
                 "leaf",
-                "directive-references:\n  - code: 002\ncapabilities: [b]\ndescription: leaf\n",
+                "directive-references:\n  - code: '002'\n    name: two\n    rationale: leaf\ncapabilities: [b]\ndescription: leaf\n",
             ),
         );
         let repository = ProfileRepository::load(&built_in, &[], None).unwrap();
@@ -1060,13 +1827,30 @@ mod tests {
             )
             .unwrap(),
         ]);
-        let profile = repository.resolve("leaf", &graph).unwrap();
-        assert_eq!(profile.lineage, vec!["base".to_owned(), "leaf".to_owned()]);
-        assert_eq!(profile.directive_references(), vec!["001", "002"]);
-        assert_eq!(profile.list("capabilities").len(), 2);
-        assert_eq!(profile.purpose(), Some("p"));
+        let profile = repository.resolve_str("leaf", &graph).unwrap();
         assert_eq!(
-            profile.body.get("description").unwrap().as_str(),
+            profile
+                .lineage
+                .iter()
+                .filter_map(|id| id.to_scalar_string().ok())
+                .collect::<Vec<_>>(),
+            vec!["base".to_owned(), "leaf".to_owned()]
+        );
+        assert_eq!(
+            profile
+                .directive_references()
+                .iter()
+                .filter_map(|id| id.to_scalar_string().ok())
+                .collect::<Vec<_>>(),
+            vec!["001".to_owned(), "002".to_owned()]
+        );
+        assert_eq!(profile.list("capabilities").len(), 2);
+        assert_eq!(scalar(profile.purpose()).as_deref(), Some("p"));
+        assert_eq!(
+            profile
+                .description()
+                .and_then(|d| d.to_scalar_string().ok())
+                .as_deref(),
             Some("leaf")
         );
     }
@@ -1131,9 +1915,9 @@ mod tests {
             ],
         )
         .unwrap();
-        let list = repository.resolve("list", &graph).unwrap();
+        let list = repository.resolve_str("list", &graph).unwrap();
         assert!(list.body.get("description").is_none());
-        let mapped = repository.resolve("map", &graph).unwrap();
+        let mapped = repository.resolve_str("map", &graph).unwrap();
         let capabilities: Vec<&str> = mapped
             .list("capabilities")
             .into_iter()
@@ -1160,7 +1944,7 @@ mod tests {
             .unwrap(),
         ]);
         assert!(matches!(
-            repository.resolve("leaf", &missing),
+            repository.resolve_str("leaf", &missing),
             Err(DoctrineError::MissingLineageParent { .. })
         ));
 
@@ -1184,7 +1968,7 @@ mod tests {
             .unwrap(),
         ]);
         assert!(matches!(
-            repository.resolve("leaf", &cycle),
+            repository.resolve_str("leaf", &cycle),
             Err(DoctrineError::LineageCycle { .. })
         ));
         write(
@@ -1235,10 +2019,17 @@ mod tests {
             ],
         )
         .unwrap();
-        assert!(matches!(
-            repository.resolve("leaf", &graph),
-            Err(DoctrineError::AmbiguousLineage { .. })
-        ));
+        // The reference sorts the declared parents and takes the first; it does
+        // not refuse a profile that declares more than one.
+        let resolved = repository.resolve_str("leaf", &graph).unwrap();
+        assert_eq!(
+            resolved
+                .lineage
+                .iter()
+                .filter_map(|id| id.to_scalar_string().ok())
+                .collect::<Vec<_>>(),
+            vec!["base".to_owned(), "leaf".to_owned()]
+        );
     }
 
     #[test]
@@ -1275,8 +2066,49 @@ mod tests {
             ],
         )
         .unwrap();
-        let deliveries = repository.channel_deliveries("reviewer", &graph).unwrap();
+        let deliveries = repository
+            .channel_deliveries_str("reviewer", &graph)
+            .unwrap();
         assert_eq!(deliveries.len(), 1);
         assert_eq!(deliveries[0].when.as_deref(), Some("high-risk review"));
+    }
+
+    #[test]
+    fn a_source_valid_non_scalar_id_loads_with_its_exact_code_points() {
+        let directory = tempfile::tempdir().unwrap();
+        let built_in = directory.path().join("built-in");
+        write(
+            &built_in.join("agent_profiles/author.agent.yaml"),
+            "profile-id: \"author\\ud800\"\nname: Source-valid profile\nroles: [Reviewer]\npurpose: Preserve authored routing identities.\nspecialization:\n  primary-focus: Review\ncollaboration:\n  canonical-verbs: [check]\nspecialization-context:\n  domain-keywords: [widget]\n",
+        );
+        let repository = ProfileRepository::load(&built_in, &[], None).unwrap();
+        assert!(
+            repository.skipped().is_empty(),
+            "{:?}",
+            repository.skipped()
+        );
+        assert_eq!(repository.ids().len(), 1);
+        let id = &repository.ids()[0];
+        assert_eq!(id.codepoints(), &[97, 117, 116, 104, 111, 114, 0xd800]);
+        let profile = repository.get(id).unwrap();
+        assert_eq!(profile.scalar_id(), None);
+        assert_eq!(
+            scalar(profile.name()).as_deref(),
+            Some("Source-valid profile")
+        );
+        // The reference lower-cases `Role("Reviewer")`.
+        assert_eq!(scalar(profile.role()).as_deref(), Some("reviewer"));
+        assert_eq!(
+            profile
+                .domain_keywords()
+                .iter()
+                .filter_map(|k| k.to_scalar_string().ok())
+                .collect::<Vec<_>>(),
+            vec!["widget".to_owned()]
+        );
+        // A non-scalar id keeps the authored body losslessly but has no scalar
+        // projection.
+        assert!(profile.body.scalar_projection().is_none());
+        assert!(profile.body.has_non_scalar_strings());
     }
 }

@@ -48,6 +48,9 @@ const MAX_CAPTURE_BYTES: u64 = 64 * 1024 * 1024;
 /// Maximum bytes accepted on a child's stdin (4 MiB).
 const MAX_STDIN_BYTES: u64 = 4 * 1024 * 1024;
 
+/// The Source meta.json merge driver's two-way opt-out environment variable.
+pub(crate) const TWO_WAY_META_ENV: &str = "SPEC_KITTY_META_MERGE_TWO_WAY";
+
 /// Environment variables that would redirect git to a different repository
 /// than the one the adapter was opened on. They are removed from every child.
 ///
@@ -127,6 +130,11 @@ pub(crate) enum EnvProfile {
         index: Option<PathBuf>,
         no_editor: bool,
     },
+    /// A consolidation merge/rebase invocation. This is the ONE profile that may
+    /// carry the Source `meta.json` driver's two-way opt-out; every other child
+    /// has it removed so an exported value cannot silently change a lane merge
+    /// or an auto-rebase (`consolidation/drivers.py::META_DRIVER_TWO_WAY_ENV`).
+    MergeActivation { two_way_meta: bool },
 }
 
 /// A private index file used by one path-scoped index transaction.
@@ -276,6 +284,20 @@ impl GitProcess {
         self.run_profiled_attempt(args, None, EnvProfile::Local, MAX_OUTPUT_BYTES)
     }
 
+    /// Run a consolidation merge/rebase child with the optional two-way meta opt-out.
+    pub(crate) fn run_merge_activation<S: AsRef<OsStr>>(
+        &self,
+        args: &[S],
+        two_way_meta: bool,
+    ) -> Result<CommandOutput, GitError> {
+        self.run_profiled(
+            args,
+            None,
+            EnvProfile::MergeActivation { two_way_meta },
+            MAX_OUTPUT_BYTES,
+        )
+    }
+
     /// Run git with an explicit per-stream capture bound.
     ///
     /// The bound is checked against [`MAX_CAPTURE_BYTES`] before anything runs,
@@ -319,6 +341,24 @@ impl GitProcess {
             EnvProfile::RemoteRead { ssh_command },
             MAX_OUTPUT_BYTES,
         )
+    }
+
+    /// Run one remote contact under an EXPLICIT per-call bound.
+    ///
+    /// The same single subprocess seam and the same prompt-free remote profile
+    /// as [`GitProcess::run_remote`]; only the wall-clock bound differs. This
+    /// exists because Source gives its two remote contacts different bounds
+    /// (`ls-remote` 5 s, `fetch` 15 s) inside one freshness check, and a single
+    /// handle-wide timeout cannot express both. There is no second spawn path.
+    pub(crate) fn run_remote_bounded<S: AsRef<OsStr>>(
+        &self,
+        args: &[S],
+        ssh_command: Option<OsString>,
+        timeout: Duration,
+    ) -> Result<CommandOutput, GitError> {
+        let mut bounded = self.clone();
+        bounded.timeout = timeout;
+        bounded.run_remote(args, ssh_command)
     }
 
     /// Run git against one private index file (raw outcome, whatever the code).
@@ -690,6 +730,18 @@ impl GitProcess {
             .env("GIT_OPTIONAL_LOCKS", "0")
             .env("GIT_PAGER", "cat")
             .env("LC_ALL", "C");
+        // The Source mission→target meta.json two-way opt-out is scoped to the
+        // one consolidation invocation that sets it; every other child has it
+        // removed so an exported value cannot silently change a lane merge or
+        // an auto-rebase (#5460).
+        match profile {
+            EnvProfile::MergeActivation { two_way_meta: true } => {
+                command.env(TWO_WAY_META_ENV, "1");
+            }
+            _ => {
+                command.env_remove(TWO_WAY_META_ENV);
+            }
+        }
         if let EnvProfile::RemoteRead {
             ssh_command: Some(ssh_command),
         } = profile

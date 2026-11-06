@@ -1,0 +1,97 @@
+# PRE-EDIT parent classification; no active host Mission/Op or approval.
+# Inventory: .3NS9YL.log / .zhMb87.log, including code/docs/tests/Source/ignored.
+# Existing field names, JSON keys, CLI and messages remain unchanged. This is
+# a semantic type promotion + real shared-store consumption, not global sed.
+target:
+  term: "BTreeMap<String, ClarificationDecisionStatus>"
+  replacement: "BTreeMap<PythonString, ClarificationDecisionStatus>"
+  operation: rename
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      SourceAcceptanceFacts status map changes key type; ClarificationScan gets
+      an optional per-scan observed map so fresh reads/failure order are not
+      flattened into one end-of-pass snapshot. Policy marker lookup
+      converts exact scalar marker text to PythonString; collector consumes the
+      canonical store and maps the SAME four status variants. Preserve all other
+      String-key maps, availability's explicit Native diagnostic capability, and
+      Source LAST-wins semantics. No status/field/marker identifier rename.
+  import_paths:
+    action: manual_review
+    notes: >-
+      Status imports Kernel PythonString. Workspace collector imports canonical
+      decision_store/model; WorkspaceError gains transparent typed load error.
+      No new dependency edges or duplicate parser/validator.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      decisions/index.json, planning artifact names, model/store module paths
+      and all physical ledger locations remain fixed. New focused tests only.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      Status summary JSON, all DecisionIndex/entry fields, marker comment names
+      and boolean status wire remain fixed. Exact IDs are never escaped into
+      pseudo-identities or scalar-dropped.
+  cli_commands:
+    action: do_not_change
+    notes: No CLI registration, accept wiring, flags, aliases or exit policy change.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Preserve policy/refusal messages. Corrupt/probe failures now propagate the
+      shared typed error rather than invented unavailable/open facts. Clarify
+      docs for unconsulted no-marker ledgers; broader Source error prose OPEN.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      Adapt only status-map key constructors and set legacy unit scan snapshots
+      to None; preserve assertions. Replace L2's
+      explicitly obsolete present-ledger-unavailable expectation with actual
+      Source-first typed lookup and lazy-load/refusal proof. Repair its Native
+      execution isolation, do not relabel old attempts. New exact/Cs/duplicate/
+      missing/corrupt/probe/FIFO controls; old store/merge tests kept intact.
+  logs_telemetry:
+    action: do_not_change
+    notes: No log/metric/event key rename and no new success label.
+exceptions:
+  - path: crates/sk-status/src/acceptance/source.rs
+    action: manual_review
+    reason: Exact status-map type and canonical marker-token boundaries only.
+  - path: crates/sk-status/tests/acceptance_source_policy.rs
+    action: manual_review
+    reason: One authored decision-id fixture constructor becomes PythonString; no weakening.
+  - path: crates/sk-workspace/src/acceptance_source.rs
+    action: manual_review
+    reason: Shared read-only store only when canonical parser finds a linked marker; typed failures propagate.
+  - path: crates/sk-workspace/src/error.rs
+    action: manual_review
+    reason: Transparent additive typed DecisionIndexLoadError variant, never empty-on-corrupt.
+  - path: crates/sk-workspace/tests/acceptance_facts_source.rs
+    action: manual_review
+    reason: Correct obsolete unavailable placeholder and actual Native re-exec/isolation proof; historical source receipts retained.
+  - path: crates/sk-workspace/src/decision_store.rs
+    action: manual_review
+    reason: Replace regular-file-only reader with shared Source byte-stream policy; no new decoder/model/writes.
+  - path: crates/sk-kernel/src/bounded.rs
+    action: manual_review
+    reason: Add explicit Source-compatible stream reader; strict bounded regular-file capability unchanged.
+  - path: crates/sk-kernel/src/lib.rs
+    action: manual_review
+    reason: Narrow new byte-stream reader re-export; L4 YAML registrations untouched.
+  - path: crates/sk-kernel/src/python_text.rs
+    action: manual_review
+    reason: Add canonical Python splitlines primitive; reuse pinned whitespace for marker boundaries.
+  - path: crates/sk-kernel/src/paths.rs
+    action: manual_review
+    reason: Add Source exists/stat errno policy using platform constants, not guessed cross-platform numbers.
+  - path: src/**
+    action: do_not_change
+    reason: Pinned Source oracle, including acceptance marker and Decision store behavior.
+  - path: docs/rust/occurrence-maps/decision-index-model-store.yaml
+    action: do_not_change
+    reason: D1's historical classification ordering remains disclosed, never backdated.
+status:
+  reviewed_by: "parent pre-edit classification (not independent approval)"
+  accepted: false

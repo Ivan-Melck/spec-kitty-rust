@@ -1,0 +1,88 @@
+# CF66 — ordered Source action-context execution (additive capability).
+#
+# This lane ADDS the text-first / structured-second execution phases and their
+# public phases + one CLI consumer. No existing identifier, command, key or path
+# is renamed, removed or deprecated, so `target.operation` is intentionally
+# omitted (the schema allows an additive map with only `target.term`).
+target:
+  term: single-build action-context execution
+  replacement: ordered Source text-first/structured-second action-context execution
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      New `ContextPhase` + `build_action_context_text` / `build_action_context_structured`
+      phase entry points over the ONE existing `build_action_context` resolution and
+      ONE `ActionRecords` merged-record authority. The existing single-build
+      `build_action_context` stays as an explicitly documented single-build helper;
+      no second schema/record/graph/formatter/JSON authority.
+  import_paths:
+    action: manual_review
+    notes: >-
+      Same-item re-exports of the new phase names beside the existing context
+      exports; no module move, no new crate, no dependency or manifest change.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      Existing `.kittify/charter/context-state.json` and CWD-relative
+      `.kittify/encoding-provenance/global.jsonl` placements are reused verbatim;
+      no new path spelling, no cleanup of shared state.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      The `charter context --json` envelope key set and key order are unchanged.
+      `context`/`text`/`action`/`mode`/`first_load`/`references_count` come from
+      the text stage and the structured blocks from the second stage.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      `charter context` flags (`--action`, `--mission-type`, `--profile`,
+      `--include-all`, `--json`, `--mark-loaded/--no-mark-loaded`) are unchanged;
+      only the execution order behind them is implemented.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Reuses the existing profile warning and the existing coded error envelopes.
+      No new user-facing wording, no warning-transport or OS-error-codec change.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New focused Source-first/Native paired fixture plus a bounded real-binary
+      smoke. Fresh `mktemp`/`tempfile` fixtures, real Git, both actual children
+      assert CWD/HOME/all seven XDG/TMPDIR/TMP/TEMP/absolute Source+packs seed.
+  logs_telemetry:
+    action: manual_review
+    notes: >-
+      Real Source freshness ingestion records are counted per stage (two on a
+      stale JSON run, one on a stale text run, zero on a fresh run); no invented
+      extra append, no second writer or logger.
+exceptions:
+  - path: crates/sk-doctrine/src/context.rs
+    action: manual_review
+    reason: >-
+      Phase seams, profile/include_all scope, text-without-body and
+      structured-with-body/catch semantics over the existing canonical owners.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Narrow same-item re-exports of the new phase names.
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: >-
+      Only the non-include context handler wiring, the ordered execution facade,
+      profile probe placement and context_state/write_context_state phase plumbing.
+  - path: crates/sk-cli/tests/cf65_context_sync_consumer.rs
+    action: manual_review
+    reason: >-
+      Mechanical JSON-mode receipt ripple: the real-binary controls asserted the
+      old single-build one-record behaviour; they now assert the reference's two
+      stale-bundle builds. Original preserved externally before the edit. The
+      single-build paired control is unchanged.
+  - path: crates/sk-cli/tests/cf66_context_execution_cli.rs
+    action: manual_review
+    reason: New focused paired/bounded CLI test file.
+  - path: crates/sk-doctrine/tests/cf66_context_phase_execution.rs
+    action: manual_review
+    reason: New focused paired doctrine phase test file.
+status:
+  accepted: false
+  phase: new ordered action-context execution capability

@@ -691,7 +691,7 @@ fn every_pinned_builtin_profile_loads_like_the_oracle() {
     let oracle = run_oracle(&fixture, PROFILE_ORACLE_SCRIPT);
     let built_in = fixture.packs.join("built-in");
     let repository = ProfileRepository::load(&built_in, &[], None).expect("profiles");
-    assert_eq!(json!(repository.ids()), oracle["ids"]);
+    assert_eq!(json!(repository.scalar_ids()), oracle["ids"]);
     assert_eq!(oracle["skipped"], json!([]));
     assert!(
         repository.skipped().is_empty(),
@@ -723,26 +723,31 @@ fn profile_schema_accepts_alias_and_populate_by_name_spellings() {
         "{:?}",
         repository.skipped()
     );
-    let profile = repository.get("aliased").expect("alias profile loads");
-    assert_eq!(profile.id, oracle["profile_id"].as_str().unwrap());
+    let profile = repository.get_str("aliased").expect("alias profile loads");
+    assert_eq!(
+        profile.scalar_id(),
+        Some(oracle["profile_id"].as_str().unwrap().to_owned())
+    );
+    // The body is the reference model's `by_alias=True` view, so a snake_case
+    // authored field reads back under its kebab-case serialization alias.
     assert_eq!(
         profile
             .body
-            .get("routing_priority")
+            .get("routing-priority")
             .and_then(serde_yaml_ng::Value::as_i64),
         oracle["routing_priority"].as_i64()
     );
     assert_eq!(
         profile
             .body
-            .get("max_concurrent_tasks")
+            .get("max-concurrent-tasks")
             .and_then(serde_yaml_ng::Value::as_i64),
         oracle["max_concurrent_tasks"].as_i64()
     );
     assert_eq!(
         profile
             .body
-            .get("self_review_protocol")
+            .get("self-review-protocol")
             .and_then(|value| value.get("steps"))
             .and_then(|value| value.get(0))
             .and_then(|value| value.get("gate"))
@@ -752,7 +757,7 @@ fn profile_schema_accepts_alias_and_populate_by_name_spellings() {
     assert_eq!(
         profile
             .body
-            .get("directive_references")
+            .get("directive-references")
             .and_then(|value| value.get(0))
             .and_then(|value| value.get("code"))
             .and_then(serde_yaml_ng::Value::as_str),
@@ -768,7 +773,7 @@ fn profile_schema_accepts_alias_and_populate_by_name_spellings() {
         "profile-id: conflicting\nname: Conflicting\npurpose: p\nrole: reviewer\nroles: [architect]\nspecialization:\n  primary-focus: review\n",
     );
     let conflicting = ProfileRepository::load(&conflicting_dir, &[], None).expect("profiles");
-    assert!(conflicting.get("conflicting").is_none());
+    assert!(conflicting.get_str("conflicting").is_none());
     assert_eq!(
         conflicting
             .skipped()
@@ -931,7 +936,7 @@ fn org_charter_block_pack_name_and_schema_acceptance_match_the_oracle() {
     let policy = load_org_charter_policy(&fixture.packs.join("org"))
         .unwrap()
         .unwrap();
-    assert_eq!(policy.schema_version, 9);
+    assert_eq!(policy.schema_version.as_decimal(), "9");
 }
 
 #[test]

@@ -1,0 +1,165 @@
+# CF26 — occurrence classification (PRE-EDIT, additive surface + one removed refusal code)
+#
+# Lane: NEW `charter context --include` non-section selectors (directive / tactic /
+# styleguide / toolguide / procedure / agent-profile / artifact / template) on the
+# canonical doctrine authorities.
+#
+# Written BEFORE any CF26 edit, from the real pre-edit inventory receipts in
+# /tmp/sk-evidence-cf26-context-include/ (see `command-log-index.tsv`). This is a NEW
+# lane map: no invented Mission/Op metadata, no `accepted: true`, no fictional
+# kitty-specs/ mission, and no backdated approval.
+#
+# Two occurrence surfaces are genuinely non-additive, so `target.operation: remove` is
+# declared for the one literal that is removed:
+#   * `CONTEXT_INCLUDE_UNSUPPORTED` — the CF19-era blanket refusal code for every
+#     non-`section:` selector is DELETED. Those inputs are Source-valid artifacts, so a
+#     blanket refusal was a capability gap presented as a refusal; the canonical
+#     Source error surface (a `ValueError`, exit 1, no code) replaces it, and one NEW
+#     coded gap (`CONTEXT_INCLUDE_PENDING`) is added only for the kinds this crate
+#     cannot render yet. The code string is Rust-only (no wire consumer): grep of
+#     crates/ found exactly one definition and one use, both in this lane's files.
+#   * the `--include` help text gains the selector list Source documents (user-facing
+#     string, manual_review, not a flag rename: the flag stays `--include`).
+#
+# KEEP list (must NOT change):
+#   * `--include`, `--action`, `--json`, `--mark-loaded/--no-mark-loaded`,
+#     `--include-all`, `--profile`, `--mission-type`, `--mission-type` value spellings
+#   * the `include` and `section` selector-kind tokens and the `<kind>:<id>` grammar
+#   * the success envelopes: text = the rendered selector verbatim; `--json` =
+#     `{result, success, include, context, text}`
+#   * the existing `section:` rendering, its `CONTEXT_SECTION_UNKNOWN` envelope and its
+#     exit-1 code path (only the selector *parse* now precedes it)
+#   * every canonical kind token (`agent-profile`, `mission-step-contract`,
+#     `glossary-pack`, `anti-pattern`, `styleguide`, `toolguide`, `paradigm`,
+#     `procedure`, `template`, `asset`) — they come from `sk-charter`'s ArtifactKind
+#   * `directive`/`tactic` `<Label> <id>: <title>` heading spelling, the inline body
+#     labels (`Intent:`, `Scope:`, `Procedures:`, `Integrity rules:`,
+#     `Validation criteria:`, `Name:`, `Purpose:`, `Steps:`, `Title:`, `Tool:`,
+#     `Summary:`, `Entry condition:`, `Exit condition:`, `Principles:`, `Roles:`) and
+#     the `Full artifact:` block indentation
+#   * the source-message texts: `Expected --include selector in '<kind>:<id>' form.`,
+#     `Unsupported --include selector kind '<kind>'.`, `No <kind> found for selector
+#     '<kind>:<id>'.`, `No directive found for selector '<selector>'.`, the
+#     `artifact:` ambiguity/not-found messages and the `mission-type` refusal
+#   * Source status: `src/**` untouched (oracle), packs/pins/goldens unchanged
+#
+# docs: this lane map is the only documentation surface CF26 adds. `docs/rust/*`
+# status/capability prose is parent-owned and is NOT edited here.
+target:
+  term: CONTEXT_INCLUDE_UNSUPPORTED
+  operation: remove
+  replacement: null
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      NEW module `sk_doctrine::context_include` (selector parse, kind resolution through
+      ArtifactKind, cache-free identity lookup, document read, model-dump payload) and
+      NEW pure helpers `context_render::{include_body_lines, include_full_payload_lines}`.
+      The old private `charter::context_include` function is DELETED, replaced by
+      `compat::charter::context_include::render`. Existing public identifiers in
+      `context.rs`, `identity.rs`, `offering.rs`, `profile.rs`, `body.rs` are NOT
+      renamed or re-implemented; `context_render`'s existing functions keep their names.
+  import_paths:
+    action: manual_review
+    notes: >-
+      `sk-doctrine/src/lib.rs` gains exactly one `pub mod context_include;` line;
+      `compat/charter.rs` gains exactly one `mod context_include;` line and calls
+      `crate::compat::runtime::doctrine_bundle` + `crate::compat::support::{CompatError,
+      emit_json_pretty}` by full path. No shared import block is rewritten and no
+      dependency edge or manifest changes.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No artifact, pack, pin, bundle or state path moves. The new paths are a new module
+      file, a new CLI helper submodule file and two new test files; the deleted function
+      left no file behind. `.kittify/charter/context-state.json` and `charter.md`
+      resolution stay exactly as they were.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No serialized key changes: the `charter context --include --json` success envelope
+      (`result`, `success`, `include`, `context`, `text`) and the section-unknown error
+      envelope (`result`, `success`, `code`, `error`) are byte-identical; the error
+      surface for reference refusals stays the shared `{error}`/`{error_code}` shape.
+      The rendered artifact payload is the canonical model dump, not raw YAML.
+  cli_commands:
+    action: manual_review
+    notes: >-
+      No command, subcommand, flag or alias is added, renamed or removed. `--include`
+      keeps its spelling and now accepts every Source selector kind instead of only
+      `section:`; exit codes follow Source (0 success, 1 reference refusal/coded gap).
+      Registration in the root CLI enum is untouched (already present).
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      The `--include` help text gains the documented selector list, and the blanket
+      "supports `section:<slug>` only … is pending" message is replaced by the exact
+      Source messages (plus the one honest pending-gap message). The section-unknown
+      message and every Section render stay unchanged.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      NEW `crates/sk-doctrine/tests/cf26_context_include.rs` (9 fixtures:
+      authored-identity≠filename, tactic, styleguide/procedure, agent profile, missing
+      members, grammar/kind refusals, `artifact:` single/ambiguous/none, pending kinds,
+      malformed-unrelated-kind laziness) and NEW
+      `crates/sk-cli/tests/cf26_context_include_cli.rs` (6 real-binary cases).
+      NO existing test is edited, weakened or deleted: the prior `section:` behaviour is
+      still asserted through the new CLI file.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric, event or telemetry key is added or renamed; the CLI prints only
+      the rendered selector (stdout) and the shared `Error: <message>` diagnostic
+      (stderr).
+exceptions:
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: >-
+      The removed refusal constant, the replaced `context_include` function, the new
+      `mod context_include;` line and the `--include` doc comment only. CF29 owns the
+      preset branch of `activate_command`/`ActivateArgs` in this same file; no
+      whole-file formatter and no shared-import rewrite was run here.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Exactly one added `pub mod context_include;` declaration; no other line touched.
+  - path: crates/sk-doctrine/src/context_render.rs
+    action: manual_review
+    reason: >-
+      Two NEW pure include helpers appended before the test module; no existing renderer
+      changed and no existing test edited.
+status:
+  lane: cf26-context-include-selectors
+  change_mode: bulk_edit
+  source_baseline: "9aed3a8012cb5eb22c0128b14d525039f95fea7a"
+  owned_paths:
+    - crates/sk-doctrine/src/context_include.rs
+    - crates/sk-doctrine/src/lib.rs
+    - crates/sk-doctrine/src/context_render.rs
+    - crates/sk-doctrine/tests/cf26_context_include.rs
+    - crates/sk-cli/src/compat/charter.rs
+    - crates/sk-cli/src/compat/charter/context_include.rs
+    - crates/sk-cli/tests/cf26_context_include_cli.rs
+    - docs/rust/occurrence-maps/cf26-context-include-selectors.yaml
+  declared_non_edits:
+    - crates/sk-cli/src/compat/capabilities.rs
+    - crates/sk-doctrine/src/context.rs
+    - crates/sk-doctrine/src/identity.rs
+    - crates/sk-doctrine/src/offering.rs
+    - crates/sk-doctrine/src/body.rs
+    - crates/sk-doctrine/src/profile.rs
+    - src/**
+  removed_literals:
+    - code: CONTEXT_INCLUDE_UNSUPPORTED
+      where: crates/sk-cli/src/compat/charter.rs
+      replaced_by: the canonical Source `ValueError` surface (exit 1, no code)
+  added_literals:
+    - code: CONTEXT_INCLUDE_PENDING
+      where: crates/sk-doctrine/src/context_include.rs
+      reason: >-
+        Explicit Native capability gap for the kinds with no canonical model-dump
+        schema yet and for the unwritten six-tier template resolver; never used for a
+        Source-invalid input.
+  reviewed_by: "CF26 implementer pre-edit classification (not independent approval)"
+  accepted: false

@@ -1,0 +1,120 @@
+# PRE-EDIT inventory for W2 (ambient write-observer context). No host Mission/Op or approval.
+# Validated against src/charter/offering/schemas/occurrence-map.schema.yaml and
+# specify_cli.bulk_edit.occurrence_map.check_admissibility BEFORE any production edit.
+target:
+  term: "per-call only Native WriteListener observation with no ambient write-observer context"
+  replacement: "one canonical ambient write-observer context with explicit capture, token and future binding"
+  operation: rename
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      ADD one canonical ambient context (write_observer: WriteContext, WriteContextGuard,
+      WriteObserverToken, WriteObserverError, WriteContextError, observe_writes,
+      stop_observing_writes, notify_written, bind_write_context/BoundWriteContext, capture/enter).
+      Keep WriteListener (explicit per-call capability) and WriteListenerFailure::new(message)
+      semantics. Narrowly extend SourceWriteError::Observer with an optional typed cause and make
+      is_os_error/is_value_error consult it only when a typed cause exists (message-only listener
+      failures stay unclassified). write_source signature is UNCHANGED; it now dispatches through
+      the ambient context, ambient-outer-then-per-call. No second registry, no private ledger,
+      no global callback Mutex, no unsafe, no async runtime, no dependency/manifest change.
+  import_paths:
+    action: manual_review
+    notes: >-
+      New module is registered as source_writer::write_observer inside the already registered
+      source_writer module (Kernel lib.rs remains PARENT-owned; exact root re-export request is in
+      the W2 report). Existing sk_kernel::source_writer::write_source import paths in the 8 real
+      production callers are unchanged; they continue to pass None and now hear an installed
+      context. No crate/dependency edge is added.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No runtime filesystem path, temp-name, ledger, registry, status, install or workspace path
+      changes. New files only: crates/sk-kernel/src/source_writer/write_observer.rs and dedicated
+      tests/oracle fixtures. Source/packs/pins/historical goldens untouched.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      WriteReceipt/WriteObservation are in-memory values only and are not serialized here. No
+      status/event/ledger/Mission YAML or JSON key changes. Typed error wire format stays OPEN.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No CLI command, alias, flag, registration, exit-code policy or orchestrator-api surface
+      changes. Parent owns the CLI and central ledger.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      SourceWriteError Display keeps existing Source-shaped messages; a typed ambient observer's
+      own message is retained verbatim behind the existing message-only failure. Kernel README
+      "write observer pending" notes are corrected to the delivered scope without a parity claim.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New dedicated Source-first context tests/oracle plus genuine strengthening of the narrow
+      existing writer tests: no-observer/direct notify with nonexistent/relative/non-UTF8/NUL path
+      and arbitrary bytes (no IO); nested outer-first chain; stop restore; unused/dropped token does
+      not silently reset; out-of-order resurrection; reused/wrong-context token classes; callback
+      error skips later; context change during notification; recursive notify reentrancy; copy
+      shares callback state but isolates binding; explicit entry/unwind restore; new-thread empty
+      vs explicit copy; concurrent entry typed refusal with no state leak (deterministic barrier,
+      no sleep/poll); Source asyncio tasks created under different contexts with deterministic
+      Events; Native captured futures interleaved manually under a safe Waker/Pin wrapper;
+      Atomic/DerivedJson post-publication observer bytes/mode; Generated/Text/Rebuild never notify;
+      ambient + per-call chronology; actual existing public consumer with None hears the context.
+      Both actual children assert exact CPython 3.11.15 / exact 53 fail-closed roots and footprints.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric, event identity, success/readiness, approval or completion label is changed
+      or fabricated.
+exceptions:
+  - path: crates/sk-kernel/src/source_writer.rs
+    action: manual_review
+    reason: >-
+      Narrow dispatch/doc/typed-error plumbing only (module registration, ambient notify ordering,
+      Observer cause field, class predicates). No other writer policy/mode/path rewrite.
+  - path: crates/sk-kernel/src/source_writer/write_observer.rs
+    action: manual_review
+    reason: NEW single canonical ambient context/observer authority.
+  - path: crates/sk-kernel/tests/write_observer_context.rs
+    action: manual_review
+    reason: NEW dedicated Source-first context tests (real Source child then Native child).
+  - path: crates/sk-kernel/tests/oracle/write_observer_context.py
+    action: manual_review
+    reason: NEW pinned-Source observer oracle; asserts intended Source cause before Native runs.
+  - path: crates/sk-kernel/tests/source_writer_source_policy.rs
+    action: manual_review
+    reason: Genuine strengthening of narrow existing writer tests for ambient dispatch/receipt states.
+  - path: crates/sk-kernel/README.md
+    action: manual_review
+    reason: Correct the 'write observer pending' notes to the delivered bounded scope.
+  - path: crates/sk-kernel/src/lib.rs
+    action: do_not_change
+    reason: >-
+      PARENT-owned root registration. This task requests an exact `pub mod write_observer;` plus
+      re-export insertion; it does not edit lib.rs.
+  - path: crates/sk-install/src/error.rs
+    action: do_not_change
+    reason: Parent-owned transparent InstallError::SourceWrite carrier; only reads SourceWriteError.
+  - path: crates/sk-install/src/migrations/completion_modern/rescue_spine.rs
+    action: do_not_change
+    reason: Parent-owned Source OSError-vs-ValueError catch boundary; only reads is_os_error.
+  - path: crates/sk-install/src/render/shim.rs
+    action: do_not_change
+    reason: Existing None listener caller; signature and behavior preserved.
+  - path: crates/sk-install/src/metadata.rs
+    action: do_not_change
+    reason: Existing None listener callers; signature and behavior preserved.
+  - path: crates/sk-mission/src/migration_rescue.rs
+    action: do_not_change
+    reason: Existing None listener caller; signature and behavior preserved.
+  - path: crates/sk-status/src/migration_backfill.rs
+    action: do_not_change
+    reason: Existing None listener caller; signature and behavior preserved.
+  - path: crates/sk-status/src/mission_projection.rs
+    action: do_not_change
+    reason: Existing None listener caller (DerivedJson); signature and behavior preserved.
+status:
+  reviewed_by: "W2 implementer pre-edit classification (not independent approval)"
+  accepted: false

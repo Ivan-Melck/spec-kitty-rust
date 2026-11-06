@@ -65,6 +65,44 @@ pub fn atomic_write_with_options(
     atomic_write_with_parent_sync(path, bytes, sync_parent_directory)
 }
 
+/// Atomically install bytes with explicit permissions on the temporary inode.
+///
+/// Unlike the default writer, this is a managed-owner mode assertion. Equal
+/// content with a different mode is replaced; permissions are never applied by
+/// reopening the destination after publication.
+pub fn atomic_write_with_permissions(
+    path: &Path,
+    bytes: &[u8],
+    permissions: Permissions,
+) -> Result<bool, KernelError> {
+    atomic_write_with_permissions_and_parent_sync(
+        path,
+        bytes,
+        Some(permissions),
+        None,
+        sync_parent_directory,
+    )
+}
+
+/// Publish with a Unix creation mode, letting the OS apply the process umask.
+///
+/// This is Source `kernel.yaml_io.write_mapping_atomic`'s execution policy:
+/// always publish (including equal bytes), do not preserve destination modes or
+/// read the destination, sync the file before rename, and best-effort sync the
+/// parent afterward. The process umask is never read or changed here. Existing
+/// default and explicit-permissions writers retain their distinct contracts.
+#[cfg(unix)]
+pub fn atomic_write_with_requested_mode(
+    path: &Path,
+    bytes: &[u8],
+    mode: u32,
+) -> Result<bool, KernelError> {
+    atomic_write_with_permissions_and_parent_sync(path, bytes, None, Some(mode), |parent, path| {
+        let _ = sync_parent_directory(parent, path);
+        Ok(())
+    })
+}
+
 fn atomic_write_with_parent_sync<F>(
     path: &Path,
     bytes: &[u8],
@@ -73,22 +111,68 @@ fn atomic_write_with_parent_sync<F>(
 where
     F: FnOnce(&Path, &Path) -> Result<(), KernelError>,
 {
+    atomic_write_with_permissions_and_parent_sync(path, bytes, None, None, sync_parent)
+}
+
+fn atomic_write_with_permissions_and_parent_sync<F>(
+    path: &Path,
+    bytes: &[u8],
+    permissions: Option<Permissions>,
+    requested_mode: Option<u32>,
+    sync_parent: F,
+) -> Result<bool, KernelError>
+where
+    F: FnOnce(&Path, &Path) -> Result<(), KernelError>,
+{
     // Equality cannot require reading more than the new payload. Reuse the
     // shared regular-file/nonblocking opener so FIFOs and devices cannot hang
     // or exhaust memory before an otherwise atomic replacement.
-    match crate::read_bounded(path, bytes.len() as u64) {
-        Ok(existing) if existing == bytes => return Ok(false),
-        Ok(_) | Err(KernelError::TooLarge { .. }) => {}
-        Err(KernelError::Io { source, .. }) if source.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error),
+    if requested_mode.is_none() {
+        match crate::read_bounded(path, bytes.len() as u64) {
+            Ok(existing) if existing == bytes => {
+                let mode_matches = permissions.as_ref().is_none_or(|desired| {
+                    fs::symlink_metadata(path).is_ok_and(|metadata| {
+                        if !metadata.is_file() {
+                            return false;
+                        }
+                        let actual = metadata.permissions();
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::PermissionsExt;
+                            actual.mode() & 0o7777 == desired.mode() & 0o7777
+                        }
+                        #[cfg(not(unix))]
+                        {
+                            actual == *desired
+                        }
+                    })
+                });
+                if mode_matches {
+                    return Ok(false);
+                }
+            }
+            Ok(_) | Err(KernelError::TooLarge { .. }) => {}
+            Err(KernelError::Io { source, .. }) if source.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
     }
 
     let parent = parent_directory(path);
-    let destination = DestinationState::inspect(path)?;
-
-    let mut temporary = tempfile::Builder::new()
-        .prefix(".sk-kernel-atomic-")
-        .suffix(".tmp")
+    let destination = if requested_mode.is_none() {
+        Some(DestinationState::inspect(path)?)
+    } else {
+        None
+    };
+    let mut builder = tempfile::Builder::new();
+    builder.prefix(".sk-kernel-atomic-").suffix(".tmp");
+    #[cfg(unix)]
+    if let Some(mode) = requested_mode {
+        use std::os::unix::fs::PermissionsExt;
+        // tempfile's Unix creator passes this to OpenOptions::mode at O_EXCL
+        // creation; unlike fchmod, the OS applies the actual umask.
+        builder.permissions(Permissions::from_mode(mode));
+    }
+    let mut temporary = builder
         .tempfile_in(parent)
         .map_err(|source| KernelError::io("create temporary file in", parent, source))?;
 
@@ -103,7 +187,11 @@ where
         .sync_all()
         .map_err(|source| KernelError::io("sync temporary file for", path, source))?;
 
-    if let Some(permissions) = &destination.preserve {
+    if let Some(permissions) = permissions.as_ref().or_else(|| {
+        destination
+            .as_ref()
+            .and_then(|state| state.preserve.as_ref())
+    }) {
         temporary
             .as_file()
             .set_permissions(permissions.clone())
@@ -111,7 +199,11 @@ where
     }
 
     #[cfg(windows)]
-    let relaxed = destination.relax_for_replace(path)?;
+    let relaxed = destination
+        .as_ref()
+        .map(|state| state.relax_for_replace(path))
+        .transpose()?
+        .unwrap_or(false);
 
     match temporary.persist(path) {
         Ok(_) => {
@@ -123,7 +215,9 @@ where
         }
         Err(error) => {
             #[cfg(windows)]
-            destination.restore_after_failure(path, relaxed);
+            if let Some(destination) = &destination {
+                destination.restore_after_failure(path, relaxed);
+            }
             Err(KernelError::io("replace", path, error.error))
         }
     }

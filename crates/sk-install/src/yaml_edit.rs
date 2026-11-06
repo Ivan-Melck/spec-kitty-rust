@@ -27,6 +27,309 @@ use serde_yaml_ng::{Mapping, Value};
 
 use crate::error::InstallError;
 
+// ---------------------------------------------------------------------------
+// Round-trip (CST) editing
+// ---------------------------------------------------------------------------
+//
+// The additive editor above never reserializes a document. Some migrations
+// need the other half of `ruamel.yaml`'s round-trip mode: *removing* members
+// and blocks, and moving values between sequences, while every authored
+// comment, key order, quote style and flow/block layout survives. The locked
+// `yaml-edit` crate is a lossless CST editor, so this section is a thin typed
+// façade over it — never a line-surgery approximation and never a second
+// parser: a `CstDocument` owns exactly one `yaml_edit::Document`, and a caller
+// cannot obtain a second, divergent edit path.
+//
+// The façade deliberately exposes the few operations the modern migrations
+// need (list membership, mapping blocks, nested paths) and returns *actual*
+// node-derived values, so a caller compares data, not text.
+
+/// A lossless, comment-preserving YAML document.
+///
+/// Parsing keeps every byte of formatting; edits mutate the shared syntax tree
+/// in place and [`CstDocument::text`] renders the result. A document whose
+/// root is not a mapping (or is empty) is refused, because every managed
+/// config surface this module edits is a mapping.
+pub struct CstDocument {
+    path: std::path::PathBuf,
+    document: yaml_edit::Document,
+}
+
+impl CstDocument {
+    /// Parse `text` as a round-trip document. An empty document is refused.
+    pub fn parse(path: impl Into<std::path::PathBuf>, text: &str) -> Result<Self, InstallError> {
+        let path = path.into();
+        let document = text
+            .parse::<yaml_edit::Document>()
+            .map_err(|error| yaml_error(&path, format!("cannot parse YAML: {error}")))?;
+        if document.as_mapping().is_none() {
+            return Err(yaml_error(
+                &path,
+                "document root is not a mapping; refusing to edit it".to_string(),
+            ));
+        }
+        Ok(Self { path, document })
+    }
+
+    /// The path this document is attributed to in errors.
+    pub fn path(&self) -> &std::path::Path {
+        &self.path
+    }
+
+    /// Render the edited document.
+    pub fn text(&self) -> String {
+        self.document.to_string()
+    }
+
+    /// The root mapping.
+    pub fn root(&self) -> CstMapping {
+        CstMapping::new(
+            self.path.clone(),
+            self.document.as_mapping().expect("parse checked"),
+        )
+    }
+
+    /// The top-level mapping keys, in document order.
+    pub fn keys(&self) -> Vec<String> {
+        self.root().keys()
+    }
+}
+
+/// One mapping node of a [`CstDocument`].
+#[derive(Clone)]
+pub struct CstMapping {
+    path: std::path::PathBuf,
+    node: yaml_edit::Mapping,
+}
+
+impl CstMapping {
+    fn new(path: std::path::PathBuf, node: yaml_edit::Mapping) -> Self {
+        Self { path, node }
+    }
+
+    /// The mapping keys, in document order.
+    pub fn keys(&self) -> Vec<String> {
+        self.node
+            .entries()
+            .filter_map(|entry| {
+                entry
+                    .key_node()
+                    .and_then(|key| Some(key.as_scalar()?.as_string()))
+            })
+            .collect()
+    }
+
+    /// Whether `key` is present.
+    pub fn contains(&self, key: &str) -> bool {
+        self.node.get(key).is_some()
+    }
+
+    /// Remove `key` (with its comments); `true` when it was present.
+    pub fn remove(&self, key: &str) -> bool {
+        self.node.remove(key).is_some()
+    }
+
+    /// The child mapping at `key`, when it is a mapping.
+    pub fn get_mapping(&self, key: &str) -> Option<CstMapping> {
+        self.node
+            .get_mapping(key)
+            .map(|node| CstMapping::new(self.path.clone(), node))
+    }
+
+    /// The child sequence at `key`, when it is a sequence.
+    pub fn get_sequence(&self, key: &str) -> Option<CstSequence> {
+        self.node
+            .get_sequence(key)
+            .map(|node| CstSequence::new(self.path.clone(), node))
+    }
+
+    /// The scalar text at `key`, when it is a scalar.
+    pub fn get_string(&self, key: &str) -> Option<String> {
+        self.node
+            .get(key)
+            .and_then(|value| value.as_scalar().map(yaml_edit::Scalar::as_string))
+    }
+
+    /// The string members of the sequence at `key` (a non-string member is
+    /// reported as its YAML text so no authored value is silently dropped).
+    pub fn get_string_list(&self, key: &str) -> Option<Vec<String>> {
+        self.get_sequence(key)
+            .map(|sequence| sequence.string_values())
+    }
+
+    /// Set `key` to a raw YAML value (parsed into a CST node).
+    pub fn set_raw(&self, key: &str, raw: &str) {
+        let value = yaml_edit::YamlValue::parse_raw(raw)
+            .unwrap_or_else(|_| yaml_edit::YamlValue::Scalar(yaml_edit::ScalarValue::string(raw)));
+        self.node.set(key, value);
+    }
+
+    /// Set `key` to a string scalar (overwriting an existing scalar).
+    ///
+    /// The authored text comes from `render_string`, the same quoting rule
+    /// the editor uses for inserted lines, so a timestamp/number/bool-shaped
+    /// string stays a string on re-read. A structured existing value is *not*
+    /// replaced: the caller gets `false` back and can report the authored data
+    /// instead of losing it.
+    pub fn set_string(&self, key: &str, value: &str) -> bool {
+        if self
+            .node
+            .get(key)
+            .is_some_and(|node| node.as_mapping().is_some() || node.as_sequence().is_some())
+        {
+            return false;
+        }
+        self.set_raw(key, &render_string(value));
+        true
+    }
+
+    /// Set `key` to a string sequence, reusing existing members where possible.
+    pub fn set_string_list(&self, key: &str, values: &[String]) {
+        let list: Vec<yaml_edit::YamlValue> = values
+            .iter()
+            .map(|value| {
+                yaml_edit::YamlValue::Scalar(yaml_edit::ScalarValue::string(value.clone()))
+            })
+            .collect();
+        self.node.set(key, yaml_edit::YamlValue::Sequence(list));
+    }
+}
+
+/// One sequence node of a [`CstDocument`].
+#[derive(Clone)]
+pub struct CstSequence {
+    path: std::path::PathBuf,
+    node: yaml_edit::Sequence,
+}
+
+impl CstSequence {
+    fn new(path: std::path::PathBuf, node: yaml_edit::Sequence) -> Self {
+        Self { path, node }
+    }
+
+    /// The sequence length.
+    pub fn len(&self) -> usize {
+        self.node.len()
+    }
+
+    /// Whether the sequence is empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Every member, as a typed [`CstValue`].
+    pub fn values(&self) -> Vec<CstValue> {
+        (0..self.len())
+            .filter_map(|index| self.node.get(index))
+            .map(|value| CstValue::from_node(self.path.clone(), value))
+            .collect()
+    }
+
+    /// Every member rendered back to its YAML text (used for diagnostics and
+    /// for preserving a non-scalar value instead of dropping it).
+    pub fn string_values(&self) -> Vec<String> {
+        self.values()
+            .into_iter()
+            .map(|value| value.as_string())
+            .collect()
+    }
+
+    /// Remove the member at `index`; `true` when it existed.
+    pub fn remove(&self, index: usize) -> bool {
+        self.node.remove(index).is_some()
+    }
+
+    /// Append a raw YAML value.
+    pub fn push_raw(&self, raw: &str) -> Result<(), InstallError> {
+        let value = yaml_edit::YamlValue::parse_raw(raw).map_err(|error| {
+            yaml_error(&self.path, format!("cannot parse appended YAML: {error}"))
+        })?;
+        self.node.push(value);
+        Ok(())
+    }
+
+    /// Append a string scalar.
+    pub fn push_string(&self, value: &str) {
+        self.node.push(yaml_edit::YamlValue::Scalar(
+            yaml_edit::ScalarValue::string(value),
+        ));
+    }
+
+    /// Append a structured value built by the caller.
+    pub fn push_value(&self, value: yaml_edit::YamlValue) {
+        self.node.push(value);
+    }
+
+    /// The index of the first member whose mapping `id_key` equals `id`.
+    pub fn position_of_mapping_id(&self, id_key: &str, id: &str) -> Option<usize> {
+        self.values().iter().position(|value| match value {
+            CstValue::Mapping(mapping, _) => mapping.get_string(id_key).as_deref() == Some(id),
+            _ => false,
+        })
+    }
+
+    /// Remove every member whose mapping `id_key` equals `id`; returns how many.
+    pub fn remove_mapping_ids(&self, id_key: &str, id: &str) -> usize {
+        let mut removed = 0usize;
+        let mut index = 0usize;
+        while index < self.len() {
+            let member_id = match self.node.get(index) {
+                Some(value) => {
+                    let mapping = value.as_mapping();
+                    mapping
+                        .and_then(|mapping| mapping.get(id_key))
+                        .and_then(|value| value.as_scalar().map(yaml_edit::Scalar::as_string))
+                }
+                None => None,
+            };
+            if member_id.as_deref() == Some(id) {
+                self.node.remove(index);
+                removed += 1;
+            } else {
+                index += 1;
+            }
+        }
+        removed
+    }
+}
+
+/// One typed value inside a [`CstSequence`].
+#[derive(Clone)]
+pub enum CstValue {
+    /// A scalar; its authored text.
+    Scalar(String),
+    /// A mapping member and its rendered YAML text.
+    Mapping(CstMapping, String),
+    /// A sequence member and its rendered YAML text.
+    Sequence(CstSequence, String),
+}
+
+impl CstValue {
+    fn from_node(path: std::path::PathBuf, node: yaml_edit::YamlNode) -> Self {
+        if let Some(mapping) = node.as_mapping() {
+            let rendered = node.to_string();
+            return Self::Mapping(CstMapping::new(path, mapping.clone()), rendered);
+        }
+        if let Some(sequence) = node.as_sequence() {
+            let rendered = node.to_string();
+            return Self::Sequence(CstSequence::new(path, sequence.clone()), rendered);
+        }
+        Self::Scalar(
+            node.as_scalar()
+                .map(yaml_edit::Scalar::as_string)
+                .unwrap_or_else(|| node.to_string()),
+        )
+    }
+
+    /// The value as text (a scalar's text, or its rendered YAML).
+    pub fn as_string(&self) -> String {
+        match self {
+            Self::Scalar(value) => value.clone(),
+            Self::Mapping(_, rendered) | Self::Sequence(_, rendered) => rendered.clone(),
+        }
+    }
+}
+
 /// A scalar value the editor may insert or replace.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Scalar {
@@ -122,18 +425,7 @@ impl YamlEditor {
     ) -> Result<EditOutcome, InstallError> {
         let original = parse_mapping(&self.path, &self.original)?;
         let mut expected = original.clone();
-        let parent_value = expected
-            .entry(Value::String(parent.to_string()))
-            .or_insert_with(|| Value::Mapping(Mapping::new()));
-        if parent_value.is_null() {
-            *parent_value = Value::Mapping(Mapping::new());
-        } else if !parent_value.is_mapping() {
-            return Err(yaml_error(
-                &self.path,
-                format!("{parent:?} exists but is not a mapping"),
-            ));
-        }
-        let parent_mapping = parent_value.as_mapping_mut().expect("checked mapping");
+        let parent_mapping = root_mapping_mut(&mut expected, parent, &self.path)?;
         let mut inserted = Vec::new();
         for (key, scalar) in entries {
             let key_value = Value::String(key.clone());
@@ -213,18 +505,7 @@ impl YamlEditor {
     ) -> Result<EditOutcome, InstallError> {
         let original = parse_mapping(&self.path, &self.original)?;
         let mut expected = original.clone();
-        let parent_value = expected
-            .entry(Value::String(parent.to_string()))
-            .or_insert_with(|| Value::Mapping(Mapping::new()));
-        if parent_value.is_null() {
-            *parent_value = Value::Mapping(Mapping::new());
-        } else if !parent_value.is_mapping() {
-            return Err(yaml_error(
-                &self.path,
-                format!("{parent:?} exists but is not a mapping"),
-            ));
-        }
-        let parent_mapping = parent_value.as_mapping_mut().expect("checked mapping");
+        let parent_mapping = root_mapping_mut(&mut expected, parent, &self.path)?;
         let mut inserted = Vec::new();
         for (key, scalar) in entries {
             let key_value = Value::String(key.clone());
@@ -535,6 +816,148 @@ fn replace_in_block(
         lines,
     };
     Ok(document.with_lines(std::path::Path::new("<edited>"), block, rendered, position))
+}
+
+/// Rename a top-level key and move it (with its whole value block) to the end of
+/// the document, matching ruamel's `data[new] = data.pop(old)`.
+///
+/// The moved block's own bytes (indentation, quoting, the trailing key comment,
+/// nested entries) travel with it; a comment that precedes the block belongs to
+/// the following entry in ruamel and stays where it is. Returns `None` when the
+/// key is absent or the rewrite would not round-trip.
+pub fn move_root_key_to_end(
+    path: &std::path::Path,
+    text: &str,
+    old_key: &str,
+    new_key: &str,
+) -> Result<Option<String>, InstallError> {
+    let original = parse_mapping(path, text)?;
+    let old_value = Value::String(old_key.to_string());
+    let new_value = Value::String(new_key.to_string());
+    if !original.contains_key(&old_value) || original.contains_key(&new_value) {
+        return Ok(None);
+    }
+    let lines = Lines::parse(path, text)?;
+    let Some(start) = lines
+        .lines
+        .iter()
+        .position(|line| matches!(key_of(&line.content), Some((0, key)) if key == old_key))
+    else {
+        return Ok(None);
+    };
+    let indent_of = |content: &str| content.len() - content.trim_start().len();
+    let mut end = start + 1;
+    let mut last_indented = start;
+    while end < lines.lines.len() {
+        let content = &lines.lines[end].content;
+        if content.trim().is_empty() {
+            end += 1;
+            continue;
+        }
+        // A block sequence may sit at its key's own indentation (the layout
+        // this crate writes), so an indicator line belongs to the block even
+        // at column 0; only a non-indicator line at the key's indentation ends
+        // it.
+        if indent_of(content) == 0 && !content.trim_start().starts_with('-') {
+            break;
+        }
+        last_indented = end;
+        end += 1;
+    }
+    end = last_indented + 1;
+
+    let mut block: Vec<String> = lines.lines[start..end]
+        .iter()
+        .map(|line| format!("{}{}", line.content, line.newline))
+        .collect();
+    let first = block.first_mut().expect("block is non-empty");
+    *first = rename_key_line(first, old_key, new_key);
+
+    let mut remaining: Vec<String> = Vec::new();
+    for (index, line) in lines.lines.iter().enumerate() {
+        if (start..end).contains(&index) {
+            continue;
+        }
+        remaining.push(format!("{}{}", line.content, line.newline));
+    }
+    let newline = lines
+        .lines
+        .iter()
+        .find(|line| !line.newline.is_empty())
+        .map(|line| line.newline.clone())
+        .unwrap_or_else(|| "\n".to_string());
+    if let Some(last) = remaining.last_mut()
+        && !last.ends_with('\n')
+    {
+        last.push_str(&newline);
+    }
+    let mut updated = String::new();
+    if lines.bom {
+        updated.push('\u{feff}');
+    }
+    updated.push_str(&remaining.concat());
+    for line in &mut block {
+        if !line.ends_with('\n') {
+            line.push_str(&newline);
+        }
+        updated.push_str(line);
+    }
+
+    let mut expected = serde_yaml_ng::Mapping::new();
+    for (key, value) in &original {
+        if key == &old_value {
+            expected.insert(new_value.clone(), value.clone());
+        } else {
+            expected.insert(key.clone(), value.clone());
+        }
+    }
+    let actual = parse_mapping(path, &updated)?;
+    if normalized(&actual) != normalized(&expected) {
+        return Err(yaml_error(
+            path,
+            "moving the renamed key changed the document beyond the rename".to_string(),
+        ));
+    }
+    Ok(Some(updated))
+}
+
+/// Rewrite `old:` to `new:` on one already-indented line, keeping any trailing
+/// comment text and its spacing byte-for-byte.
+fn rename_key_line(line: &str, old_key: &str, new_key: &str) -> String {
+    let Some(position) = line.find(old_key) else {
+        return line.to_string();
+    };
+    let mut renamed = String::with_capacity(line.len() + new_key.len());
+    renamed.push_str(&line[..position]);
+    renamed.push_str(new_key);
+    renamed.push_str(&line[position + old_key.len()..]);
+    renamed
+}
+
+/// The mapping `parent` names, or the document root when `parent` is empty.
+///
+/// A missing parent is created as a mapping; an authored non-mapping parent is
+/// an error (the editor never replaces authored structure). Returns `None`
+fn root_mapping_mut<'a>(
+    expected: &'a mut Mapping,
+    parent: &str,
+    path: &std::path::Path,
+) -> Result<&'a mut Mapping, InstallError> {
+    if parent.is_empty() {
+        return Ok(expected);
+    }
+    let parent_value = expected
+        .entry(Value::String(parent.to_string()))
+        .or_insert_with(|| Value::Mapping(Mapping::new()));
+    if parent_value.is_null() {
+        *parent_value = Value::Mapping(Mapping::new());
+    } else if !parent_value.is_mapping() {
+        return Err(yaml_error(
+            path,
+            format!("{parent:?} exists but is not a mapping"),
+        ));
+    }
+    Ok(parent_value.as_mapping_mut().expect("checked mapping"))
 }
 
 /// Parse a document into a mapping (`{}` for an empty document).
@@ -1127,5 +1550,78 @@ mod tests {
         assert!(outcome.text.contains(
             "  schema_capabilities:\n    canonical_context: true\n    thin_shims: true\n"
         ));
+    }
+
+    #[test]
+    fn cst_removal_preserves_comments_quotes_and_order() {
+        let text = "# operator header\nactivated_tactics:\n  - keep-me  # inline note\n  - drop-me\noperator:\n  quoted: 'true'\n";
+        let document = CstDocument::parse("config.yaml", text).expect("parse");
+        let root = document.root();
+        let list = root.get_string_list("activated_tactics").expect("list");
+        assert_eq!(list, vec!["keep-me", "drop-me"]);
+        let sequence = root.get_sequence("activated_tactics").expect("sequence");
+        assert!(sequence.remove(1));
+        let rendered = document.text();
+        assert!(rendered.starts_with("# operator header\n"), "{rendered}");
+        assert!(rendered.contains("- keep-me  # inline note"), "{rendered}");
+        assert!(!rendered.contains("drop-me"), "{rendered}");
+        assert!(rendered.contains("quoted: 'true'"), "{rendered}");
+    }
+
+    #[test]
+    fn cst_moves_ids_between_sequences_without_touching_layout() {
+        let text = "context-sources:\n  directives: [001-one, '002-two']\n  additional: [loose]\n# keep me\ndirective-references:\n  - code: 001-one\n    name: one  # authored\n";
+        let document = CstDocument::parse("profile.agent.yaml", text).expect("parse");
+        let root = document.root();
+        let sources = root.get_mapping("context-sources").expect("block");
+        let refs = root.get_sequence("directive-references").expect("refs");
+        let existing: Vec<String> = refs
+            .values()
+            .iter()
+            .filter_map(|value| match value {
+                CstValue::Mapping(mapping, _) => mapping.get_string("code"),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(existing, vec!["001-one"]);
+        for id in sources.get_string_list("directives").expect("ids") {
+            if existing.iter().any(|known| known == &id) {
+                continue;
+            }
+            refs.push_raw(&format!(
+                "- code: {id}\n  name: {id}\n  rationale: migrated\n"
+            ))
+            .expect("push");
+        }
+        assert!(sources.remove("additional"));
+        assert!(root.remove("context-sources"));
+        let rendered = document.text();
+        assert!(!rendered.contains("context-sources"), "{rendered}");
+        assert!(!rendered.contains("additional"), "{rendered}");
+        assert!(rendered.contains("name: one  # authored"), "{rendered}");
+        assert!(rendered.contains("# keep me"), "{rendered}");
+        assert!(rendered.contains("- code: 002-two"), "{rendered}");
+    }
+
+    #[test]
+    fn cst_reports_real_ids_and_refuses_non_mapping_roots() {
+        let text = "governance:\n  charter:\n    selected_tactics:\n      - id: TACTIC_1\n        rationale: r\n      - id: TACTIC_2\n        rationale: r\n";
+        let document = CstDocument::parse("charter.yaml", text).expect("parse");
+        let selected = document
+            .root()
+            .get_mapping("governance")
+            .and_then(|governance| governance.get_mapping("charter"))
+            .and_then(|charter| charter.get_sequence("selected_tactics"))
+            .expect("selected");
+        assert_eq!(selected.position_of_mapping_id("id", "TACTIC_2"), Some(1));
+        assert_eq!(selected.remove_mapping_ids("id", "TACTIC_1"), 1);
+        let rendered = document.text();
+        assert!(!rendered.contains("TACTIC_1"), "{rendered}");
+        assert!(rendered.contains("TACTIC_2"), "{rendered}");
+
+        match CstDocument::parse("list.yaml", "- a\n- b\n") {
+            Ok(_) => panic!("a sequence root must be refused"),
+            Err(error) => assert_eq!(error.code(), "yaml_not_editable"),
+        }
     }
 }

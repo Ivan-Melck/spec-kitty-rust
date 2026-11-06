@@ -1,0 +1,52 @@
+target:
+  term: Exact reference catalogue and lazy Source text presence
+categories:
+  code_symbols:
+    action: manual_review
+    notes: One graph/str reader, typed catalogue failure; lazy checked presence and existing selector; exact deny lookup on current scalar-backed DenySet.
+  import_paths:
+    action: manual_review
+    notes: Existing Kernel graph, UTF8, newline and exists authorities only; same-item exports.
+  filesystem_paths:
+    action: manual_review
+    notes: Ordinary unbounded UTF8 read; exists outside catch; no presence probe on undeclared rail; no writer changes.
+  serialized_keys:
+    action: do_not_change
+    notes: Existing five catalogue fields and context wire fields remain authored data.
+  cli_commands:
+    action: manual_review
+    notes: Actual execute_text_stage uses fallible deferred presence, same routes and counts.
+  user_facing_strings:
+    action: manual_review
+    notes: Typed constructor/exists/deny causes retained rather than fake empty catalogue; no new Source diagnostic claims.
+  tests_fixtures:
+    action: manual_review
+    notes: New Source-derived exact fields, presence/read/catch cases and lazy callback controls, genuine current-API negatives before fixes.
+  logs_telemetry:
+    action: do_not_change
+    notes: Preserve actual receipts and failures; no fabricated pair or Source exception at Native bound.
+exceptions:
+  - path: crates/sk-doctrine/src/reference_catalog.rs
+    action: manual_review
+    reason: Replace lossy reader/repr bridge using canonical object graph, str and typed causes; no parser clone.
+  - path: crates/sk-doctrine/src/context.rs
+    action: manual_review
+    reason: Checked presence plus lazy presence seam, bool fact adapter retained; retire unused catalogue-only visibility promotion.
+  - path: crates/sk-doctrine/src/ledger.rs
+    action: manual_review
+    reason: Narrow exact token lookup method delegates existing DenySet and cannot fabricate empty string on Cs.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Same-item exports for checked lazy presence and typed catalogue error.
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: Live deferred fallible presence only; state writer, normalizer, structured reread and finite adapter held.
+  - path: crates/sk-doctrine/tests/cf68_parent_catalogue_phases.rs
+    action: manual_review
+    reason: New exact catalogue and existence controls on actual API.
+  - path: crates/sk-cli/tests/cf68_context_text_rails.rs
+    action: manual_review
+    reason: Add lazy presence failure callback control without altering previous pair assertions.
+status:
+  accepted: false
+  phase: prospective parent correction

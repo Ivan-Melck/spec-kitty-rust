@@ -1,0 +1,184 @@
+# CF29 occurrence classification — NEW `charter activate --preset` execution.
+#
+# DISCLOSURE (honest chronology): this map was authored AFTER this lane's own
+# edits, not before them. The change is ADDITIVE (three new modules, three new
+# test files, one new branch in an existing dispatcher, two one-line module
+# declarations, comment-only flag documentation), so no identifier, key or
+# message is renamed or removed by this lane — but the pre-edit review the
+# standing orders ask for was performed against the live tree at edit time
+# (`grep -rn` over `crates/{sk-charter,sk-doctrine,sk-cli}/src` for
+# `activate --preset`, `preset`, `ActivateArgs`, `preset_application`) and is
+# recorded here rather than being presented as an earlier artefact.
+#
+# Scope evidence (pre-edit, counted before the edits):
+#   "activate --preset"                       2  sk-cli/src/compat/charter.rs only
+#                                                (flag doc comment + pending refusal)
+#   pending preset refusal                    1  the `CompatError::unsupported(...)`
+#                                                branch in `activate_command`
+#   ActivateArgs.{preset,pack,force}          3  sk-cli/src/compat/charter.rs struct fields
+#   "preset"                                  0  sk-charter/src, sk-doctrine/src
+#                                                (no prior preset model in Rust)
+#   preset_application / presets.rs           0  (both modules are NEW)
+#   docs/rust/occurrence-maps/cf29-*          0  (this file is NEW)
+#
+# No `sed`, no bulk rewrite, no second authority: the new modules COMPOSE the
+# delivered owners (`sk_charter::ArtifactKind`/`PackRoots`/`io`, `sk_doctrine::
+# IdentityIndex`/`required_floor`/`prepare_ledger_write`/`YamlDocument`/
+# `ActivationObservation`), and the CLI branch calls them.
+#
+# Schema note: `schema_version` is the map contract version. There is NO
+# `mission:` key — this rewrite lane has no host Mission (inventing mission
+# metadata is forbidden), matching the CF19/CF25/CF28 maps beside this one.
+# `operation` is omitted on `target:` because this change is additive.
+
+schema_version: "1.0"
+
+target:
+  term: "NEW `spec-kitty charter activate [--pack P] --preset N [--force]` execution"
+  replacement: "a pure preset plan (sk-doctrine::preset_application) over the existing activation writer, with the offering model/loader/discovery in sk-charter::presets"
+
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      ADD (new modules, no existing symbol renamed or removed):
+      `sk_charter::presets::{DEFAULT_PRESET_NAME, ACTIVATED_KINDS_KEY,
+      MISSION_TYPE_ACTIVATIONS_KEY, PRESETS_DIRNAME, PROJECT_PACK_ROOT,
+      BUILT_IN_PACK_NAME, PROJECT_PACK_NAME, NAME_MAX_LENGTH, preset_activation_key,
+      governed_kinds, preset_activation_keys, ActivationPreset, PresetFormatError,
+      PresetNotFoundError, PresetLoadError, load_preset_file,
+      load_preset_file_with_limits, preset_files, pack_presets_dir, discover_presets,
+      load_preset, kind_gate_omissions, kind_gate_omissions_is_empty, OfferingPack,
+      list_offering_packs, PresetEntry, enumerate_presets}` and
+      `sk_doctrine::preset_application::{ORG_PACKS_KEY, governed_keys,
+      PresetApplicationError, PresetChange, PresetPlan, PresetOutcome,
+      find_offering_pack, load_pack_preset, plan_preset_application,
+      apply_preset_plan}`. Private helpers stay private (no root re-export of the
+      module's internals). KEEP every existing symbol byte-for-byte: `ActivateArgs`
+      (same field names/types; only two doc comments change), `activate_command`,
+      `activate`, `deactivate`, `run`, `CharterCommand`, `Refusal`,
+      `render_refusal`, `post_change_notices` (reused by the new adapter), and
+      every `sk-charter`/`sk-doctrine` activation symbol the new modules call.
+      REMOVE nothing.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No new crate, manifest, lockfile entry, feature or dependency edge (the
+      lane added no dependency; `Cargo.lock` is untouched by this lane). The new
+      modules consume owners that already exist: `sk-charter`
+      (`kind::ArtifactKind`, `pack::{BuiltInSearch, PackRoots}`,
+      `config::{load_project_config, PathExpansion}`, `io::{field, FieldValue,
+      read_bounded, sha256_hex}`, `limits::Limits`, `tier::PackTier`), and
+      `sk-doctrine` (`identity::{IdentityIndex, scan_all}`,
+      `ledger::{activatable_kinds, deny_key, effective_deny,
+      load_activation_ledger, prepare_ledger_write, refuse_unmigrated_deny_write,
+      resolve_activation_source, ActivationSource, DenyListChoice}`,
+      `org_charter::{RequiredFloor, built_in_search, normalize_packs_root,
+      packs_root_override, required_floor}`, `plan::{ActivationObservation,
+      activation_write_target, deny_delta}`, `yaml::{DEFAULT_LOCK_TIMEOUT,
+      PreparedWrite, YamlDocument}`, `context::context_roots`,
+      `graph::NodeKind`, `loader::{has_graph_files, load_graph_or_dir,
+      merge_layers}`, `org::{ORG_FRAGMENT, load_org_pack}`, `merge::
+      merge_three_layers`, `effective_set::OfferingRoots`,
+      `offering::mission_type_fallback`). `sk-charter` still depends on nothing
+      in `sk-doctrine`; the direction is unchanged.
+  filesystem_paths:
+    action: manual_review
+    notes: >-
+      READ: `<pack>/presets/*.yaml` for every pack that ships presets
+      (`built-in`, each configured org pack; never the `project` tier, which
+      ships none), `.kittify/config.yaml` (org registry), the configured org
+      pack roots (artifact files for id resolution, `org-charter.yaml` for the
+      required floor, DRG fragments for anti-pattern ids), the layered
+      mission-type rosters, and the activation target
+      (`.kittify/charter/activation.yaml`; the legacy `config.yaml`/pointed
+      `charter.yaml` only for an unmigrated project). WRITE: exactly one file —
+      the resolved activation target — through the canonical writer, under the
+      run-wide charter synthesis lock. No preset name, cache, sidecar or
+      directory is created. New tests use fresh `tempfile` fixtures only.
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      The governed keys are unchanged and are derived, not re-listed:
+      `activated_<plural>` for every charter-activatable kind except
+      `skill`/`glossary_pack`, plus `activated_kinds` and
+      `mission_type_activations`. `activated_skills` and `activated_glossary_packs`
+      are never read or written (each keeps its own absence contract); unknown
+      `deactivated_*` keys and every unrelated key/comment survive the write
+      (lossless `YamlDocument`). The `--json` success payload is the reference's
+      shape — `{pack, preset, written, removed, target_file}` plus
+      `kept_deactivated` (by allow key) or `cleared_exclusions` (by deny key)
+      only when non-empty — and the refusal envelope adds `code`, `error`,
+      `result`, `success` plus the coded detail fields. No key is renamed.
+  cli_commands:
+    action: manual_review
+    notes: >-
+      One existing dispatcher branch changes: `activate_command`'s `--preset`
+      arm stops returning the "pending" unsupported refusal and instead resolves
+      the write root, refuses `--resynthesize` before any mutation, and calls the
+      new thin adapter (`compat/charter/preset.rs`). The flags, their names,
+      their `--pack` default (`built-in`) and the existing incompatibility
+      refusals (`--preset` with a positional, `--cascade`, `--only`) are
+      unchanged; only the `--only` refusal text now matches the reference's
+      wording. No root CLI enum/dispatch arm is added or edited (the compat
+      `charter` tree's registration in `crates/sk-cli/src/cli.rs` is
+      parent-owned and absent today, exactly as it was before this lane).
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      ADD only reference-shaped text: the applied/no-op preset lines
+      (`Applied preset '<p>' of pack '<k>' to <file>`, `Preset '<p>' of pack
+      '<k>' is already in force in <file>; nothing changed.`), the
+      `Wrote`/`Removed`/`Kept deactivated`/`Cleared exclusion` lines, the four
+      coded refusal messages (`PACK_NOT_FOUND`, `PRESET_NOT_FOUND`,
+      `PRESET_ID_UNRESOLVED`, `PRESET_WOULD_OVERWRITE`) and the preset-file
+      format errors. REMOVE the one "native `charter activate --preset` is
+      pending" sentence whose subject no longer exists. KEEP the existing
+      `--resynthesize` refusal word for word (the synthesizer is still not
+      ported, and saying so stays the honest line). No line claims a restamp, a
+      catalog recompile or a Source-parity verdict this lane does not perform.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      NEW `cf29_*` tests only: `crates/sk-charter/tests/cf29_presets.rs` (9),
+      `crates/sk-doctrine/tests/cf29_preset_application.rs` (12) and
+      `crates/sk-cli/tests/cf29_preset_activation.rs` (1 re-executed child that
+      drives `run(CharterCommand::Activate(..))`). They read the repository's
+      real fetched `packs/built-in` presets (`default`, `minimal`) and otherwise
+      build fresh `tempfile` projects with a fixture org pack. No existing test
+      is edited, skipped, deleted or loosened.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric, event or telemetry key is added or renamed. The new
+      adapter's only output is the payload/text and the coded refusal; the
+      domain module writes nothing to stdout/stderr.
+
+exceptions:
+  - path: crates/sk-charter/src/lib.rs
+    action: manual_review
+    reason: >-
+      One additive `pub mod presets;` declaration only (the granted exact
+      declaration). No re-export list, doc header or existing module line is
+      touched.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: >-
+      One additive `pub mod preset_application;` declaration only (the granted
+      exact declaration). The CF26 context-include declaration in the same file
+      is a different line and was not touched.
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: >-
+      Three disjoint regions only: the `mod preset;` declaration beside
+      `mod status;`, the `ActivateArgs` `--preset`/`--force` doc comments, and
+      the `--preset` arm of `activate_command` (including the `--only`
+      incompatibility wording). The CF26 context-include block, the imports, the
+      helpers and the formatting of the rest of the file are untouched; the file
+      still passes `rustfmt --check`.
+  - path: crates/sk-cli/src/compat/charter/preset.rs
+    action: manual_review
+    reason: >-
+      New thin adapter (rendering only). It calls `super::post_change_notices`
+      for the post-change notice so the preset path and the positional path
+      share one notice authority instead of a second copy.

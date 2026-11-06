@@ -1,0 +1,137 @@
+# Occurrence classification for CF10 — the actual worktree upgrade execution context.
+#
+# This lane changes a *behaviour*, not a term, and adds identifiers rather than
+# renaming an existing string. `operation` is therefore intentionally omitted
+# (additive). The same shape — "who decides what a worktree runs?" and "who owns
+# the per-root metadata reconciliation?" — appears in many places, so the
+# standard eight categories are classified explicitly below.
+#
+# Inventory (pre-edit greps over crates/, docs/, src/, `target/` and
+# `__pycache__` excluded; exact counts in this run's evidence root, label
+# `occurrence-inventory`):
+#   plan_worktree_upgrade         7   (CLI module, compat/upgrade.rs, 2 C6 tests,
+#                                       docs, tests)
+#   run_worktree_upgrade          9
+#   split_scope                   0   (deleted helper: per-root plan reselection)
+#   finish_root_metadata          0   (deleted helper: duplicated Source stamp rule)
+#   bookkeeping_stamp            10
+#   has_upgradeable_state        12
+#   UpgradeReport                22
+#   worktree_migration_scope      9   (new)
+#   run_worktree_migrations      12   (new)
+#   evaluate_worktree_step        5   (new)
+#   StepStatus                   35   (made public, same variants)
+#   selected                   2423   (too generic to inventory as a term; the
+#                                       field is `UpgradeReport::selected`)
+target:
+  term: "per-root independent worktree upgrade selection, plus a duplicated per-root
+    metadata/schema reconciliation outside the canonical runner"
+  replacement: "the MAIN run's selected migrations carried to fan-out, executed by one
+    shared worktree mode that owns step phases and bookkeeping"
+
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      New public API in sk-install (worktree_migration_scope,
+      pending_worktree_migrations, worktree_has_upgradeable_state,
+      WorktreeRow, WorktreeRootExecution, WorktreeStep, evaluate_worktree_step,
+      run_worktree_migrations) and UpgradeReport::selected /
+      UpgradeReport::selected specs(). StepStatus is made public unchanged (the
+      shared applied/skipped/failed vocabulary). No existing symbol is renamed:
+      plan_upgrade, run_upgrade, MigrationOutcome, NativeMigration,
+      record_scoped_result and every migration callback keep their names and
+      shapes. Deleted crate-private helpers removed the SECOND authority:
+      split_scope, run_one_root, finish_root_metadata and the CLI's private
+      bookkeeping_stamp.
+  import_paths:
+    action: manual_review
+    notes: >-
+      The CLI worktree module now imports the worktree executor from the existing
+      `sk_install::upgrade` module (already public; no lib.rs re-export and no
+      manifest/lock/dependency change). ProjectMetadata/now_utc_iso remain the
+      existing crate-root re-exports. No new module file, no nested #[path]
+      workaround, no duplicate Git process/ledger/metadata writer.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      `.worktrees/` discovery, `.kittify/metadata.yaml`, the two ledger
+      partitions and the Git exclude paths are unchanged. No filename, directory
+      or location is renamed. New tests use fresh tempdir/repository fixtures only.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No wire key changes: metadata.yaml keys, ledger JSONL keys and the
+      plan-json/JSON envelope field names stay as they were. The new
+      UpgradeReport.selected field is an in-process library carrier, not a CLI
+      JSON field (report_json does not serialize the whole struct).
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No flag, subcommand, alias or exit-code mapping change. The parent's fixed
+      returned-failure exit path (`upgrade_exit_code` + result_tests) is retained
+      verbatim; only the inherited worktree scope and the outcome-boundary stamp
+      restore are wired into the existing command.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Source's worktree wording is now emitted through one path: "Migration <id>
+      not applicable here (<reason>); skipping", "Cannot safely detect <id>:
+      <reason>", "Cannot apply <id>: <reason>", the failed-run-left-uncommitted
+      notice, the unavailable-baseline notice and the held-for-review notices,
+      each prefixed `Worktree <name>: `. The restore notice is Source's
+      `.kittify/metadata.yaml restored to <version>; the change is uncommitted`
+      and is printed only on the text surface (JSON stays a machine document).
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      Two new files: crates/sk-install/tests/cf10_worktree_execution.rs (13
+      Native fixture/phases tests) and crates/sk-cli/tests/cf10_inherited_fanout.rs
+      (2 CLI fan-out tests). One existing file re-pins two expectations to the
+      actual Source protocol: crates/sk-cli/tests/upgrade_fanout_c6.rs now drives
+      the fan-out with the recorded Source run's EMPTY inherited selection
+      instead of a per-root reselection, and its preview/execution test passes
+      the main plan's carrier; the recorded tree/commit/ref/index assertions are
+      retained unchanged. Nothing was weakened or deleted.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric, event key or schema_version number was added or renamed; no
+      COUNT/coverage claim is encoded in code or telemetry.
+exceptions:
+  - path: crates/sk-install/src/upgrade.rs
+    action: manual_review
+    reason: >-
+      The owned runner/shared-mode functions: UpgradeReport::selected (captured
+      before settlement), the inherited-scope filter, the worktree step evaluator
+      and the per-root execution/bookkeeping mode. The parent-owned
+      native_migrations() catalogue/registration block is not edited.
+  - path: crates/sk-cli/src/compat/upgrade.rs
+    action: manual_review
+    reason: >-
+      Wires the inherited carrier into plan-json and the real fan-out, and adds
+      the outcome-boundary VersionStamp capture/restore (Source
+      version_stamp_boundary). The parent's returned-failure exit/commit fix and
+      its result_tests are retained.
+  - path: crates/sk-cli/src/compat/upgrade/upgrade_worktrees.rs
+    action: manual_review
+    reason: >-
+      Discovery/policy/commit composition: Scope comes from the inherited list,
+      the early return for a project-only-only selection, Source's baseline-first
+      and failed-root commit gating, and held-path notices. The duplicated
+      per-root metadata reconciliation was deleted in favour of the shared mode.
+  - path: crates/sk-cli/tests/upgrade_fanout_c6.rs
+    action: manual_review
+    reason: >-
+      Two call sites now pass the inherited carrier; the recorded Source golden
+      assertions (tree paths/modes, raw commit, refs, reflogs, mission
+      untouched, stamp ordering) are retained.
+  - path: crates/sk-install/tests/cf10_worktree_execution.rs
+    action: manual_review
+    reason: New CF10 inherited-scope/phase/bookkeeping tests (Native fixtures).
+  - path: crates/sk-cli/tests/cf10_inherited_fanout.rs
+    action: manual_review
+    reason: New CLI fan-out tests for the project-only early return and a failed root's uncommitted churn.
+  - path: docs/rust/occurrence-maps/cf10-worktree-execution.yaml
+    action: manual_review
+    reason: This map (new lane-specific classification artifact).

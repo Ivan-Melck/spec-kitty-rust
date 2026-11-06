@@ -1,0 +1,98 @@
+{
+ "_provenance": "Recorded by the pinned Source (CPython 3.11.15/.venv-rust-oracle) running the ACTUAL m_unify_charter_activation_finalize (consolidate_charter_bundle_fold) on the fixture trees recorded here. Placeholders substituted by the test: $W (workspace root), $BUNDLE, $COMPOSED, $DOCTRINEKEY; $STAMP matches the volatile backup-directory timestamp and <NOW> the volatile metadata.generated_at. Regenerate with /tmp/sk-a4/probe_fold.py.",
+ "bundle": {
+  "after": {
+   ".kittify/.backup-20261104T210906Z-1/.kittify/charter/directives.yaml": "directives:\n- id: DIRECTIVE_001\n  title: Architectural integrity\n  description: Keep the declared architecture.\n  severity: error\n  references:\n  - docs/adr/3.x/2026-01-01-1-x.md\n",
+   ".kittify/.backup-20261104T210906Z-2/.kittify/charter/metadata.yaml": "schema_version: 1.0.0\nextracted_at: '2026-01-01T00:00:00+00:00'\ncharter_hash: sha256:deadbeef\nsource_path: .kittify/charter/charter.md\nextraction_mode: deterministic\nsections_parsed:\n  structured: 1\n  ai_assisted: 0\n  skipped: 0\n",
+   ".kittify/.backup-20261104T210906Z-3/.kittify/charter/references.yaml": "mission: software-dev\ntemplate_set: software-dev-default\nlanguages:\n- python\nreferences:\n- id: DIRECTIVE:001-architectural-integrity-standard\n  kind: directive\n  title: Architectural integrity\n  summary: Keep the declared architecture.\n  source_path: ''\n  local_path: _LIBRARY/DIRECTIVE-001.md\n",
+   ".kittify/.backup-20261104T210906Z/.kittify/charter/governance.yaml": "testing:\n  min_coverage: 90\n  tdd_required: false\n  framework: pytest\n  type_checking: mypy --strict\nquality:\n  linting: ''\n  pr_approvals: 1\n  pre_commit_hooks: false\ncommits: {}\ncharter:\n  selected_directives:\n  - 001-architectural-integrity-standard\n  selected_tactics: []\n  available_tools:\n  - git\n  authority_paths:\n  - docs/context/\n",
+   ".kittify/charter/charter.yaml": "schema_version: 2.0.0\ngovernance:\n  testing:\n    min_coverage: 90\n    tdd_required: false\n    framework: pytest\n    type_checking: mypy --strict\n  quality:\n    linting: ''\n    pr_approvals: 1\n    pre_commit_hooks: false\n  commits: {}\n  performance:\n    cli_timeout_seconds: 2.0\n    dashboard_max_wps: 100\n  branch_strategy:\n    main_branch: main\n    rules: []\n  charter:\n    selected_paradigms: []\n    selected_directives:\n    - 001-architectural-integrity-standard\n    selected_tactics: []\n    selected_styleguides: []\n    selected_toolguides: []\n    selected_procedures: []\n    selected_agent_profiles: []\n    selected_mission_step_contracts: []\n    selected_glossary_packs: []\n    selected_assets: []\n    available_tools:\n    - git\n    authority_paths:\n    - docs/context/\n    governance_references: []\n  activations: []\n  enforcement: {}\ndirectives:\n  directives:\n  - id: DIRECTIVE_001\n    title: Architectural integrity\n    description: Keep the declared architecture.\n    severity: error\n    references:\n    - docs/adr/3.x/2026-01-01-1-x.md\ncatalog:\n  mission: software-dev\n  template_set: software-dev-default\n  languages:\n  - python\n  references:\n  - id: DIRECTIVE:001-architectural-integrity-standard\n    kind: directive\n    title: Architectural integrity\n    summary: Keep the declared architecture.\n    source_path: ''\n    local_path: _LIBRARY/DIRECTIVE-001.md\noverrides: {}\nmetadata:\n  generated_at: '2026-11-04T21:09:06Z'\n  bundle_schema_version: 2\nactivated_kinds:\n- directives\n- tactics\nactivated_directives:\n- 001-architectural-integrity-standard\nmission_type_activations:\n- software-dev\n",
+   ".kittify/config.yaml": "agents:\n- claude\ncharter_packs:\n  org:\n    packs: []\ncharter: .kittify/charter/charter.yaml\n"
+  },
+  "before": {
+   ".kittify/charter/directives.yaml": "directives:\n- id: DIRECTIVE_001\n  title: Architectural integrity\n  description: Keep the declared architecture.\n  severity: error\n  references:\n  - docs/adr/3.x/2026-01-01-1-x.md\n",
+   ".kittify/charter/governance.yaml": "testing:\n  min_coverage: 90\n  tdd_required: false\n  framework: pytest\n  type_checking: mypy --strict\nquality:\n  linting: ''\n  pr_approvals: 1\n  pre_commit_hooks: false\ncommits: {}\ncharter:\n  selected_directives:\n  - 001-architectural-integrity-standard\n  selected_tactics: []\n  available_tools:\n  - git\n  authority_paths:\n  - docs/context/\n",
+   ".kittify/charter/metadata.yaml": "schema_version: 1.0.0\nextracted_at: '2026-01-01T00:00:00+00:00'\ncharter_hash: sha256:deadbeef\nsource_path: .kittify/charter/charter.md\nextraction_mode: deterministic\nsections_parsed:\n  structured: 1\n  ai_assisted: 0\n  skipped: 0\n",
+   ".kittify/charter/references.yaml": "mission: software-dev\ntemplate_set: software-dev-default\nlanguages:\n- python\nreferences:\n- id: DIRECTIVE:001-architectural-integrity-standard\n  kind: directive\n  title: Architectural integrity\n  summary: Keep the declared architecture.\n  source_path: ''\n  local_path: _LIBRARY/DIRECTIVE-001.md\n",
+   ".kittify/config.yaml": "agents:\n- claude\nactivated_kinds:\n- directives\n- tactics\nactivated_directives:\n- 001-architectural-integrity-standard\nmission_type_activations:\n- software-dev\ncharter_packs:\n  org:\n    packs: []\n"
+  },
+  "detect": true,
+  "result": {
+   "changes_made": [
+    "Composed $BUNDLE/.kittify/charter/charter.yaml from legacy bundle + config activation",
+    "Preserved divergent $BUNDLE/.kittify/charter/governance.yaml to $BUNDLE/.kittify/.backup-$STAMP/.kittify/charter/governance.yaml, then retired it",
+    "Preserved divergent $BUNDLE/.kittify/charter/directives.yaml to $BUNDLE/.kittify/.backup-$STAMP-1/.kittify/charter/directives.yaml, then retired it",
+    "Preserved divergent $BUNDLE/.kittify/charter/metadata.yaml to $BUNDLE/.kittify/.backup-$STAMP-2/.kittify/charter/metadata.yaml, then retired it",
+    "Preserved divergent $BUNDLE/.kittify/charter/references.yaml to $BUNDLE/.kittify/.backup-$STAMP-3/.kittify/charter/references.yaml, then retired it",
+    "Updated .kittify/config.yaml: removed activated_* keys, added charter: pointer"
+   ],
+   "errors": [],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": []
+  },
+  "second_run": {
+   "changes_made": [],
+   "errors": [],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": []
+  }
+ },
+ "composed": {
+  "after": {
+   ".kittify/.backup-20261104T210906Z/.kittify/charter/governance.yaml": "testing:\n  min_coverage: 90\n  tdd_required: false\n  framework: pytest\n  type_checking: mypy --strict\nquality:\n  linting: ''\n  pr_approvals: 1\n  pre_commit_hooks: false\ncommits: {}\ncharter:\n  selected_directives:\n  - 001-architectural-integrity-standard\n  selected_tactics: []\n  available_tools:\n  - git\n  authority_paths:\n  - docs/context/\n",
+   ".kittify/charter/charter.yaml": "schema_version: 2.0.0\ngovernance:\n  charter:\n    selected_directives:\n    - 001-x\ncatalog:\n  mission: software-dev\n  template_set: t\n  languages: []\n  references: []\nmetadata:\n  generated_at: '2026-01-01T00:00:00+00:00'\n  bundle_schema_version: 2\nactivated_kinds:\n- directives\n- tactics\nactivated_directives:\n- 001-architectural-integrity-standard\nmission_type_activations:\n- software-dev\n",
+   ".kittify/config.yaml": "agents:\n- claude\ncharter_packs:\n  org:\n    packs: []\ncharter: .kittify/charter/charter.yaml\n"
+  },
+  "before": {
+   ".kittify/charter/charter.yaml": "schema_version: 2.0.0\ngovernance:\n  charter:\n    selected_directives:\n    - 001-x\ncatalog:\n  mission: software-dev\n  template_set: t\n  languages: []\n  references: []\nmetadata:\n  generated_at: '2026-01-01T00:00:00+00:00'\n  bundle_schema_version: 2\n",
+   ".kittify/charter/governance.yaml": "testing:\n  min_coverage: 90\n  tdd_required: false\n  framework: pytest\n  type_checking: mypy --strict\nquality:\n  linting: ''\n  pr_approvals: 1\n  pre_commit_hooks: false\ncommits: {}\ncharter:\n  selected_directives:\n  - 001-architectural-integrity-standard\n  selected_tactics: []\n  available_tools:\n  - git\n  authority_paths:\n  - docs/context/\n",
+   ".kittify/config.yaml": "agents:\n- claude\nactivated_kinds:\n- directives\n- tactics\nactivated_directives:\n- 001-architectural-integrity-standard\nmission_type_activations:\n- software-dev\ncharter_packs:\n  org:\n    packs: []\n"
+  },
+  "detect": false,
+  "result": {
+   "changes_made": [
+    "Relocated activation keys onto existing $COMPOSED/.kittify/charter/charter.yaml",
+    "Preserved divergent $COMPOSED/.kittify/charter/governance.yaml to $COMPOSED/.kittify/.backup-$STAMP/.kittify/charter/governance.yaml, then retired it",
+    "Updated .kittify/config.yaml: removed activated_* keys, added charter: pointer"
+   ],
+   "errors": [],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": []
+  },
+  "second_run": {
+   "changes_made": []
+  }
+ },
+ "legacy_doctrine_key": {
+  "after": {
+   ".kittify/charter/governance.yaml": "doctrine:\n  selected_directives:\n  - 001-x\n",
+   ".kittify/charter/references.yaml": "mission: software-dev\ntemplate_set: software-dev-default\nlanguages:\n- python\nreferences:\n- id: DIRECTIVE:001-architectural-integrity-standard\n  kind: directive\n  title: Architectural integrity\n  summary: Keep the declared architecture.\n  source_path: ''\n  local_path: _LIBRARY/DIRECTIVE-001.md\n",
+   ".kittify/config.yaml": "agents:\n- claude\n"
+  },
+  "before": {
+   ".kittify/charter/governance.yaml": "doctrine:\n  selected_directives:\n  - 001-x\n",
+   ".kittify/charter/references.yaml": "mission: software-dev\ntemplate_set: software-dev-default\nlanguages:\n- python\nreferences:\n- id: DIRECTIVE:001-architectural-integrity-standard\n  kind: directive\n  title: Architectural integrity\n  summary: Keep the declared architecture.\n  source_path: ''\n  local_path: _LIBRARY/DIRECTIVE-001.md\n",
+   ".kittify/config.yaml": "agents:\n- claude\n"
+  },
+  "detect": true,
+  "result": {
+   "changes_made": [],
+   "errors": [
+    "$DOCTRINEKEY/.kittify/charter/governance.yaml still carries the legacy top-level 'doctrine' key (governance.doctrine); the charter-pack cutover migration rewrites it to 'charter' and runs first. Re-run `spec-kitty upgrade` so it can, then retry."
+   ],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": false,
+   "warnings": []
+  },
+  "second_run": {
+   "changes_made": []
+  }
+ }
+}

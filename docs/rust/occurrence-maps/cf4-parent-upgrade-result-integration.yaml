@@ -1,0 +1,39 @@
+# PRE-edit parent review: actual runner/CLI/Source read, .jNjRlj/.MNEE2C.
+# No active host Mission/Op; no retrospective CF4 approval.
+target:
+  term: "CLI main migration result success handling"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      A returned failed UpgradeReport must suppress main auto-commit, render the
+      actual failure and exit nonzero even with no worktree/commit errors. No
+      duplicate registry/selection/policy authority or callback registration.
+  import_paths:
+    action: do_not_change
+    notes: No dependency/root module/type rename.
+  filesystem_paths:
+    action: do_not_change
+    notes: No data/lock/ref/worktree path changes or restoration guessed by name.
+  serialized_keys:
+    action: do_not_change
+    notes: Existing report_json already preserves success=false/errors; no new wire keys.
+  cli_commands:
+    action: manual_review
+    notes: Existing upgrade failure must exit1, never0; all flags/routes unchanged.
+  user_facing_strings:
+    action: manual_review
+    notes: Replace positive console summary on failed result with actual errors and uncommitted warning; no warning stdout corrupting JSON.
+  tests_fixtures:
+    action: manual_review
+    notes: Keep runner8 and CLI26 controls; implement result/fanout functional tests in next distinct worktree context task, no fake Source red receipt.
+  logs_telemetry:
+    action: do_not_change
+    notes: No log/metric identifier changes or full-equivalence labels.
+exceptions:
+  - path: crates/sk-cli/src/compat/upgrade.rs
+    action: manual_review
+    reason: Three narrow result-aware commit/render/exit conditions; worktree execution overhaul separately scoped.
+status:
+  accepted: false
+  phase: parent functional false-success fix before next worktree implementation

@@ -1,11 +1,24 @@
 ---
 type: reference
-updated: 2026-11-04
+updated: 2026-11-05
 audience: software-engineer
 ---
 # Rust migration status
 
 **Status: full-rewrite completion loop is active; not complete.** The previously published foundation passed 455 tests. Continue through [the completion gates](LOOP.md); neither that milestone nor a partial benchmark is a stopping condition. The active behavior baseline is upstream `9aed3a8012cb5eb22c0128b14d525039f95fea7a`. Fork remote `origin/main` matches upstream remote `main` at `15ab392163b82741638d45eed20036216cc6c260` (fast-forwarded and both remotes rechecked); the rewrite still needs the 718-commit semantic reconciliation. Latest12 change77files(+1368/-3), including compiler local-import reading order, events default Enum name lookup, tracked-meta refusal invariant/docs and Mission/Op records; no pins, source unadopted. The preceding1 adds2 lines to the docs retrieval index only, no Source/pins; remote sync is not adoption. The newest10 commits change owned tracer append/writer and alias mission protection plus tests/docs/Mission records (36 files,+1898/-73), no pins; unadopted. The preceding14 commits change owned-declaration/evidence failure semantics, canceled-WP owned acceptance, task-move refusal and orchestrator contract1.23 plus tests/docs/Mission records (56 files,+2,710/-59), no dependency/pack/service pins; these source semantics remain unadopted. The preceding19 commits change contract-test root selection, development docs and Mission/Op records only. The preceding nine commits also change only tests/development docs. The preceding 10-commit tail after `b91a226a1` changes charter `_common.py`, generation and interview commands, but no dependency/pack pins; its semantics remain unadopted. The earlier two-commit tail from `7c50fd38b` through `b91a226a1` changed neither production source nor dependency/pack pins. The first investigation covered 556 commits through `8ffeb0180`; the 85-commit tail also leaves dependency and pack pins unchanged, but adds review-budget/gate and WP-metadata changes. Reference source and fixtures must be rebound. Existing Python source, fixtures, and notices remain intact. Rust never invokes Python at runtime.
+
+## Active fidelity continuation (unpublished)
+
+The user authorized the narrow lossless DecisionIndex summary-key exception and
+continued work on all fidelity gaps. See [the exact scope and evidence](reviews/decision-index-source-serializer-conflict.md)
+and [current integration progress](reviews/continuation-integration-progress.md).
+The exception test runs real Source corruption and Native preservation separately
+(single/colliding/all2048 surrogate keys, unaffected fields, modes and inert retry
+refusal). It is not Source parity. Source/pins/historical reds remain unchanged.
+Central registrations remain126/136; no new workflow, aggregate, release or speed
+certification. Source-default acceptance, canonical runner/fanout, effective-set
+resolution/promote, migration review, notice/error/codec and the other named
+profile/lifecycle/platform gaps remain active work, not omitted requirements.
 
 ## Bounded contexts
 

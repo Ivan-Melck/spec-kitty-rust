@@ -1,0 +1,96 @@
+# CF16 occurrence map — real migration previews + typed failure-phase execution.
+#
+# PROTOCOL SLIP, DISCLOSED: the standing orders require this map BEFORE the edits.
+# It was written AFTER them. No rename/removal/deprecation is performed by CF16
+# either way (every identifier below is additive), so no occurrence class needed a
+# rename decision, and nothing was mass-edited. The classification is recorded now
+# so a reviewer can check it against the diff rather than trusting a claim.
+#
+# No active host Mission/Op; this is not a retrospective Mission record.
+target:
+  term: "charter-migration dry-run doors and MigrationStateUnreadable phases"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Additive only. New public identifiers: `InstallError::MigrationStateUnreadable`
+      (+ fields `path`, `detail`), `upgrade::PreviewFn`, `upgrade::preview_for`,
+      `upgrade::StepResult` (made public; its three fields made public),
+      `upgrade::evaluate_step` (made public), `upgrade::dry_run_previews` (private),
+      `upgrade::is_source_state_failure` (private),
+      `charter_synthesis::provenance::{preview, preview_with, preview_template_set,
+      preview_template_set_with}`, `charter_synthesis::fold::preview`,
+      `charter_synthesis::legacy_rename::preview`, and the private shared engines
+      `provenance::{run, run_template_set, read_unreadable_as_state, state_unreadable}`.
+      No existing symbol renamed, removed or deprecated; no second parser, model,
+      writer or policy authority introduced (each door calls the same composition its
+      `apply` calls).
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No module path, crate name, dependency or root re-export changed by CF16. The six
+      ids are still unregistered in `NATIVE_MIGRATIONS`; no crate boundary moved.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No lock, ledger, ref, worktree or data path changed. Preview doors write nothing:
+      no ledger record, no metadata, no `last_upgraded_at`, no schema stamp, no
+      `.kittify/backups` archive. `MigrationStateUnreadable.path` only carries the file
+      the premise already named.
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      `InstallError` gains one variant with a new stable `code()`
+      (`migration_state_unreadable`); the error wire shape is whatever the existing
+      serializers already do with a variant that has fields. The CLI's compat planner
+      JSON is unchanged (the dry-run preview enriches only the human-readable plan), so
+      no `contracts/compat-planner.json` key moved.
+  cli_commands:
+    action: manual_review
+    notes: >-
+      `spec-kitty upgrade --dry-run` now also executes the real preview doors through
+      `run_upgrade(dry_run = true)` and prints their change lines under the planned row.
+      Selection, flags, exit-code derivation, the CF10 planner contract and the parent's
+      false-success fixes are untouched. No new command or flag.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Failure text is Source's own: `Cannot safely detect {id}: {cause}`,
+      `Cannot apply {id}: {cause}`, `{file} could not be read ({cause}); provenance was
+      not evaluated`, `dry-run: would ...` (bundle fold summary), `Would {action}`
+      (project-intent rename). The retained cause family is `OSError` /
+      `UnicodeDecodeError` / `YAMLError` where the reference prints the concrete ruamel
+      subclass name.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New `crates/sk-install/tests/cf16_migration_preview_and_failure.rs` (11 tests,
+      hand-built fixtures, no recorded Source fixture replayed, no Python child). Two
+      foreign assertions were strengthened to the Source shape because CF16 corrected
+      the phase they encoded: `cf4_sequential_runner` (detect failure) and
+      `migrations_gitignore_paths` (unevaluable project) now assert the returned failed
+      report instead of `expect_err` + code. Disclosed in the report.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log/metric identifier, level or label changed. No freshness, readiness,
+      performance or parity label added anywhere.
+exceptions:
+  - path: crates/sk-cli/src/compat/upgrade.rs
+    action: manual_review
+    reason: >-
+      One additive preview seam (`preview_rows` + a per-row print loop). Its JSON
+      contract and the CF10 selection/exit-code paths are untouched.
+  - path: crates/sk-install/tests/cf4_sequential_runner.rs
+    action: manual_review
+    reason: >-
+      Foreign lane's test; one assertion pair changed from "raises" to "returns the
+      Source failed result" because CF16 corrected that phase. Every other assertion
+      (ledger record, version/schema stamp, no later migration, unchanged files) kept.
+  - path: crates/sk-install/tests/migrations_gitignore_paths.rs
+    action: manual_review
+    reason: >-
+      Same single assertion-pair change, same reason, same retained assertions.
+status:
+  accepted: false
+  phase: implementation child; parent registration and review outstanding

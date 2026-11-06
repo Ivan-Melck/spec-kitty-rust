@@ -6,6 +6,7 @@
   "identity": "4.0.0rc8_backfill_migration_ledger",
   "module": "m_4_0_0rc8_backfill_migration_ledger",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "4.0.0rc8"
  },
@@ -16,6 +17,7 @@
   "identity": "3.2.0rc35_charter_bundle_v2",
   "module": "m_3_2_0rc35_charter_bundle_v2",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0rc35"
  },
@@ -26,6 +28,7 @@
   "identity": "charter_pack_cutover",
   "module": "m_4_0_0rc6_charter_pack_cutover",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "4.0.0rc6"
  },
@@ -36,6 +39,7 @@
   "identity": "0.2.0_specify_to_kittify",
   "module": "m_0_2_0_specify_to_kittify",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.2.0"
  },
@@ -46,6 +50,7 @@
   "identity": "0.4.8_gitignore_agents",
   "module": "m_0_4_8_gitignore_agents",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.4.8"
  },
@@ -56,6 +61,7 @@
   "identity": "0.6.5_commands_rename",
   "module": "m_0_6_5_commands_rename",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.6.5"
  },
@@ -66,6 +72,7 @@
   "identity": "0.6.7_ensure_missions",
   "module": "m_0_6_7_ensure_missions",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.6.7"
  },
@@ -76,6 +83,7 @@
   "identity": "0.7.2_worktree_commands_dedup",
   "module": "m_0_7_2_worktree_commands_dedup",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.7.2"
  },
@@ -86,6 +94,7 @@
   "identity": "0.7.3_update_scripts",
   "module": "m_0_7_3_update_scripts",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.7.3"
  },
@@ -96,6 +105,7 @@
   "identity": "0.8.0_remove_active_mission",
   "module": "m_0_8_0_remove_active_mission",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.8.0"
  },
@@ -106,6 +116,7 @@
   "identity": "0.8.0_worktree_agents_symlink",
   "module": "m_0_8_0_worktree_agents_symlink",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.8.0"
  },
@@ -116,6 +127,7 @@
   "identity": "0.9.0_frontmatter_only_lanes",
   "module": "m_0_9_0_frontmatter_only_lanes",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "Superseded by 0.9.0_residue_safe_frontmatter_only_lanes",
   "target_version": "0.9.0"
  },
@@ -126,6 +138,7 @@
   "identity": "0.9.0_residue_safe_frontmatter_only_lanes",
   "module": "m_0_9_0_residue_safe_frontmatter_only_lanes",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.9.0"
  },
@@ -136,6 +149,7 @@
   "identity": "0.9.1_complete_migration",
   "module": "m_0_9_1_complete_lane_migration",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "Superseded by 0.9.1_residue_safe_complete_migration",
   "target_version": "0.9.1"
  },
@@ -146,6 +160,7 @@
   "identity": "0.9.1_residue_safe_complete_migration",
   "module": "m_0_9_1_residue_safe_complete_migration",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.9.1"
  },
@@ -156,6 +171,7 @@
   "identity": "0.9.2_research_mission_templates",
   "module": "m_0_9_2_research_mission_templates",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.9.2"
  },
@@ -166,6 +182,7 @@
   "identity": "0.10.0_python_only",
   "module": "m_0_10_0_python_only",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.10.0"
  },
@@ -176,6 +193,7 @@
   "identity": "0.10.1_populate_slash_commands",
   "module": "m_0_10_1_populate_slash_commands",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.10.1"
  },
@@ -186,6 +204,7 @@
   "identity": "0.10.2_update_slash_commands",
   "module": "m_0_10_2_update_slash_commands",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.10.2"
  },
@@ -196,6 +215,7 @@
   "identity": "0.10.6_workflow_simplification",
   "module": "m_0_10_6_workflow_simplification",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.10.6"
  },
@@ -206,6 +226,7 @@
   "identity": "0.10.8_fix_memory_structure",
   "module": "m_0_10_8_fix_memory_structure",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.10.8"
  },
@@ -216,6 +237,7 @@
   "identity": "0.10.9_repair_templates",
   "module": "m_0_10_9_repair_templates",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.10.9"
  },
@@ -226,6 +248,7 @@
   "identity": "0.10.12_charter_cleanup",
   "module": "m_0_10_12_charter_cleanup",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.10.12"
  },
@@ -236,6 +259,7 @@
   "identity": "0.10.14_update_implement_slash_command",
   "module": "m_0_10_14_update_implement_slash_command",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.10.14"
  },
@@ -246,6 +270,7 @@
   "identity": "0.11.1_improved_workflow_templates",
   "module": "m_0_11_1_improved_workflow_templates",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.11.1"
  },
@@ -256,6 +281,7 @@
   "identity": "0.11.1_update_implement_slash_command",
   "module": "m_0_11_1_update_implement_slash_command",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.11.1"
  },
@@ -266,6 +292,7 @@
   "identity": "0.11.2_improved_workflow_templates",
   "module": "m_0_11_2_improved_workflow_templates",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.11.2"
  },
@@ -276,6 +303,7 @@
   "identity": "0.11.3_workflow_agent_flag",
   "module": "m_0_11_3_workflow_agent_flag",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.11.3"
  },
@@ -286,6 +314,7 @@
   "identity": "0.12.0_documentation_mission",
   "module": "m_0_12_0_documentation_mission",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.12.0"
  },
@@ -296,6 +325,7 @@
   "identity": "0.12.1_remove_kitty_specs_from_gitignore",
   "module": "m_0_12_1_remove_kitty_specs_from_gitignore",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.12.1"
  },
@@ -306,6 +336,7 @@
   "identity": "0.13.0_research_csv_schema_check",
   "module": "m_0_13_0_research_csv_schema_check",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.13.0"
  },
@@ -316,6 +347,7 @@
   "identity": "0.13.0_update_charter_templates",
   "module": "m_0_13_0_update_charter_templates",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.13.0"
  },
@@ -326,6 +358,7 @@
   "identity": "0.13.0_update_research_implement_templates",
   "module": "m_0_13_0_update_research_implement_templates",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.13.0"
  },
@@ -336,6 +369,7 @@
   "identity": "0.13.1_exclude_worktrees",
   "module": "m_0_13_1_exclude_worktrees",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.13.1"
  },
@@ -346,6 +380,7 @@
   "identity": "0.13.5_add_commit_workflow_to_templates",
   "module": "m_0_13_5_add_commit_workflow_to_templates",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.13.5"
  },
@@ -356,6 +391,7 @@
   "identity": "0.13.8_target_branch",
   "module": "m_0_13_8_target_branch",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.13.8"
  },
@@ -366,6 +402,7 @@
   "identity": "0.14.0_centralized_feature_detection",
   "module": "m_0_14_0_centralized_feature_detection",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "0.14.0"
  },
@@ -376,6 +413,7 @@
   "identity": "2.0.0a5_remove_wp_status_gitignore_rule",
   "module": "m_0_16_2_remove_wp_status_gitignore_rule",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.0.0a5"
  },
@@ -386,6 +424,7 @@
   "identity": "2.0.0_charter_directory",
   "module": "m_2_0_0_charter_directory",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.0.0"
  },
@@ -396,6 +435,7 @@
   "identity": "2.0.0_historical_status_migration",
   "module": "m_2_0_0_historical_status_migration",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.0.0"
  },
@@ -406,6 +446,7 @@
   "identity": "2.0.0_retire_git_hooks",
   "module": "m_2_0_0_retire_git_hooks",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.0.0"
  },
@@ -416,6 +457,7 @@
   "identity": "2.0.1_fix_generated_command_templates",
   "module": "m_2_0_1_fix_generated_command_templates",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.0.1"
  },
@@ -426,6 +468,7 @@
   "identity": "2.0.1_tool_config_key_rename",
   "module": "m_2_0_1_tool_config_key_rename",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.0.1"
  },
@@ -436,6 +479,7 @@
   "identity": "2.0.2_charter_context_bootstrap",
   "module": "m_2_0_2_charter_context_bootstrap",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.0.2"
  },
@@ -446,6 +490,7 @@
   "identity": "2.0.6_consistency_sweep",
   "module": "m_2_0_6_consistency_sweep",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "Superseded by 2.0.6_residue_safe_consistency_sweep",
   "target_version": "2.0.6"
  },
@@ -456,6 +501,7 @@
   "identity": "2.0.6_residue_safe_consistency_sweep",
   "module": "m_2_0_6_residue_safe_consistency_sweep",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.0.6"
  },
@@ -466,6 +512,7 @@
   "identity": "2.0.7_fix_stale_overrides",
   "module": "m_2_0_7_fix_stale_overrides",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.0.7"
  },
@@ -476,6 +523,7 @@
   "identity": "2.0.9_state_gitignore",
   "module": "m_2_0_9_state_gitignore",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.0.9"
  },
@@ -486,6 +534,7 @@
   "identity": "2.0.11_install_skills",
   "module": "m_2_0_11_install_skills",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.0.11"
  },
@@ -496,6 +545,7 @@
   "identity": "2.0.11_remove_clarify_command",
   "module": "m_2_0_11_remove_clarify_command",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.0.11"
  },
@@ -506,6 +556,7 @@
   "identity": "2.1.1_repair_skill_pack",
   "module": "m_2_1_1_repair_skill_pack",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.1.1"
  },
@@ -516,6 +567,7 @@
   "identity": "2.1.2_fix_charter_doctrine_skill",
   "module": "m_2_1_2_fix_charter_doctrine_skill",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.1.2"
  },
@@ -526,6 +578,7 @@
   "identity": "2.1.2_fix_glossary_context_skill",
   "module": "m_2_1_2_fix_glossary_context_skill",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "Superseded by the charter-pack cutover",
   "target_version": "2.1.2"
  },
@@ -536,6 +589,7 @@
   "identity": "2.1.2_fix_orchestrator_api_skill",
   "module": "m_2_1_2_fix_orchestrator_api_skill",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.1.2"
  },
@@ -546,6 +600,7 @@
   "identity": "2.1.2_fix_runtime_next_skill",
   "module": "m_2_1_2_fix_runtime_next_skill",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.1.2"
  },
@@ -556,6 +611,7 @@
   "identity": "2.1.2_install_git_workflow_skill",
   "module": "m_2_1_2_install_git_workflow_skill",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.1.2"
  },
@@ -566,6 +622,7 @@
   "identity": "2.1.2_install_mission_system_skill",
   "module": "m_2_1_2_install_mission_system_skill",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.1.2"
  },
@@ -576,6 +633,7 @@
   "identity": "2.1.2_remove_release_skill",
   "module": "m_2_1_2_remove_release_skill",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.1.2"
  },
@@ -586,6 +644,7 @@
   "identity": "2.1.3_fix_planning_repository_terminology",
   "module": "m_2_1_3_fix_planning_repository_terminology",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.1.3"
  },
@@ -596,6 +655,7 @@
   "identity": "2.1.3_restore_prompt_commands",
   "module": "m_2_1_3_restore_prompt_commands",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.1.3"
  },
@@ -606,6 +666,7 @@
   "identity": "2.1.4_enforce_command_file_state",
   "module": "m_2_1_4_enforce_command_file_state",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "Superseded by 3.2.0a4_safe_globalize_commands",
   "target_version": "2.1.4"
  },
@@ -616,6 +677,7 @@
   "identity": "2.2.0_profile_context_deployment",
   "module": "m_2_2_0_profile_context_deployment",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "2.2.0"
  },
@@ -626,6 +688,7 @@
   "identity": "3.0.0_canonical_context",
   "module": "m_3_0_0_canonical_context",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.0.0"
  },
@@ -636,6 +699,7 @@
   "identity": "3.0.2_restore_prompt_commands",
   "module": "m_3_0_2_restore_prompt_commands",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "Superseded by 3.2.0a4_safe_globalize_commands",
   "target_version": "3.0.2"
  },
@@ -646,6 +710,7 @@
   "identity": "3.0.3_globalize_skill_pack",
   "module": "m_3_0_3_globalize_skill_pack",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.0.3"
  },
@@ -656,6 +721,7 @@
   "identity": "3.1.1_charter_rename",
   "module": "m_3_1_1_charter_rename",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.1.1"
  },
@@ -666,6 +732,7 @@
   "identity": "3.1.1_direct_canonical_commands",
   "module": "m_3_1_1_direct_canonical_commands",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.1.1"
  },
@@ -676,6 +743,7 @@
   "identity": "3.1.1_event_log_merge_driver",
   "module": "m_3_1_1_event_log_merge_driver",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.1.1"
  },
@@ -686,6 +754,7 @@
   "identity": "3.1.1_normalize_status_json",
   "module": "m_3_1_1_normalize_status_json",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "Superseded by 3.1.1_residue_safe_normalize_status_json",
   "target_version": "3.1.1"
  },
@@ -696,6 +765,7 @@
   "identity": "3.1.1_residue_safe_normalize_status_json",
   "module": "m_3_1_1_residue_safe_normalize_status_json",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.1.1"
  },
@@ -706,6 +776,7 @@
   "identity": "3.1.2_globalize_commands",
   "module": "m_3_1_2_globalize_commands",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.1.2"
  },
@@ -716,6 +787,7 @@
   "identity": "3.2.0a4_normalize_mission_lifecycle",
   "module": "m_3_2_0a4_normalize_mission_lifecycle",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0a4"
  },
@@ -726,6 +798,7 @@
   "identity": "3.2.0a4_safe_globalize_commands",
   "module": "m_3_2_0a4_safe_globalize_commands",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0a4"
  },
@@ -736,6 +809,7 @@
   "identity": "3.2.0rc28_github_diff_attributes",
   "module": "m_3_2_0rc28_github_diff_attributes",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0rc28"
  },
@@ -746,6 +820,7 @@
   "identity": "3.2.0rc30_fix_runtime_next_result_default",
   "module": "m_3_2_0rc30_fix_runtime_next_result_default",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0rc30"
  },
@@ -756,6 +831,7 @@
   "identity": "3.2.0rc35_activate_builtin_mission_types",
   "module": "m_3_2_0rc35_activate_builtin_mission_types",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0rc35"
  },
@@ -766,6 +842,7 @@
   "identity": "3.2.0rc35_charter_manifest_defaults_repair",
   "module": "m_3_2_0rc35_charter_manifest_defaults_repair",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0rc35"
  },
@@ -776,6 +853,7 @@
   "identity": "3.2.0rc35_codex_to_skills",
   "module": "m_3_2_0rc35_codex_to_skills",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0rc35"
  },
@@ -786,6 +864,7 @@
   "identity": "3.2.0rc35_default_charter_pack",
   "module": "m_3_2_0rc35_default_charter_pack",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "Superseded by the charter-pack cutover",
   "target_version": "3.2.0rc35"
  },
@@ -796,6 +875,7 @@
   "identity": "3.2.0rc35_fix_prompt_file_workaround",
   "module": "m_3_2_0rc35_fix_prompt_file_workaround",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0rc35"
  },
@@ -806,6 +886,7 @@
   "identity": "3.2.0rc35_kittify_profile_handoff",
   "module": "m_3_2_0rc35_kittify_profile_handoff",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0rc35"
  },
@@ -816,6 +897,7 @@
   "identity": "3.2.0rc35_pi_letta_agent_backfill",
   "module": "m_3_2_0rc35_pi_letta_backfill",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0rc35"
  },
@@ -826,6 +908,7 @@
   "identity": "3.2.0rc35_repository_root_checkout_terminology",
   "module": "m_3_2_0rc35_repository_root_checkout_terminology",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0rc35"
  },
@@ -836,6 +919,7 @@
   "identity": "3.2.0rc35_spk_skill_pack",
   "module": "m_3_2_0rc35_spk_skill_pack",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0rc35"
  },
@@ -846,6 +930,7 @@
   "identity": "3.2.0rc35_strip_selection_config",
   "module": "m_3_2_0rc35_strip_selection_config",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0rc35"
  },
@@ -856,6 +941,7 @@
   "identity": "3.2.0rc35_kittify_runtime_git_hygiene",
   "module": "m_3_2_0rc35_sync_state_gitignore",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0rc35"
  },
@@ -866,6 +952,7 @@
   "identity": "3.2.0rc35_unified_bundle",
   "module": "m_3_2_0rc35_unified_bundle",
   "requires_git_repository": true,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "3.2.0rc35"
  },
@@ -876,6 +963,7 @@
   "identity": "3.2.0rc35_update_planning_templates",
   "module": "m_3_2_0rc35_update_planning_templates",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0rc35"
  },
@@ -886,6 +974,7 @@
   "identity": "3_2_0rc39_refresh_orientation_block",
   "module": "m_3_2_0rc39_refresh_orientation_block",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "3.2.0rc39"
  },
@@ -896,6 +985,7 @@
   "identity": "3_3_0_session_presence_all_harnesses",
   "module": "m_3_3_0_session_presence_all_harnesses",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "3.2.0rc39"
  },
@@ -906,6 +996,7 @@
   "identity": "3_3_0_session_presence_claude_code",
   "module": "m_3_3_0_session_presence_claude_code",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "3.2.0rc39"
  },
@@ -916,6 +1007,7 @@
   "identity": "3_3_0_op_record_schema_v2",
   "module": "m_3_3_0_op_record_schema_v2",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0rc41"
  },
@@ -926,6 +1018,7 @@
   "identity": "3.2.0rc43_retire_profile_context_command",
   "module": "m_3_2_0rc43_retire_profile_context_command",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0rc43"
  },
@@ -936,6 +1029,7 @@
   "identity": "0_9_3_surface_repair_wiring",
   "module": "m_0_9_3_surface_repair_wiring",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "3.2.0rc44"
  },
@@ -946,6 +1040,7 @@
   "identity": "0_9_4_roo_deprecation",
   "module": "m_0_9_4_roo_deprecation",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "3.2.0rc44"
  },
@@ -956,6 +1051,7 @@
   "identity": "3.2.0rc45_retire_standalone_skill_surface",
   "module": "m_3_2_0rc45_retire_standalone_skill_surface",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.0rc45"
  },
@@ -966,6 +1062,7 @@
   "identity": "3.2.3_encoding_provenance_gitignore_backfill",
   "module": "m_3_2_3_encoding_provenance_gitignore_backfill",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.3"
  },
@@ -976,6 +1073,7 @@
   "identity": "3.2.4_derived_mission_views_gitignore_backfill",
   "module": "m_3_2_4_derived_views_gitignore_backfill",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.4"
  },
@@ -986,6 +1084,7 @@
   "identity": "3.2.4_runtime_dirs_gitignore_backfill",
   "module": "m_3_2_4_runtime_dirs_gitignore_backfill",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.4"
  },
@@ -996,6 +1095,7 @@
   "identity": "3.2.5_agents_skills_gitignore_backfill",
   "module": "m_3_2_5_agents_skills_gitignore_backfill",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "Superseded by 4.0.0rc8_narrow_agent_gitignore",
   "target_version": "3.2.5"
  },
@@ -1006,6 +1106,7 @@
   "identity": "3.2.6_decisions_event_log_merge_driver",
   "module": "m_3_2_6_decisions_event_log_merge_driver",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.6rc1"
  },
@@ -1016,6 +1117,7 @@
   "identity": "3.2.6_gate_artifact_merge_drivers",
   "module": "m_3_2_6_gate_artifact_merge_drivers",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.6rc1"
  },
@@ -1026,6 +1128,7 @@
   "identity": "3.2.6_issue_matrix_driver_repoint",
   "module": "m_3_2_6_issue_matrix_driver_repoint",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.6rc1"
  },
@@ -1036,6 +1139,7 @@
   "identity": "3.2.6_meta_traces_merge_drivers",
   "module": "m_3_2_6_meta_traces_merge_drivers",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.6rc1"
  },
@@ -1046,6 +1150,7 @@
   "identity": "3.2.6_retire_rtk_search_tooling",
   "module": "m_3_2_6_retire_rtk_search_tooling",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.6rc1"
  },
@@ -1056,6 +1161,7 @@
   "identity": "3.2.7_review_cycle_merge_driver",
   "module": "m_3_2_7_review_cycle_merge_driver",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.6rc1"
  },
@@ -1066,6 +1172,7 @@
   "identity": "normalize_activation_absence",
   "module": "m_3_2_x_normalize_activation_absence",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "Superseded by the charter-pack cutover",
   "target_version": "3.2.6rc1"
  },
@@ -1076,6 +1183,7 @@
   "identity": "unify_charter_activation_promote_answers",
   "module": "m_unify_charter_activation",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "Superseded by 4.0.0rc8_promote_interview_selections",
   "target_version": "3.2.6rc1"
  },
@@ -1086,6 +1194,7 @@
   "identity": "consolidate_charter_bundle_fold",
   "module": "m_unify_charter_activation_finalize",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "3.2.6rc1"
  },
@@ -1096,6 +1205,7 @@
   "identity": "runtime_state_backfill",
   "module": "m_zz_runtime_state_backfill",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "3.2.6rc1"
  },
@@ -1106,6 +1216,7 @@
   "identity": "verdict_provenance_backfill",
   "module": "m_zz_verdict_provenance_backfill",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "3.2.6rc1"
  },
@@ -1116,6 +1227,7 @@
   "identity": "3.2.7_heal_provenance_paths",
   "module": "m_3_2_7_heal_provenance_paths",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "3.2.6rc2"
  },
@@ -1126,6 +1238,7 @@
   "identity": "3.2.8_provision_kitty_env",
   "module": "m_3_2_8_provision_kitty_env",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "3.2.6rc2"
  },
@@ -1136,6 +1249,7 @@
   "identity": "migrate_lifecycle_envelope",
   "module": "m_3_2_9_migrate_lifecycle_envelope",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "3.2.6rc2"
  },
@@ -1146,6 +1260,7 @@
   "identity": "3_3_1_context_sources_consolidation",
   "module": "m_3_3_1_context_sources_consolidation",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.6rc2"
  },
@@ -1156,6 +1271,7 @@
   "identity": "3.2.6rc3_lint_report_gitignore_backfill",
   "module": "m_3_2_6rc3_lint_report_gitignore_backfill",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.6rc3"
  },
@@ -1166,6 +1282,7 @@
   "identity": "3.2.6rc3_narrow_cursor_gitignore",
   "module": "m_3_2_6rc3_narrow_cursor_gitignore",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "Superseded by 4.0.0rc8_narrow_agent_gitignore",
   "target_version": "3.2.6rc3"
  },
@@ -1176,6 +1293,7 @@
   "identity": "3.2.6rc3_worktrees_gitignore_backfill",
   "module": "m_3_2_6rc3_worktrees_gitignore_backfill",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "3.2.6rc3"
  },
@@ -1186,6 +1304,7 @@
   "identity": "4_0_0_retired_hosted_target",
   "module": "m_4_0_0_retired_hosted_target",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "4.0.0rc1"
  },
@@ -1196,6 +1315,7 @@
   "identity": "4.0.0rc5_decision_index_merge_driver",
   "module": "m_4_0_0rc5_decision_index_merge_driver",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "4.0.0rc5"
  },
@@ -1206,6 +1326,7 @@
   "identity": "4_0_0rc5_heal_run_index_paths",
   "module": "m_4_0_0rc5_heal_run_index_paths",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "4.0.0rc5"
  },
@@ -1216,6 +1337,7 @@
   "identity": "4_0_0rc5_heal_template_set_provenance",
   "module": "m_4_0_0rc5_heal_template_set_provenance",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "4.0.0rc5"
  },
@@ -1226,6 +1348,7 @@
   "identity": "4_0_0rc5_install_lane_tip_recorder",
   "module": "m_4_0_0rc5_install_lane_tip_recorder",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "4.0.0rc5"
  },
@@ -1236,6 +1359,7 @@
   "identity": "4.0.0rc5_retire_bundled_dashboard",
   "module": "m_4_0_0rc5_retire_bundled_dashboard",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "4.0.0rc5"
  },
@@ -1246,6 +1370,7 @@
   "identity": "4.0.0rc5_retire_single_owner_doctrine_ids",
   "module": "m_4_0_0rc5_retire_single_owner_doctrine_ids",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "4.0.0rc5"
  },
@@ -1256,6 +1381,7 @@
   "identity": "4_0_0rc5_single_branch_code_lanes_restamp",
   "module": "m_4_0_0rc5_single_branch_code_lanes_restamp",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "4.0.0rc5"
  },
@@ -1266,6 +1392,7 @@
   "identity": "4.0.0rc7_exclude_spec_kitty",
   "module": "m_4_0_0rc7_exclude_spec_kitty",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "4.0.0rc7"
  },
@@ -1276,6 +1403,7 @@
   "identity": "4.0.0rc7_pack_level_backfill",
   "module": "m_4_0_0rc7_pack_level_backfill",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "4.0.0rc7"
  },
@@ -1286,6 +1414,7 @@
   "identity": "4.0.0rc7_track_charter_pack_yaml",
   "module": "m_4_0_0rc7_track_charter_pack_yaml",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "4.0.0rc7"
  },
@@ -1296,6 +1425,7 @@
   "identity": "4.0.0rc8_project_intent_directive_rename",
   "module": "m_4_0_0rc8_project_intent_directive_rename",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "4.0.0rc8"
  },
@@ -1306,6 +1436,7 @@
   "identity": "4.0.0rc8_activation_ledger",
   "module": "m_4_0_0rc8_activation_ledger",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "4.0.0rc8"
  },
@@ -1316,6 +1447,7 @@
   "identity": "4.0.0rc8_promote_interview_selections",
   "module": "m_4_0_0rc8_promote_interview_selections",
   "requires_git_repository": false,
+  "runs_on_worktrees": false,
   "superseded_by": "",
   "target_version": "4.0.0rc8"
  },
@@ -1326,6 +1458,7 @@
   "identity": "4.0.0rc8_command_skill_hyphen_names",
   "module": "m_4_0_0rc8_command_skill_hyphen_names",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "4.0.0rc8"
  },
@@ -1336,6 +1469,7 @@
   "identity": "4.0.0rc8_retire_antigravity_workflows",
   "module": "m_4_0_0rc8_retire_antigravity_workflows",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "4.0.0rc8"
  },
@@ -1346,6 +1480,7 @@
   "identity": "4.0.0rc8_retire_stale_mission_template_forks",
   "module": "m_4_0_0rc8_retire_stale_mission_template_forks",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "4.0.0rc8"
  },
@@ -1356,6 +1491,7 @@
   "identity": "4.0.0rc8_narrow_agent_gitignore",
   "module": "m_4_0_0rc8_narrow_agent_gitignore",
   "requires_git_repository": false,
+  "runs_on_worktrees": true,
   "superseded_by": "",
   "target_version": "4.0.0rc8"
  }

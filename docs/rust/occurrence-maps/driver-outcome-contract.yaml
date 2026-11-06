@@ -1,0 +1,49 @@
+# PRE-EDIT API adaptation; no host Mission or runtime approval is fabricated.
+# Code-inspected public empty-payload consumer: driver-outcome-public-payload-consumers.Tcv2zt.log.
+target:
+  term: DriverOutcome
+  replacement: encoded public outcome plus private text/bytes execution plan
+  operation: deprecate
+categories:
+  code_symbols:
+    action: manual_review
+    scope: Keep all public driver names and real byte outcome contract; private plan holds unencoded text.
+  import_paths: {action: do_not_change}
+  filesystem_paths: {action: do_not_change}
+  serialized_keys: {action: do_not_change}
+  cli_commands: {action: do_not_change}
+  user_facing_strings:
+    action: manual_review
+    scope: Preserve actual notices/errors and physical encoding phase, never invent success with empty bytes.
+  tests_fixtures:
+    action: manual_review
+    scope: Add actual Source-first in-memory/path payload and conflict-publication regression; strengthen tests without changing historical goldens.
+  logs_telemetry: {action: do_not_change}
+exceptions:
+  - path: crates/sk-workspace/src/merge_drivers.rs
+    action: manual_review
+    reason: One private execution plan/dispatcher; public generic and seven named scalar APIs return actual bytes; path execution publishes text before encoding.
+  - path: crates/sk-workspace/src/consolidation.rs
+    action: manual_review
+    reason: Publish through the same Source execution seam and stage the existing file through the canonical Git owner, never stage an empty placeholder.
+  - path: crates/sk-workspace/tests/*.rs
+    action: manual_review
+    reason: New Source-first contract/footprint tests, preserve old fixtures and assertions on successful encoded bytes.
+  - path: crates/sk-cli/tests/*.rs
+    action: manual_review
+    reason: Existing driver/protocol consumers are checked, not mechanically renamed or weakened.
+  - path: src/**
+    action: do_not_change
+    reason: Pinned Source authority.
+  - path: packs/**
+    action: do_not_change
+    reason: Pinned authored data.
+  - path: benchmarks/**
+    action: do_not_change
+    reason: No performance or coverage promotion.
+moves: []
+status:
+  mode: standalone-pre-edit-classification
+  host_mission: absent
+  runtime_gate_approval: not-claimed
+  public_names: retained

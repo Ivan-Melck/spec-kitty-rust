@@ -3,18 +3,27 @@
 //! Every route either executes real domain behavior or refuses before any
 //! mutation. See [`capabilities::matrix`] for the command-by-command state.
 
+pub mod acceptance;
 pub mod capabilities;
+pub mod charter;
+pub mod console_text;
+pub mod doctor;
 pub mod init;
+pub mod invocation;
+pub mod lifecycle;
+pub mod migrate;
 pub mod mission;
+pub mod python_output;
 pub mod runtime;
 pub mod status;
 pub mod support;
 pub mod tasks;
+pub mod upgrade;
 pub mod workspace;
 
 /// Core-version target of the pinned upstream data and command contracts.
 /// This identifies compatibility, not completion; capabilities remain explicit.
-pub const CORE_VERSION: &str = "4.0.0rc8";
+pub const CORE_VERSION: &str = sk_kernel::COMPAT_CORE_VERSION;
 
 use std::ffi::OsString;
 use std::process::ExitCode;
@@ -58,8 +67,29 @@ pub enum Command {
     Implement(ImplementArgs),
     /// Decide and emit the next agent action for the current mission.
     Next(NextArgs),
-    /// Upgrade is not yet implemented by the native installer.
-    Upgrade(UpgradeArgs),
+    /// Route a standalone request and open a governed Op.
+    Dispatch(invocation::DispatchArgs),
+    /// Manage invocation records.
+    ProfileInvocation {
+        #[command(subcommand)]
+        command: ProfileInvocationCommand,
+    },
+    /// Inspect agent profiles.
+    Profiles {
+        #[command(subcommand)]
+        command: ProfilesCommand,
+    },
+    /// Upgrade project-managed installation state.
+    Upgrade(upgrade::UpgradeArgs),
+    /// Inspect or migrate project setup state.
+    Migrate(migrate::MigrateArgs),
+    /// Render and manage project charter context and activation.
+    Charter {
+        #[command(subcommand)]
+        command: charter::CharterCommand,
+    },
+    /// Diagnose project state; unsupported repairs fail before mutation.
+    Doctor(doctor::DoctorArgs),
     /// Report the compatibility capability matrix.
     Capabilities(JsonArgs),
     /// Serve the original versioned inspection envelope.
@@ -83,14 +113,42 @@ pub enum Command {
         #[command(subcommand)]
         command: WorkspaceCommand,
     },
-    /// Consolidation is not yet implemented natively.
-    Consolidate(UnsupportedArgs),
-    /// Acceptance is not yet implemented natively.
-    Accept(UnsupportedArgs),
-    /// Review is not yet implemented natively.
-    Review(UnsupportedArgs),
-    /// Merging was renamed to consolidate and is not implemented natively.
-    Merge(UnsupportedArgs),
+    /// Consolidate approved Mission work.
+    Consolidate(Box<lifecycle::ConsolidateArgs>),
+    /// Evaluate Mission acceptance.
+    Accept(Box<lifecycle::AcceptArgs>),
+    /// Review a Mission against its recorded evidence.
+    Review(Box<lifecycle::ReviewArgs>),
+    /// Explain the rename to consolidate.
+    Merge(lifecycle::MergeArgs),
+    /// Merge append-only event logs for Git.
+    MergeDriverEventLog(Box<lifecycle::MergeDriverArgs>),
+    /// Merge Mission metadata for Git.
+    MergeDriverMeta(Box<lifecycle::MergeDriverArgs>),
+    /// Merge Mission traces for Git.
+    MergeDriverTraces(Box<lifecycle::MergeDriverArgs>),
+    /// Merge acceptance matrices for Git.
+    MergeDriverAcceptanceMatrix(Box<lifecycle::MergeDriverArgs>),
+    /// Merge issue matrices for Git.
+    MergeDriverIssueMatrix(Box<lifecycle::MergeDriverArgs>),
+    /// Merge review-cycle records for Git.
+    MergeDriverReviewCycle(Box<lifecycle::MergeDriverArgs>),
+    /// Merge decision indexes for Git.
+    MergeDriverDecisionIndex(Box<lifecycle::MergeDriverArgs>),
+}
+
+/// Companion command for closing a standalone Op.
+#[derive(Debug, Subcommand)]
+pub enum ProfileInvocationCommand {
+    /// Close an invocation with its actual terminal outcome.
+    Complete(invocation::CompleteArgs),
+}
+
+/// Profile inspection routes.
+#[derive(Debug, Subcommand)]
+pub enum ProfilesCommand {
+    /// List profiles from the canonical catalogue.
+    List(invocation::ListArgs),
 }
 
 /// `init` options.
@@ -217,17 +275,6 @@ pub struct NextArgs {
     /// Emit JSON.
     #[arg(long)]
     pub json: bool,
-}
-
-/// `upgrade` options (accepted so the refusal names the real surface).
-#[derive(Debug, Args)]
-pub struct UpgradeArgs {
-    /// Emit JSON.
-    #[arg(long)]
-    pub json: bool,
-    /// Agent upgrade check mode.
-    #[arg(long)]
-    pub agent_check: bool,
 }
 
 /// `capabilities` options.
@@ -580,16 +627,6 @@ fn handle_parse_error(error: clap::Error, json_requested: bool) -> ExitCode {
     }
 }
 
-fn unsupported(route: &str, json_output: bool) -> Result<u8, CompatError> {
-    let _ = json_output;
-    Err(CompatError::unsupported(
-        "NOT_IMPLEMENTED",
-        format!(
-            "{route} is not implemented by the native Rust CLI; see `spec-kitty capabilities --json` for the blocker and implemented routes"
-        ),
-    ))
-}
-
 /// Dispatch one parsed command.
 pub fn dispatch(command: Command) -> Result<u8, CompatError> {
     match command {
@@ -682,12 +719,19 @@ pub fn dispatch(command: Command) -> Result<u8, CompatError> {
             )?;
             Ok(code as u8)
         }
-        Command::Upgrade(args) => {
-            if args.agent_check {
-                return unsupported("upgrade --agent-check", args.json);
+        Command::Dispatch(args) => invocation::run_dispatch(&args).map(|code| code as u8),
+        Command::ProfileInvocation { command } => match command {
+            ProfileInvocationCommand::Complete(args) => {
+                invocation::run_complete(&args).map(|code| code as u8)
             }
-            unsupported("upgrade", args.json)
-        }
+        },
+        Command::Profiles { command } => match command {
+            ProfilesCommand::List(args) => invocation::run_list(&args).map(|code| code as u8),
+        },
+        Command::Upgrade(args) => upgrade::run_here(&args).map(|code| code as u8),
+        Command::Migrate(args) => migrate::run_here(&args).map(|code| code as u8),
+        Command::Charter { command } => charter::run(command),
+        Command::Doctor(args) => doctor::run(&args),
         Command::Capabilities(args) => {
             let value = capabilities::matrix();
             if args.json {
@@ -932,10 +976,47 @@ pub fn dispatch(command: Command) -> Result<u8, CompatError> {
                 Ok(0)
             }
         },
-        Command::Consolidate(args) => unsupported("consolidate", args.json),
-        Command::Accept(args) => unsupported("accept", args.json),
-        Command::Review(args) => unsupported("review", args.json),
-        Command::Merge(args) => unsupported("merge", args.json),
+        Command::Consolidate(args) => {
+            let root = support::project_root()?;
+            let (_, code) = lifecycle::consolidate(&root, &args)?;
+            Ok(code)
+        }
+        Command::Accept(args) => {
+            let root = support::project_root()?;
+            let (_, code) = lifecycle::accept(&root, &args)?;
+            Ok(code)
+        }
+        Command::Review(args) => {
+            let root = support::project_root()?;
+            let (_, code) = lifecycle::review(&root, &args)?;
+            Ok(code)
+        }
+        Command::Merge(args) => lifecycle::merge(&args),
+        Command::MergeDriverEventLog(args) => {
+            Ok(lifecycle::run_merge_driver("merge-driver-event-log", &args))
+        }
+        Command::MergeDriverMeta(args) => {
+            Ok(lifecycle::run_merge_driver("merge-driver-meta", &args))
+        }
+        Command::MergeDriverTraces(args) => {
+            Ok(lifecycle::run_merge_driver("merge-driver-traces", &args))
+        }
+        Command::MergeDriverAcceptanceMatrix(args) => Ok(lifecycle::run_merge_driver(
+            "merge-driver-acceptance-matrix",
+            &args,
+        )),
+        Command::MergeDriverIssueMatrix(args) => Ok(lifecycle::run_merge_driver(
+            "merge-driver-issue-matrix",
+            &args,
+        )),
+        Command::MergeDriverReviewCycle(args) => Ok(lifecycle::run_merge_driver(
+            "merge-driver-review-cycle",
+            &args,
+        )),
+        Command::MergeDriverDecisionIndex(args) => Ok(lifecycle::run_merge_driver(
+            "merge-driver-decision-index",
+            &args,
+        )),
     }
 }
 

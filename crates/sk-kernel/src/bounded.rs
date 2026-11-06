@@ -4,6 +4,17 @@ use std::path::Path;
 
 use crate::KernelError;
 
+/// Source `Path.read_bytes()` byte-stream policy: follow the path, read until
+/// EOF without an invented size bound or regular-file precondition.
+///
+/// Unlike [`read_bounded`], this explicitly Source-compatible operation MAY
+/// block opening/reading a FIFO or device, just like the reference. Use the
+/// bounded regular-file capability for inspection/security-constrained work;
+/// do not impose that separate policy on compatible Source execution.
+pub fn read_source_bytes(path: &Path) -> Result<Vec<u8>, KernelError> {
+    std::fs::read(path).map_err(|source| KernelError::io("read", path, source))
+}
+
 /// Read at most `max_bytes` from `path`.
 ///
 /// The file is rejected with [`KernelError::TooLarge`] when it is larger than

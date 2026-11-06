@@ -1,0 +1,20 @@
+{
+  "case": "2_0_1_tool_config_key_rename",
+  "meta": {
+    "can_apply": [
+      true,
+      ""
+    ],
+    "changes": [
+      "Renamed .kittify/config.yaml key `agents` -> `tools`"
+    ],
+    "detect": true,
+    "error": null,
+    "success": true,
+    "warnings": []
+  },
+  "tree": {
+    ".kittify/": "DIR",
+    ".kittify/config.yaml": "3d39bd98fab881a5b9a1ce41b9a9dcc01a16349edd777184847cee286ca59ba5"
+  }
+}

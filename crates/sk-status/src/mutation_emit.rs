@@ -1295,6 +1295,147 @@ pub fn emit_inner_state_changed(
     })
 }
 
+/// One `RetrospectiveCaptured` lifecycle row (flat schema-5 shape).
+#[derive(Clone, Debug)]
+pub struct RetrospectiveCapturedRequest {
+    /// `kitty-specs/<slug>`.
+    pub feature_dir: PathBuf,
+    /// The Mission ULID.
+    pub mission_id: String,
+    /// The Mission slug.
+    pub mission_slug: String,
+    /// `runtime_post_completion` (or the caller's provenance kind).
+    pub provenance_kind: String,
+    /// `has_findings` / `ran_no_findings`.
+    pub findings_status: String,
+    /// The generator version.
+    pub generator_version: String,
+    /// How many evidence refs the record cites.
+    pub evidence_ref_count: usize,
+    /// How many proposals the record carries.
+    pub proposal_count: usize,
+    /// The resolved policy source map.
+    pub policy_source: BTreeMap<String, String>,
+    /// The record path as recorded in the event.
+    pub record_path: String,
+    /// Override the write timestamp (defaults to now).
+    pub at: Option<String>,
+    /// Override the event id (defaults to a fresh ULID).
+    pub event_id: Option<String>,
+    /// Lock root, when the log lives inside a repository.
+    pub repo_root: Option<PathBuf>,
+    /// Lock wait policy.
+    pub lock_wait: Option<LockWait>,
+}
+
+/// Persist one `RetrospectiveCaptured` lifecycle row and verify its readback.
+///
+/// Source writes this event as a FLAT schema-5 row (`type`, `at`, `actor`,
+/// `schema_version`, the record's provenance, the policy source map), not as a
+/// lifecycle envelope — that is why it goes through the flat door
+/// ([`emit_inner_state_changed`]'s sibling) rather than `append_lifecycle_event`.
+/// The capture is the only audit record that the retrospective ran, so a failure
+/// here is returned, never swallowed.
+pub fn emit_retrospective_captured(
+    request: &RetrospectiveCapturedRequest,
+) -> Result<AnnotationOutcome, MutationError> {
+    let event_id = match &request.event_id {
+        Some(value) if is_ulid(value) => value.clone(),
+        Some(value) => {
+            return Err(MutationError::InvalidRow {
+                reason: format!("event_id {value:?} is not a canonical ULID"),
+            });
+        }
+        None => new_ulid(),
+    };
+    let feature_dir = canonicalize_feature_dir(&request.feature_dir);
+    let log_path = events_path(&feature_dir);
+    let wait = request.lock_wait.unwrap_or(LockWait::Unbounded);
+    let _lock = acquire_mission_lock(&feature_dir, request.repo_root.as_deref(), wait)?;
+
+    let mut policy_source = Map::new();
+    for (key, value) in &request.policy_source {
+        policy_source.insert(key.clone(), Value::String(value.clone()));
+    }
+    let mut actor = Map::new();
+    actor.insert("kind".to_owned(), Value::String("runtime".to_owned()));
+    actor.insert(
+        "id".to_owned(),
+        Value::String("spec-kitty-generator".to_owned()),
+    );
+    actor.insert("display".to_owned(), Value::Null);
+    let mut row = Map::new();
+    row.insert("event_id".to_owned(), Value::String(event_id.clone()));
+    row.insert(
+        "at".to_owned(),
+        Value::String(
+            request
+                .at
+                .clone()
+                .unwrap_or_else(sk_kernel::clock::now_utc_iso),
+        ),
+    );
+    row.insert(
+        "type".to_owned(),
+        Value::String("RetrospectiveCaptured".to_owned()),
+    );
+    row.insert("schema_version".to_owned(), json!(1));
+    row.insert("actor".to_owned(), Value::Object(actor));
+    row.insert("force".to_owned(), Value::Bool(false));
+    row.insert(
+        "execution_mode".to_owned(),
+        Value::String("main".to_owned()),
+    );
+    row.insert("lamport".to_owned(), json!(1));
+    row.insert("wp_id".to_owned(), Value::Null);
+    row.insert(
+        "mission_id".to_owned(),
+        Value::String(request.mission_id.clone()),
+    );
+    row.insert(
+        "mission_slug".to_owned(),
+        Value::String(request.mission_slug.clone()),
+    );
+    row.insert(
+        "provenance_kind".to_owned(),
+        Value::String(request.provenance_kind.clone()),
+    );
+    row.insert(
+        "findings_status".to_owned(),
+        Value::String(request.findings_status.clone()),
+    );
+    row.insert(
+        "generator_version".to_owned(),
+        Value::String(request.generator_version.clone()),
+    );
+    row.insert(
+        "evidence_ref_count".to_owned(),
+        json!(request.evidence_ref_count),
+    );
+    row.insert("proposal_count".to_owned(), json!(request.proposal_count));
+    row.insert("policy_source".to_owned(), Value::Object(policy_source));
+    row.insert(
+        "record_path".to_owned(),
+        Value::String(request.record_path.clone()),
+    );
+    let row = Value::Object(row);
+
+    append_rows_atomic(
+        &log_path,
+        std::slice::from_ref(&row),
+        &AppendOptions::default(),
+    )?;
+    verify_event_rows(&log_path, std::slice::from_ref(&row))
+        .map_err(|error| error.after_commit(&log_path))?;
+    let (snapshot, materialize_error) = materialize_after_write(&feature_dir);
+    Ok(AnnotationOutcome {
+        event_id,
+        log_path,
+        snapshot,
+        materialize_error,
+    })
+}
+
 #[cfg(test)]
 mod wait_policy_tests {
     use super::*;

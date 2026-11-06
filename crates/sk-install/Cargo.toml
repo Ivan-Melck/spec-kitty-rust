@@ -26,7 +26,13 @@ getrandom = "0.3"
 sk-kernel = { path = "../sk-kernel" }
 sk-charter = { path = "../sk-charter" }
 sk-doctrine = { path = "../sk-doctrine" }
+sk-git = { path = "../sk-git" }
+sk-glossary = { path = "../sk-glossary" }
+sk-invocation = { path = "../sk-invocation" }
+sk-mission = { path = "../sk-mission" }
 sk-status = { path = "../sk-status" }
+sk-workspace = { path = "../sk-workspace" }
+yaml-edit = { version = "=0.3.6", default-features = false }
 
 [dev-dependencies]
 proptest.workspace = true

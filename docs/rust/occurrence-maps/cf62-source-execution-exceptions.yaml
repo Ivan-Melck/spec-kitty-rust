@@ -1,0 +1,169 @@
+# CF62 occurrence classification (DIRECTIVE_035) — PRE-edit.
+
+# Written BEFORE any CF62 source edit, from the design recorded in
+# `/tmp/sk-cf62-source-execution-exceptions-report.md`. This is the pre-edit
+# classification record for an ADDITIVE capability plus one public error-type
+# change; it is not an approval, a Mission artifact, or a gate promotion.
+
+# Shape of the change:
+
+# * NEW `sk_status::source_execution` — the typed caught-versus-escaped execution
+#   boundary (`SourcePythonClass`, `SourceExecutionPhase`, `SourcePythonFailure`,
+#   `SourceRaised`, `SourceOperational`, `SourceExecutionError`) and the
+#   end-to-end `execute_source_diary` / `execute_source_transitions_diary`.
+# * ONE public signature changes: `sk_status::replay::read_source_event_stream_from_text`
+#   now returns `Result<_, SourceExecutionError>` instead of
+#   `Result<_, SourceEventLogError>`. `SourceEventLogError` remains the caught
+#   `StoreError` owner (nested as `SourceExecutionError::Store`), so no caught
+#   message text changes.
+# * `SourceSlugResolver::resolve_for_row` returns a typed resolver failure
+#   (`Raised` vs `Operational`) instead of a `String`, and the metadata phases
+#   stop collapsing an escaped `OSError`/`RecursionError` or a native parser limit
+#   into a healthy `None`.
+# * `SourceAnnotation::admit` / `SourceDelta::admit` / the new
+#   `python_int_coercion` return `SourcePythonFailure` (class + message) so
+#   `OverflowError` is distinguishable from the reference's caught `ValueError`.
+#   The legacy `python_int_value` keeps its `String` error for existing callers.
+# * `crates/sk-workspace/src/coherence/done.rs` gains exactly two error variants
+#   so the committed consumer forwards the escaped phase and the native
+#   operational limit instead of folding them into the caught buckets.
+
+target:
+  term: "SourceExecutionError"
+  replacement: null
+
+categories:
+  code_symbols:
+    action: manual_review
+    note: >-
+      New public symbols: `sk_status::source_execution::{SourcePythonClass,
+      SourceExecutionPhase, SourcePythonFailure, SourceRaised, SourceOperational,
+      SourceExecutionError, execute_source_diary,
+      execute_source_transitions_diary}` and
+      `sk_status::source_annotation::python_int_coercion`. One public signature
+      changes (`read_source_event_stream_from_text`'s error type);
+      `SourceSlugResolver::resolve_for_row`,
+      `SourceAnnotation::admit`, `SourceDelta::admit` and the leaf decoders take
+      the typed failure instead of `String`. `SourceEventLogError`,
+      `SourceFoldError`, `SourceEventStream`, `SourceSnapshot`,
+      `SourceStatusEvent`, `SourceWpState`, `reduce_source_diary` and
+      `python_int_value` keep their names and semantics; nothing is renamed or
+      deleted. `crates/sk-workspace/src/coherence/done.rs` adds
+      `CoordDoneReadError::{EscapedSourceException, SourceOperationalLimit}`.
+  import_paths:
+    action: manual_review
+    note: >-
+      One new module declaration in `crates/sk-status/src/lib.rs`
+      (`pub mod source_execution;`) plus its exact exports, and the exact
+      re-exports in `crates/sk-status/src/replay.rs`. No crate-root export, no
+      manifest, lockfile or dependency edge changes; the new module depends only
+      on the existing Kernel/`sk-status` owners it reuses.
+  filesystem_paths:
+    action: do_not_change
+    note: >-
+      No path shape changes. The metadata resolver keeps the reference's
+      `<kitty-specs>/<slug>/meta.json` composition, its feature-dir-relative
+      specs-root lookup, `resolve(strict=False)` containment, symlink-following
+      `exists()`, unbounded symlink-following read, strict UTF-8 and the J1
+      decoder. Only the *failure classification* of an already-existing phase
+      changes (an escaped `OSError` is no longer reported as absence).
+  serialized_keys:
+    action: do_not_change
+    note: >-
+      No event, snapshot, `meta.json` or DTO key is added, renamed or removed.
+      The typed errors are Rust-side values, never written to disk, and the
+      committed consumer remains read-only.
+  cli_commands:
+    action: do_not_change
+    note: >-
+      No CLI command, flag, option, exit code or doctor/capability/count surface
+      changes. This is a library boundary plus one existing library consumer.
+  user_facing_strings:
+    action: manual_review
+    note: >-
+      Caught phases keep the reference's exact `StoreError` text unchanged
+      (`Invalid JSON on line N: …`, `Invalid event structure on line N: …`,
+      `Unknown event kind <repr> on line N`). NEW text is limited to the
+      previously-mislabelled phases: the escaped Python class is named with its
+      own message (`OverflowError: cannot convert float infinity to integer`,
+      `ValueError: Exceeds the limit (…) for integer string conversion: …`,
+      `RecursionError: maximum recursion depth exceeded …`,
+      `OSError: <os message>`), and the native-only limit is labelled as native
+      (`native operational failure …`, explicitly "no Source counterpart")
+      instead of being given a fabricated Python message.
+  tests_fixtures:
+    action: manual_review
+    note: >-
+      New tests only: `crates/sk-status/tests/cf62_source_execution_exceptions.rs`
+      (two real children: the pinned reference's caught/escaped case table versus
+      the typed Native boundary) and
+      `crates/sk-workspace/tests/cf62_committed_escaped_forwarding.rs` (real Git
+      committed log + real `meta.json` through the committed consumer). Existing
+      CF49/CF54/CF59 expectations are not weakened: they assert the reference's
+      own admitted/fold phases and keep passing because caught text is
+      byte-identical and the escape cases were previously the mislabelled ones.
+  logs_telemetry:
+    action: do_not_change
+    note: >-
+      No telemetry key, diagnostic code, finding code or emitted id is added or
+      changed. Parent owns registration, counts and publication.
+
+exceptions:
+  - path: "crates/sk-status/src/source_execution.rs"
+    action: manual_review
+    reason: >-
+      NEW file; the ONE typed execution boundary (Python class + phase +
+      caught/escaped/operational) and the end-to-end read+fold entry points.
+  - path: "crates/sk-status/src/source_event.rs"
+    action: manual_review
+    reason: >-
+      Admission/fold error seam only: the per-line decoder classifies
+      `IntegerDigitLimit` as an escaped `ValueError` and the native parser
+      limits as operational; the resolver/annotation failures are classified
+      through the reference's own `except (KeyError, ValueError, TypeError,
+      AttributeError)` policy; the fold gains its `SourceExecutionError`
+      conversion. Lane admission, arbitration, ordering and the fold body are
+      unchanged.
+  - path: "crates/sk-status/src/source_annotation.rs"
+    action: manual_review
+    reason: >-
+      The leaf decoders return the typed failure so `int(Infinity)` is an
+      `OverflowError` and not a `ValueError`; `python_int_value` keeps its
+      `String` error for the existing caller, delegating to the new typed
+      `python_int_coercion`. No coercion rule is added or changed.
+  - path: "crates/sk-status/src/source_metadata.rs"
+    action: manual_review
+    reason: >-
+      Typed resolver failure (`Raised` with its Python class/phase, or
+      `Operational` for the native parser budget) replacing the `String` return
+      and the blanket `None` collapse of an escaped `OSError` / deep-nesting
+      `RecursionError` / native decoder limit. Cache/grammar/containment/exists/
+      read/UTF-8/decode/field execution order is unchanged.
+  - path: "crates/sk-status/src/lib.rs"
+    action: manual_review
+    reason: >-
+      One module declaration and its exact exports (status crate root only).
+  - path: "crates/sk-status/src/replay.rs"
+    action: manual_review
+    reason: >-
+      Exact re-exports of the new type and entry points (no copies), plus the
+      existing `SourceEventLogError` re-export retained.
+  - path: "crates/sk-workspace/src/coherence/done.rs"
+    action: manual_review
+    reason: >-
+      Narrow committed-consumer propagation ONLY: map the escaped class/phase and
+      the native operational limit onto two new `CoordDoneReadError` variants;
+      the caught `StoreError` buckets and the read-only contract are unchanged.
+  - path: "docs/rust/occurrence-maps/cf62-source-execution-exceptions.yaml"
+    action: do_not_change
+    reason: >-
+      This classification artifact itself; it is the map, not an occurrence of
+      the target term in product code.
+
+status:
+  accepted: false
+  approval: "not requested"
+  note: >-
+    Pre-edit classification written by the implementation lane before the
+    source edits. It records the planned decisions; it does not approve the
+    change, open a Mission, or claim a gate result.

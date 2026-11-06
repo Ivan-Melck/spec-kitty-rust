@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use serde_yaml_ng::Value as SerdeValue;
-use yaml_edit::{Document, YamlValue};
+use yaml_edit::{AsYaml, Document, YamlValue};
 
 use crate::error::DoctrineError;
 use crate::lock::{FileLock, acquire_synthesis_lock, lock_path_for};
@@ -134,6 +134,13 @@ impl YamlDocument {
         self.mapping().and_then(|mapping| mapping.get(key))
     }
 
+    /// A top-level value other than YAML null (the Source `data.get(key) is not None` test).
+    pub fn get_non_null(&self, key: &str) -> Option<&YamlValue> {
+        self.get(key).filter(|value| {
+            !matches!(value, YamlValue::Scalar(scalar) if scalar.scalar_type() == yaml_edit::ScalarType::Null)
+        })
+    }
+
     /// A top-level string value.
     pub fn get_str(&self, key: &str) -> Option<&str> {
         self.get(key).and_then(YamlValue::as_str)
@@ -145,13 +152,9 @@ impl YamlDocument {
     /// non-list value is a typed error: a malformed activation surface must
     /// fail closed, never read as absent.
     pub fn get_string_list(&self, key: &str) -> Result<Option<Vec<String>>, DoctrineError> {
-        let Some(value) = self.get(key) else {
+        let Some(value) = self.get_non_null(key) else {
             return Ok(None);
         };
-        if matches!(value, YamlValue::Scalar(scalar) if scalar.scalar_type() == yaml_edit::ScalarType::Null)
-        {
-            return Ok(None);
-        }
         let Some(items) = value.as_sequence() else {
             return Err(DoctrineError::InvalidLedgerValue {
                 path: self.path.clone(),
@@ -276,6 +279,80 @@ impl YamlDocument {
         } else {
             rendered
         }
+    }
+
+    /// Source ledger dump style: top-level block sequences are indentless.
+    ///
+    /// This is an execution-writer view, not the lossless Native read/prepare
+    /// renderer. CST ranges identify only root sequence values; nested scalar
+    /// indentation moves with its sequence and every other byte is retained.
+    pub(crate) fn to_ledger_text(&self) -> Result<String, DoctrineError> {
+        if !self.changed() {
+            return Ok(self.to_text());
+        }
+        self.to_source_text()
+    }
+
+    /// Render Source's indentless root block-sequence layout from the held CST.
+    ///
+    /// Execution writers may use this after replacing a list. Unlike
+    /// [`Self::to_text`], this explicitly normalizes layout, even for a freshly
+    /// parsed document. It neither scans files nor mutates the lossless view.
+    pub fn to_source_text(&self) -> Result<String, DoctrineError> {
+        let mut text = self.document.to_string();
+        let mut edits = Vec::new();
+        if let Some(mapping) = self.document.as_mapping() {
+            for (_, value) in mapping.iter() {
+                if value.as_sequence().is_none() {
+                    continue;
+                }
+                let Some(node) = value.as_node() else {
+                    continue;
+                };
+                let range = node.text_range();
+                let start = usize::from(range.start());
+                let end = usize::from(range.end());
+                let Some(dash) = text[start..end].find('-').map(|offset| start + offset) else {
+                    continue;
+                };
+                let line = text[..dash].rfind('\n').map_or(0, |index| index + 1);
+                let prefix = &text[line..dash];
+                if prefix.is_empty() || !prefix.bytes().all(|byte| byte == b' ') {
+                    continue;
+                }
+                let replacement: String = text[line..end]
+                    .split_inclusive('\n')
+                    .map(|line| line.strip_prefix(prefix).unwrap_or(line))
+                    .collect();
+                edits.push((line, end, replacement));
+            }
+        }
+        edits.sort_by_key(|(start, _, _)| std::cmp::Reverse(*start));
+        for (start, end, replacement) in edits {
+            text.replace_range(start..end, &replacement);
+        }
+        let before: SerdeValue =
+            serde_yaml_ng::from_str(&self.document.to_string()).map_err(|error| {
+                DoctrineError::Yaml {
+                    path: self.path.clone(),
+                    message: error.to_string(),
+                }
+            })?;
+        let after: SerdeValue =
+            serde_yaml_ng::from_str(&text).map_err(|error| DoctrineError::Yaml {
+                path: self.path.clone(),
+                message: error.to_string(),
+            })?;
+        if before != after {
+            return Err(DoctrineError::Yaml {
+                path: self.path.clone(),
+                message: "ledger sequence layout changed semantic content".to_owned(),
+            });
+        }
+        if self.original.starts_with('\u{feff}') {
+            text.insert(0, '\u{feff}');
+        }
+        Ok(text)
     }
 
     /// Whether the document changed since it was parsed.

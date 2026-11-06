@@ -1,0 +1,96 @@
+target:
+  term: Invocation-owned filesystem encoding and locale authority
+  replacement: Kernel-owned filesystem encoding and locale authority
+  operation: rename
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Same OsEncodingContext/OsEncodeError/LocaleCodeset names move to Kernel and
+      are re-exported from Invocation. New OsDecodeError plus decode/decode_os_str/
+      decode_path are additive; FilesystemCodec and the private UTF8 helper are
+      relocated, never duplicated.
+  import_paths:
+    action: manual_review
+    notes: >-
+      Kernel owns the module paths and one OsEncodingContext; Invocation keeps thin
+      re-exports so existing op_commit and sk-cli python_output callers do not gain
+      a second codec or resolver.
+  filesystem_paths:
+    action: manual_review
+    notes: >-
+      crates/sk-invocation/src/python_os_encoding.rs and os_locale.rs become thin
+      re-export files; the actual implementations move to
+      crates/sk-kernel/src/{python_os_encoding,os_locale}.rs. No build, manifest,
+      pin, pack, golden or Source path changes.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      Provenance JSONL field names/order and all Op/CLI wire keys are unchanged;
+      only file_path's text spelling changes under the captured filesystem codec.
+  cli_commands:
+    action: do_not_change
+    notes: No command, flag, help text or routing change.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Native-unsupported codec/platform causes stay explicit typed diagnostics and
+      must never be rendered as a Source UnicodeDecodeError, null, or empty path.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New Source vectors cover UTF8/ASCII/Latin1/Latin9/legacy gaps, fresh raw-byte
+      filename journal reads, and a fresh independent Source/Native pair under an
+      actually installed Latin-1 startup codec. Existing UTF8 controls remain
+      regression.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      Keep the existing event-log append, warning text, event_id/at volatility and
+      all actual receipts; no telemetry key, logger or writer change.
+exceptions:
+  - path: crates/sk-invocation/src/python_os_encoding.rs
+    action: manual_review
+    reason: Thin same-item re-export to Kernel; algorithms and notices move, not copied.
+  - path: crates/sk-invocation/src/os_locale.rs
+    action: manual_review
+    reason: Thin same-item re-export to Kernel; native locale facts move, not copied.
+  - path: crates/sk-kernel/src/python_os_encoding.rs
+    action: manual_review
+    reason: Promoted actual Invocation implementation plus exact filesystem decoding under the captured context.
+  - path: crates/sk-kernel/src/os_locale.rs
+    action: manual_review
+    reason: Promoted actual Invocation native locale authority, retaining read-only and uncertainty semantics.
+  - path: crates/sk-kernel/src/encoding_provenance.rs
+    action: manual_review
+    reason: Filename projection only; canonical context replaces the private UTF8 decoder and lossy non-Unix fallback.
+  - path: crates/sk-kernel/src/lib.rs
+    action: manual_review
+    reason: Same-item Kernel module/export wiring for the promoted authority and decoder types.
+  - path: crates/sk-invocation/src/lib.rs
+    action: manual_review
+    reason: Same-item Invocation re-export wiring; no second authority or resolver.
+  - path: crates/sk-invocation/src/op_commit.rs
+    action: manual_review
+    reason: Precise visibility/type-path ripple only; encoder context and all commit semantics stay unchanged.
+  - path: crates/sk-cli/src/compat/python_output.rs
+    action: do_not_change
+    reason: Existing stdout encoder/locale consumer must keep its current public names and semantics through Invocation re-exports.
+  - path: crates/sk-kernel/tests/cf69_filesystem_decoder.rs
+    action: manual_review
+    reason: New Source-first codec controls and existing-API filename red/green receipt.
+  - path: crates/sk-doctrine/tests/cf69_filesystem_filename_reads.rs
+    action: manual_review
+    reason: Fresh independent Source/Native business children assert all roots, hash seed and actual Latin-1 startup codec before the raw-byte filename read.
+moves:
+  - from:
+      - crates/sk-invocation/src/python_os_encoding.rs
+    to: crates/sk-kernel/src/python_os_encoding.rs
+    reason: Parent explicitly chose Kernel ownership of filesystem encoding policy; Invocation retains a thin re-export.
+  - from:
+      - crates/sk-invocation/src/os_locale.rs
+    to: crates/sk-kernel/src/os_locale.rs
+    reason: Parent explicitly chose Kernel ownership of native locale policy; Invocation retains a thin re-export.
+status:
+  accepted: false
+  phase: prospective implementation classification, before code edits

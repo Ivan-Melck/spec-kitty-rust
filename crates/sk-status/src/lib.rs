@@ -28,10 +28,13 @@
 
 #![forbid(unsafe_code)]
 
+pub mod acceptance;
 pub mod actor_identity;
 pub mod event_stream;
 pub mod guard;
 pub mod lane;
+pub mod migration_backfill;
+pub mod mission_projection;
 pub mod mutation;
 pub mod mutation_commit;
 pub mod mutation_delta;
@@ -46,11 +49,26 @@ pub mod mutation_payloads;
 pub mod mutation_readiness;
 pub mod mutation_rollback;
 pub mod mutation_ulid;
+pub mod preflight;
 pub mod replay;
 pub mod schema;
 pub mod snapshot;
+pub mod source_annotation;
+pub mod source_event;
+pub mod source_execution;
+pub mod source_metadata;
 pub mod transition;
 
+pub use acceptance::{
+    ACCEPTANCE_MATRIX_FILE_NAME, AcceptanceCriterion, AcceptanceGate, AcceptanceInputs,
+    AcceptanceMatrix, AcceptanceReport, DEFERRED_TO_CONSOLIDATION, GateResult,
+    InvariantJudgeContext, NegativeInvariant, OPERATOR_EVIDENCE_ACTOR,
+    POST_CONSOLIDATION_PHASE_NAME, PROVENANCE_LEGACY_UNRECORDED, PROVENANCE_ORIGINS,
+    PROVENANCE_RECORDED, ReviewEvidence, TERMINAL_INVARIANT_RESULTS, VERDICT_FAIL, VERDICT_PASS,
+    VERDICT_PENDING, WpAcceptanceInput, acceptance_ending, enforce_negative_invariants,
+    evaluate_acceptance, glob_matches, iter_unchecked_subtask_rows, ordered_document,
+    owned_file_covers, review_evidence_population, validate_invariant_provenance,
+};
 pub use actor_identity::{
     GENERIC_IMPLEMENTATION_ACTORS, PROFILE_SOURCE_FIELD, UNKNOWN_ACTOR, actor_full_identity,
     actor_identities_independent, actor_key, actor_value_full_identity, latest_implementer_actor,
@@ -104,6 +122,16 @@ pub use snapshot::{
     existing_schema_version, materialize, materialize_dir, read_raw_events, reduce_rows,
     render_snapshot_json, target_schema_version,
 };
+pub use source_annotation::{
+    CLAIM_RELEASE_SLOTS, DELTA_SCALAR_FIELDS, ReviewFold, SourceAnnotation, SourceDelta,
+    SourceReviewOverride, python_int_coercion, python_int_value, python_list_coercion,
+    python_list_value,
+};
+pub use source_execution::{
+    SourceAnnotationPass, SourceExecution, SourceExecutionError, SourceExecutionPhase,
+    SourceOperational, SourcePythonClass, SourcePythonFailure, SourceRaised, execute_source_diary,
+};
+pub use source_metadata::{SourceResolverFailure, SourceSlugResolver};
 pub use transition::{
     REVIEW_REF_REQUIRED_EDGES, TransitionError, has_review_ref, requires_review_ref,
     validate_transition, validate_transition_names,

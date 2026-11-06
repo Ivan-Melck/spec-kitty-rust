@@ -1,0 +1,37 @@
+target:
+  term: "Raw org-policy exact extends edges and exists exception phases"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Existing raw walk only; preserve exact edge until canonical declared-name lookup and use shared Source exists authority. No new parser or model validator.
+  import_paths:
+    action: do_not_change
+    notes: Existing Kernel PythonString and paths helpers only; no new dependencies.
+  filesystem_paths:
+    action: manual_review
+    notes: Fresh temporary permission fixtures; only Source exists phase changes, ordinary read catch remains distinct. No repository state mutation.
+  serialized_keys:
+    action: do_not_change
+    notes: Existing extends and required fields retain meaning; no additional keys or marker spellings.
+  cli_commands:
+    action: do_not_change
+    notes: No routes flags counts or registrations change.
+  user_facing_strings:
+    action: manual_review
+    notes: Exact missing-base repr through Kernel rather than dropping an edge or printing Rust Debug. Escaped stat failures remain errors not empty floors.
+  tests_fixtures:
+    action: manual_review
+    notes: New before-fix tests for non-scalar dangling direct and inherited extends plus unprivileged exists failure; all existing assertions retained.
+  logs_telemetry:
+    action: do_not_change
+    notes: Preserve compiler harness map protocol and blocked strict receipts; no reconstructed pair or approval.
+exceptions:
+  - path: crates/sk-doctrine/src/org_charter/source.rs
+    action: manual_review
+    reason: Raw exists and exact-edge chain blocks only; future namespace consumer owner disjoint.
+  - path: crates/sk-doctrine/tests/cf48_parent_source_edges.rs
+    action: manual_review
+    reason: Focused actual public raw-walk tests before production correction.
+status:
+  accepted: false
+  phase: parent pre-edit exact edge and Source exists correction

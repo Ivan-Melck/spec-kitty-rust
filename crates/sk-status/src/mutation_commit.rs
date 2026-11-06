@@ -348,7 +348,7 @@ fn parse_cycle_number(name: &str) -> Option<u32> {
 /// The strict artifact filename grammar (`_REVIEW_CYCLE_FILE_RE`:
 /// `^review-cycle-(?P<cycle>[1-9][0-9]*)\.md$`).
 ///
-/// Distinct from [`parse_cycle_number`], which also tolerates a leading zero
+/// Distinct from `parse_cycle_number`, which also tolerates a leading zero
 /// for allocation compatibility; the provenance guard uses the reference's
 /// stricter spelling.
 pub fn is_review_cycle_filename(name: &str) -> bool {

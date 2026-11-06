@@ -39,18 +39,116 @@ print(lanes_json_lock(Path(sys.argv[1])).lock_path)
     )
 }
 
-/// The reference's own `_non_git_lanes_lock_path(resolve_lanes_dir(dir))`.
-fn oracle_non_git_lanes_lock_path(feature_dir: &Path) -> String {
-    oracle_support::run(
-        r#"
-import sys
+/// Compare non-Git authority with the SAME isolated TMPDIR in both processes.
+/// Source's tempfile.gettempdir() is an input, not a value to normalize away.
+fn paired_non_git_lanes_lock_path(feature_dir: &Path) -> PathBuf {
+    let sandbox = tempfile::tempdir().unwrap();
+    for name in ["cwd", "home", "tmp", "cache", "config", "data", "state"] {
+        std::fs::create_dir_all(sandbox.path().join(name)).unwrap();
+    }
+    let environment = [
+        ("HOME", "home"),
+        ("TMPDIR", "tmp"),
+        ("XDG_CACHE_HOME", "cache"),
+        ("XDG_CONFIG_HOME", "config"),
+        ("XDG_DATA_HOME", "data"),
+        ("XDG_STATE_HOME", "state"),
+    ];
+    let mut source = Command::new(oracle_support::python());
+    source.arg("-c").arg(r#"
+import os,sys,tempfile
 from pathlib import Path
 from specify_cli.lanes.persistence import _non_git_lanes_lock_path, resolve_lanes_dir
+base=Path(os.environ['HOME']).parent
+assert Path.cwd()==base/'cwd'
+assert all(Path(os.environ[k]).parent==base for k in ['HOME','TMPDIR','XDG_CACHE_HOME','XDG_CONFIG_HOME','XDG_DATA_HOME','XDG_STATE_HOME'])
+root=Path(os.fsdecode(bytes.fromhex(sys.argv[1])))
+result=_non_git_lanes_lock_path(resolve_lanes_dir(root).resolve())
+assert result.parent==Path(tempfile.gettempdir())/'spec-kitty-lanes-locks'
+print(result)
+"#).arg(feature_dir.as_os_str().as_encoded_bytes().iter().map(|b| format!("{b:02x}")).collect::<String>());
+    let repo = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .unwrap();
+    source
+        .env_clear()
+        .env("PATH", std::env::var_os("PATH").unwrap_or_default())
+        .env("PYTHONPATH", repo.join("src"))
+        .env("SPEC_KITTY_PACKS_ROOT", repo.join("packs"))
+        .env("PYTHONDONTWRITEBYTECODE", "1")
+        .current_dir(sandbox.path().join("cwd"));
+    for (key, name) in environment {
+        source.env(key, sandbox.path().join(name));
+    }
+    let expected = source.output().unwrap();
+    assert!(
+        expected.status.success(),
+        "Source failed: {}",
+        String::from_utf8_lossy(&expected.stderr)
+    );
+    let expected = PathBuf::from(String::from_utf8(expected.stdout).unwrap().trim());
+    assert!(expected.is_absolute());
+    let output_path = sandbox.path().join("native-path");
+    let mut native = Command::new(std::env::current_exe().unwrap());
+    native
+        .args([
+            "--exact",
+            "non_git_lock_path_helper",
+            "--ignored",
+            "--nocapture",
+        ])
+        .env_clear()
+        .env("PATH", std::env::var_os("PATH").unwrap_or_default())
+        .env("SK_NATIVE_FEATURE_DIR", feature_dir)
+        .env("SK_NATIVE_LOCK_PATH_OUT", &output_path)
+        .current_dir(sandbox.path().join("cwd"));
+    for (key, name) in environment {
+        native.env(key, sandbox.path().join(name));
+    }
+    let actual = native.output().unwrap();
+    assert!(
+        actual.status.success(),
+        "Native failed: {}\n{}",
+        String::from_utf8_lossy(&actual.stdout),
+        String::from_utf8_lossy(&actual.stderr)
+    );
+    let actual = PathBuf::from(std::fs::read_to_string(output_path).unwrap());
+    assert_eq!(
+        actual, expected,
+        "exact Source/native non-Git lock authority"
+    );
+    actual
+}
 
-print(_non_git_lanes_lock_path(resolve_lanes_dir(Path(sys.argv[1])).resolve()))
-"#,
-        &[feature_dir.to_str().unwrap()],
+#[test]
+#[ignore = "Source-first parent tests exercise this with matching isolated roots"]
+fn non_git_lock_path_helper() {
+    let base = PathBuf::from(std::env::var_os("HOME").unwrap())
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    assert_eq!(std::env::current_dir().unwrap(), base.join("cwd"));
+    for key in [
+        "HOME",
+        "TMPDIR",
+        "XDG_CACHE_HOME",
+        "XDG_CONFIG_HOME",
+        "XDG_DATA_HOME",
+        "XDG_STATE_HOME",
+    ] {
+        assert_eq!(
+            PathBuf::from(std::env::var_os(key).unwrap()).parent(),
+            Some(base.as_path())
+        );
+    }
+    let feature = PathBuf::from(std::env::var_os("SK_NATIVE_FEATURE_DIR").unwrap());
+    let path = lanes_json_lock_path(&feature).unwrap();
+    std::fs::write(
+        std::env::var_os("SK_NATIVE_LOCK_PATH_OUT").unwrap(),
+        path.to_str().unwrap(),
     )
+    .unwrap();
 }
 
 fn manifest_json() -> serde_json::Value {
@@ -145,47 +243,24 @@ fn a_non_git_project_locks_the_reference_temp_root_name() {
         &feature_dir.join(LANES_FILE_NAME),
         &format!("{}\n", manifest_json()),
     );
-    let native = lanes_json_lock_path(&feature_dir).unwrap();
+    let native = paired_non_git_lanes_lock_path(&feature_dir);
     assert_eq!(
         native.parent().unwrap().file_name().unwrap(),
         "spec-kitty-lanes-locks"
     );
     assert_eq!(native.extension().unwrap(), "lock");
-    assert_eq!(
-        native,
-        PathBuf::from(oracle_non_git_lanes_lock_path(&feature_dir)),
-        "the digest of the resolved POSIX path matches `_non_git_lanes_lock_path`"
-    );
+    // Full path and digest were compared before returning the paired result.
 }
 
 #[cfg(unix)]
 #[test]
 fn non_git_lock_identity_preserves_undecodable_path_bytes() {
-    use std::os::unix::ffi::{OsStrExt, OsStringExt};
+    use std::os::unix::ffi::OsStringExt;
     let temp = tempfile::tempdir().unwrap();
     let name = std::ffi::OsString::from_vec(b"mission-\xff-\xc3\xa9-\xed\xa0\x80".to_vec());
     let feature_dir = temp.path().join(name);
     std::fs::create_dir_all(&feature_dir).unwrap();
-    let path_hex: String = feature_dir
-        .as_os_str()
-        .as_bytes()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect();
-    let expected = oracle_support::run(
-        r#"
-import os, sys
-from pathlib import Path
-from specify_cli.lanes.persistence import _non_git_lanes_lock_path, resolve_lanes_dir
-root = Path(os.fsdecode(bytes.fromhex(sys.argv[1])))
-print(_non_git_lanes_lock_path(resolve_lanes_dir(root).resolve()))
-"#,
-        &[&path_hex],
-    );
-    assert_eq!(
-        lanes_json_lock_path(&feature_dir).unwrap(),
-        PathBuf::from(expected)
-    );
+    paired_non_git_lanes_lock_path(&feature_dir);
 }
 
 #[test]

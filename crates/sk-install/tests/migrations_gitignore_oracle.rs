@@ -434,11 +434,13 @@ fn the_committed_fixture_is_reproducible_with_the_lock_exact_oracle() {
 
 #[test]
 fn the_family_does_not_claim_unported_ids() {
+    // Ids this family must not reach: only a real port (with its own Source-first
+    // tests) may remove one from this list. `4.0.0rc8_backfill_migration_ledger`
+    // left it when `migrations::ledger_adoption` landed.
     for unported in [
         "0.6.5_commands_rename",
         "charter_pack_cutover",
         "3.2.0rc35_charter_bundle_v2",
-        "4.0.0rc8_backfill_migration_ledger",
     ] {
         assert!(
             !sk_install::NATIVE_MIGRATIONS

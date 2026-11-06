@@ -22,12 +22,35 @@
 //! permissions and hook entries survive, invalid JSON is preserved with a
 //! warning, and a settings file Git already tracks is left untouched
 //! (upstream #6474: a committed team file is not ours to edit).
+//!
+//! # Read-only decode phases (CF33)
+//!
+//! The diagnostics half below reuses the reference's two distinct read phases
+//! instead of one private UTF-8 shortcut:
+//!
+//! * an orientation surface is read the way `Path.read_text(encoding="utf-8")`
+//!   reads it — strict UTF-8 (a BOM stays a `U+FEFF` character) followed by
+//!   universal-newline translation — and a decode failure escapes the probe;
+//! * `.claude/settings.json` goes through the one provable decoder
+//!   ([`sk_kernel::text_decode::decode_unambiguous`]), so a UTF-16/UTF-32 BOM is
+//!   honoured and an unprovable payload is reported as unsafe, exactly as the
+//!   reference's `SettingsNotDecodableError` catch does.
+//!
+//! A read failure that the reference lets escape (`EACCES`, `EIO`, a
+//! non-regular settings destination) is propagated by the probe caller, never
+//! converted into a `missing`/`unsafe` health finding.
 
 use std::path::{Path, PathBuf};
 
-use serde_json::{Map, Value};
+use sk_kernel::PythonString;
+use sk_kernel::python_utf8::PythonUtf8DecodeError;
+use sk_kernel::text_decode;
 
 use crate::error::InstallError;
+
+pub mod claude_settings;
+
+use claude_settings::{ClaudeSettingsDocument, ClaudeSettingsMerge};
 
 /// The opening marker of the managed orientation section.
 pub const SECTION_OPEN: &str = "<!-- spec-kitty:orientation -->";
@@ -119,49 +142,100 @@ impl OrientationContent {
 
 /// The writer shape a harness uses.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum WriterKind {
+pub enum SessionWriterMode {
     /// Append/replace a managed section in an existing-or-new file.
-    MarkdownAppend {
-        path: &'static str,
-        check_dir: Option<&'static str>,
-    },
+    Section,
     /// The file *is* the managed section.
-    MarkdownWhole {
-        path: &'static str,
-        check_dir: Option<&'static str>,
-    },
+    WholeFile,
     /// Append/replace a section and manage `.claude/settings.json` hooks.
     ClaudeCode,
 }
 
-const fn append(path: &'static str) -> WriterKind {
-    WriterKind::MarkdownAppend {
+/// Where one harness's session-presence artefacts live.
+///
+/// This is the single read-only projection of the harness roster: the
+/// projection below ([`apply_session_presence`]) and the read-only diagnostics
+/// (`crate::tool_surface_diagnostics::session_presence`) both consume THIS
+/// descriptor, so the harness/path/mode list has exactly one owner and an audit
+/// can never invent a second roster (upstream
+/// `session_presence.writers.registry`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SessionWriterDescriptor {
+    /// The harness key this descriptor belongs to.
+    pub agent_key: &'static str,
+    /// The managed Markdown/context/rules path, relative to the project root.
+    pub path: &'static str,
+    /// The harness root that must already exist before writing, when the rules
+    /// file's own parent is not the right guard.
+    pub check_dir: Option<&'static str>,
+    /// The writer shape.
+    pub mode: SessionWriterMode,
+}
+
+const fn section(agent_key: &'static str, path: &'static str) -> SessionWriterDescriptor {
+    SessionWriterDescriptor {
+        agent_key,
         path,
         check_dir: None,
+        mode: SessionWriterMode::Section,
     }
 }
 
-const fn whole(path: &'static str, check_dir: Option<&'static str>) -> WriterKind {
-    WriterKind::MarkdownWhole { path, check_dir }
+const fn whole_file(
+    agent_key: &'static str,
+    path: &'static str,
+    check_dir: &'static str,
+) -> SessionWriterDescriptor {
+    SessionWriterDescriptor {
+        agent_key,
+        path,
+        check_dir: Some(check_dir),
+        mode: SessionWriterMode::WholeFile,
+    }
 }
 
-fn writer_for(agent_key: &str) -> Option<WriterKind> {
+/// Resolve a harness key to its writer descriptor.
+///
+/// `None` means upstream's `NullWriter` path (`qwen`, `kilocode`, `auggie`, `q`
+/// and any unregistered key): no artefact is managed and no orientation text is
+/// written for it.
+pub fn session_writer(agent_key: &str) -> Option<SessionWriterDescriptor> {
     match agent_key {
-        "claude" => Some(WriterKind::ClaudeCode),
-        "codex" | "opencode" | "antigravity" | "pi" | "vibe" | "letta" => Some(append("AGENTS.md")),
-        "gemini" => Some(append("GEMINI.md")),
-        "llxprt" => Some(append("LLXPRT.md")),
+        "claude" => Some(SessionWriterDescriptor {
+            agent_key: "claude",
+            path: ".claude/CLAUDE.md",
+            check_dir: Some(".claude"),
+            mode: SessionWriterMode::ClaudeCode,
+        }),
+        "codex" => Some(section("codex", "AGENTS.md")),
+        "opencode" => Some(section("opencode", "AGENTS.md")),
+        "antigravity" => Some(section("antigravity", "AGENTS.md")),
+        "pi" => Some(section("pi", "AGENTS.md")),
+        "vibe" => Some(section("vibe", "AGENTS.md")),
+        "letta" => Some(section("letta", "AGENTS.md")),
+        "gemini" => Some(section("gemini", "GEMINI.md")),
+        "llxprt" => Some(section("llxprt", "LLXPRT.md")),
         // Upstream guards copilot on the harness root (`.github`), not on the
         // rules file's parent, which init only creates later when profiles are
         // projected. A copilot-only fresh init therefore writes no
         // `.github/copilot-instructions.md` in the pinned oracle.
-        "copilot" => Some(WriterKind::MarkdownAppend {
+        "copilot" => Some(SessionWriterDescriptor {
+            agent_key: "copilot",
             path: ".github/copilot-instructions.md",
             check_dir: Some(".github"),
+            mode: SessionWriterMode::Section,
         }),
-        "cursor" => Some(whole(".cursor/rules/spec-kitty.mdc", Some(".cursor"))),
-        "windsurf" => Some(whole(".windsurf/rules/spec-kitty.md", Some(".windsurf"))),
-        "kiro" => Some(whole(".kiro/steering/spec-kitty.md", Some(".kiro"))),
+        "cursor" => Some(whole_file(
+            "cursor",
+            ".cursor/rules/spec-kitty.mdc",
+            ".cursor",
+        )),
+        "windsurf" => Some(whole_file(
+            "windsurf",
+            ".windsurf/rules/spec-kitty.md",
+            ".windsurf",
+        )),
+        "kiro" => Some(whole_file("kiro", ".kiro/steering/spec-kitty.md", ".kiro")),
         _ => None,
     }
 }
@@ -200,59 +274,53 @@ pub fn apply_session_presence(
         // orientation surface never fails init. A refused write is reported and
         // the remaining harnesses still run.
         let result: Result<(), InstallError> = (|| {
-            let Some(kind) = writer_for(tool) else {
+            let Some(descriptor) = session_writer(tool) else {
                 report.not_applicable.push(tool.to_string());
                 return Ok(());
             };
             // repeated tools that write the same target (codex + vibe) are
             // skipped once the target's content is current; the write itself is
             // idempotent.
-            match kind {
-                WriterKind::MarkdownAppend { path, check_dir } => {
-                    if !harness_root_exists(project_root, path, check_dir) {
+            match descriptor.mode {
+                SessionWriterMode::Section | SessionWriterMode::WholeFile => {
+                    if !harness_root_exists(project_root, descriptor.path, descriptor.check_dir) {
                         report.not_applicable.push(tool.to_string());
                         return Ok(());
                     }
                     record_section(
                         &mut report,
                         tool,
-                        path,
-                        write_section(project_root, path, content, true),
+                        descriptor.path,
+                        write_section(
+                            project_root,
+                            descriptor.path,
+                            content,
+                            descriptor.mode == SessionWriterMode::Section,
+                        ),
                     );
                 }
-                WriterKind::MarkdownWhole { path, check_dir } => {
-                    if !harness_root_exists(project_root, path, check_dir) {
-                        report.not_applicable.push(tool.to_string());
-                        return Ok(());
-                    }
-                    record_section(
-                        &mut report,
-                        tool,
-                        path,
-                        write_section(project_root, path, content, false),
-                    );
-                }
-                WriterKind::ClaudeCode => {
+                SessionWriterMode::ClaudeCode => {
+                    let check_dir = descriptor.check_dir.unwrap_or(".claude");
                     // A symlinked `.claude` root is an unowned layout: refuse both
                     // the orientation file and the hook settings instead of
                     // writing through the link (upstream warns and skips).
-                    if let Some(link) = first_symlink_component(project_root, ".claude") {
-                        report.preserved.push(".claude/CLAUDE.md".to_string());
+                    if let Some(link) = first_symlink_component(project_root, check_dir) {
+                        report.preserved.push(descriptor.path.to_string());
                         report.warnings.push(format!(
                             "Failed to write orientation for {tool}: Refusing unowned symlink: {}",
                             display_path(project_root, &link)
                         ));
                         return Ok(());
                     }
-                    if !project_root.join(".claude").is_dir() {
+                    if !project_root.join(check_dir).is_dir() {
                         report.not_applicable.push(tool.to_string());
                         return Ok(());
                     }
                     record_section(
                         &mut report,
                         tool,
-                        ".claude/CLAUDE.md",
-                        write_section(project_root, ".claude/CLAUDE.md", content, true),
+                        descriptor.path,
+                        write_section(project_root, descriptor.path, content, true),
                     );
                     match merge_claude_hooks(project_root) {
                         Ok(HookOutcome::Written) => {
@@ -480,112 +548,68 @@ fn merge_claude_hooks(project_root: &Path) -> Result<HookOutcome, InstallError> 
         Err(source) => return Err(InstallError::io("inspect", &destination, source)),
     };
 
-    if let Some(raw) = &existing
-        && settings_have_required_hooks(raw)
+    let decoded = existing
+        .as_deref()
+        .and_then(|raw| text_decode::decode_unambiguous(raw));
+    let document = decoded.as_ref().map(|(text, _encoding)| {
+        claude_settings::parse_settings(&PythonString::from_scalars(text))
+    });
+    // Both hooks already registered is the reference's `changed == False`: no
+    // write happens at all, so an operator's bytes (and any comment-free
+    // formatting) survive untouched.
+    if let Some(ClaudeSettingsDocument::Object(document)) = &document
+        && claude_settings::registered_all(document, &REQUIRED_HOOKS)
     {
         return Ok(HookOutcome::Kept);
     }
-    if let Some(raw) = &existing {
+    if existing.is_some() {
         if is_git_tracked(project_root, CLAUDE_SETTINGS_REL) {
             return Ok(HookOutcome::Preserved(
                 ".claude/settings.json is committed, so Spec Kitty did not edit it; add SessionStart/Stop hooks running `spec-kitty session-start` / `spec-kitty session-stop` yourself".to_string(),
             ));
         }
-        match serde_json::from_slice::<Value>(raw) {
-            Ok(Value::Object(mut object)) => {
-                if !merge_hook_object(&mut object) {
-                    return Ok(HookOutcome::Kept);
+        return match document {
+            Some(ClaudeSettingsDocument::Object(document)) => {
+                match claude_settings::merge_required(document, &REQUIRED_HOOKS) {
+                    // Nothing to add.
+                    ClaudeSettingsMerge::Unchanged => Ok(HookOutcome::Kept),
+                    // `hooks`, or an event value, is not the shape the reference
+                    // replaces; the file is preserved rather than repaired.
+                    ClaudeSettingsMerge::NotMergeable => Ok(HookOutcome::Kept),
+                    ClaudeSettingsMerge::Merged(merged) => {
+                        let bytes = claude_settings::render_settings(&merged);
+                        write_settings(&destination, bytes.as_bytes())?;
+                        Ok(HookOutcome::Written)
+                    }
                 }
-                let mut bytes =
-                    serde_json::to_vec_pretty(&Value::Object(object)).map_err(|error| {
-                        InstallError::UnsupportedNode {
-                            path: destination.clone(),
-                            detail: error.to_string(),
-                        }
-                    })?;
-                bytes.push(b'\n');
-                write_settings(&destination, &bytes)?;
-                return Ok(HookOutcome::Written);
             }
-            _ => {
-                return Ok(HookOutcome::Preserved(
-                    ".claude/settings.json is not a JSON object; Spec Kitty left it untouched"
-                        .to_string(),
-                ));
-            }
-        }
+            // Absent source encoding (an unprovable payload) is preserved, as
+            // before: the reference refuses this document too, it just refuses
+            // it with `SettingsNotDecodableError`.
+            None => Ok(HookOutcome::Preserved(
+                ".claude/settings.json is not a JSON object; Spec Kitty left it untouched"
+                    .to_string(),
+            )),
+            Some(ClaudeSettingsDocument::Uncaught(failure)) => Ok(HookOutcome::Preserved(format!(
+                "{CLAUDE_SETTINGS_REL} could not be parsed ({}) so Spec Kitty left it untouched",
+                failure.detail()
+            ))),
+            Some(ClaudeSettingsDocument::InvalidJson(_))
+            | Some(ClaudeSettingsDocument::NotObject) => Ok(HookOutcome::Preserved(
+                ".claude/settings.json is not a JSON object; Spec Kitty left it untouched"
+                    .to_string(),
+            )),
+        };
     }
     write_settings(&destination, canonical_settings())?;
     Ok(HookOutcome::Written)
 }
 
-fn settings_have_required_hooks(raw: &[u8]) -> bool {
-    let Ok(Value::Object(object)) = serde_json::from_slice::<Value>(raw) else {
-        return false;
-    };
-    hook_present(&object, "SessionStart", SESSION_START_CMD)
-        && hook_present(&object, "Stop", SESSION_STOP_CMD)
-}
-
-fn hook_present(object: &Map<String, Value>, event: &str, command: &str) -> bool {
-    object
-        .get("hooks")
-        .and_then(Value::as_object)
-        .and_then(|hooks| hooks.get(event))
-        .and_then(Value::as_array)
-        .is_some_and(|entries| {
-            entries.iter().any(|entry| {
-                entry
-                    .get("hooks")
-                    .and_then(Value::as_array)
-                    .is_some_and(|hooks| {
-                        hooks.iter().any(|hook| {
-                            hook.get("type").and_then(Value::as_str) == Some("command")
-                                && hook.get("command").and_then(Value::as_str) == Some(command)
-                        })
-                    })
-            })
-        })
-}
-
-fn merge_hook_object(object: &mut Map<String, Value>) -> bool {
-    let hooks = object
-        .entry("hooks".to_string())
-        .or_insert_with(|| Value::Object(Map::new()));
-    let Some(hooks) = hooks.as_object_mut() else {
-        return false;
-    };
-    let mut changed = false;
-    for (event, command) in [
-        ("SessionStart", SESSION_START_CMD),
-        ("Stop", SESSION_STOP_CMD),
-    ] {
-        let entries = hooks
-            .entry(event.to_string())
-            .or_insert_with(|| Value::Array(Vec::new()));
-        let Some(entries) = entries.as_array_mut() else {
-            return false;
-        };
-        let present = entries.iter().any(|entry| {
-            entry
-                .get("hooks")
-                .and_then(Value::as_array)
-                .is_some_and(|hooks| {
-                    hooks.iter().any(|hook| {
-                        hook.get("type").and_then(Value::as_str) == Some("command")
-                            && hook.get("command").and_then(Value::as_str) == Some(command)
-                    })
-                })
-        });
-        if !present {
-            entries.push(serde_json::json!({
-                "hooks": [{"type": "command", "command": command}]
-            }));
-            changed = true;
-        }
-    }
-    changed
-}
+/// The two lifecycle hook commands this writer manages.
+const REQUIRED_HOOKS: [(&str, &str); 2] = [
+    (SESSION_START_EVENT, SESSION_START_CMD),
+    (SESSION_STOP_EVENT, SESSION_STOP_CMD),
+];
 
 fn canonical_settings() -> &'static [u8] {
     b"{\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"spec-kitty session-start\"\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"spec-kitty session-stop\"\n          }\n        ]\n      }\n    ]\n  }\n}\n"
@@ -616,6 +640,381 @@ fn is_git_tracked(project_root: &Path, relative: &str) -> bool {
         return false;
     };
     output.status.success()
+}
+
+// ---------------------------------------------------------------------------
+// Read-only session-presence assessment (the diagnostics seam)
+// ---------------------------------------------------------------------------
+//
+// `doctor tool-surfaces --kind context_file|rule|hook` must report what is on
+// disk for the artefacts this module's writer owns WITHOUT ever running that
+// writer. Everything below is therefore read-only: it inspects metadata and
+// bytes and returns typed observations. The projection above stays the only
+// mutator of these paths.
+
+/// The `SessionStart` lifecycle hook event key in `.claude/settings.json`.
+pub const SESSION_START_EVENT: &str = "SessionStart";
+/// The `Stop` lifecycle hook event key in `.claude/settings.json`.
+pub const SESSION_STOP_EVENT: &str = "Stop";
+
+/// The bound the *writer* path applies to a presence destination.
+///
+/// The read-only assessment below does not use it: the reference's probe reads
+/// through `Path.read_text` / `Path.read_bytes` with no size cap, and CF33
+/// preserves that source read phase instead of turning an oversized
+/// Source-valid file into a `missing` finding. The constant stays public
+/// because the projection writer's own bound is unchanged.
+pub const PRESENCE_READ_LIMIT: u64 = 4 * 1024 * 1024;
+
+/// The prefix upstream stamps immediately before the orientation version.
+const VERSION_PREFIX: &str = "**Spec Kitty v";
+/// The suffix that ends the stamped version (and the header line).
+const VERSION_SUFFIX: &str = "**";
+
+/// The kind of a managed session-presence artefact (upstream
+/// `ToolSurfaceKind`'s session-presence subset).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SessionArtefactKind {
+    /// Always-on orientation context file (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, …).
+    ContextFile,
+    /// Path/glob-activated rule or steering file (`.cursor/rules/…`, `.kiro/steering/…`).
+    Rule,
+    /// Lifecycle hook entry inside the harness settings file.
+    Hook,
+}
+
+/// One managed session-presence artefact of a harness.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SessionArtefact {
+    /// What the artefact is.
+    pub kind: SessionArtefactKind,
+    /// Path relative to the project root.
+    pub path: &'static str,
+}
+
+/// Classify a Markdown writer target the way upstream `_markdown_kind` does.
+///
+/// A path/glob-activated *rule* carries one of the rule markers; everything
+/// else a Markdown-family writer manages is an always-on context file.
+pub fn session_artefact_kind(path: &str) -> SessionArtefactKind {
+    let lowered = path.to_ascii_lowercase();
+    if ["/rules/", "/steering/", ".mdc"]
+        .iter()
+        .any(|marker| lowered.contains(marker))
+    {
+        SessionArtefactKind::Rule
+    } else {
+        SessionArtefactKind::ContextFile
+    }
+}
+
+/// The artefacts `agent_key`'s writer manages, in upstream order.
+///
+/// An empty result means upstream's `NullWriter`: the harness has no verified
+/// orientation mechanism, so a read-only audit must report a research gap
+/// rather than a health verdict.
+pub fn session_artefacts(agent_key: &str) -> Vec<SessionArtefact> {
+    let Some(descriptor) = session_writer(agent_key) else {
+        return Vec::new();
+    };
+    if descriptor.mode == SessionWriterMode::ClaudeCode {
+        // Upstream `_managed_surfaces` emits the settings path once per
+        // lifecycle event, so two identical HOOK instances are planned and
+        // probed independently.
+        return vec![
+            SessionArtefact {
+                kind: SessionArtefactKind::ContextFile,
+                path: descriptor.path,
+            },
+            SessionArtefact {
+                kind: SessionArtefactKind::Hook,
+                path: CLAUDE_SETTINGS_REL,
+            },
+            SessionArtefact {
+                kind: SessionArtefactKind::Hook,
+                path: CLAUDE_SETTINGS_REL,
+            },
+        ];
+    }
+    vec![SessionArtefact {
+        kind: session_artefact_kind(descriptor.path),
+        path: descriptor.path,
+    }]
+}
+
+/// The observed state of an orientation-bearing Markdown surface.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum OrientationSectionState {
+    /// The destination file does not exist.
+    FileAbsent,
+    /// Legacy bounded-inspection state; the Source reader imposes no regular-file precondition.
+    NotRegularFile,
+    /// `Path.exists()` failed before Source's read-error catch, so this escapes the audit.
+    InspectionFailed(String),
+    /// The bytes could not be read; the reference catches this `OSError` as
+    /// "not present", so the surface is reported missing.
+    Unreadable(String),
+    /// The bytes are not decodable as strict UTF-8. The reference's
+    /// `read_text(encoding="utf-8")` raises `UnicodeDecodeError` out of the
+    /// read-only probe, so a caller must propagate this instead of inventing a
+    /// health verdict (CF33).
+    Undecodable(PythonUtf8DecodeError),
+    /// The file exists but carries no opening orientation marker.
+    NoSection,
+    /// An opening marker without a closing marker.
+    Unterminated {
+        /// The version stamp inside the block, when parseable.
+        version: Option<String>,
+    },
+    /// A marker-delimited orientation section.
+    Section {
+        /// The version stamp inside the block, when parseable.
+        version: Option<String>,
+    },
+}
+
+/// A read-only assessment of one orientation-bearing Markdown surface.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OrientationAssessment {
+    /// The inspected destination path.
+    pub path: String,
+    /// What was found.
+    pub state: OrientationSectionState,
+    /// The version the installed content stamps.
+    pub expected_version: String,
+    /// Whether a present, parseable stamp differs from `expected_version`.
+    pub stale: bool,
+}
+
+impl OrientationAssessment {
+    /// Whether the managed orientation block is present (a stale block is still
+    /// present: upstream reports it as `stale`, never as missing).
+    pub fn present(&self) -> bool {
+        matches!(
+            self.state,
+            OrientationSectionState::Section { .. } | OrientationSectionState::Unterminated { .. }
+        )
+    }
+}
+
+/// The decoded shape of `.claude/settings.json`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ClaudeSettingsShape {
+    /// The file does not exist.
+    Absent,
+    /// The bytes could not be read; the reference lets this `OSError` escape the
+    /// provider (`EACCES`, `EIO`, or a non-regular destination), so the caller
+    /// must propagate it rather than report a health finding (CF33).
+    Unreadable,
+    /// The bytes cannot be proven to be a supported encoding
+    /// (`decode_unambiguous` returned `None`); the reference catches
+    /// `SettingsNotDecodableError` here and reports the hook as unsafe.
+    Undecodable,
+    /// The text is not valid JSON (the reference's `_load` returns `{}`).
+    InvalidJson,
+    /// The JSON value is not an object (the reference's `_load` returns `{}`).
+    NotObject,
+    /// `json.loads` raised a failure that is **not** a `JSONDecodeError`
+    /// (CPython's integer-digit `ValueError` or recursion `RecursionError`), so
+    /// the reference `_load` has no catch and the failure escapes the provider.
+    /// It is never a `missing`/`unsafe` verdict.
+    UncaughtJson,
+    /// The JSON value is an object (the hook entries may still be missing).
+    Object,
+}
+
+/// A read-only assessment of the Claude Code lifecycle hooks.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClaudeHookAssessment {
+    /// Project-relative settings path that was inspected.
+    pub settings_path: String,
+    /// The decoded file shape.
+    pub shape: ClaudeSettingsShape,
+    /// A `SessionStart` hook runs [`SESSION_START_CMD`].
+    pub session_start: bool,
+    /// A `Stop` hook runs [`SESSION_STOP_CMD`].
+    pub stop: bool,
+    /// The lifecycle event keys carry hook entries that are not ours (they are
+    /// preserved as-is by the write path).
+    pub foreign_entries: bool,
+    /// Whether git tracks the settings file; `None` when that was not probed.
+    pub tracked: Option<bool>,
+    /// The decode/parse problem, when [`shape`](Self::shape) is not
+    /// [`ClaudeSettingsShape::Object`].
+    pub detail: Option<String>,
+}
+
+impl ClaudeHookAssessment {
+    /// Whether both lifecycle hooks are registered (upstream
+    /// `_claude_hooks_present`).
+    pub fn registered(&self) -> bool {
+        self.session_start && self.stop
+    }
+}
+
+/// Assess one orientation-bearing surface against the installed content version.
+///
+/// `path` is the destination file (absolute, as the surface plan resolved it).
+/// Read-only: the destination is `read_text`-read (strict UTF-8, newline
+/// translation) and nothing is created, rewritten, chmodded or locked. A
+/// non-UTF-8 destination is reported as
+/// [`OrientationSectionState::Undecodable`] carrying the reference's exact
+/// `UnicodeDecodeError`; a read `OSError` is `Unreadable` (the reference catches
+/// it as "not present").
+pub fn assess_orientation(path: &Path, expected_version: &str) -> OrientationAssessment {
+    let state = orientation_section_state(path);
+    let on_disk = match &state {
+        OrientationSectionState::Section { version }
+        | OrientationSectionState::Unterminated { version } => version.clone(),
+        _ => None,
+    };
+    let stale = on_disk
+        .as_deref()
+        .is_some_and(|version| version != expected_version);
+    OrientationAssessment {
+        path: path.display().to_string(),
+        state,
+        expected_version: expected_version.to_string(),
+        stale,
+    }
+}
+
+fn orientation_section_state(path: &Path) -> OrientationSectionState {
+    // Source checks exists OUTSIDE its read-error catch. Reuse the canonical
+    // ignored-stat-error policy, then read the actual stream (FIFO/device too).
+    match sk_kernel::paths::source_path_exists(path) {
+        Ok(false) => return OrientationSectionState::FileAbsent,
+        Err(error) => return OrientationSectionState::InspectionFailed(error.to_string()),
+        Ok(true) => {}
+    }
+    let bytes = match sk_kernel::read_source_bytes(path) {
+        Ok(bytes) => bytes,
+        Err(error) => return OrientationSectionState::Unreadable(error.to_string()),
+    };
+    // Strict UTF-8 with a BOM kept as U+FEFF, then the same universal-newline
+    // translation Python's text mode applies. A decode failure is NOT a health
+    // state: it escapes the probe like the reference.
+    let text = match sk_kernel::python_utf8::decode_utf8(&bytes) {
+        Ok(text) => text_decode::normalize_newlines(text),
+        Err(error) => return OrientationSectionState::Undecodable(error),
+    };
+    let Some(open_at) = text.find(SECTION_OPEN) else {
+        return OrientationSectionState::NoSection;
+    };
+    let rest = &text[open_at..];
+    match rest.find(SECTION_CLOSE) {
+        None => OrientationSectionState::Unterminated {
+            version: orientation_version(rest),
+        },
+        Some(offset) => OrientationSectionState::Section {
+            version: orientation_version(&rest[..offset + SECTION_CLOSE.len()]),
+        },
+    }
+}
+
+/// The version stamped inside an orientation block, when parseable.
+///
+/// Scoped to the block (the same delimiters the writer uses), so a stray stamp
+/// elsewhere in the file is never mistaken for the managed version.
+fn orientation_version(section: &str) -> Option<String> {
+    let start = section.find(VERSION_PREFIX)? + VERSION_PREFIX.len();
+    let end = section[start..].find(VERSION_SUFFIX)? + start;
+    let stamped = section[start..end].trim();
+    if stamped.is_empty() {
+        None
+    } else {
+        Some(stamped.to_string())
+    }
+}
+
+/// Observe `.claude/settings.json` and its two lifecycle hooks (read-only).
+///
+/// [`tracked`](ClaudeHookAssessment::tracked) stays `None` here because proving
+/// git ownership spawns `git ls-files`; a read-only surface audit deliberately
+/// does not do that. Use [`assess_claude_hooks`] when the preserve policy needs
+/// the answer.
+pub fn observe_claude_settings(project_root: &Path) -> ClaudeHookAssessment {
+    let path = project_root.join(CLAUDE_SETTINGS_REL);
+    let mut assessment = ClaudeHookAssessment {
+        settings_path: CLAUDE_SETTINGS_REL.to_string(),
+        shape: ClaudeSettingsShape::Absent,
+        session_start: false,
+        stop: false,
+        foreign_entries: false,
+        tracked: None,
+        detail: None,
+    };
+    // Registrar._load checks exists before _read_settings_text. In particular
+    // ENOTDIR/ELOOP at this stage mean absent, not an escaping read failure.
+    match sk_kernel::paths::source_path_exists(&path) {
+        Ok(false) => return assessment,
+        Err(error) => {
+            assessment.shape = ClaudeSettingsShape::Unreadable;
+            assessment.detail = Some(error.to_string());
+            return assessment;
+        }
+        Ok(true) => {}
+    }
+    let bytes = match sk_kernel::read_source_bytes(&path) {
+        Ok(bytes) => bytes,
+        Err(sk_kernel::KernelError::Io { source, .. })
+            if source.kind() == std::io::ErrorKind::NotFound =>
+        {
+            // Source `Path.exists()` false (including a vanished file or a
+            // broken link): the document is absent, not a failure.
+            return assessment;
+        }
+        Err(error) => {
+            // Every other read failure escapes the reference provider
+            // (`_read_settings_text` only catches FileNotFoundError), so the
+            // caller must propagate it (CF33).
+            assessment.shape = ClaudeSettingsShape::Unreadable;
+            assessment.detail = Some(error.to_string());
+            return assessment;
+        }
+    };
+    // Source `kernel.text_decode.decode_unambiguous`: a BOM or strict UTF-8 must
+    // prove the encoding, otherwise the reference raises
+    // `SettingsNotDecodableError` (reported as unsafe by the provider).
+    let Some((text, _source_encoding)) = text_decode::decode_unambiguous(&bytes) else {
+        assessment.shape = ClaudeSettingsShape::Undecodable;
+        assessment.detail = Some(format!(
+            "{CLAUDE_SETTINGS_REL} is not valid UTF-8 and has no byte-order mark"
+        ));
+        return assessment;
+    };
+    match claude_settings::parse_settings(&PythonString::from_scalars(&text)) {
+        ClaudeSettingsDocument::Object(document) => {
+            assessment.shape = ClaudeSettingsShape::Object;
+            assessment.session_start =
+                claude_settings::registered(&document, SESSION_START_EVENT, SESSION_START_CMD);
+            assessment.stop =
+                claude_settings::registered(&document, SESSION_STOP_EVENT, SESSION_STOP_CMD);
+            assessment.foreign_entries =
+                claude_settings::foreign_entries(&document, &REQUIRED_HOOKS);
+        }
+        ClaudeSettingsDocument::NotObject => {
+            assessment.shape = ClaudeSettingsShape::NotObject;
+            assessment.detail = Some("expected a JSON object".to_string());
+        }
+        ClaudeSettingsDocument::InvalidJson(detail) => {
+            assessment.shape = ClaudeSettingsShape::InvalidJson;
+            assessment.detail = Some(detail);
+        }
+        ClaudeSettingsDocument::Uncaught(failure) => {
+            assessment.shape = ClaudeSettingsShape::UncaughtJson;
+            assessment.detail = Some(failure.detail().to_string());
+        }
+    }
+    assessment
+}
+
+/// The full hook assessment, including the git-tracked fact the preserve policy
+/// uses (upstream `_settings_committed`: a committed team file is never edited).
+pub fn assess_claude_hooks(project_root: &Path) -> ClaudeHookAssessment {
+    let mut assessment = observe_claude_settings(project_root);
+    assessment.tracked = Some(is_git_tracked(project_root, CLAUDE_SETTINGS_REL));
+    assessment
 }
 
 /// A convenience wrapper for tests and callers that only have a version/slug.
@@ -738,19 +1137,12 @@ mod tests {
             "{\n  \"hooks\": {\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"spec-kitty session-stop\"\n          }\n        ]\n      }\n    ]\n  },\n  \"permissions\": {\"allow\": [\"Bash\"]}\n}\n",
         );
         apply_healthy_orientation(root, &["claude".to_string()], "4.0.0rc8", "demo").unwrap();
-        let value: Value =
-            serde_json::from_slice(&std::fs::read(root.join(CLAUDE_SETTINGS_REL)).unwrap())
-                .unwrap();
-        assert_eq!(value["permissions"]["allow"][0], "Bash");
-        assert!(hook_present(
-            value.as_object().unwrap(),
-            "SessionStart",
-            SESSION_START_CMD
-        ));
-        assert!(hook_present(
-            value.as_object().unwrap(),
-            "Stop",
-            SESSION_STOP_CMD
-        ));
+        let installed = std::fs::read_to_string(root.join(CLAUDE_SETTINGS_REL)).unwrap();
+        assert!(installed.contains("\"permissions\""));
+        assert!(installed.contains("\"Bash\""));
+        let assessment = observe_claude_settings(root);
+        assert_eq!(assessment.shape, ClaudeSettingsShape::Object);
+        assert!(assessment.session_start);
+        assert!(assessment.stop);
     }
 }

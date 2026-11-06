@@ -1,0 +1,46 @@
+target:
+  term: Source activation resolver shared probe snapshot and signed time regular-file phases
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Canonical resolver and top-level query reuse one cached key/string snapshot; preserve negative mtimes, regular-file-only Source reads.
+  import_paths:
+    action: manual_review
+    notes: Reuse Kernel source stat errno policy and existing YamlDocument authority, no new parser/schema/floor/deny algebra.
+  filesystem_paths:
+    action: manual_review
+    notes: Source directory is not a ledger/probe file, warm identical-stat cache skips reparsing; before-epoch timestamps distinct.
+  serialized_keys:
+    action: do_not_change
+    notes: Existing activation keys/pointer/denial wire unchanged.
+  cli_commands:
+    action: do_not_change
+    notes: No new root route or count.
+  user_facing_strings:
+    action: manual_review
+    notes: No false refusal on nonregular Source-absent ledger; preserve failure class/cause, exact diagnostic prose remains open.
+  tests_fixtures:
+    action: manual_review
+    notes: New actual Source-first currentAPI cache/negative-time/directory controls, no malformed handoff replay.
+  logs_telemetry:
+    action: manual_review
+    notes: Actual partial report retained; missing emitters/exact keys/ctor escapes unaccepted, no healthy omission approval.
+exceptions:
+  - path: crates/sk-doctrine/src/ledger.rs
+    action: manual_review
+    reason: One Source probe cache for resolver and key query, signed timestamp key, is-file reader phase.
+  - path: crates/sk-kernel/src/paths.rs
+    action: manual_review
+    reason: Source is_file factors the existing is_dir stat/ignored-errno primitive instead of clone.
+  - path: crates/sk-doctrine/tests/cf77_parent_probe_phases.rs
+    action: manual_review
+    reason: Four bounded publicAPI Source-derived controls.
+  - path: crates/sk-doctrine/src/project_governance.rs
+    action: manual_review
+    reason: Source config helper builds its own deny identity at that phase, no reuse of an earlier caller index/snapshot.
+  - path: crates/sk-doctrine/src/source_denied.rs
+    action: manual_review
+    reason: Remove non-Source private caller-index bypass; public options remain only ledger/org_roots/kinds and Source builds identity at its own stage.
+status:
+  accepted: false
+  phase: prospective parent phase correction

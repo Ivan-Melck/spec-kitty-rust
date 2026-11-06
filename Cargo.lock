@@ -909,6 +909,7 @@ dependencies = [
  "sk-git",
  "sk-glossary",
  "sk-install",
+ "sk-invocation",
  "sk-kernel",
  "sk-mission",
  "sk-run-store",
@@ -937,6 +938,7 @@ name = "sk-git"
 version = "0.1.0"
 dependencies = [
  "same-file",
+ "serde_json",
  "sk-kernel",
  "tempfile",
  "thiserror",
@@ -970,14 +972,20 @@ dependencies = [
  "sha2",
  "sk-charter",
  "sk-doctrine",
+ "sk-git",
+ "sk-glossary",
+ "sk-invocation",
  "sk-kernel",
+ "sk-mission",
  "sk-status",
+ "sk-workspace",
  "tar",
  "tempfile",
  "thiserror",
  "toml_edit",
  "ulid",
  "uuid",
+ "yaml-edit",
  "zip",
 ]
 
@@ -1006,9 +1014,11 @@ dependencies = [
  "rustix",
  "serde",
  "serde_json",
+ "serde_yaml_ng",
  "sha2",
  "tempfile",
  "thiserror",
+ "yaml-edit",
 ]
 
 [[package]]
@@ -1018,11 +1028,13 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml_ng",
+ "sk-git",
  "sk-kernel",
  "sk-status",
  "tempfile",
  "thiserror",
  "ulid",
+ "yaml-edit",
 ]
 
 [[package]]
@@ -1073,9 +1085,11 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml_ng",
+ "sk-charter",
  "sk-git",
  "sk-kernel",
  "sk-mission",
+ "sk-status",
  "tempfile",
  "thiserror",
 ]

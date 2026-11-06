@@ -21,6 +21,8 @@
 //! | [`ignore`] | — | the shared `.gitignore` read/write/ensure effect seam |
 //! | [`gitignore_family`] | 10 | frozen ignore-entry backfills and two stale-rule removals |
 //! | [`retired`] | 18 | the ids the pinned registry itself registers as recorded no-ops |
+//! | [`ledger_adoption`] | 1 | the one-way two-partition ledger adoption backfill |
+//! | [`retirements`] | 8 | retired surfaces: hooks, clarify/profile-context commands, release skill, standalone skills, dashboard, roo, hosted endpoint |
 //! | [`legacy_layout`] | 2 | the `.specify/` rebrand rename and the retired `active-mission` file |
 //!
 //! Deliberately absent: every other declared id. They stay `unimplemented`, so
@@ -28,15 +30,19 @@
 //! claiming a compatibility this build does not have.
 
 pub mod charter_pack_gitignore;
+pub mod completion_legacy;
+pub mod completion_modern;
 pub mod git;
 pub mod gitignore_family;
 pub mod ignore;
 pub mod json;
 pub mod lane_tip;
+pub mod ledger_adoption;
 pub mod legacy_layout;
 pub mod merge_drivers;
 pub mod mission_template_forks;
 pub mod narrow_agent_gitignore;
 pub mod pack_level;
 pub mod retired;
+pub mod retirements;
 pub mod run_index;

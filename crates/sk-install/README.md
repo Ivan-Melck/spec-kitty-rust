@@ -172,9 +172,11 @@ let report = run_upgrade(&UpgradeRequest::new(root, cli_version).with_target("4.
 ### Git boundaries
 
 The crate owns file-level `.gitattributes`/`.gitignore`/`.git/info/exclude`
-edits it can prove safe. A Git **config** write (merge-driver wiring), a linked
-worktree's common-dir exclude, a git-remote-derived slug and any
-`git fetch <sha>` transport are returned as typed plans
+edits it can prove safe. A linked worktree's common-dir exclude is resolved
+through `sk_git::GitRepository::git_dirs()` (the Git owner's captured
+repository state) and written by this crate's atomic writer, never by a second
+git seam. A Git **config** write (merge-driver wiring), a git-remote-derived
+slug and any `git fetch <sha>` transport are returned as typed plans
 (`MergeDriverWiringPlan`, `GitDirectoryUnsupported`,
 `GitOperationDelegated`) for the Git owner rather than duplicated as a second
 subprocess seam. `sk-git` has no config/remote-write API yet.

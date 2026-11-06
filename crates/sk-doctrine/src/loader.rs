@@ -8,11 +8,38 @@
 //!   (`DRGGraphSchemaError`), never through a silently-degrading reader;
 //! * [`merge_layers`] is additive: a project node with an existing URN may
 //!   replace the label only, never the built-in kind.
+//!
+//! ## Encoding-provenance read composition
+//!
+//! The reference reads a doctrine document through *two* different doors and they
+//! differ in a way that matters: its charter ingestion chokepoint
+//! (`charter.activation._io.load_charter_file`, used by charter sync, interview,
+//! the compiler's YAML-asset loader and the migrate CLI) appends an
+//! encoding-provenance record on every successful read, while its DRG loader
+//! (`charter.offering.drg.loader.load_graph`) reads YAML directly and appends
+//! **nothing** (Source-probed: the global log does not even exist after a bare
+//! graph read).
+//!
+//! So this module keeps [`load_graph`] byte-for-byte behaviourally unchanged and
+//! exposes the provenance door beside it:
+//!
+//! * [`load_document_text`] — the reference's chokepoint read: prove the
+//!   encoding, append the record, hand back the text;
+//! * [`load_charter_document`] — the same read for the project's `charter.md`,
+//!   distinguishing an absent file from a refusal;
+//! * [`load_graph_with_provenance`] — a graph document read *through* that
+//!   chokepoint, for a caller that wants the recorded read as well as the graph.
+//!
+//! All three reuse [`sk_kernel::text_decode::read_text_with_provenance`], which
+//! owns the decode/record/append phases; nothing here re-implements decoding, the
+//! record shape, the routing rule, the clock or the writer.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde_yaml_ng::Value;
+use sk_kernel::encoding_provenance::EncodingProvenanceJournal;
+use sk_kernel::text_decode::{ProvenanceReadError, ProvenancedText, read_text_with_provenance};
 
 use crate::error::DoctrineError;
 use crate::graph::{DrgGraph, DrgNode};
@@ -204,4 +231,93 @@ pub fn merge_layers(
     let mut edges = built_in.edges().to_vec();
     edges.extend(project.edges().iter().cloned());
     built_in.with_parts(nodes, edges)
+}
+
+/// A graph read that proves its encoding and records the provenance.
+///
+/// The read phases are kept separate so a caller can tell them apart:
+/// [`Read`](Self::Read) is the reference chokepoint refusal (an unreadable file,
+/// an unprovable encoding, or a mint failure — none of which appends), while
+/// [`Graph`](Self::Graph) is the strict document boundary this module already
+/// owned.
+#[derive(Debug, thiserror::Error)]
+pub enum GraphProvenanceError {
+    /// The document could not be read/proven/recorded.
+    #[error(transparent)]
+    Read(#[from] ProvenanceReadError),
+    /// The decoded document is not an accepted graph source.
+    #[error(transparent)]
+    Graph(#[from] DoctrineError),
+    /// The decoded text holds a code point a Rust `str` cannot carry (impossible
+    /// for a proven BOM/strict-UTF-8 decode, kept as an honest refusal rather
+    /// than a lossy replacement).
+    #[error("decoded text of {path} is not representable as UTF-8 text (code point U+{code:04X})")]
+    Unrepresentable {
+        /// The document path.
+        path: PathBuf,
+        /// The code point a `str` cannot hold.
+        code: u32,
+    },
+}
+
+/// Read one doctrine document through the reference's provenance chokepoint.
+///
+/// This is the Native counterpart of `charter.activation._io.load_charter_file`:
+/// read, prove the encoding, append the encoding-provenance record, return the
+/// text. An unprovable encoding refuses and appends nothing; a caught
+/// provenance-write failure is reported by
+/// [`ProvenancedText::warnings`] and never changes the text.
+pub fn load_document_text(
+    path: &Path,
+    journal: &EncodingProvenanceJournal,
+) -> Result<ProvenancedText, ProvenanceReadError> {
+    read_text_with_provenance(path, journal)
+}
+
+/// Read the project's authored `charter.md` through the provenance chokepoint.
+///
+/// `Ok(None)` means the project has no `charter.md` at all (the reference's
+/// `_charter_read_root`-guarded read), which is a healthy absence: no record is
+/// appended for a file that was never read.
+pub fn load_charter_document(
+    root: &Path,
+    journal: &EncodingProvenanceJournal,
+) -> Result<Option<ProvenancedText>, ProvenanceReadError> {
+    let path = root.join(sk_charter::CHARTER_MD);
+    match sk_kernel::paths::source_path_exists(&path) {
+        Ok(false) => return Ok(None),
+        Ok(true) => {}
+        Err(source) => {
+            return Err(ProvenanceReadError::Read {
+                source: sk_kernel::KernelError::Io {
+                    action: "stat",
+                    path: path.clone(),
+                    source,
+                },
+                path,
+            });
+        }
+    }
+    read_text_with_provenance(&path, journal).map(Some)
+}
+
+/// Read a graph document through the provenance chokepoint and parse it.
+///
+/// The parse is the same strict boundary [`load_graph_str`] owns (unknown
+/// top-level keys fail closed). Nothing about [`load_graph`] changes: the
+/// reference's DRG loader is a non-provenance reader, so the plain entry points
+/// stay exactly as they were.
+pub fn load_graph_with_provenance(
+    path: &Path,
+    journal: &EncodingProvenanceJournal,
+) -> Result<(DrgGraph, ProvenancedText), GraphProvenanceError> {
+    let proven = read_text_with_provenance(path, journal)?;
+    let text = proven
+        .to_scalar_string()
+        .map_err(|code| GraphProvenanceError::Unrepresentable {
+            path: path.to_path_buf(),
+            code,
+        })?;
+    let graph = load_graph_str(&text, path)?;
+    Ok((graph, proven))
 }

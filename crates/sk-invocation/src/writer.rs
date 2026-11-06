@@ -47,7 +47,9 @@ use sk_kernel::{FileLock, KernelError, clock, resolve_reference_path};
 use crate::error::InvocationError;
 use crate::error::RecordParseError;
 use crate::modes::{RecordedMode, classify_mode_of_work};
-use crate::python_json::{PythonJsonObject, python_repr, python_repr_json, python_seconds};
+use crate::python_json::{
+    PythonJsonObject, PythonJsonValue, parse, python_repr, python_repr_json, python_seconds,
+};
 use crate::record::{InvocationId, OpCompletedEvent, OpEvent, OpStartedEvent, parse_op_event};
 
 /// Directory holding every Op artifact.
@@ -289,6 +291,60 @@ impl InvocationWriter {
             Ok(()) => Ok(path),
             Err(refusal) => Err(self.completed_error(invocation_id, refusal)),
         }
+    }
+
+    /// Record a doctor-sweep closure on the append-only closure spine.
+    ///
+    /// Source `ProfileInvocationExecutor._close_on_spine` (#4397): a sweep
+    /// closes **pre-existing** `kitty-ops/` records, which are byte-frozen
+    /// archive history, so its closure is appended to
+    /// `kitty-ops/op-closures.jsonl` and the per-record file is never touched.
+    /// This is the closest native equivalent of `write_completed` for that
+    /// caller and is `pub(crate)` because the doctor sweep reaches it through
+    /// the executor, not as a public second close path.
+    ///
+    /// The preconditions `write_completed` enforces under the family lock are
+    /// enforced here against the same trail, without writing it:
+    ///
+    /// - a record that cannot be read is `Invocation record is unreadable: <id>`
+    ///   (`InvocationError::Record`);
+    /// - a record whose rows already carry an `event: "completed"` object is
+    ///   [`InvocationError::AlreadyClosed`] — a concurrent manual close wins;
+    /// - blank lines are skipped and non-object / unreadable rows are ignored,
+    ///   exactly like Source's `if line.strip()` + `isinstance(row, dict)`.
+    ///
+    /// Spine membership is deliberately **not** re-read here: the caller ran
+    /// that check once for the whole sweep (Source #4424 removed the per-Op
+    /// spine read), so a duplicate detection stays the executor's job.
+    pub(crate) fn write_spine_closure(
+        &self,
+        record: &OpCompletedEvent,
+    ) -> Result<PathBuf, InvocationError> {
+        let invocation_id = record.invocation_id();
+        let path = self.invocation_path(invocation_id)?;
+        let text = fs::read_to_string(&path).map_err(|_| {
+            InvocationError::Record(format!("Invocation record is unreadable: {invocation_id}"))
+        })?;
+        for line in sk_kernel::python_text::splitlines(&text) {
+            if is_blank_line(line) {
+                continue;
+            }
+            let Ok(row) = parse(line) else {
+                continue;
+            };
+            if let PythonJsonValue::ExactObject(object) = &row
+                && matches!(
+                    object.get("event"),
+                    Some(PythonJsonValue::String(event))
+                        if *event == sk_kernel::PythonString::from_scalars("completed")
+                )
+            {
+                return Err(InvocationError::AlreadyClosed {
+                    invocation_id: invocation_id.to_string(),
+                });
+            }
+        }
+        append_op_closure(&self.root, record)
     }
 
     /// Append an `artifact_link` or `commit_link` event to a trail.
@@ -696,6 +752,13 @@ fn render_kernel_refusal(anchor: &Path, error: &KernelError) -> String {
         }
         other => other.to_string(),
     }
+}
+
+/// Python truthiness of `line.strip()`: a line is blank when every code point
+/// is whitespace (`str.isspace()`), which is the kernel's pinned table.
+fn is_blank_line(line: &str) -> bool {
+    line.chars()
+        .all(|character| sk_kernel::python_text::is_whitespace(u32::from(character)))
 }
 
 fn symlink_protocol_message(path: &Path) -> String {

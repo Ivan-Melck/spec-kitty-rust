@@ -57,13 +57,15 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use sk_git::{
     BranchName, CommitGuardCapability, ExpectedBlob, GitError, GitPath, Oid, ProtectedBranches,
-    SafeCommitRequest,
+    RefName, SafeCommitRequest, SourceRevision, StartPoint,
 };
 use sk_kernel::{LockWait, StatusLock, StatusLockHolder};
 use sk_mission::routes_through_coordination;
 
 use crate::artifact::{MissionArtifactKind, kind_for_mission_file};
+use crate::coordination::is_published_write_short_circuit_kind;
 use crate::error::WorkspaceError;
+use crate::lifecycle::LifecyclePhase;
 use crate::protection::ProtectionPolicy;
 use crate::surface::{CoordState, TopologySurface};
 use crate::workspace::MissionWorkspace;
@@ -185,6 +187,232 @@ pub fn read_coordination_surface(
         read_dir: resolved.path,
         degraded_to_primary,
     })
+}
+
+// ---------------------------------------------------------------------------
+// Status read surface (including the branch-ref arm)
+// ---------------------------------------------------------------------------
+
+/// The reference's read contract for a Mission's status event log.
+///
+/// `specify_cli.coordination.status_service.EventLogReadContract` names three
+/// read sources. Two of them are expressible without creating anything, and
+/// this value names exactly those:
+///
+/// * [`CoordStatusRead::Directory`] — the log belongs to a checkout that is
+///   already on disk (`COORDINATION_WORKTREE`, or the `PRIMARY_CHECKOUT`
+///   fallback the reference takes when nobody ever recorded a branch);
+/// * [`CoordStatusRead::BranchRef`] — the branch exists but no worktree is
+///   attached (`COORDINATION_BRANCH_REF`), so the log is read out of the branch
+///   tree with no materialization, no lock and no write.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CoordStatusRead {
+    /// Read the status artifacts from this Mission directory.
+    Directory(PathBuf),
+    /// Read the status event log out of this branch ref.
+    BranchRef {
+        /// The declared or canonically derived coordination branch (short name).
+        branch: String,
+        /// The coordination Mission directory name inside that branch's tree.
+        mission_dir_name: String,
+    },
+}
+
+impl CoordStatusRead {
+    /// The directory arm, when this read resolves to a checkout on disk.
+    pub fn directory(&self) -> Option<&Path> {
+        match self {
+            Self::Directory(path) => Some(path),
+            Self::BranchRef { .. } => None,
+        }
+    }
+}
+
+/// Resolve where a **read** of this Mission's status log must come from.
+///
+/// This is the read-only half of the reference's read contract
+/// (`coordination.status_transition._read_contract_from_transaction_target`),
+/// kept distinct from [`read_coordination_surface`] on purpose: the reference's
+/// status read does **not** refuse `Unmaterialized`/`Deleted`, it falls back to
+/// the primary checkout ("reading the dangling ref would report every WP as
+/// genesis"). [`read_coordination_surface`] is the placement answer and keeps
+/// its refusals.
+///
+/// Resolution order, exactly as the reference decides it:
+///
+/// 1. a coordination-less topology reads the declared primary directory
+///    (`PRIMARY_CHECKOUT`);
+/// 2. an attached coordination worktree reads its Mission directory — even when
+///    the directory is absent (`Empty`), because an absent log is empty, not
+///    missing;
+/// 3. no worktree but an existing **local** branch (`refs/heads/<branch>`, the
+///    reference's `branch_exists`) reads the branch ref;
+/// 4. otherwise (the branch was deleted, e.g. after a post-merge teardown) the
+///    declared primary directory is the authoritative read source.
+///
+/// Nothing here creates a worktree, writes a file, takes a lock, or seeds.
+pub fn read_status_surface(
+    workspace: &MissionWorkspace,
+) -> Result<CoordStatusRead, WorkspaceError> {
+    let primary_dir = workspace.mission_dir().to_path_buf();
+    if !routes_through_coordination(workspace.topology()) {
+        return Ok(CoordStatusRead::Directory(primary_dir));
+    }
+    let probe = workspace.probe_coordination()?;
+    if probe.worktree.is_some() {
+        // `mission_dir` is the coordination Mission directory under the
+        // registered worktree; it may legitimately not exist yet.
+        let dir = probe.mission_dir.ok_or_else(|| WorkspaceError::CoordRefused {
+            code: "COORD_MISSION_DIR_UNRESOLVED",
+            message: format!(
+                "mission {} has an attached coordination worktree but no resolvable coordination Mission directory",
+                workspace.slug()
+            ),
+        })?;
+        return Ok(CoordStatusRead::Directory(dir));
+    }
+    match probe.branch {
+        Some(branch) if probe.local_head => Ok(CoordStatusRead::BranchRef {
+            branch,
+            mission_dir_name: workspace.coord_mission_dir_name(),
+        }),
+        _ => Ok(CoordStatusRead::Directory(primary_dir)),
+    }
+}
+
+/// Read the exact `status.events.jsonl` bytes at the coordination branch ref.
+///
+/// This is the reference's `git show <destination_ref>:kitty-specs/<dir>/\
+/// status.events.jsonl`, expressed through the canonical Git ref/blob reader:
+/// the branch is resolved with [`sk_git::GitRepository::read_ref`] and the tree
+/// entry is read with [`sk_git::GitRepository::read_blob_at_bounded`], so no
+/// worktree, index, lock or temporary file is involved. `Ok(None)` means the
+/// branch or the log path does not exist — the reference's non-zero `git show`
+/// arm, which reads as "no events".
+///
+/// A branch that does not exist is *not* an error here: the reference returns an
+/// empty event list for it. An unreadable branch, a `GitPath`-invalid Mission
+/// directory name, and an over-bound blob do stay typed errors.
+pub fn read_status_events_at_branch_ref(
+    workspace: &MissionWorkspace,
+) -> Result<Option<Vec<u8>>, WorkspaceError> {
+    let probe = workspace.probe_coordination()?;
+    let Some(branch) = probe.branch else {
+        return Ok(None);
+    };
+    let mission_dir_name = workspace.coord_mission_dir_name();
+    let reference = RefName::parse(&format!("refs/heads/{branch}"))?;
+    if workspace
+        .workspace()
+        .repository()
+        .read_ref(&reference)?
+        .is_none()
+    {
+        return Ok(None);
+    }
+    let path = status_log_git_path(&mission_dir_name)?;
+    workspace
+        .workspace()
+        .repository()
+        .read_blob_at_bounded(&StartPoint::Ref(reference), &path, MAX_SEED_FILE_BYTES)
+        .map_err(WorkspaceError::from)
+}
+
+/// The coordination-tree path of a Mission's status event log.
+fn status_log_git_path(mission_dir_name: &str) -> Result<GitPath, WorkspaceError> {
+    let relative = format!(
+        "{}/{mission_dir_name}/{}",
+        crate::workspace::SPECS_DIR_NAME,
+        sk_status::EVENTS_FILENAME
+    );
+    GitPath::from_git_bytes(relative.as_bytes()).map_err(WorkspaceError::from)
+}
+
+/// Why a ref-parameterised committed-status read could not answer.
+///
+/// These are the cases in which the reference would have read something and this
+/// adapter cannot: they must reach the caller as "the check did not run", never
+/// as "there are no events". Every *failure of git itself* is the reference's
+/// own caught arm and stays `Ok(None)` below.
+#[derive(Debug, thiserror::Error)]
+pub enum CoordStatusRefReadError {
+    /// The ref text is not admissible as a Git revision argument.
+    ///
+    /// [`sk_git::SourceRevision`] refuses an empty value, a leading `-` and any
+    /// control byte, so it can never be read as an option or split a record. A
+    /// revision that Git itself rejects is *not* this case: that is the caught arm
+    /// below and reads as "no events", like the reference's exited `git show`.
+    #[error("coordination ref {value:?} is not admissible as a Git revision argument")]
+    UnsupportedRef {
+        /// The offending ref text.
+        value: String,
+    },
+    /// The Mission directory name cannot be a Git tree path.
+    #[error("mission directory {detail} cannot be addressed as a Git tree path")]
+    MissionDirName {
+        /// What was wrong.
+        detail: String,
+    },
+    /// The committed log is larger than this adapter's bounded blob read.
+    ///
+    /// Source's `git show` is unbounded; reading the over-bound log would mean
+    /// inventing a truncation, so this is reported instead.
+    #[error("{reference}: the committed status log exceeds the {limit}-byte read bound")]
+    OverBound {
+        /// The `<ref>:<path>` the read came from.
+        reference: String,
+        /// The adapter's bound.
+        limit: u64,
+    },
+}
+
+/// Read the exact `status.events.jsonl` bytes at an arbitrary coordination ref.
+///
+/// This is the reference's `read_event_log(EventLogReadContract.
+/// coordination_branch_ref(..))`: `git show <ref>:kitty-specs/<dir>/\
+/// status.events.jsonl`, parameterised by the ref the caller recorded rather than
+/// by this checkout's own probed coordination branch. The ref is read through
+/// [`sk_git::SourceRevision`], so the reference's revision breadth (a short branch,
+/// a tag, a remote-tracking name, `HEAD`, a full object id) is available without
+/// coercing it into a local branch.
+///
+/// `Ok(None)` is the reference's non-zero `git show` arm, which reads as "no
+/// events": an unknown revision, an absent log path at that revision, or any other
+/// git-level refusal. A Native-only limit (an argv-unsafe revision, an
+/// unrepresentable tree path, or the bounded blob read) is a typed error so it can
+/// never be mistaken for "no events".
+///
+/// Read-only: no worktree, index, lock or temporary file is involved.
+pub fn read_status_events_at_ref(
+    repository: &sk_git::GitRepository,
+    coord_ref: &str,
+    mission_dir_name: &str,
+) -> Result<Option<Vec<u8>>, CoordStatusRefReadError> {
+    let revision =
+        SourceRevision::parse(coord_ref).map_err(|_| CoordStatusRefReadError::UnsupportedRef {
+            value: coord_ref.to_owned(),
+        })?;
+    let path = GitPath::from_git_bytes(
+        format!(
+            "{}/{mission_dir_name}/{}",
+            crate::workspace::SPECS_DIR_NAME,
+            sk_status::EVENTS_FILENAME
+        )
+        .as_bytes(),
+    )
+    .map_err(|error| CoordStatusRefReadError::MissionDirName {
+        detail: error.to_string(),
+    })?;
+    match repository.read_blob_at_revision_bounded(&revision, &path, MAX_SEED_FILE_BYTES) {
+        Ok(bytes) => Ok(bytes),
+        // The one Native-only bound: report it instead of inventing empty.
+        Err(GitError::BlobTooLarge { limit, .. }) => Err(CoordStatusRefReadError::OverBound {
+            reference: format!("{coord_ref}:{}", path.display_lossy()),
+            limit,
+        }),
+        // Any other git refusal is the reference's caught `git show` arm.
+        Err(_) => Ok(None),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1429,6 +1657,140 @@ pub(crate) fn coordination_destination(
     })
 }
 
+/// Where a coordination-aware write of one artifact kind must land.
+///
+/// This is the write **location** answer, not a transaction: it carries the
+/// Mission directory to write into, the checkout that holds it, the surface
+/// stamp, and the evidence of what establishing the surface actually did. It is
+/// the value [`establish_write_location`] returns so a caller that only needs
+/// the location (a status bootstrap, a tracer append) does not have to open a
+/// commit transaction it will not commit.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[must_use = "the location is only meaningful once the surface has been established"]
+pub struct CoordWriteLocation {
+    /// Absolute Mission directory the write must land in.
+    pub path: PathBuf,
+    /// The checkout holding [`CoordWriteLocation::path`].
+    pub surface_root: PathBuf,
+    /// Which partition the write targets.
+    pub surface: TopologySurface,
+    /// The coordination state observed before establishment (`None` for primary).
+    pub state_before: CoordState,
+    /// What establishing the surface did.
+    pub establishment: CoordEstablishment,
+    /// The seed operation, when one ran.
+    pub seed: Option<CoordSeedReceipt>,
+}
+
+impl CoordWriteLocation {
+    /// The declared PRIMARY location: no probe, no lock, no side effect.
+    fn primary(workspace: &MissionWorkspace) -> Self {
+        Self {
+            path: workspace.mission_dir().to_path_buf(),
+            surface_root: workspace.workspace().primary_root().to_path_buf(),
+            surface: TopologySurface::Primary,
+            state_before: CoordState::None,
+            establishment: CoordEstablishment::Primary,
+            seed: None,
+        }
+    }
+}
+
+/// Resolve, materialize, seed or refuse the Mission directory a write of
+/// `kind` must land in.
+///
+/// This is the write-side placement accessor `mission_runtime
+/// .PlacementSeam.write_dir` is: the reference's `finalize-tasks` calls
+/// `placement_seam(root, slug).write_dir(STATUS_STATE)` to establish the
+/// coordination surface **before** its status bootstrap writes, and reads the
+/// result only for its side effect. Native callers have no implicit
+/// surface-resolving status writer, so they need the resolved directory too.
+///
+/// Resolution order mirrors the reference, and every arm but the last is
+/// side-effect free:
+///
+/// * a PRIMARY-partition kind, or any kind on a coordination-less topology →
+///   the declared primary Mission directory, with **no** coordination probe,
+///   lock, journal, or file;
+/// * a published/E2 short-circuit kind on a `published` Mission → the primary
+///   directory, without probing coordination, so a torn-down coordination
+///   branch cannot turn a post-consolidation bookkeeping write into a refusal;
+/// * every other COORD-partition kind on a coordination-routing topology →
+///   [`crate::coord::establish`]'s materialize/seed, under the one claim +
+///   Mission lock pair, returning the coordination Mission directory. A
+///   deleted branch, an unmaterialized branch that exists only on a remote, a
+///   stray directory, a worktree on the wrong branch, and a forked seed all
+///   refuse exactly as the transaction path does — this never falls back to the
+///   primary checkout for a coordination write.
+///
+/// `phase` is the caller's canonically derived
+/// [`LifecyclePhase`](crate::lifecycle::LifecyclePhase); it is only consulted
+/// for the published short-circuit, which is why it is required rather than
+/// optional — a caller that cannot prove `Published` must pass its real phase.
+pub fn establish_write_location(
+    workspace: &MissionWorkspace,
+    kind: MissionArtifactKind,
+    phase: LifecyclePhase,
+    policy: &ProtectionPolicy,
+) -> Result<CoordWriteLocation, WorkspaceError> {
+    if kind.is_primary_partition() || !routes_through_coordination(workspace.topology()) {
+        return Ok(CoordWriteLocation::primary(workspace));
+    }
+    if phase == LifecyclePhase::Published && is_published_write_short_circuit_kind(kind) {
+        return Ok(CoordWriteLocation::primary(workspace));
+    }
+
+    let protected = policy.branch_set()?;
+    let primary_root = workspace.workspace().primary_root().to_path_buf();
+    let common_dir = workspace.workspace().common_dir().to_path_buf();
+
+    // Same order as `CoordTransaction::acquire`: resolve the destination from a
+    // read-only probe, take the claim then the Mission lock, and re-probe under
+    // them so a surface another process materialized between the probe and the
+    // claim is adopted instead of materialized twice.
+    let probe = workspace.probe_coordination()?;
+    let destination = coordination_destination(workspace, &probe)?;
+    let locks = CoordLocks::acquire(
+        &destination.worktree,
+        workspace.mission_dir(),
+        &primary_root,
+        &common_dir,
+        COORD_TRANSACTION_LOCK_TIMEOUT,
+    )?;
+    let journal = CoordJournal::new(&common_dir, workspace.slug());
+    let probe = workspace.probe_coordination()?;
+    let established = establish_surface(workspace, &protected, destination, &probe, &journal)?;
+    drop(locks);
+    Ok(CoordWriteLocation {
+        path: established.feature_dir,
+        surface_root: established.worktree_root,
+        surface: TopologySurface::Coord,
+        state_before: established.state_before,
+        establishment: established.establishment,
+        seed: established.seed,
+    })
+}
+
+/// The surface one establishment produced, before any commit intent exists.
+///
+/// Shared by [`CoordTransaction::acquire`] (which then mints the commit intent)
+/// and [`establish_write_location`] (which returns it as-is), so a
+/// materialization/seed can never be implemented twice with different ordering.
+pub(crate) struct EstablishedSurface {
+    /// The branch the establishment targeted.
+    pub destination_branch: BranchName,
+    /// The checkout the write lands in.
+    pub worktree_root: PathBuf,
+    /// The Mission directory inside that checkout.
+    pub feature_dir: PathBuf,
+    /// The coordination state observed before establishment.
+    pub state_before: CoordState,
+    /// What establishment did.
+    pub establishment: CoordEstablishment,
+    /// The seed operation, when one ran.
+    pub seed: Option<CoordSeedReceipt>,
+}
+
 /// Materialize/seed the resolved coordination surface and mint the commit intent.
 ///
 /// Called with the claim + Mission locks already held, by both
@@ -1444,6 +1806,18 @@ fn establish<'a>(
     journal: CoordJournal,
     locks: CoordLocks,
 ) -> Result<CoordTransaction<'a>, WorkspaceError> {
+    let established = establish_surface(workspace, &protected, destination, &probe, &journal)?;
+    begin_commit_intent(workspace, operation, protected, established, journal, locks)
+}
+
+/// The materialize/seed half of [`establish`], with no commit intent.
+fn establish_surface(
+    workspace: &MissionWorkspace,
+    protected: &ProtectedBranches,
+    destination: CoordDestination,
+    probe: &crate::workspace::CoordinationProbe,
+    journal: &CoordJournal,
+) -> Result<EstablishedSurface, WorkspaceError> {
     let CoordDestination {
         branch_text,
         branch: destination_branch,
@@ -1497,7 +1871,7 @@ fn establish<'a>(
                 });
             }
             let repository = workspace.workspace().repository().clone();
-            materialize_worktree(&repository, &branch_text, &coord_root, &journal, workspace)?;
+            materialize_worktree(&repository, &branch_text, &coord_root, journal, workspace)?;
             state_before = CoordState::Unmaterialized;
             establishment = CoordEstablishment::Materialized;
             coord_root.clone()
@@ -1522,8 +1896,8 @@ fn establish<'a>(
             &materialized_root,
             &feature_dir,
             &branch_text,
-            &protected,
-            &journal,
+            protected,
+            journal,
             state_before,
         )?);
         establishment = CoordEstablishment::Seeded;
@@ -1534,6 +1908,38 @@ fn establish<'a>(
         establishment = CoordEstablishment::Noop;
     }
 
+    Ok(EstablishedSurface {
+        destination_branch,
+        worktree_root: materialized_root,
+        feature_dir,
+        state_before,
+        establishment,
+        seed,
+    })
+}
+
+/// Mint the commit intent for an already established coordination surface.
+///
+/// The proof and the journal intent belong to the *transaction*, not to the
+/// establishment: [`establish_write_location`] establishes a surface without
+/// promising a commit, and must not leave a commit record behind that recovery
+/// would then have to adjudicate.
+fn begin_commit_intent<'a>(
+    workspace: &'a MissionWorkspace,
+    operation: &str,
+    protected: ProtectedBranches,
+    established: EstablishedSurface,
+    journal: CoordJournal,
+    locks: CoordLocks,
+) -> Result<CoordTransaction<'a>, WorkspaceError> {
+    let EstablishedSurface {
+        destination_branch,
+        worktree_root: materialized_root,
+        feature_dir,
+        state_before,
+        establishment,
+        seed,
+    } = established;
     let repository = sk_git::GitRepository::open(&materialized_root)?;
     ensure_head_is_destination(&repository, &destination_branch, &materialized_root)?;
     let observed_tip = repository.read_branch_tip(&destination_branch)?;
@@ -1635,7 +2041,7 @@ fn materialize_worktree(
 /// These are the two files the reference treats as streams
 /// (`coord_seed._LOG_FILENAMES`): every other COORD-kind file is carried whole
 /// or kept from the coordination copy.
-const SEED_LOG_FILENAMES: [&str; 2] = ["status.events.jsonl", "decisions.events.jsonl"];
+const SEED_LOG_FILENAMES: [&str; 2] = [sk_status::EVENTS_FILENAME, "decisions.events.jsonl"];
 
 /// Seed an empty coordination surface from the primary mission directory.
 ///
@@ -2481,7 +2887,7 @@ impl CoordBootstrapReceipt {
 /// 3. take the kernel **checkout-claim** lock, then the canonical **Mission**
 ///    lock;
 /// 4. journal a `Mint` intent and only then mint (or validate) the branch;
-/// 5. materialize/seed through the same [`establish`] the write path uses;
+/// 5. materialize/seed through the same `establish` the write path uses;
 /// 6. seal the establishment.
 ///
 /// Before this order, the branch was minted **before** the locks and before the

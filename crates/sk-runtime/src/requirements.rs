@@ -657,14 +657,44 @@ fn split_scalar(text: &str, tokens: &mut Vec<String>) {
     }
 }
 
+/// Python's `str()` of a non-`str` frontmatter item, as the reference's
+/// `<NON_STRING:{item}>` f-string renders it.
+///
+/// Strings go through the one canonical Kernel repr authority
+/// (`sk_kernel::python_repr`: CPython quote choice and escapes), never a raw
+/// `'…'` wrapper — the reference interleaves `str()`/`repr()` for containers,
+/// so a nested string is repr'd and the container itself is `str()`-rendered.
 fn python_repr(value: &Value) -> String {
     match value {
         Value::Null => "None".to_string(),
         Value::Bool(true) => "True".to_string(),
         Value::Bool(false) => "False".to_string(),
         Value::Number(number) => number.to_string(),
-        Value::String(text) => format!("'{text}'"),
-        other => other.to_string(),
+        Value::String(text) => sk_kernel::python_repr(text),
+        Value::Array(items) => {
+            let rendered: Vec<String> = items.iter().map(container_repr).collect();
+            format!("[{}]", rendered.join(", "))
+        }
+        Value::Object(entries) => {
+            let rendered: Vec<String> = entries
+                .iter()
+                .map(|(key, value)| {
+                    format!("{}: {}", sk_kernel::python_repr(key), container_repr(value))
+                })
+                .collect();
+            format!("{{{}}}", rendered.join(", "))
+        }
+    }
+}
+
+/// Python `repr()` of a value nested inside a container.
+///
+/// `repr` is `str` for every scalar except strings (which are quoted by the
+/// canonical Kernel formatter) and containers (which recurse).
+fn container_repr(value: &Value) -> String {
+    match value {
+        Value::String(text) => sk_kernel::python_repr(text),
+        other => python_repr(other),
     }
 }
 

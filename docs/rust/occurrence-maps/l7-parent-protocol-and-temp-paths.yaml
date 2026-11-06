@@ -1,0 +1,64 @@
+# Parent PRE-EDIT inventory .B0azmp, after preserving actual L7 .67Px1M.
+# NOT retroactive approval: producer L7 map is invalid (.8YwNsI), remains preserved.
+# Its nonstandard categories/operation/add action and missing validation are debt.
+target:
+  term: "Source fixture exact transport and temp filename preservation"
+  replacement: "exact PS receipts/all roots and native OsString filename operations"
+  operation: rename
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Existing three temp helper names/signatures/policy/PID unchanged. Remove
+      filename to_string_lossy, append raw OsStr via OsString. Derived suffix
+      uses nonempty native extension/stem preserving Python trailing-dot rule.
+      Native Path non-normal root/dot/.. cases remain explicitly OPEN; no global
+      PythonPath parser/codec fork or unsupported-success promotion.
+  import_paths:
+    action: do_not_change
+    notes: Standard OsString/OsStr and existing PythonString only; no new deps, manifests, parser or model.
+  filesystem_paths:
+    action: manual_review
+    notes: Byte-exact Source temp sibling paths for valid native filenames, no changed destinations/IDs or real repo writes.
+  serialized_keys:
+    action: manual_review
+    notes: Test receipt values use exact codepoints, never U+FFFD replacement; add real fixture metadata/status only. No production wire key rename.
+  cli_commands:
+    action: do_not_change
+    notes: No CLI/callback/registry/ledger/metadata/approval promotion.
+  user_facing_strings:
+    action: do_not_change
+    notes: Preserve generated refusal messages and Source Pydantic diagnostics exactly; root/dot/IO prose still open.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      Actual Mission Source/Native child gains missing2XDG_DIRS and exact
+      repo/pack assertions BEFORE product import, retains input bytes/mode/
+      inode/mtime and exactPS diagnostics. Source-first helper corpus checks
+      actual processPID/validfilename/suffix/allbyte filename cases without
+      fabricated crossprocess identities or hidden expected mismatch.
+  logs_telemetry:
+    action: do_not_change
+    notes: No log/event/metric identity changes, no fabricated success or exits.
+exceptions:
+  - path: crates/sk-kernel/src/source_writer.rs
+    action: manual_review
+    reason: Only the three valid native filename helper bodies; ambient context and writer phases unchanged.
+  - path: crates/sk-kernel/tests/source_writer_paths_source.rs
+    action: manual_review
+    reason: New actual Source-first native-path byte/suffix/PID proof, explicit native filename domain.
+  - path: crates/sk-mission/tests/definition_graph_source.rs
+    action: manual_review
+    reason: All7XDG/resources, PS transport, input footprints; no model assertion weakening.
+  - path: crates/sk-mission/tests/oracle/definition_graph.py
+    action: manual_review
+    reason: Actual child Source roots/version/pins before imports; no runtime adapter.
+  - path: docs/rust/occurrence-maps/l7-graph-consumer-unification.yaml
+    action: do_not_change
+    reason: Invalid producer artifact preserved; new parent map cannot be backdated as its gate.
+  - path: src/**
+    action: do_not_change
+    reason: Pinned Source remains oracle.
+status:
+  reviewed_by: "parent recovery pre-edit classification only; not producer/independent approval"
+  accepted: false

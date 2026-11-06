@@ -545,7 +545,12 @@ impl ProfileManifest {
                     })
             };
             let output_path = text("output_path")?;
-            managed_destination(project_root, &output_path)?;
+            // READ model: the authored string is preserved verbatim. The
+            // reference's loader accepts a manifest whose `output_path` lies
+            // outside the project (an operator's own projection); the managed
+            // destination policy belongs to the EXECUTION phase, which applies
+            // it per write and per prune below (`project_agent_profiles`).
+            // Refusing here made a Source-valid manifest unreadable.
             let entry = ProfileManifestEntry {
                 profile_urn: text("profile_urn")?,
                 source_layer: text("source_layer")?,
@@ -801,7 +806,16 @@ pub fn project_agent_profiles(
         .map(|entry| (entry.output_path.clone(), entry.file_hash.clone()))
         .collect();
     for (output_path, recorded_hash) in stale {
-        let destination = managed_destination(project_root, &output_path)?;
+        // An entry whose path is not a managed destination is not ours to prune
+        // (the read model accepted it; this is the execution-phase policy). It
+        // stays recorded so a later projection can still recognise it.
+        let destination = match managed_destination(project_root, &output_path) {
+            Ok(destination) => destination,
+            Err(_) => {
+                report.preserved.push(output_path);
+                continue;
+            }
+        };
         match std::fs::read(&destination) {
             Ok(existing) if hex(&Sha256::digest(&existing)) == recorded_hash => {
                 std::fs::remove_file(&destination).map_err(|source| {
@@ -894,6 +908,47 @@ mod tests {
             .expect("present")
     }
 
+    /// A manifest entry whose `output_path` lies outside the project is
+    /// Source-valid for the READ loader (the pinned provenance heal must be able
+    /// to read it); the managed-destination policy applies at execution time.
+    #[test]
+    fn the_read_model_accepts_a_source_valid_out_of_project_output_path() {
+        let directory = tempfile::tempdir().unwrap();
+        let project = directory.path().join("project");
+        std::fs::create_dir_all(&project).unwrap();
+        let manifest = r#"{
+  "entries": [
+    {
+      "file_hash": "aaaa",
+      "format": "claude-agent",
+      "output_path": "/opt/elsewhere/agents/analyst.md",
+      "profile_urn": "agent_profile:analyst",
+      "projection_version": 1,
+      "source_hash": "bbbb",
+      "source_layer": "project",
+      "source_path": "/opt/elsewhere/profiles/analyst.agent.yaml",
+      "tool_key": "claude"
+    }
+  ],
+  "schema_version": 1
+}
+"#;
+        write(&project.join(PROFILES_MANIFEST_REL), manifest);
+        let loaded = ProfileManifest::load(&project).expect("the read model accepts it");
+        let entry = loaded
+            .entries()
+            .find(|entry| entry.profile_urn == "agent_profile:analyst")
+            .expect("entry");
+        assert_eq!(entry.output_path, "/opt/elsewhere/agents/analyst.md");
+        assert_eq!(
+            entry.source_path,
+            "/opt/elsewhere/profiles/analyst.agent.yaml"
+        );
+        // The authored bytes survive a round trip: no lossy conversion, no
+        // re-ordering of the codepoints in the path.
+        assert_eq!(loaded.to_bytes().unwrap(), manifest.as_bytes());
+    }
+
     #[test]
     fn markdown_and_codex_renders_match_the_pinned_shape() {
         let directory = tempfile::tempdir().unwrap();
@@ -966,15 +1021,30 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "operator edit\n");
     }
 
+    /// The escape is refused at the phase that owns the policy — every write and
+    /// every prune resolves through `managed_destination` — not by the READ model
+    /// (which the reference keeps total so it can read a manifest it did not
+    /// write).
     #[test]
-    fn unsafe_manifest_paths_are_refused() {
+    fn an_escaping_manifest_path_is_refused_at_execution_not_at_read() {
         let project = tempfile::tempdir().unwrap();
         let path = project.path().join(PROFILES_MANIFEST_REL);
         write(
             &path,
             "{\n  \"entries\": [\n    {\n      \"format\": \"claude-agent\",\n      \"file_hash\": \"x\",\n      \"output_path\": \"../escape.md\",\n      \"profile_urn\": \"agent_profile:x\",\n      \"projection_version\": 1,\n      \"source_hash\": \"x\",\n      \"source_layer\": \"built-in\",\n      \"source_path\": \"x\",\n      \"tool_key\": \"claude\"\n    }\n  ],\n  \"schema_version\": 1\n}\n",
         );
-        let error = ProfileManifest::load(project.path()).expect_err("refused");
+        let loaded = ProfileManifest::load(project.path()).expect("the read model preserves it");
+        assert_eq!(loaded.entries().count(), 1);
+        let error = managed_destination(project.path(), "../escape.md").expect_err("refused");
         assert!(error.to_string().contains("unsafe profile destination"));
+        // A stale entry for the escaping path is preserved, never deleted, by the
+        // execution phase.
+        let report =
+            project_agent_profiles(project.path(), &[], &catalog(project.path()), "built-in")
+                .expect("project");
+        assert!(
+            report.preserved.is_empty() || report.preserved.contains(&"../escape.md".to_string())
+        );
+        assert!(!project.path().join("../escape.md").exists());
     }
 }

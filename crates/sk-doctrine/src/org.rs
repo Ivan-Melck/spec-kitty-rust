@@ -12,6 +12,8 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use sk_charter::{ArtifactKind, Limits, PackTier};
+use sk_kernel::PythonString;
+use sk_kernel::python_text::{is_decimal, upper_codepoints};
 
 use crate::error::DoctrineError;
 use crate::graph::{DrgEdge, DrgGraph, DrgNode, NodeKind, Relation, is_valid_urn};
@@ -586,20 +588,94 @@ pub fn artifact_to_urn(kind: &str, raw_id: &str) -> String {
     }
 }
 
-/// Normalise a directive id to `DIRECTIVE_NNN` (or uppercase snake case).
-pub fn normalize_directive_id(raw: &str) -> String {
-    if raw.starts_with("DIRECTIVE_")
-        && raw
-            .strip_prefix("DIRECTIVE_")
-            .is_some_and(|rest| !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()))
+/// The ASCII `DIRECTIVE_` prefix as Python code points.
+fn directive_prefix() -> &'static [u32] {
+    &[0x44, 0x49, 0x52, 0x45, 0x43, 0x54, 0x49, 0x56, 0x45, 0x5f]
+}
+
+/// The Source's `DIRECTIVE_NNN` forms plus trailing text: leading Unicode `Nd`
+/// digits (Python `\d`) zero-padded to three with ASCII `0` (Python `str.zfill`),
+/// or `None` when the token does not start with a decimal digit.
+fn digit_prefixed_id(raw: &PythonString) -> Option<PythonString> {
+    let digits: Vec<u32> = raw
+        .codepoints()
+        .iter()
+        .copied()
+        .take_while(|&code| is_decimal(code))
+        .collect();
+    if digits.is_empty() {
+        return None;
+    }
+    let mut units = directive_prefix().to_vec();
+    for _ in digits.len()..3 {
+        units.push(u32::from(b'0'));
+    }
+    units.extend_from_slice(&digits);
+    PythonString::from_units(units).ok()
+}
+
+/// The Source fallback: full `str.upper()` then an ASCII hyphen fold.
+fn uppercase_snake(raw: &PythonString) -> PythonString {
+    let uppered: Vec<u32> = upper_codepoints(raw.codepoints())
+        .into_iter()
+        .map(|code| {
+            if code == u32::from(b'-') {
+                u32::from(b'_')
+            } else {
+                code
+            }
+        })
+        .collect();
+    PythonString::from_units(uppered).expect("uppercase of valid code points is valid")
+}
+
+/// Exact Source `normalize_directive_id` over Python code points.
+///
+/// This is the ONE directive-id policy owner. It mirrors
+/// `charter.offering.drg.migration.id_normalizer.normalize_directive_id`:
+///
+/// 1. `^DIRECTIVE_\d+$` returns the input unchanged. `\d` is Unicode `Nd` and
+///    `$` also matches before one final newline. That branch is
+///    output-equivalent to phase 3 (the accepted text has no case and no
+///    hyphen), so the result is the same either way; keeping the phases in this
+///    order documents the Source.
+/// 2. A leading `Nd` digit run becomes `DIRECTIVE_` + the run zero-padded to
+///    three code points with ASCII `0` (`str.zfill(3)`; the run is digits only,
+///    so `zfill`'s sign handling cannot apply).
+/// 3. Otherwise the interpreter's full `str.upper()` (1:N expansions included)
+///    followed by `replace("-", "_")`.
+///
+/// Code points outside `str`'s scalar text (lone surrogates) and NUL/non-ASCII
+/// units are preserved verbatim; nothing is dropped, paired or re-spelled.
+#[must_use]
+pub fn normalize_directive_id_exact(raw: &PythonString) -> PythonString {
+    let codepoints = raw.codepoints();
+    let remainder = match codepoints.last() {
+        Some(&0x0a) => &codepoints[..codepoints.len() - 1],
+        _ => codepoints,
+    };
+    if let Some(digits) = remainder.strip_prefix(directive_prefix())
+        && !digits.is_empty()
+        && digits.iter().all(|&code| is_decimal(code))
     {
-        return raw.to_owned();
+        return raw.clone();
     }
-    let digits: String = raw.chars().take_while(char::is_ascii_digit).collect();
-    if !digits.is_empty() {
-        return format!("DIRECTIVE_{:0>3}", digits);
+    if let Some(prefixed) = digit_prefixed_id(raw) {
+        return prefixed;
     }
-    raw.to_uppercase().replace('-', "_")
+    uppercase_snake(raw)
+}
+
+/// Normalise a directive id to `DIRECTIVE_NNN` (or uppercase snake case).
+///
+/// The explicit **scalar capability view** of [`normalize_directive_id_exact`]:
+/// an input of Unicode scalars can only produce scalars, because the pinned
+/// uppercase data maps scalars to scalars. The conversion is checked rather than
+/// asserted, so a future table defect cannot turn into silently dropped units.
+pub fn normalize_directive_id(raw: &str) -> String {
+    normalize_directive_id_exact(&PythonString::from_scalars(raw))
+        .to_scalar_string()
+        .expect("UCD14 uppercase maps scalars to scalars")
 }
 
 /// A project-tier artifact and its validated identity.

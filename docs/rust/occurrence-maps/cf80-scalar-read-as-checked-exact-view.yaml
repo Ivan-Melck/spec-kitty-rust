@@ -1,0 +1,100 @@
+target:
+  term: >-
+    The scalar activation-ledger read (load_activation_ledger / _with / _inspection) becomes a
+    checked view of the ONE canonical exact read (load_activation_ledger_exact* + the existing
+    ExactActivationLedger::to_scalar_view) instead of a second YamlDocument execution path that
+    refuses Source-valid legacy lists ([true, 123, null, list/map, float] that Source str-coerces).
+    Plus one narrow boxed typed ActivationReadError cause on DoctrineError for non-Doctrine
+    projection/constructor-abort failures, and removal of the scalar read-execution helpers that
+    become dead.
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Scalar public API names and signatures are UNCHANGED (load_activation_ledger,
+      load_activation_ledger_with, load_activation_ledger_inspection: 121 occurrences in 29
+      files; ActivationLedger 64/16). Their bodies delegate to the existing exact reader and the
+      existing to_scalar_view (5 occurrences in 3 files). ONE new DoctrineError variant carries a
+      Box<ActivationReadError> cause (DoctrineError is already 585 occurrences/54 files; no broad
+      redesign, no CLI wire, no exit/envelope change). The scalar read-execution helpers that
+      become unreachable are removed only after an occurrence census: document_text_keys (2/1),
+      legacy_path_and_document (2/1), ExistsOnDisk (2/1). YamlView (5/1) and build_ledger (8/1)
+      STAY: the frozen writer path prepare_ledger_write / apply_ledger_write keeps its own
+      L1/L2 validation through the same builder. No second coercer, parser, schema, renderer,
+      numeric or roster is added.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No module path or crate dependency changes. sk-doctrine keeps consuming the existing Kernel
+      python_yaml graph/NodeRef.python_str authority it already uses for the exact read; no new
+      dependency, Cargo.toml, Cargo.lock, pin or registry change.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No path, resolver, cache key, stat probe, regular-file/absence rule, pointer spelling or
+      writer target changes. The scalar read inherits exactly the exact reader's already-fixed
+      config validation, fresh cached probe, signed-mtime key, modern regular-file absence and
+      own-fresh identity phase; no second read root or report pass is introduced.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No ledger allow/deny key, unknown-deny key/value retention, three-state absent/null/[] rule,
+      strict modern item rule or unknown-key validation order changes. Legacy admit/deny
+      semantics stay Source's: non-strict lists coerce through the ONE canonical str authority
+      (NodeRef.python_str), modern lists stay strict string-id lists.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No new flag, route, refusal code, envelope or exit policy. The existing scalar consumers
+      (charter list/status, doctor, context, activate/plan, preset application, migration readers,
+      pack skill, offering gate, project governance) keep their current signatures and command
+      surfaces; a Source-valid input that used to refuse now reads, a Source-invalid input still
+      refuses with the existing Doctrine variant.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      No new user-facing message is authored. The removed scalar refusal text ("... is not a
+      string id") no longer appears for Source-valid legacy lists because there is no separate
+      scalar parser; a genuinely unrepresentable token keeps the existing checked-projection
+      wording and a constructor abort keeps its existing phase/exception/message through the
+      typed cause.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      One new named Doctrine target (Source-first paired controls + one actual existing scalar
+      consumer regression). Existing named targets that exercise the scalar read are re-run as
+      regressions (cf78 exact core, cf79 reporting pair, cf77 source-denied reader, cf68
+      catalogue phases, cf8 charter workflow, ledger/source-denied filtered units). Fresh
+      temporary trees only; no Source, pack, golden or fixture-data edit.
+  logs_telemetry:
+    action: manual_review
+    notes: >-
+      Wrapped Source-first probe receipts and the actual red/green logs precede the code; failed
+      attempts and the remaining rt/legacy-pointer/two-read/wholetext/writer/platform/startup/
+      error-wire gaps are recorded as data, never as invented health or a Source exception.
+exceptions:
+  - path: crates/sk-doctrine/src/ledger.rs
+    action: manual_review
+    reason: >-
+      The ONE owner of the change: the scalar public reads delegate to the exact read then the
+      existing checked to_scalar_view; the dead scalar-read execution helpers are removed; the
+      writer's own builder/validation path is left exactly as it is.
+  - path: crates/sk-doctrine/src/error.rs
+    action: manual_review
+    reason: >-
+      Parent-granted narrow seam: ONE boxed typed ActivationReadError cause variant for
+      non-Doctrine exact projection / constructor-abort failures. ActivationReadError::Doctrine
+      unwraps to the SAME existing variant; no broad error redesign.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: >-
+      Export bookkeeping only if the new error variant/type name needs it; no new module and no
+      duplicate authority.
+  - path: crates/sk-doctrine/tests/cf80_scalar_read_as_checked_exact_view.rs
+    action: manual_review
+    reason: >-
+      New named target: independently materialized guarded Source/Native children for the
+      Source-first coercion truth, plus one existing scalar consumer regression.
+  - path: docs/rust/occurrence-maps/cf80-scalar-read-as-checked-exact-view.yaml
+    action: manual_review
+    reason: This PRE-edit occurrence classification (docs/rust lane map convention).

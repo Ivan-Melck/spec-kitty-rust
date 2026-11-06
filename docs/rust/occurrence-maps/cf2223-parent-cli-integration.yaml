@@ -1,0 +1,61 @@
+# Parent PRE-EDIT map. Actual census .ncOQb7/.zz9QVk, source ops.py,
+# _command_surface_doctor.py and cli/json_contract.py reviewed before edits.
+# Producer CF23 post-edit classification is NOT retroactively approved.
+target:
+  term: "stale-Op sweep and tool diagnostic CLI integration"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Wire existing runners; remove compat non-record filename clone in favor of Invocation authority. Add envelope_with_exit constructor; retain result_envelope exit1 behavior for every old caller.
+  import_paths:
+    action: manual_review
+    notes: Declare actual ops_sweep adapter only. Reuse compiled tool_surfaces and domain owners, no dependency or duplicate policy.
+  filesystem_paths:
+    action: do_not_change
+    notes: Preserve actual store/manifest paths; new temporary fixtures only. No Source/packs/pins/goldens edits.
+  serialized_keys:
+    action: manual_review
+    notes: Source tool error envelope is ok=false/error.code/error.message with unchanged exits1/2, not error_code. Existing success payloads and refusal coverage for genuinely unsupported repairs remain unchanged.
+  cli_commands:
+    action: manual_review
+    notes: Same names/options, replace four obsolete unsupported arms with real dispatch; repair flags still refused, threshold usage before root resolution retained. Capability list reachability is not approval.
+  user_facing_strings:
+    action: manual_review
+    notes: Remove stale refusal claims only at live routes/tests, preserve historical maps/reports. Doctor now mutates for actual Op sweep, probes remain partial and named gaps stay explicit.
+  tests_fixtures:
+    action: manual_review
+    notes: Replace obsolete close-stale refusal with actual writer-created record/spine/retry test; retain decisions repair and threshold refusal/no-write checks. Swap still-refused skills test rows to shim-registry. New real binary cases prove routes/shape/errors/read-only and fix refusal; do not weaken health guards.
+  logs_telemetry:
+    action: do_not_change
+    notes: Keep all raw attempts including prior failures. No telemetry, global accounting, publication or performance promotion.
+exceptions:
+  - path: crates/sk-cli/src/compat/doctor.rs
+    action: manual_review
+    reason: Actual dispatch, lists, stale-doc removal and canonical filename alias; untouched remaining eight refusals.
+  - path: crates/sk-cli/src/compat/doctor/ops_sweep.rs
+    action: manual_review
+    reason: Correct obsolete unwired module documentation once compiled.
+  - path: crates/sk-cli/src/compat/doctor/tool_surfaces.rs
+    action: manual_review
+    reason: Use shared chosen-exit Source envelope for known not-in-project/unknown-kind/config/manifest failure surfaces and strengthen units.
+  - path: crates/sk-cli/src/compat/support.rs
+    action: manual_review
+    reason: Add chosen-exit full envelope without changing any existing caller's exit or payload.
+  - path: crates/sk-cli/src/compat/capabilities.rs
+    action: manual_review
+    reason: Correct actual doctor mutations, reachable eleven leaves and still missing probes/repair/wire; no formal coverage promotion.
+  - path: crates/sk-cli/tests/cf9_doctor_command.rs
+    action: manual_review
+    reason: Keep unimplemented repair checks but remove stale executable sweep refusal; replace now-implemented skills leaf with still-refused registry.
+  - path: crates/sk-cli/tests/cf14_doctor_record_diagnostics.rs
+    action: manual_review
+    reason: Replace obsolete sweep refusal with real writer record closure/spine/idempotent retry through binary; all read-only checks retained.
+  - path: crates/sk-cli/tests/cf23_tool_surface_diagnostics.rs
+    action: manual_review
+    reason: Only Source envelope assertions affected by chosen-exit helper; existing probes/footprints unchanged.
+  - path: crates/sk-cli/tests/cf2223_parent_doctor_routes.rs
+    action: manual_review
+    reason: New real binary route/config/error/not-in-project/repair refusal regressions.
+status:
+  accepted: false
+  phase: parent pre-edit integration only

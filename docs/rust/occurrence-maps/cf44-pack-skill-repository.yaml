@@ -1,0 +1,132 @@
+# CF44 — occurrence classification (PRE-EDIT; canonical pack-skill repository,
+# post-validation and admission unification)
+#
+# Lane: NEW `sk-doctrine/src/pack_skill_repository.rs` (the canonical tier/body/
+# limit/augmentation owner, Source `charter/offering/pack_skills/repository.py`
+# `_post_validate` + `_resolve_augmentations`), the Skill-specific arm in
+# `sk-doctrine/src/offering.rs`, and the `sk-install/src/skills/pack_skill.rs`
+# loader/typed-view adapter. CF43 owns the common offering provenance/merge/
+# include render path; CF45 Git, CF46 List, CF47 health are disjoint lanes.
+#
+# Written BEFORE any CF44 edit from the real pre-edit inventory recorded in
+# `/tmp/sk-cf44-ev-20261106/` (`preedit-occurrence-inventory.MwUNDK.log`: file
+# counts for PackSkill 13, PackSkillRepository 2, PackTier 20, SkillForm 2,
+# SkillExpansion 3, SkillParameter 3, SkillInvocation 6; 15 Rust files and 7
+# docs contain `PackSkill`/`pack_skill`). This is a NEW lane map: no invented
+# Mission/Op metadata, no `kitty-specs/` mission, no backdated approval.
+#
+# This lane is ADDITIVE at the identifier level (target.operation omitted, which
+# the schema allows): no artifact-kind token, selector grammar, serialized key,
+# CLI flag or Source message is renamed, removed or deprecated. The ownership
+# move is `PackSkill`/`PackSkillRepository`/nested skill types from the
+# installer-private parser to the canonical Doctrine owner; `sk-install`
+# re-exports the canonical names, so existing import paths keep compiling. One
+# genuine behaviour change: the offering service stops serving a skill record
+# that the Source `_post_validate`/augmentation phases would skip, and stops
+# serving an un-folded augmenter under its own id.
+#
+# KEEP list (must NOT change in this lane):
+#   * the YAML field vocabulary, grammar and limits of `*.skill.yaml`
+#     (`schema_version`, `id`, `title`, `description`, `triggers`, `form`,
+#     `body_path`, `expands_to`, `parameters`, `invocation`, `tools`, `version`,
+#     `maintainers`, `overrides`, `enhances`) and every rendered `SKILL.md`
+#     byte, including the `source_hash` payload;
+#   * `PackTier` tokens `built-in`/`org`/`project` and `PackSkill`/`SkillForm`/
+#     `SkillExpansion`/`SkillParameter`/`SkillInvocation` public names;
+#   * the installer's writer/compile/publication/preserve timing and staging
+#     roots (`.kittify/runtime/pack-skills/`, read-only out-of-project root);
+#   * `sk-charter`/`sk-cli`/`sk-kernel`/manifest/dependency surfaces, the
+#     common offering `LoadedItem`/provenance/merge data path (CF43), and every
+#     non-skill artifact kind's admission/dump;
+#   * Source authority: `src/**`, `packs/**`, `pins/**`, `goldens/**` untouched.
+target:
+  term: PackSkill
+categories:
+  code_symbols:
+    action: rename
+    notes: >-
+      The typed skill model (`PackSkill`, `SkillForm`, `SkillExpansion`,
+      `SkillParameter`, `SkillInvocation`) moves from
+      `sk_install::skills::pack_skill` to the canonical
+      `sk_doctrine::pack_skill_repository`, and `sk_install` re-exports the same
+      names. `PackSkillRepository` becomes the canonical layered loader; the
+      installer keeps a wrapper of the same name for its read/compile API.
+      `PackTier` is replaced by the existing canonical `sk_charter::PackTier`
+      (same variant and token names) and re-exported. No private parser is left
+      behind: `from_yaml`, `validate_pack_skill`, `read_body`,
+      `forbidden_frontmatter` and `apply_enhancement` delegate to / move into the
+      canonical owner.
+  import_paths:
+    action: rename
+    notes: >-
+      New `sk-doctrine` module path `sk_doctrine::pack_skill_repository` plus its
+      crate-root re-exports. `sk-install` keeps `skills::pack_skill` as the
+      compatibility path, now backed by `sk_doctrine` (an existing workspace
+      dependency), so no downstream import breaks and no new dependency edge is
+      added.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No pack, pin, bundle, seed, state or asset path moves. The new files are
+      this map plus `cf44_*` tests; the canonical module lives in the existing
+      `crates/sk-doctrine/src/` directory.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      Every `*.skill.yaml` key, nested parameter/invocation/expansion key and
+      every `SKILL.md` frontmatter key stays byte-identical. The model dump used
+      for overlay merging and include serving emits exactly the Source field
+      names; no key is added, renamed or dropped.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command, subcommand, flag, alias or exit code changes. `charter
+      activate skill`, `charter context --include skill:<id>` and the installer
+      routes keep their current names and registration (registration is
+      parent-owned).
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Source error/warning sentences are preserved where the canonical owner now
+      produces them (tier, namespace, reserved prefix, scripts/, body escape/
+      absence, frontmatter, limits, augmentation target/tier/allowlist,
+      sibling-org conflict). Wording is taken from the pinned Source functions,
+      not invented; the installer's `PackSkillCatalog` refusal prefixes stay.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      NEW `cf44_*` Doctrine tests (tier/namespace/body/symlink/limit/augmentation
+      matrix, offering-service Skill arm consumer, paired Source/Native child
+      test) and NEW `cf44_*` installer adapter tests if needed. Existing
+      `pack_skill_oracle.rs` fixture and recorded oracle are KEEP; its one
+      `PackSkill::from_yaml` call is adapted to the canonical checked-view
+      adapter, not deleted or weakened.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric, event or telemetry key is added or renamed. Loader
+      skip warnings keep their `Skipping invalid …` shape.
+exceptions:
+  - path: crates/sk-install/src/skills/pack_skill.rs
+    action: manual_review
+    reason: >-
+      Owned: remove the parallel parser/validator/augmentation loader and adapt
+      the existing typed compile view to canonical records. Writer, render,
+      hash, staging and preserve code are preserved unchanged.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: >-
+      Skill-specific post-validation arm only. The common `LoadedItem` /
+      provenance / merge / cache path belongs to CF43 and is not restructured.
+  - path: crates/sk-install/tests/pack_skill_oracle.rs
+    action: manual_review
+    reason: >-
+      KEEP the recorded Source fixture and its assertions; only the
+      `PackSkill::from_yaml` call site is adapted to the canonical checked view
+      so the hash payload continues to be computed from the same record.
+  - path: crates/sk-doctrine/src/offering/model.rs
+    action: manual_review
+    reason: >-
+      Existing admission owner. Only the minimal plain-value admission seam
+      needed by the canonical checked view is added next to the existing
+      `pack_skill` predicate; every other kind's admission is untouched.

@@ -13,9 +13,11 @@ serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true
 thiserror.workspace = true
+sk-charter = { path = "../sk-charter" }
 sk-git = { path = "../sk-git" }
 sk-kernel = { path = "../sk-kernel" }
 sk-mission = { path = "../sk-mission" }
+sk-status = { path = "../sk-status" }
 
 [dev-dependencies]
 tempfile.workspace = true

@@ -1,0 +1,46 @@
+target:
+  term: "Canonical per-layer charter availability and lenient org-floor composition"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Extend existing availability scan with layer annotations and keep availability_stems as adapter; list consumes owner instead of identity enumeration. Share org-root resolution with strict versus existing-only posture.
+  import_paths:
+    action: manual_review
+    notes: Precise same-item Doctrine exports only; existing ArtifactDocument IdentityLayer PackRoots and Kernel authorities. No new dependency or model parser.
+  filesystem_paths:
+    action: manual_review
+    notes: Preserve Source availability layouts including builtin-only step contracts and list-specific project kind paths. Lenient floors skip only missing packs through canonical root resolver; no global Roots weakening.
+  serialized_keys:
+    action: manual_review
+    notes: Preserve artifact_id layer declared_id keys; own-layer declared ids and activation filtering. No extra wire fields. Existing scalar list interface remains qualified for exact strings.
+  cli_commands:
+    action: do_not_change
+    notes: No flags dispatch registration doctor counts or other charter command policies change.
+  user_facing_strings:
+    action: manual_review
+    notes: Human labels use own-layer ids; correct impossible-surrogate-JSON rationale to acknowledged scalar interface defect. No Source exception authorized.
+  tests_fixtures:
+    action: manual_review
+    notes: New before-fix tests for duplicate layers own-id filtering missing-pack floor and builtin-only step availability plus Source sorted mission ids. Preserve existing assertions and genuine failures.
+  logs_telemetry:
+    action: do_not_change
+    notes: Retain producer compile fixture formatter and protocol failures; new probes not retroactive pairs or PRE-edit approval.
+exceptions:
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: Existing availability block only; same scan becomes annotated owner with old stems adapter, no active common graph or Skill changes.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Precise availability reexports only; no root formatter.
+  - path: crates/sk-doctrine/src/org_charter.rs
+    action: manual_review
+    reason: One resolver with strict and existing-only posture; strict public caller unchanged, lenient no longer loses readable sibling floors.
+  - path: crates/sk-cli/src/compat/charter/list_availability.rs
+    action: manual_review
+    reason: Consume canonical availability with Source first-root and later-org dedupe; layer-specific ids filtering and labels. Source sorted set-view for activation cells.
+  - path: crates/sk-cli/tests/cf46_parent_list_composition.rs
+    action: manual_review
+    reason: New focused public consumer tests before production correction.
+status:
+  accepted: false
+  phase: parent pre-edit canonical list composition

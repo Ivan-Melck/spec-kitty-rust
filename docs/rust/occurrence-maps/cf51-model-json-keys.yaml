@@ -1,0 +1,151 @@
+# CF51 occurrence classification — canonical model-JSON key projection.
+#
+# PROTOCOL SLIP, DISCLOSED (not backdated): this map was written AFTER the first
+# code edit of the lane, so it is a POST-EDIT classification and must not be
+# presented as the pre-edit review the standing orders require. The pre-edit
+# inventory it is derived from is `/tmp/sk-cf51-ev-20261106/command-log-index.tsv`
+# plus the reads of crates/sk-kernel/src/{model_json.rs,lib.rs} and
+# crates/sk-doctrine/src/{body.rs,body/exact.rs,profile.rs,context_include.rs}
+# recorded there before the edits. No host Mission/Op/approval is invented.
+target:
+  term: "the finite 'non-string mapping key' payload refusal plus the Option-only exact payload/projection entry points"
+  replacement: "the canonical Kernel model-JSON mapping-key projection (pydantic `model_dump(mode=\"json\")` key semantics) and the typed PayloadFailure/PayloadError causes carried through the Doctrine include"
+  # No `operation:` key: the lane is ADDITIVE (a new Kernel module, a new typed
+  # cause pair, new typed entry points). The allowed operations are
+  # rename/remove/deprecate; none applies. Three existing API shapes gain a field
+  # or a result type; they are listed as exceptions, not as renames.
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      No existing symbol is renamed, removed or deprecated. ADDED:
+      `sk_kernel::model_json::{model_json_mapping_key,
+      model_json_mapping_key_value, model_json_bytes_error_text,
+      ModelJsonKeyError}`; `sk_doctrine::body::exact::{PayloadFailure,
+      PayloadError, exact_payload, exact_payload_value}` (re-exported at the
+      crate root). CHANGED RESULT TYPES (same names): `exact_json_value` and
+      `ProfileBody::model_json_exact` now return
+      `Result<PythonJsonValue, PayloadFailure|PayloadError>` instead of
+      `Option<PythonJsonValue>`; `IncludeError::Payload` gains a `cause:
+      PayloadFailure` field. The `Option`-returning
+      `canonical_artifact_body_exact{,_path,_value}` family keeps its signature
+      and becomes the documented compatibility view over `exact_payload*`.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No manifest, dependency edge, pin or module path change. The new Kernel
+      module is declared as `pub mod model_json;` in
+      `crates/sk-kernel/src/lib.rs`; the Doctrine items are re-exported in the
+      existing `body.rs` / `lib.rs` blocks beside the CF38/CF43 entries.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No authored YAML, pack, pin, golden or Source path is touched. Test
+      fixtures are fresh temporary directories under `target/`.
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      THIS IS THE LOAD-BEARING CHANGE. Mapping keys inside an unstructured
+      (`dict[str, Any]`) member are no longer refused: they take Pydantic's JSON
+      key text (`1`->`"1"`, `True`->`"true"`, `False`->`"false"`, `None`->
+      `"None"`, a finite float->`str(float)`, a non-finite float->`"None"`,
+      `bytes`->its UTF-8 decode, `date`/`datetime`->model-JSON ISO form, a
+      tuple->members joined with `,`), with a first-position/last-value
+      collision rule. `null` VALUES are still dropped while a `None` KEY keeps
+      its `"None"` spelling. Typed mapping roots (`dict[str, str]` `tooling`,
+      `dict[str, Any]` `structural_lint_config`) keep their own admission: a
+      non-text key there is still refused (`TypedKeyNotText`), which is the
+      reference's `ValidationError` phase, not the key codec. The CLI `--include
+      --json` envelope key set is untouched. The DecisionIndex `summary_json`
+      exception is not used or extended.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command, subcommand, flag or alias is added, renamed or removed. The
+      include refusal message text improves because it now names the cause; the
+      envelope/exit codes are the CLI lane's (CF52) and unchanged here.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      One message changed: `IncludeError::Payload` now names the real cause
+      (`'utf-8' codec can't decode byte 0x.. in position N: invalid utf-8`,
+      `... can't encode character '\\ud800' ...: surrogates not allowed`,
+      `unhashable type: '<type>'`, or a typed-admission phase). No heading,
+      indentation or payload text of a renderable artifact changes; the paired
+      test asserts whole-text equality with the Source child.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      ADDED only: crates/sk-doctrine/tests/cf51_model_json_keys.rs (paired
+      Source/Native children asserting CWD/HOME, all seven XDG roots including
+      XDG_CONFIG_DIRS/XDG_DATA_DIRS, TMPDIR/TMP/TEMP, absolute PYTHONPATH,
+      pinned packs root and PYTHONHASHSEED=0) and the in-module unit tests in
+      crates/sk-kernel/src/model_json.rs. KEEP with no edit:
+      cf38_exact_artifact_payload.rs, cf43_exact_include_delivery.rs,
+      cf26*/cf30*/cf31*/cf32*/cf42* include suites and the existing in-crate
+      body/context_render tests.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No event, metric or telemetry identity changes; no readiness, approval,
+      acceptance or performance status is written by this lane.
+exceptions:
+  - path: crates/sk-kernel/src/model_json.rs
+    action: manual_review
+    reason: >-
+      NEW module: the one model-JSON mapping-key codec (graph and constructed
+      tree carriers, one shared shape enum) plus the reference's bytes-decode
+      presentation. Reuses the existing Kernel authorities
+      (`python_utf8::{decode_utf8, encode_python_string}`,
+      `python_json::python_float_repr`, `clock::model_json_datetime_text`,
+      `python_yaml::Object`/`NodeRef`); no parser, key table, float or datetime
+      formatter of its own.
+  - path: crates/sk-kernel/src/lib.rs
+    action: manual_review
+    reason: >-
+      One module declaration (`pub mod model_json;`) in the existing
+      alphabetical list; no re-export or map rewrite.
+  - path: crates/sk-doctrine/src/body/exact.rs
+    action: manual_review
+    reason: >-
+      Projection/error phase only: the mapping arms call the Kernel key codec
+      instead of `as_str()`, `!!binary` decode failures become typed causes, the
+      `Spec::OptAny` arm keeps the typed mapping root admission and projects only
+      its values, and the typed `PayloadFailure`/`PayloadError` pair is added.
+      No schema, field, default, coercion table or second walker is added.
+  - path: crates/sk-doctrine/src/body.rs
+    action: manual_review
+    reason: >-
+      Same-item re-export list of the new typed entry points and cause pair; the
+      `Field`/`Spec` table is untouched.
+  - path: crates/sk-doctrine/src/profile.rs
+    action: manual_review
+    reason: >-
+      One narrow accessor result type (`model_json_exact`) so the caller can
+      distinguish a Native no-graph boundary from the reference's real payload
+      failure. No schema, parser, default, lineage or merge change.
+  - path: crates/sk-doctrine/src/context_include.rs
+    action: manual_review
+    reason: >-
+      Payload-vs-Pending composition only: the document arm uses `exact_payload`
+      and the profile arm matches `model_json_exact`'s typed result, so a
+      capability gap stays `PendingProjection` and a real dump refusal becomes
+      `Payload { cause }`. Selector grammar, deny annotation, identity lookup,
+      heading/inline/payload rendering and the ambiguity phases are unchanged.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: >-
+      Same-item re-exports of the typed entry points and cause pair beside the
+      existing CF38 exports.
+  - path: crates/sk-doctrine/tests/cf51_model_json_keys.rs
+    action: manual_review
+    reason: >-
+      NEW test file only; no existing test is edited, weakened or removed.
+  - path: docs/rust/occurrence-maps/cf51-model-json-keys.yaml
+    action: manual_review
+    reason: >-
+      NEW lane classification artifact (this file), POST-EDIT as disclosed; the
+      prior invalid L7 map is neither copied nor revalidated.
+status:
+  reviewed_by: "lane classification; not independent approval"
+  accepted: false

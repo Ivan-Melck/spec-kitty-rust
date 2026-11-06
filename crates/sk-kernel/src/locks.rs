@@ -527,6 +527,27 @@ impl FileLock {
     pub fn holder(&self) -> &LockHolder {
         &self.holding.holder
     }
+
+    /// Set permissions on the HELD lock inode, never by reopening its path.
+    ///
+    /// A persistent owner-lock family may require an explicit mode. The path
+    /// can have been replaced since acquisition; that foreign node is not ours.
+    pub fn set_permissions(&self, permissions: std::fs::Permissions) -> Result<(), KernelError> {
+        if self.holding.holder.pid != std::process::id() {
+            return Err(KernelError::io(
+                "set lock permissions",
+                &self.path,
+                io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "lock belongs to another process",
+                ),
+            ));
+        }
+        self.holding
+            .file
+            .set_permissions(permissions)
+            .map_err(|source| KernelError::io("set lock permissions", &self.path, source))
+    }
 }
 
 impl Drop for FileLock {

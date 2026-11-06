@@ -71,11 +71,14 @@ pub mod migrations;
 pub mod pack;
 pub mod pin;
 pub mod plan;
+pub mod preserve;
 pub mod profiles;
+pub mod registry_diagnostics;
 pub mod render;
 pub mod session;
 pub mod skills;
 pub mod template_tree;
+pub mod tool_surface_diagnostics;
 pub mod upgrade;
 pub mod uuid_support;
 pub mod version;
@@ -135,6 +138,7 @@ pub use plan::{
     ApplicationReport, InstallPlan, Observed, PlanOptions, PlanSummary, PlannedAction,
     PlannedAsset, now_utc_iso, observe,
 };
+pub use preserve::{BACKUP_DIR_PREFIX, OwnershipProof, Prover, VERSION_MARKER, archive_into};
 pub use profiles::{
     AgentProfile, PROFILES_MANIFEST_REL, PROJECTION_VERSION, ProfileCatalog, ProfileFormat,
     ProfileManifest, ProfileManifestEntry, ProfileProjectionReport, project_agent_profiles,
@@ -149,6 +153,7 @@ pub use session::{
     SECTION_CLOSE, SECTION_OPEN, SESSION_START_CMD, SESSION_STOP_CMD, SessionPresenceReport,
     apply_healthy_orientation, apply_session_presence,
 };
+pub use sk_kernel::COMPAT_CORE_VERSION;
 pub use skills::{
     CanonicalSkill, ManagedFileEntry, ManagedSkillManifest, SKILLS_MANIFEST_REL, SkillCatalog,
     SkillInstallOptions, SkillInstallReport, SurfaceRepairSummary, install_skills_for_agent,
@@ -161,10 +166,11 @@ pub use template_tree::{
     install_template_tree,
 };
 pub use upgrade::{
-    AgentCheckInput, AgentCheckPayload, AgentUpgradeChoice, MigrationOutcome, MigrationPlanRow,
-    MigrationResultRow, NATIVE_MIGRATIONS, NativeMigration, PlannedOutcome, UpgradePlan,
-    UpgradeReport, UpgradeRequest, enforce_requires_core, plan_agent_check, plan_upgrade,
-    run_upgrade,
+    AgentCheckInput, AgentCheckPayload, AgentUpgradeChoice, MigrationOutcome,
+    MigrationPartialWrite, MigrationPlanRow, MigrationResultRow, NATIVE_MIGRATIONS,
+    NativeMigration, PlannedOutcome, UpgradePlan, UpgradeReport, UpgradeRequest,
+    enforce_requires_core, native_migration_detect, native_migrations, plan_agent_check,
+    plan_upgrade, run_upgrade, select_candidates,
 };
 pub use uuid_support::Uuid;
 pub use version::{SpecifierSet, Version, check_requires_core, parse_requires_core};

@@ -266,6 +266,7 @@ pub fn apply(project_root: &Path) -> Result<MigrationOutcome, InstallError> {
         changed: true,
         changes,
         warnings: Vec::new(),
+        ..crate::upgrade::MigrationOutcome::default()
     })
 }
 

@@ -1,0 +1,52 @@
+target:
+  term: Source selection fallback overlays coercing single org walk and lazy requested body properties
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Default config after read/schema failure still overlays org/deny; reuse one canonical coercing org-selection reader; strict required-token validation only for actually denied kinds; requested body fields only; per-kind repo and provenance phase order.
+  import_paths:
+    action: manual_review
+    notes: Same canonical org reader/body schema walker/inline field descriptors, no cloned collectors/parsers/models.
+  filesystem_paths:
+    action: manual_review
+    notes: Single Source org walk across kinds rather than per-kind rescans; no placement/writer/pin changes.
+  serialized_keys:
+    action: do_not_change
+    notes: Selection/config/model wire keys unchanged.
+  cli_commands:
+    action: do_not_change
+    notes: Existing prepared bootstrap/global block route only.
+  user_facing_strings:
+    action: manual_review
+    notes: Actual Source selections after malformed config and unrequested Any body failures not healthy omitted/refused.
+  tests_fixtures:
+    action: manual_review
+    notes: New Source-first existing-API malformed/schema/coercion/styleguide controls; source-only traces not invented Native phase reds.
+  logs_telemetry:
+    action: manual_review
+    notes: Preserve failed grep/SIGPIPE attempt and producer scope/proof gaps; no root or complete parity claim.
+exceptions:
+  - path: crates/sk-doctrine/src/project_governance.rs
+    action: manual_review
+    reason: No premature return before Source required/deny overlay; canonical coercing reader.
+  - path: crates/sk-doctrine/src/org_charter.rs
+    action: manual_review
+    reason: One raw walk then kind iteration for existing exact selection overlay function.
+  - path: crates/sk-doctrine/src/selection_block.rs
+    action: manual_review
+    reason: Canonical required selections, per-kind provenance phase, body properties not full unrelated dump; propagate actual model failures.
+  - path: crates/sk-doctrine/src/body/exact.rs
+    action: manual_review
+    reason: Reuse same schema/dump walker for selected field projection without unrelated Any; no second model.
+  - path: crates/sk-doctrine/src/context_render.rs
+    action: manual_review
+    reason: Inline body field request projection derives existing formatter descriptors.
+  - path: crates/sk-doctrine/tests/cf75_parent_overlay_and_properties.rs
+    action: manual_review
+    reason: Source-derived current public API negatives and focused controls.
+  - path: crates/sk-doctrine/src/body.rs
+    action: manual_review
+    reason: Same-item crate re-export of canonical selected-field projection, not exposing or cloning a new schema.
+status:
+  accepted: false
+  phase: prospective parent corrections

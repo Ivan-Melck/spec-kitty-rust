@@ -1,0 +1,34 @@
+target:
+  term: CF84 qualified independent same-instance Source Native service recovery control
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Existing raw Source CharterOfferingService and unfiltered Native CanonicalOfferingService, no product/API rewrite or new business-red claim.
+  import_paths:
+    action: manual_review
+    notes: Existing oracle verifier and canonical offering/context/roots/PythonString only.
+  filesystem_paths:
+    action: manual_review
+    notes: Two independent fresh business/CWD/HOME/all-seven-XDG/TMPDIR/TMP/TEMP trees; same-instance mutations local to each child.
+  serialized_keys:
+    action: manual_review
+    notes: Bounded exact class and membership/recovery/warm/new-instance receipt, no whole-record or wire equivalence claim.
+  cli_commands:
+    action: do_not_change
+    notes: No root flags/command or accounting changes.
+  user_facing_strings:
+    action: do_not_change
+    notes: Uncaught ValueError preserved, skip-warning output intentionally outside this bounded comparison.
+  tests_fixtures:
+    action: manual_review
+    notes: Actual child pre-read environment/root/origin/codec assertions, repair plus birth then warm cache/new service boundary.
+  logs_telemetry:
+    action: manual_review
+    notes: Producer Source-only and Native in-process controls are not paired execution proof; new prospective pair does not backdate them.
+exceptions:
+  - path: crates/sk-doctrine/tests/cf84_parent_recovery_pair.rs
+    action: manual_review
+    reason: One actual independent Source Native raw-service recovery plan, no aggregate or additional per-step feature count.
+status:
+  accepted: false
+  phase: prospective parent bounded recovery execution control

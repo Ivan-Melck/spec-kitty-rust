@@ -1,0 +1,72 @@
+# Pre-edit canonical relocation, not a wire/key/CLI rename.
+# Bulk move of the EXISTING legacy JSON reader (Reader + LegacyValue + LegacyObject)
+# from Invocation into the Kernel canonical codec. No active Mission exists; no
+# Mission metadata or runtime gate pass is fabricated. No term is renamed on the
+# wire, in a serialized key, in a CLI surface or in operator-facing text.
+target:
+  term: crates/sk-invocation/src/legacy_json.rs
+  replacement: crates/sk-kernel/src/python_json/reader.rs
+  operation: rename
+categories:
+  # The private reader types move to Kernel and are re-exported under the old
+  # Invocation names as type aliases (LegacyValue/LegacyObject), so no host
+  # symbol is deleted and no second parser/model is created.
+  code_symbols: {action: manual_review}
+  # `crate::python_json::python_float_repr` and `crate::legacy_json::*` import
+  # paths are edited only inside the two owned JSON modules.
+  import_paths: {action: manual_review}
+  # Two owned files move/receive code; no other file's path changes.
+  filesystem_paths: {action: manual_review}
+  serialized_keys: {action: do_not_change}
+  cli_commands: {action: do_not_change}
+  # Error text is Source-derived and is NOT renamed; it is made byte-exact.
+  user_facing_strings: {action: do_not_change}
+  tests_fixtures: {action: manual_review}
+  logs_telemetry: {action: do_not_change}
+moves:
+  - from: [crates/sk-invocation/src/legacy_json.rs]
+    to: crates/sk-kernel/src/python_json/reader.rs
+    reason: Move the existing strict reader (grammar, duplicate-key/order rules, integer limit, recursion guard) below Invocation so Kernel owns the one JSON read authority; retain the Invocation file as the legacy Op adapter, not a second implementation.
+  - from: [crates/sk-invocation/src/legacy_json.rs]
+    to: crates/sk-kernel/src/python_json/value.rs
+    reason: Receive the value tree (LegacyValue -> PythonJsonValue, LegacyObject -> exact-code-point dict) and its Python truthiness/repr walks, so the reader and writer share one model.
+exceptions:
+  - path: crates/sk-kernel/src/python_json.rs
+    action: manual_review
+    reason: Declare the reader/value submodules, add the exact-code-point document renderer and the full-code-point (PythonString) text phase; keep the existing scalar builder/encoder/test bytes.
+  - path: crates/sk-kernel/src/python_json/reader.rs
+    action: manual_review
+    reason: New file carrying the moved reader with Source-exact errors/positions and any-root-value support; the grammar/semantics are the existing ones, not a second engine.
+  - path: crates/sk-kernel/src/python_json/value.rs
+    action: manual_review
+    reason: New file carrying the moved value model walkers (is_falsy, python_str, repr) over the canonical tree.
+  - path: crates/sk-invocation/src/legacy_json.rs
+    action: manual_review
+    reason: Keep the legacy Op facade names (parse_object Option/object-only, PythonText, python_str, is_falsy) as thin adapters over Kernel types; no parser body remains.
+  - path: crates/sk-invocation/src/python_json.rs
+    action: manual_review
+    reason: Keep exact re-export aliases; add the new read/render capability names as aliases so consumers see one authority and same-build nominal identity.
+  - path: crates/sk-invocation/src/op_commit.rs
+    action: do_not_change
+    reason: Uses LegacyObject/PythonText/is_falsy through the retained aliases; no edit needed if the aliases are exact.
+  - path: crates/sk-invocation/src/executor.rs
+    action: do_not_change
+    reason: Existing PythonJsonValue export continues through the facade with the same type identity.
+  - path: crates/sk-kernel/src/lib.rs
+    action: do_not_change
+    reason: `pub mod python_json;` already exports the subtree; no new top-level export is required for the codec.
+  - path: crates/sk-invocation/src/lib.rs
+    action: do_not_change
+    reason: `mod legacy_json;` and the existing re-exports stay unchanged; the moved symbols remain reachable under the same names.
+  - path: crates/sk-kernel/tests/python_json_source.rs
+    action: manual_review
+    reason: New Source-first exhaustive codec binding (values, object keys, errors/positions, writer modes); expectations come from the pinned oracle, not Native output.
+  - path: crates/sk-invocation/tests/legacy_json_source.rs
+    action: manual_review
+    reason: New Source-first legacy Op adapter binding proving the moved reader keeps the existing claim/grammar semantics.
+  - path: crates/sk-kernel/tests/python_json_countercases.rs
+    action: manual_review
+    reason: Source-valid event-log/manifest shaped counter-cases against the read-only consumer class (H4/A5 own the production edits).
+  - path: docs/rust/occurrence-maps/python-json-codec.yaml
+    action: manual_review
+    reason: This pre-edit map.

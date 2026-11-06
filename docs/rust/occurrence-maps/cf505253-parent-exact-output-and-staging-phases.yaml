@@ -1,0 +1,64 @@
+target:
+  term: "Canonical exact bootstrap text stdout and Source staging encode phases"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: One exact bootstrap row/render authority, finite legacy render as checked adapter, existing Kernel PythonString and stdout/writer/encoder authorities; no duplicate formatter codec writer schema or hash.
+  import_paths:
+    action: manual_review
+    notes: Existing python_output seam and Kernel encoder; no dependencies or global dispatcher policy changes.
+  filesystem_paths:
+    action: manual_review
+    notes: Actual Source catalog encodes before atomic write and readonly hash; retain no staging footprint on encode failure, do NOT invent TextTruncate from generic Path.write_text probe. Cache hash algorithm/root lifecycle still qualified.
+  serialized_keys:
+    action: manual_review
+    notes: Preserve surrogate-bearing text/context and title/summary associations; same ordered JSON envelope, no extra keys or tag text.
+  cli_commands:
+    action: manual_review
+    notes: Non-include action uses shared physical stdout, retains real Source bootstrap header, persists first-load before output; no new flags routes counts or registration.
+  user_facing_strings:
+    action: manual_review
+    notes: Remove Native-only omission policy, actual output errors propagated, existing diagnostic/warning gaps not approved.
+  tests_fixtures:
+    action: manual_review
+    notes: Genuine before-fix exact-row/stdout/state/readonly staging controls; replace producer omission assertion with Source-value preservation, strengthen actual child Source seed and Native absolute Source/packs assertions prospectively; generic Path.write_text is not Source catalog proof.
+  logs_telemetry:
+    action: do_not_change
+    notes: Preserve failed compiler harness premise and foreign attempts, broad library/alltarget slips and CF53 post-edit map as disclosed, not retrospective pre-edit approval.
+exceptions:
+  - path: crates/sk-doctrine/src/context_render.rs
+    action: manual_review
+    reason: General action renderer rows only, exact include formatting unchanged.
+  - path: crates/sk-doctrine/src/context.rs
+    action: manual_review
+    reason: Shared exact entry text presence helper replaces scalar dropping policy; no model/graph/schema/parser clone.
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: Non-include context text carrier output and state timing only.
+  - path: crates/sk-cli/src/compat/python_output.rs
+    action: manual_review
+    reason: Prospective Source-verified utf-16le/be and utf-32le/be alias spellings in the existing sole stdout codec resolver only.
+  - path: crates/sk-install/src/skills/pack_skill.rs
+    action: manual_review
+    reason: Exact encoder BEFORE guard/hash/staging per actual Source, same existing writer transaction.
+  - path: crates/sk-doctrine/tests/cf50_exact_action_delivery.rs
+    action: manual_review
+    reason: Actual Native child exact render text and Source-matching row assertion, preserve Source data and all body assertions.
+  - path: crates/sk-cli/tests/cf50_action_context_cli.rs
+    action: manual_review
+    reason: Prospective correction of the high-surrogate text test to actual Source encode failure plus prior state publication, not summary omission; retain authored bytes.
+  - path: crates/sk-install/tests/cf53_pack_skill_preparation.rs
+    action: manual_review
+    reason: Prospectively strengthen actual child isolation claims, generic encode probe remains limited, no retroactive proof.
+  - path: crates/sk-cli/tests/cf8_charter_command.rs
+    action: manual_review
+    reason: Explicit checked scalar view for existing finite text assertions after exact carrier migration.
+  - path: crates/sk-cli/tests/cf505253_parent_delivery.rs
+    action: manual_review
+    reason: New meaningful exact-render/output/state before-fix tests.
+  - path: crates/sk-install/tests/cf53_parent_staging_phases.rs
+    action: manual_review
+    reason: New real readonly staging before-fix footprint control and Source-valid encoder ordering.
+status:
+  accepted: false
+  phase: parent prospective exact output and actual catalog staging correction

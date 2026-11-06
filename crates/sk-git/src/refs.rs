@@ -51,6 +51,43 @@ impl RefState {
     }
 }
 
+/// One ref enumerated under a namespace prefix by a single `for-each-ref` read.
+///
+/// This is the general ref enumeration the crate previously lacked; it reuses
+/// the same `for-each-ref` + [`Oid`] + [`RefName`] authorities as
+/// [`GitRepository::read_ref`], so callers (for example a remote-tracking
+/// roster) never build their own ref-listing argv or parse a second ref model.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RefListingEntry {
+    reference: RefName,
+    oid: Option<Oid>,
+    symbolic_target: Option<RefName>,
+}
+
+impl RefListingEntry {
+    /// The fully-qualified ref name.
+    pub fn reference(&self) -> &RefName {
+        &self.reference
+    }
+
+    /// The object id `for-each-ref` reported, or `None` when Git printed none
+    /// (for example a broken loose ref).
+    pub fn oid(&self) -> Option<&Oid> {
+        self.oid.as_ref()
+    }
+
+    /// The symbolic target when this ref is symbolic (`refs/remotes/origin/HEAD`
+    /// → `refs/remotes/origin/main`); `None` for an ordinary ref.
+    pub fn symbolic_target(&self) -> Option<&RefName> {
+        self.symbolic_target.as_ref()
+    }
+
+    /// Whether this ref is symbolic.
+    pub fn is_symbolic(&self) -> bool {
+        self.symbolic_target.is_some()
+    }
+}
+
 /// One compare-and-swap ref operation.
 ///
 /// Construct with [`RefChange::set`] or [`RefChange::delete`]; the fields are
@@ -157,9 +194,14 @@ impl RefTransactionPlan {
 /// not valid UTF-8 uses this private form so the reflog keeps the exact bytes the
 /// reference records. Both forms share the same validation, pre-state readback,
 /// CAS write, and post-write readback below — there is no second writer.
+///
+/// `message` is `None` for Source's landing form: `git update-ref` invoked with
+/// NO `-m`, which git records as an EMPTY reflog subject. An empty string is not
+/// the same request — git refuses `-m ""` outright ("Refusing to perform update
+/// with empty message") — so absence is carried as absence, never faked.
 #[derive(Debug, Clone)]
 pub(crate) struct RawRefTransactionPlan {
-    message: Vec<u8>,
+    message: Option<Vec<u8>>,
     changes: Vec<RefChange>,
     observed: Vec<RefState>,
 }
@@ -186,6 +228,35 @@ impl RefTransactionOutcome {
     /// The values that hold after the transaction.
     pub fn applied(&self) -> &[RefState] {
         &self.applied
+    }
+}
+
+/// A prepared ref transaction that carries NO reflog message.
+///
+/// This is Source's branch-advance form: `git update-ref <ref> <new> <old>`
+/// with no `-m`, which git records with an empty reflog subject. It is a
+/// SEPARATE plan from the strict [`RefTransactionPlan`] on purpose: the strict
+/// contract (a non-empty, NUL-free message) still applies to every caller that
+/// records one, while this one states the absence explicitly instead of
+/// inventing an empty string — which git itself refuses.
+///
+/// Both plans run through the same single CAS executor; there is no second
+/// writer, no private git invocation and no ref rewind here.
+#[derive(Debug, Clone)]
+pub struct SilentRefTransaction {
+    changes: Vec<RefChange>,
+    observed: Vec<RefState>,
+}
+
+impl SilentRefTransaction {
+    /// The operations in execution order.
+    pub fn changes(&self) -> &[RefChange] {
+        &self.changes
+    }
+
+    /// The ref values observed when the plan was prepared.
+    pub fn observed(&self) -> &[RefState] {
+        &self.observed
     }
 }
 
@@ -269,6 +340,65 @@ impl GitRepository {
             self.process()
                 .run(&["rev-parse", "--verify", "--quiet", reference.as_str()])?;
         Ok(output.status.success())
+    }
+
+    /// Enumerate every ref under a namespace prefix in one `for-each-ref` read.
+    ///
+    /// *prefix* is a ref namespace such as `refs/remotes/`; it must start with
+    /// `refs/` and contain no control byte. Git itself decides which refs match
+    /// (a symbolic ref whose target is missing is not listed by Git, exactly as
+    /// a `for-each-ref` run by the reference is not), so this is Source-shaped
+    /// enumeration rather than a private ref model. Each entry carries the
+    /// exact [`RefName`], the object id Git printed (when any) and the symbolic
+    /// target (when the ref is symbolic).
+    ///
+    /// # Errors
+    ///
+    /// A failed `for-each-ref`, a non-UTF-8 ref field, or a field that is not a
+    /// structurally valid ref/object id is a typed error; an empty result means
+    /// Git succeeded and listed no refs under the prefix.
+    pub fn refs_under(&self, prefix: &str) -> Result<Vec<RefListingEntry>, GitError> {
+        validate_ref_prefix(prefix)?;
+        let output = self.process().checked(&[
+            "for-each-ref",
+            "--format=%(refname)%00%(objectname)%00%(symref)",
+            prefix,
+        ])?;
+        let mut entries = Vec::new();
+        for line in output.stdout.split(|byte| *byte == b'\n') {
+            if line.is_empty() {
+                continue;
+            }
+            let mut fields = line.split(|byte| *byte == 0);
+            let reference = fields.next().unwrap_or_default();
+            let objectname = fields.next().ok_or_else(|| GitError::InvalidOutput {
+                detail: format!(
+                    "malformed for-each-ref record {:?}: expected a ref name and object id",
+                    String::from_utf8_lossy(line)
+                ),
+            })?;
+            let symref = fields.next().ok_or_else(|| GitError::InvalidOutput {
+                detail: format!(
+                    "malformed for-each-ref record {:?}: expected a symbolic target field",
+                    String::from_utf8_lossy(line)
+                ),
+            })?;
+            if fields.next().is_some() {
+                return Err(GitError::InvalidOutput {
+                    detail: format!(
+                        "malformed for-each-ref record {:?}: unexpected extra field",
+                        String::from_utf8_lossy(line)
+                    ),
+                });
+            }
+            let name = crate::path::utf8_field(reference, "ref listing name")?;
+            entries.push(RefListingEntry {
+                reference: RefName::parse(&name)?,
+                oid: optional_oid(objectname)?,
+                symbolic_target: optional_ref(symref)?,
+            });
+        }
+        Ok(entries)
     }
 
     /// Read a local branch's tip, or `None` when the branch does not exist.
@@ -359,8 +489,11 @@ impl GitRepository {
         message: &str,
         changes: Vec<RefChange>,
     ) -> Result<RefTransactionPlan, GitError> {
-        let core =
-            self.plan_ref_transaction_message(message.as_bytes(), changes, Some(MAX_MESSAGE_LEN))?;
+        let core = self.plan_ref_transaction_message(
+            Some(message.as_bytes()),
+            changes,
+            Some(MAX_MESSAGE_LEN),
+        )?;
         Ok(RefTransactionPlan {
             message: message.to_string(),
             core,
@@ -379,16 +512,34 @@ impl GitRepository {
         message: &[u8],
         changes: Vec<RefChange>,
     ) -> Result<RawRefTransactionPlan, GitError> {
-        self.plan_ref_transaction_message(message, changes, None)
+        self.plan_ref_transaction_message(Some(message), changes, None)
+    }
+
+    /// Prepare a ref transaction whose reflog entry carries NO message.
+    ///
+    /// Same validation of the operations and the same compare-and-swap
+    /// pre-state readback as [`GitRepository::plan_ref_transaction`]; only the
+    /// reflog message is absent. Nothing is written.
+    pub fn plan_silent_ref_transaction(
+        &self,
+        changes: Vec<RefChange>,
+    ) -> Result<SilentRefTransaction, GitError> {
+        let core = self.plan_ref_transaction_message(None, changes, None)?;
+        Ok(SilentRefTransaction {
+            changes: core.changes,
+            observed: core.observed,
+        })
     }
 
     fn plan_ref_transaction_message(
         &self,
-        message: &[u8],
+        message: Option<&[u8]>,
         changes: Vec<RefChange>,
         max_message_length: Option<usize>,
     ) -> Result<RawRefTransactionPlan, GitError> {
-        validate_message_bytes(message, max_message_length)?;
+        if let Some(message) = message {
+            validate_message_bytes(message, max_message_length)?;
+        }
         if changes.is_empty() {
             return Err(GitError::InvalidPlan {
                 detail: "a ref transaction must contain at least one change".to_string(),
@@ -435,7 +586,7 @@ impl GitRepository {
         }
 
         Ok(RawRefTransactionPlan {
-            message: message.to_vec(),
+            message: message.map(<[u8]>::to_vec),
             changes,
             observed,
         })
@@ -470,6 +621,24 @@ impl GitRepository {
         plan: &RawRefTransactionPlan,
     ) -> Result<(), GitError> {
         self.apply_ref_transaction_message(plan).map(|_| ())
+    }
+
+    /// Execute a prepared message-less ref transaction.
+    ///
+    /// Same re-read, CAS write and post-write readback as
+    /// [`GitRepository::apply_ref_transaction`], with `git update-ref` run
+    /// WITHOUT `-m` — Source's landing form. Returns the applied values (there
+    /// is no recorded message to report).
+    pub fn apply_silent_ref_transaction(
+        &self,
+        plan: &SilentRefTransaction,
+    ) -> Result<Vec<RefState>, GitError> {
+        let core = RawRefTransactionPlan {
+            message: None,
+            changes: plan.changes.clone(),
+            observed: plan.observed.clone(),
+        };
+        self.apply_ref_transaction_message(&core)
     }
 
     fn apply_ref_transaction_message(
@@ -510,16 +679,19 @@ impl GitRepository {
             }
         }
 
-        let message = reflog_os_string(&plan.message)?;
-        self.process().checked_with_stdin(
-            &[
-                std::ffi::OsStr::new("update-ref"),
-                std::ffi::OsStr::new("-m"),
-                message.as_os_str(),
-                std::ffi::OsStr::new("--stdin"),
-            ],
-            stdin.as_bytes(),
-        )?;
+        // One executor, two reflog forms: a recorded message (`-m <bytes>`) or
+        // NO message at all. `-m ""` is not the message-less form — git refuses
+        // it — so the absent case must omit the option, never pass an empty one.
+        let mut args: Vec<OsString> = vec![OsString::from("update-ref")];
+        let message = plan.message.as_deref().map(reflog_os_string).transpose()?;
+        if let Some(message) = message {
+            args.push(OsString::from("-m"));
+            args.push(message);
+        }
+        args.push(OsString::from("--stdin"));
+        let borrowed: Vec<&std::ffi::OsStr> = args.iter().map(OsString::as_os_str).collect();
+        self.process()
+            .checked_with_stdin(&borrowed, stdin.as_bytes())?;
 
         let mut applied = Vec::with_capacity(plan.changes.len());
         for change in &plan.changes {
@@ -530,6 +702,38 @@ impl GitRepository {
         }
         Ok(applied)
     }
+}
+
+fn validate_ref_prefix(prefix: &str) -> Result<(), GitError> {
+    if !prefix.starts_with("refs/") {
+        return Err(GitError::InvalidPlan {
+            detail: format!("a ref namespace prefix must start with `refs/`, got {prefix:?}"),
+        });
+    }
+    if prefix.bytes().any(|byte| byte < 0x20 || byte == 0x7f) {
+        return Err(GitError::InvalidPlan {
+            detail: "a ref namespace prefix must not contain a control byte".to_string(),
+        });
+    }
+    Ok(())
+}
+
+/// Parse an optionally-empty `%(objectname)` field.
+fn optional_oid(raw: &[u8]) -> Result<Option<Oid>, GitError> {
+    if raw.is_empty() {
+        return Ok(None);
+    }
+    let text = crate::path::utf8_field(raw, "ref object id")?;
+    Ok(Some(Oid::parse(&text)?))
+}
+
+/// Parse an optionally-empty `%(symref)` field.
+fn optional_ref(raw: &[u8]) -> Result<Option<RefName>, GitError> {
+    if raw.is_empty() {
+        return Ok(None);
+    }
+    let text = crate::path::utf8_field(raw, "symbolic ref target")?;
+    Ok(Some(RefName::parse(&text)?))
 }
 
 fn describe_expected(expected: Option<&Oid>) -> String {
@@ -562,6 +766,20 @@ mod tests {
         }
         assert!(validate_message(&"x".repeat(MAX_MESSAGE_LEN)).is_ok());
         assert!(validate_message(&"x".repeat(MAX_MESSAGE_LEN + 1)).is_err());
+    }
+
+    #[test]
+    fn a_silent_plan_carries_no_message_instead_of_an_empty_one() {
+        // The strict form still refuses an empty message; the silent form does
+        // not invent one. The two are different requests, exactly as git treats
+        // `update-ref` and `update-ref -m ""`.
+        assert!(validate_message("").is_err());
+        let silent = RawRefTransactionPlan {
+            message: None,
+            changes: Vec::new(),
+            observed: Vec::new(),
+        };
+        assert!(silent.message.is_none());
     }
 
     #[test]

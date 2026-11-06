@@ -92,6 +92,10 @@ pub enum InstallError {
     #[error("malformed SPDD/REASONS block: {detail}")]
     SpddBlockMalformed { detail: String },
 
+    /// The canonical project SPDD selector failed; preserve its original cause.
+    #[error(transparent)]
+    SpddActivation(#[from] Box<sk_doctrine::SpddActivationError>),
+
     /// A skill name escaped the required Agent Skills grammar.
     #[error("invalid skill name {name:?}")]
     InvalidSkillName { name: String },
@@ -270,6 +274,28 @@ pub enum InstallError {
     #[error("upgrade refused: {detail}")]
     UpgradeRefused { detail: String },
 
+    /// A migration could not read the project state it must evaluate.
+    ///
+    /// Source `MigrationStateUnreadableError`: `detect()` returning `False` means
+    /// "the project is already in the target state", so a migration whose input
+    /// cannot be parsed has not proven that. The runner therefore records a
+    /// FAILURE (never a skip) and leaves the version stamp untouched, the same
+    /// fail-closed contract `GitignorePathError` has. This is a distinct typed
+    /// cause, not a string-matched `UpgradeRefused`: the runner's main and
+    /// worktree phases treat these two Source classes differently from every
+    /// other error, and `detail` retains the original cause family.
+    #[error("{detail}")]
+    MigrationStateUnreadable {
+        /// The file whose state could not be read, when the premise names one.
+        path: Option<PathBuf>,
+        /// The Source-shaped message; the retained cause is part of it.
+        detail: String,
+    },
+
+    /// An uncaught Source writer exception, retaining its typed cause and phase.
+    #[error(transparent)]
+    SourceWrite(#[from] Box<sk_kernel::source_writer::SourceWriteError>),
+
     /// An agent choice or agent-check payload was invalid.
     #[error("invalid agent upgrade choice {choice:?}: {detail}")]
     AgentChoiceInvalid { choice: String, detail: String },
@@ -294,6 +320,13 @@ pub enum InstallError {
     /// A managed skill file is missing or drifted.
     #[error("managed skill file {path} is {state}")]
     SkillDrift { path: PathBuf, state: &'static str },
+
+    /// The project's charter-pack skills cannot be resolved into the catalog.
+    ///
+    /// Decided in memory before the staging directory is touched, so a refusal
+    /// leaves the project tree byte-identical.
+    #[error("pack skills cannot be resolved into the catalog: {detail}")]
+    PackSkillCatalog { detail: String },
 
     // ------------------------------------------------------------- identity
     /// The recorded project identity cannot be understood.
@@ -366,6 +399,7 @@ impl InstallError {
             Self::StrayArgumentsToken { .. } => "stray_arguments_token",
             Self::InvalidSkillName { .. } => "invalid_skill_name",
             Self::SpddBlockMalformed { .. } => "spdd_reasons_block_malformed",
+            Self::SpddActivation(_) => "spdd_activation_failed",
             Self::UnsafePath { .. } => "unsafe_path",
             Self::PathEscape { .. } => "unsafe_path",
             Self::NonDirectoryParent { .. } => "non_directory_parent",
@@ -408,19 +442,23 @@ impl InstallError {
             Self::TargetVersionOlder { .. } => "target_version_older",
             Self::SchemaVersionNewer { .. } => "schema_version_newer",
             Self::UpgradeRefused { .. } => "upgrade_refused",
+            Self::MigrationStateUnreadable { .. } => "migration_state_unreadable",
+            Self::SourceWrite(_) => "source_write",
             Self::AgentChoiceInvalid { .. } => "invalid_agent_choice",
             Self::SkillsManifestInvalid { .. } => "skills_manifest_invalid",
             Self::SkillsCatalogMissing { .. } => "skills_catalog_missing",
             Self::AgentProfileCatalogMissing { .. } => "agent_profile_catalog_missing",
             Self::SkillCollision { .. } => "skill_collision",
             Self::SkillDrift { .. } => "skill_drift",
+            Self::PackSkillCatalog { .. } => "pack_skill_catalog",
             Self::IdentityInvalid { .. } => "identity_invalid",
             Self::LifecycleEventInvalid { .. } => "lifecycle_event_invalid",
             Self::IndeterminateCommit { .. } => "commit_indeterminate",
         }
     }
 
-    pub(crate) fn io(action: &'static str, path: impl Into<PathBuf>, source: io::Error) -> Self {
+    /// Build an I/O error for `path` (the one constructor every surface uses).
+    pub fn io(action: &'static str, path: impl Into<PathBuf>, source: io::Error) -> Self {
         Self::Io {
             action,
             path: path.into(),

@@ -398,8 +398,12 @@ This crate is not the complete kernel/write service. Known remaining work:
   ceiling beyond `GIT_CEILING_DIRECTORIES`; `discover_project_root` keeps
   upstream's project-root semantics, not Git's.
 - **Write observer.** `substantively_equal` (including the caller-supplied
-  projection) is ported, but the `observe_writes`/`notify_written` write
-  observer used by the finalize write ledger is not.
+  projection) is ported, and the `observe_writes`/`notify_written` ambient
+  observer context is now implemented as one canonical Native context
+  (`source_writer::write_observer`) with explicit capture/token/future binding
+  and a typed observer cause. The notifying Source writer operations dispatch
+  through it after publication; durable finalize/bake/status write-ledger
+  consumers are still integrations, not implemented here.
 - **Async lock facade.** Only the synchronous guard exists; upstream's async
   `MachineFileLock` facade has no Rust consumer yet.
 - **Distributed/network-filesystem locks.** `flock` semantics on network
@@ -410,6 +414,11 @@ This crate is not the complete kernel/write service. Known remaining work:
 - **Parser error source.** Guarded parser errors are collapsed to `Display`
   text; the original typed error is not preserved as a `source`.
 
+`text_decode.py` now has the canonical `text_decode` module: BOM detection,
+provable UTF-8/16/32 decoding and a newline facade over `python_text`'s one
+universal-newline primitive. Session audits consume it; full codec/platform
+and independent differential proof remain pending.
+
 ### Upstream `src/kernel` modules still outside this crate
 
 These remain required for complete kernel-floor parity and are **not**
@@ -417,10 +426,10 @@ implemented here (some are owned by a higher crate; none is silently stubbed):
 
 | Upstream module | Status / owner |
 | --- | --- |
-| `atomic.py` (write observers) | Core write and `substantively_equal` projection ported; `observe_writes`/`notify_written` pending |
+| `atomic.py` (write observers) | Core write and `substantively_equal` projection ported; `observe_writes`/`notify_written` ambient context ported in `source_writer::write_observer` (finalize/bake/status ledger consumers remain integrations) |
 | `_safe_re.py` (general safe-segment regex) | Identifier grammar ported only |
 | `env_expand.py` | Pending (environment/token expansion) |
-| `yaml_io.py`, `meta_decode.py`, `text_decode.py`, `schema_utils.py` | Pending (YAML/meta/text/schema boundaries) |
+| `yaml_io.py`, `meta_decode.py`, `schema_utils.py` | Pending (YAML/meta/schema boundaries) |
 | `charter_pack_paths.py`, `resolution.py` | Pending; pack-root primitives landed, charter resolvers live above kernel |
 | `service_pin.py`, `service_artifacts.py`, `service_hosts.py`, `release_assets.py`, `site_urls.py` | Pending (external service pin/asset/host contracts) |
 | `activation_ledger_store.py` | Pending (ledger store) |

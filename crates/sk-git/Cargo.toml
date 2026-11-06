@@ -14,5 +14,8 @@ tempfile.workspace = true
 same-file.workspace = true
 sk-kernel = { path = "../sk-kernel" }
 
+[dev-dependencies]
+serde_json.workspace = true
+
 [lints]
 workspace = true

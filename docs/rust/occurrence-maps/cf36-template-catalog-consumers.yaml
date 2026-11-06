@@ -1,0 +1,210 @@
+# CF36 — occurrence classification (PRE-EDIT; canonical template→DRG node adapter and real
+# `charter list --all` template availability)
+#
+# Lane: consume the CF30 canonical Charter template catalog
+# (`sk_charter::template_catalog`), do NOT clone discovery/resolution. Two NEW owned
+# surfaces only:
+#
+#   1. `crates/sk-doctrine/src/template_nodes.rs` — the Doctrine adapter that mints typed
+#      DRG nodes of `NodeKind::Template` for discovered template refs through the existing
+#      `DrgNode::new` authority, reusing `sk_charter::template_catalog::template_urn`
+#      (`template:<mission>/<name>`). No second URN validator, model, roster or graph.
+#   2. `crates/sk-cli/src/compat/charter/list_templates.rs` — the list-SPECIFIC tier-root
+#      composition (project pack `missions`, every configured existing org pack's flat
+#      `missions` in declaration order, then the package default) plus the Source-shaped
+#      payload/text composition for the `template` row.
+#
+# Written BEFORE any CF36 edit, from the real pre-edit inventory in
+# /tmp/sk-cf36-evidence (`005-source-sizes`, `007-native-sizes`, `009-native-seams`,
+# `010-packroot-seams`, `013-packroots-api`, `016-roots-and-kernel`,
+# `019-urn-re-and-lib`, `020-occmap-example`). This is a NEW lane map: no invented
+# Mission/Op metadata, no `accepted: true`, no fictional `kitty-specs/` mission, no
+# backdated approval.
+#
+# This lane is ADDITIVE at the identifier level, so `target.operation` is omitted (the
+# schema allows that for additive work): no artifact-kind token, selector grammar, CLI
+# flag, filesystem path or Source message is renamed, removed or deprecated. The one
+# genuine non-additive *behaviour* occurrence is a Native capability GAP becoming real
+# support: `list_payload` already emits `"templates": null` unconditionally (OP-CONTRACT-
+# 003) and never fills it. Under `--all` that value now becomes the discovered array —
+# the key spelling and its null-without-`--all` presence are unchanged, the VALUE for
+# `--all` is new. `templates` stays explicit `null` without `--all` (including
+# `--show-available`), which is the Source contract.
+#
+# KEEP list (must NOT change in this lane):
+#   * `charter list`'s non-template rows: kind order, `activated`/`available`/
+#     `deactivated` keys, the `mission-type` handling, the effective-set/floor reads,
+#     the `--show-available` (non-`--all`) `available` array of plain id strings, and the
+#     human table's `kind: activated` / `  available:` / `  deactivated:` lines. CF8 owns
+#     them; CF36 only appends the template row/composition.
+#   * the `templates` KEY: always present, `null` without `--all` (OP-CONTRACT-003).
+#   * CF30's `sk_charter::template_catalog`: `discover_templates` semantics (recursive
+#     `templates/` + `command-templates/`, `README.md` excluded, mission-qualified id,
+#     FIRST supplied root wins) and `template_urn` spelling. CF36 consumes, never edits.
+#   * the existing typed graph model/URN validator: `DrgNode::new` + `NodeKind::Template`
+#     in `sk-doctrine::graph`. CF36 adds a thin minting adapter, not a second validator.
+#   * `PackRoots`/`PackRoots::resolve_existing_source`, `load_project_config`,
+#     `PathExpansion` (sk-charter) and `sk_kernel::get_package_asset_root` as the ONLY
+#     root authorities; no fourth path resolver, no `~/.kittify`/global tiers that Source
+#     `charter list --all` does not enumerate, and NOT the CF32 include facade
+#     (`resolve_source_project_layer` / `render_source_template_include`) as generic list
+#     policy.
+#   * CF32 include serving (`context_include.rs`), CF33 BOM/session, CF34 preset
+#     publication (`compat/charter/preset.rs`) and CF35 coordination health: untouched.
+#   * Source authority: `src/**`, `packs/**`, `pins/**`, `goldens/**`,
+#     `packs/built-in.source.yaml` untouched (read only).
+#   * parent-owned: `Cargo.toml`, `Cargo.lock`, root CLI registration, `docs/rust/*`
+#     status/capability prose.
+#
+# docs: this map plus the new module/test doc comments are the only documentation CF36
+# adds.
+target:
+  term: >-
+    `charter list --all` emitting `"templates": null` forever (the template kind is listed
+    in `--help` but never discovered), with no Doctrine DRG node adapter for discovered
+    templates
+  replacement: >-
+    `charter list --all` publishes the Source-shaped `templates` array
+    (`template_id`, `mission`, `name`, `tier`) and the human `template` row, discovered
+    through the one CF30 canonical catalog from list-specific tier roots; plus the
+    Doctrine `template_node`/`template_nodes` adapter minting `template:<mission>/<name>`
+    `NodeKind::Template` nodes through the existing `DrgNode::new`
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      ADDITIVE only. NEW `sk_doctrine::template_nodes` (`template_node`,
+      `template_nodes`) built on `crate::graph::{DrgNode, NodeKind}` and
+      `sk_charter::template_catalog::{TemplateRef, template_urn}`. NEW
+      `compat::charter::list_templates` (`list_templates`, `list_tier_roots`,
+      `template_payload`, `template_text`, the `TEMPLATE_KIND`/`TEMPLATE_ACTIVATED_CELL`
+      row labels). `compat/charter.rs` changes exactly three things: one
+      `mod list_templates;` declaration beside the existing `mod context_include;`
+      / `mod preset;` / `mod status;` lines, the `templates` value in `list_payload`'s
+      final `json!`, and the template row print in `list_command`. No existing public
+      symbol is renamed or removed; no parser/model/resolver/roster clone.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No module path or crate edge moves. `crates/sk-doctrine/src/lib.rs` gains exactly
+      ONE `pub mod template_nodes;` line; `crates/sk-cli/src/compat/charter.rs` gains ONE
+      `mod list_templates;` line. `sk-cli` and `sk-doctrine` already depend on
+      `sk-charter`; no manifest, lockfile or dependency edge changes.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No pack, pin, bundle, template, state or asset path moves or is rewritten. The new
+      files are one doctrine module, one CLI module, two `cf36_*` test files and this map.
+      The list tier roots are only composed with the Source's exact joins
+      (`<root>/missions`, then the canonical discovery walks
+      `<missions>/<mission>/{templates,command-templates}`).
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      The `templates` key keeps its spelling and its always-present/`null`-without-`--all`
+      contract; under `--all` its value becomes an array of the Source row keys
+      `template_id`, `mission`, `name`, `tier`. `tier` carries the Source enum value
+      spelling (`override`, `org`, `package_default`) — never a hyphenated label, never a
+      global/legacy tier `charter list --all` does not enumerate. No other key changes.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command, subcommand, flag or alias changes; `--all`, `--show-available` and
+      `--json` keep their spelling and precedence (`--all` implies/supersedes
+      `--show-available`). No registration change (parent-owned root CLI untouched).
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      NEW human row in the `--all` text view, spelled like the reference table cells:
+      `template: (mission-scoped — not separately activated)` and
+      `  available: <template_id> (<tier>), …`, with the reference's empty cell `—` when
+      nothing is discovered. The existing per-kind lines are untouched. Rich's
+      `[dim]…[/dim]` markup and 200-column table geometry are NOT reproduced (the Native
+      text view is a plain-line renderer already), which is disclosed rather than faked.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      NEW `crates/sk-doctrine/tests/cf36_template_nodes.rs` (real temp mission trees →
+      canonical discovery → typed nodes: URN spelling `template:<mission>/<name>`, kind
+      `Template`, qualified label, distinct nodes for cross-mission same-basename
+      templates, typed refusal for an id the URN grammar rejects) and NEW
+      `crates/sk-cli/tests/cf36_charter_list_templates.rs` (real package/project/org
+      tiers: first-tier-wins in actual declaration order, recursive
+      command-template/README behaviour through the canonical catalog, `templates`
+      null-without-`--all` including `--show-available`, Source key/id/mission/name/tier
+      rows, and a real-binary no-write check). Existing CF8/other tests are not yours: an
+      obsolete "templates is null under --all" expectation blocks and is reported to the
+      parent instead of being edited.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric, event or telemetry key is added or renamed; discovery emits no
+      warning line (the reference `charter list` is silent on an absent tier root).
+exceptions:
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: >-
+      Shared file. CF36 touches ONLY the `List` section: one `mod list_templates;`
+      declaration in the module-declaration block, the `"templates"` value inside
+      `list_payload`'s final payload construction, and the template-row print in
+      `list_command`. The adjacent Activation/deactivation, Status, Roots, context and
+      CF34 preset blocks are not edited, and the file is not reformatted.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: >-
+      Exactly one added `pub mod template_nodes;` declaration in the existing module list;
+      no re-export, no reordering and no other line.
+status:
+  lane: cf36-template-catalog-consumers
+  change_mode: bulk_edit
+  source_baseline: "9aed3a8012cb5eb22c0128b14d525039f95fea7a"
+  owned_paths:
+    - crates/sk-doctrine/src/template_nodes.rs
+    - crates/sk-doctrine/src/lib.rs
+    - crates/sk-doctrine/tests/cf36_template_nodes.rs
+    - crates/sk-cli/src/compat/charter/list_templates.rs
+    - crates/sk-cli/src/compat/charter.rs
+    - crates/sk-cli/tests/cf36_charter_list_templates.rs
+    - docs/rust/occurrence-maps/cf36-template-catalog-consumers.yaml
+  declared_non_edits:
+    - crates/sk-charter/src/template_catalog.rs
+    - crates/sk-charter/src/pack.rs
+    - crates/sk-charter/src/config.rs
+    - crates/sk-charter/src/lib.rs
+    - crates/sk-cli/src/compat/charter/context_include.rs
+    - crates/sk-cli/src/compat/charter/preset.rs
+    - crates/sk-cli/src/compat/charter/status.rs
+    - crates/sk-cli/src/compat/support.rs
+    - crates/sk-doctrine/src/context_include.rs
+    - crates/sk-doctrine/src/graph.rs
+    - crates/sk-doctrine/src/identity.rs
+    - crates/sk-doctrine/src/offering/include_access.rs
+    - crates/sk-doctrine/src/preset_application.rs
+    - crates/sk-*/src/**other than the two owned modules
+    - crates/sk-cli/tests/cf8_charter_command.rs
+    - crates/sk-doctrine/tests/cf26_context_include.rs
+    - Cargo.toml
+    - Cargo.lock
+    - src/**
+    - packs/**
+    - pins/**
+    - goldens/**
+  added_literals:
+    - symbol: sk_doctrine::template_nodes::{template_node, template_nodes}
+      where: crates/sk-doctrine/src/template_nodes.rs
+      reason: >-
+        The reference `charter.offering.template_catalog.template_node(s)` minting
+        `DRGNode(urn=template:<mission>/<name>, kind=NodeKind.TEMPLATE, label=<template id>)`.
+        The URN spelling comes from `sk_charter::template_catalog::template_urn`; the node
+        is validated by the existing `DrgNode::new`, so no second URN grammar exists.
+    - symbol: "template"
+      where: crates/sk-cli/src/compat/charter/list_templates.rs
+      reason: >-
+        The reference `_TEMPLATE_KIND` pseudo-kind row label (templates are not a charter
+        activation kind; they are an availability-only row).
+    - symbol: "(mission-scoped — not separately activated)"
+      where: crates/sk-cli/src/compat/charter/list_templates.rs
+      reason: >-
+        The reference template row's Activated cell, verbatim including the em dash.
+  reviewed_by: "CF36 implementer pre-edit classification (not independent approval)"
+  accepted: false

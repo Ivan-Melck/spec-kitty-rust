@@ -70,6 +70,56 @@ class GeneratorTests(unittest.TestCase):
         self.assertIn("LOWER_EXPANSIONS: &[(u32, &[u32])] = &[];", text)
         self.assertIn("test-version", text)
 
+    def test_rendered_upper_tables_are_consistent_and_refuse_bad_coverage(self) -> None:
+        # A future pin bump must not emit stale counts or a vacuous table.
+        text = GENERATOR.render_upper(
+            [(0x61, 0x41)],
+            [(0xDF, [0x53, 0x53])],
+            version="test-version",
+            identity=0x110000 - 2,
+        )
+        self.assertIn("UPPER_SINGLE_COUNT: usize = 1;", text)
+        self.assertIn("UPPER_EXPANSION_COUNT: usize = 1;", text)
+        self.assertIn("(0x00df, &[0x0053, 0x0053])", text)
+        self.assertIn('const UPPER_DIGEST: &str = "', text)
+        self.assertIn("test-version", text)
+        self.assertIn("identity code points", text)
+        with self.assertRaises(SystemExit):
+            GENERATOR.render_upper(
+                [(0x61, 0x41)],
+                [],
+                version="test-version",
+                identity=0x110000 - 2,  # 2 singles + 0 expansions + this != 0x110000
+            )
+
+    def test_upper_facts_cover_every_code_point_and_keep_surrogates(self) -> None:
+        singles, expansions, identity = GENERATOR.upper_facts()
+        self.assertEqual(identity + len(singles) + len(expansions), 0x110000)
+        self.assertEqual(dict(singles).get(0x61), 0x41, "ASCII lower case still maps")
+        self.assertNotIn(0x264, dict(singles), "U+0264 has no capital in Unicode 14")
+        self.assertNotIn(0x19B, dict(singles), "U+019B has no capital in Unicode 14")
+        self.assertEqual(dict(expansions).get(0xDF), [0x53, 0x53])
+        for code in range(0xD800, 0xE000):
+            self.assertNotIn(code, dict(singles))
+            self.assertNotIn(code, dict(expansions))
+        GENERATOR.verify_mapping("upper", singles)
+        for code, mapped in expansions:
+            self.assertGreaterEqual(len(mapped), 2, hex(code))
+
+    def test_active_tables_are_unchanged_by_the_upper_extension(self) -> None:
+        # The lower/word/cased tables keep their recorded digests; only the new
+        # upper output is added.
+        word = GENERATOR.word_ranges()
+        singles, expansions, identity = GENERATOR.lower_facts()
+        cased, ignorable, neither = GENERATOR.context_facts()
+        self.assertEqual(len(word), 734)
+        self.assertEqual(len(singles), 1432)
+        self.assertEqual(len(expansions), 1)
+        self.assertEqual(identity, 1112679)
+        self.assertEqual(len(cased), 149)
+        self.assertEqual(len(ignorable), 427)
+        self.assertEqual(neither, 1107257)
+
     def test_rendered_coverage_defects_are_refused(self) -> None:
         with self.assertRaises(SystemExit):
             GENERATOR.render(
@@ -133,6 +183,10 @@ class GeneratorTests(unittest.TestCase):
             result = self.run_script(ROOT, Path(scratch), "--check")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("up to date (734 word ranges, 1432 lower singles, 1 expansions)", result.stdout)
+        self.assertIn(
+            "crates/sk-kernel/src/python_text_upper_data.rs: up to date (1423 upper singles, 102 expansions)",
+            result.stdout,
+        )
 
     def test_missing_verifier_fails_without_creating_output(self) -> None:
         with tempfile.TemporaryDirectory() as scratch:

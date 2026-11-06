@@ -1,6 +1,6 @@
 ---
 type: explanation
-updated: 2026-11-04
+updated: 2026-11-05
 audience: software-engineer
 ---
 # Rust rewrite decisions
@@ -10,6 +10,26 @@ audience: software-engineer
 The operator explicitly requested a Rust rewrite in the public fork `Ivan-Melck/spec-kitty-rust`. This overrides the upstream charter's Python-only implementation requirement for the new Rust workspace, not for upstream Python maintenance. Upstream provenance, copyright notices, canonical Mission terminology, user customization preservation, and fail-closed integrity requirements remain binding. No upstream merge or mainline publication is authorized.
 
 The source baseline is `spec-kitty/spec-kitty` commit `9aed3a8012cb5eb22c0128b14d525039f95fea7a` (2026-11-02). Existing Python sources remain the reference implementation during migration. They are not invoked by Rust at runtime.
+
+## Canonical YAML object graph (design authorization only)
+
+[The graph decision](reviews/canonical-yaml-graph-decision.md) authorizes one
+shared arena/value/construction/hash/text authority, not a parallel parser or a
+Source-valid nesting refusal. Actual fresh-NaN association loss, cycles and
+caller-dependent depth remain open. Finite tuple/date/pairs controls are not
+whole-decoder, consumer or workflow approval.
+
+## Authorized preservation exception: DecisionIndex summary keys
+
+The operator authorized the narrow exception in
+[the serializer disposition](reviews/decision-index-source-serializer-conflict.md):
+Native retains unpaired-surrogate `summary_json` keys and their authored values,
+where pinned pydantic JSON-mode projection collapses keys and loses data. Raw
+union/model validation and every other field, policy and publication phase stay
+Source-bound. This is NOT Source byte parity, oracle promotion or a general
+preservation-superset allowance. Actual Source divergence and Native preservation
+are separately asserted by `decision_serializer_preservation_exception.rs`;
+benchmark reports must disclose it rather than silently mask unequal work.
 
 ## Design direction
 

@@ -1,0 +1,34 @@
+target:
+  term: Independently pinned Source root in typed org pair children
+categories:
+  code_symbols:
+    action: do_not_change
+    notes: No production changes in this correction.
+  import_paths:
+    action: manual_review
+    notes: Actual Source module origin checked against independent pinned root.
+  filesystem_paths:
+    action: manual_review
+    notes: Root supplied independently of PYTHONPATH, never a self-derived assertion.
+  serialized_keys:
+    action: do_not_change
+    notes: Same receipt and exact business fields.
+  cli_commands:
+    action: do_not_change
+    notes: No CLI consumer or count promotion.
+  user_facing_strings:
+    action: do_not_change
+    notes: No user payload changes.
+  tests_fixtures:
+    action: manual_review
+    notes: Prospective assertion strengthening, previous Source assertion is not retroactively repaired.
+  logs_telemetry:
+    action: manual_review
+    notes: Previous pair scope remains qualified, new receipts establish prospective assertions only.
+exceptions:
+  - path: crates/sk-doctrine/tests/cf63_typed_org_chain.rs
+    action: manual_review
+    reason: Independent root env, module origin and actual Native child assertion only.
+status:
+  accepted: false
+  phase: parent prospective child isolation strengthening

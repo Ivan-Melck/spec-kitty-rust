@@ -1,0 +1,158 @@
+# CF42 PRE-EDIT occurrence classification (additive; no rename/remove/deprecate).
+# Written BEFORE any Source/Native code edit for this lane. Derived from the
+# pre-edit reads actually performed in this lane (evidence root
+# /tmp/sk-evidence-cf42-20261105-01/command-log-index.tsv): the pinned Source
+# `charter/offering/directives/{models,repository,validation}.py`,
+# `charter/offering/base.py`, `charter/offering/service.py`,
+# `charter/activation/context.py` (`build_charter_context_include`) and
+# `charter/activation/context_renderers/template_include.py`, plus the Native
+# `crates/sk-doctrine/src/{offering.rs,offering/model.rs,offering/gate.rs,
+# offering/include_access.rs,context_include.rs,body.rs}`.
+# No host Mission/Op/approval is invented by this map.
+target:
+  term: "declaring-document directive render (`charter context --include directive:<id>` reading the file the identity index names, because the canonical service has no Directive repository)"
+  replacement: "canonical typed Directive whole-document admission + the ONE `CanonicalOfferingService` layered (built-in -> org -> project) directive repository served to the same include renderer"
+  # No `operation:` key: this map authorises an ADDITIVE lane (new admission arm,
+  # new serving arm, new dispatch arm, new tests). The allowed operations are
+  # rename/remove/deprecate; none applies to an authored identifier, so the
+  # operation is intentionally omitted. The one removal is the lane's own
+  # private declaring-file fallback, deleted only once the real merged lookup
+  # works.
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      No public or authored identifier is renamed, removed or deprecated.
+      ADDED in crates/sk-doctrine/src/offering/model.rs (private helpers, the ONE
+      admission authority): `directive_id` (the model's `^[A-Z][A-Z0-9_-]*$`
+      pattern), `View::directive` (the whole Directive model), `View::directive_reference`
+      (DirectiveReference), and the `ArtifactKind::Directive => view.directive(...)`
+      arm of `admits_mapping`. ADDED in crates/sk-doctrine/src/offering.rs: the
+      `ArtifactKind::Directive` arm of `serves_documents` (one boolean predicate).
+      ADDED in crates/sk-doctrine/src/context_include.rs: the
+      `ArtifactKind::Directive` dispatch arm in `render_kind`. REMOVED (same file,
+      private, the deleted narrow fallback): `render_declaring_document` and
+      `declaring_path`. `CanonicalOfferingService::ids_for`,
+      `artifact`, `artifact_with_gate`, `ActivationGate`, `IdentityIndex` and every
+      other kind's serving/dispatch keep their names and signatures, and the
+      Directive activation-key mapping stays empty (Source unions no directive
+      service keys).
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No manifest, module path, re-export root, lib.rs export, dependency edge or
+      registration changes. No new module is declared (no
+      `offering/model/directive.rs` was needed). `context_include.rs` drops its now
+      unused `use crate::offering::value::ArtifactDocument;` import together with
+      the removed helper.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No authored YAML, pack, pin, golden, source-tree or `.kittify/` path is
+      touched. New fixtures are created in fresh temporary directories only; the
+      built-in layer of the paired fixtures is the existing shipped pack root.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      The Directive model-dump key set (`id`, `schema_version`, `title`, `intent`,
+      `enforcement`, `scope`, `procedures`, `integrity_rules`,
+      `validation_criteria`, `explicit_allowances`, `references[{type,id,when,reason}]`)
+      is CF38-owned in crates/sk-doctrine/src/body.rs and is NOT edited here. This
+      lane only decides which authored documents are admitted and which merged
+      mapping is dumped; it adds no key, alias, default or None-dropping rule of
+      its own.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No CLI command, flag, alias, catalogue entry or registration is added or
+      changed. `--include` keeps its existing grammar and kind vocabulary; only
+      the Directive arm's record source changes.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Preserved byte-for-byte: the `Directive <id>: <title>` heading, the inline
+      body labels (`Intent:`/`Scope:`/`Procedures:`/`Integrity rules:`/
+      `Validation criteria:`), the `Full artifact:` block, the
+      `No directive found for selector '<raw>'.` refusal and the
+      `<kind>:<id> is deactivated in this project (...)` deny note. The changed
+      premise is WHICH record is printed: the merged repository record instead of
+      the declaring file's raw document (a project/org overlay field now replaces
+      the built-in value, and a document the Source model rejects is now a miss
+      rather than a render).
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      ADDED only: crates/sk-doctrine/tests/cf42_layered_directive.rs (paired
+      Source/Native include-text comparison over built-in/org/project directive
+      overlays, declared-id/slug/numeric normalization, whole-model invalid skips
+      vs constructor aborts, directive references, deny note before the model
+      load, and no eager failure of unrelated kinds),
+      crates/sk-doctrine/tests/cf42_directive_repository.rs (the repository's own
+      admission/merge/layer-key contract, driven by Source receipts) and
+      crates/sk-cli/tests/cf42_directive_include_cli.rs (the real binary prints the
+      merged directive and writes nothing). KEEP unchanged: cf26_context_include.rs,
+      cf31_canonical_include_models.rs, cf32_effective_include.rs,
+      cf38_exact_artifact_payload.rs, the inline `body.rs` model tests and every
+      sk-cli include test. One foreign premise needs a parent update (reported, not
+      edited here): cf26's `SHARED_DIRECTIVE` fixture omits the required
+      `enforcement` field, so it is a Source-invalid document that the real
+      repository now skips; the `artifact:901` assertion in
+      `artifact_probe_resolves_one_match_and_refuses_an_ambiguous_one` relied on the
+      deleted unvalidated fallback.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No event, metric or telemetry identity changes. This lane writes no
+      readiness, approval, acceptance, coverage or performance status.
+exceptions:
+  - path: crates/sk-doctrine/src/offering/model.rs
+    action: manual_review
+    reason: >-
+      Additive Directive admission only: one `admits_mapping` arm, two `View`
+      methods and one pattern helper, plus inline unit tests. Every other kind's
+      admission/coercion rules stay byte-identical; no coercion authority is
+      duplicated.
+  - path: crates/sk-doctrine/src/offering.rs
+    action: manual_review
+    reason: >-
+      One `serves_documents` arm so the layered loader serves Directive records.
+      The cache, the activation-key mapping (`ids_for`/`load`), the overlay-merge
+      order and every other kind's policy are untouched.
+  - path: crates/sk-doctrine/src/context_include.rs
+    action: manual_review
+    reason: >-
+      The Directive serving arm plus deletion of the now-obsolete private
+      declaring-document fallback/helper and its import. The template, parser,
+      identity, deny and other-kind gated-vs-plain paths are unchanged.
+  - path: crates/sk-doctrine/tests/cf42_layered_directive.rs
+    action: manual_review
+    reason: >-
+      NEW paired test file only. Both actual children assert CWD/HOME/all seven
+      XDG roots (including XDG_CONFIG_DIRS and XDG_DATA_DIRS), TMPDIR/TMP/TEMP,
+      the absolute repository `src` on PYTHONPATH and the pinned packs root before
+      computing; the Source leg is the lock-exact pinned interpreter.
+  - path: crates/sk-doctrine/tests/cf42_directive_repository.rs
+    action: manual_review
+    reason: >-
+      NEW test file only (repository admission/merge keys against Source receipts).
+  - path: crates/sk-cli/tests/cf42_directive_include_cli.rs
+    action: manual_review
+    reason: >-
+      NEW test file only (real binary, merged directive, no writes).
+  - path: src/**
+    action: do_not_change
+    reason: Pinned Source remains the read-only oracle; nothing under src/ is edited.
+  - path: crates/sk-doctrine/src/body.rs
+    action: do_not_change
+    reason: CF38 owns the canonical model dump; this lane consumes it unchanged.
+  - path: crates/sk-doctrine/src/context_render.rs
+    action: do_not_change
+    reason: CF38 owns the include payload renderer; this lane consumes it unchanged.
+  - path: crates/sk-doctrine/tests/cf26_context_include.rs
+    action: do_not_change
+    reason: >-
+      Foreign test file. Its directive fixtures/assertions are preserved; the one
+      premise that must change is reported to the parent with the exact line.
+status:
+  reviewed_by: "parent pre-edit classification; not independent approval"
+  accepted: false

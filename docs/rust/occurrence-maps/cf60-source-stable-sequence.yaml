@@ -1,0 +1,113 @@
+# CF60 PRE-EDIT occurrence classification (DIRECTIVE_035).
+#
+# This change is ADDITIVE: it introduces the ONE canonical Source stable keyed
+# sequence engine (`crates/sk-kernel/src/python_json/sort.rs`) and delegates the
+# existing `python_json_stable_sort_by_key` facade to it. Nothing is renamed or
+# removed, so no `operation` is declared.
+#
+# The classified term is the existing public facade whose engine changes. The
+# blast radius is the Kernel python_json module tree, the facade's existing
+# consumers (status Source fold / annotations / ordering), and the facade's
+# tests/docs. Only the sort function body and its same-item module
+# declaration/re-export change; comparison/equality/hash/parser/encoder bodies
+# are READ-ONLY.
+#
+# Written BEFORE any source edit. All eight standard categories are present.
+# This map is NOT an approval, a Mission record, or a gate decision.
+
+target:
+  term: "python_json_stable_sort_by_key"
+  replacement: null
+
+categories:
+  code_symbols:
+    action: manual_review
+    note: >-
+      One existing public symbol keeps its exact name, signature and semantics
+      (`python_json_stable_sort_by_key(items, key) -> Result<(),
+      PythonJsonCompareError>`). Its body moves to a NEW private engine module
+      `crates/sk-kernel/src/python_json/sort.rs` (run counting, binary insertion,
+      minrun, powersort merge collapse, gallop search + low/high merges), and the
+      order.rs facade delegates to it. No comparator, numeric, equality,
+      hashability, truthiness, str or type-name symbol is renamed or restated.
+  import_paths:
+    action: manual_review
+    note: >-
+      One NEW private module declaration `mod sort;` in
+      `crates/sk-kernel/src/python_json.rs` (same `python_json` module tree). The
+      existing `pub use order::{... python_json_stable_sort_by_key ...}` item is
+      unchanged; order.rs delegates to `super::sort`. No crate root, manifest or
+      dependency-graph change.
+  filesystem_paths:
+    action: do_not_change
+    note: >-
+      No runtime filesystem path, worktree, log or fixture path changes. The new
+      file is a source module only.
+  serialized_keys:
+    action: do_not_change
+    note: >-
+      No serialized JSON/YAML/CLI key is added, renamed or removed. The engine
+      sorts in memory over already-computed Source tuple keys; it writes no
+      document and introduces no new wire shape.
+  cli_commands:
+    action: do_not_change
+    note: >-
+      No CLI command, flag, option, exit code or output text changes. The work is
+      a Kernel library engine plus its existing facade.
+  user_facing_strings:
+    action: do_not_change
+    note: >-
+      No user-facing string changes. A comparison refusal still surfaces the
+      existing CPython `TypeError` message from the borrowed comparator; the
+      engine adds no new message and never converts a refusal into a healthy
+      order.
+  tests_fixtures:
+    action: manual_review
+    note: >-
+      Additive tests only: the existing order.rs stable-sort control stays, plus
+      NEW sort-engine tests for Source-first non-transitive NaN sequences,
+      natural ascending/descending runs, minrun/binary insertion, merge collapse,
+      gallop boundaries, stable equal keys, and exact heterogeneous comparison
+      error ordering. No passing valid-input baseline is weakened, skipped or
+      deleted; no test is changed to a refusal to make the engine pass.
+  logs_telemetry:
+    action: do_not_change
+    note: >-
+      No telemetry key, diagnostic code, finding code or emitted id is added or
+      changed. Engine refusals remain the existing typed library error, not an
+      emitted code.
+
+exceptions:
+  - path: "crates/sk-kernel/src/python_json/sort.rs"
+    action: manual_review
+    reason: >-
+      NEW file; the one canonical Source sequence engine. Original safe Rust
+      reproduction of CPython 3.11.15's list sort algorithm (powersort merge
+      strategy), studied from the pinned external source; no C text or code is
+      copied into the repository.
+  - path: "crates/sk-kernel/src/python_json/order.rs"
+    action: manual_review
+    reason: >-
+      The existing public facade only: its insertion-sort body is replaced by a
+      delegation to the new engine and its stale small-log scope note is
+      corrected. Comparison, equality, numeric, hashability and truthiness
+      bodies in this file are unchanged (the parent's direct numeric `<=`
+      correction is preserved).
+  - path: "crates/sk-kernel/src/python_json.rs"
+    action: manual_review
+    reason: >-
+      Same-item module declaration `mod sort;` only. Existing declarations,
+      re-exports, parser, renderer and equality policies are unchanged.
+  - path: "docs/rust/occurrence-maps/cf60-source-stable-sequence.yaml"
+    action: do_not_change
+    reason: >-
+      This classification artifact itself; it is the map, not an occurrence of
+      the target term in product code.
+
+status:
+  accepted: false
+  approval: "not requested"
+  note: >-
+    Pre-edit classification written by the implementation lane. It records
+    decisions; it does not approve the change, open a Mission, or claim a gate
+    result.

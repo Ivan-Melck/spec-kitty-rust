@@ -431,6 +431,15 @@ fn python_str(value: &Value) -> String {
     }
 }
 
+/// The reference `repr(value)` projection of one YAML value.
+///
+/// Public so the Source-first control matrix (`tests/python_repr_oracle.rs`) can
+/// diff it against the pinned interpreter without a second copy of the rules.
+/// Strings render through the canonical kernel formatter.
+pub fn python_value_repr(value: &Value) -> String {
+    python_repr(value)
+}
+
 fn python_repr(value: &Value) -> String {
     match value {
         Value::Null => "None".to_owned(),
@@ -487,12 +496,25 @@ fn python_float_repr(value: f64) -> String {
     format!("{value}")
 }
 
-/// `repr` of a string: single quotes unless that would need escaping and double
-/// quotes would not.
+/// `repr` of a string through the workspace's one canonical CPython formatter.
 ///
-/// Declared edge: only quote, backslash and the common control escapes are
-/// rendered; non-printable code points are emitted raw rather than as `\xNN`.
+/// This used to be a local approximation (quote, backslash and the three common
+/// control escapes; every other non-printable code point emitted raw). That
+/// diverged from the reference for exactly the answers this module renders — an
+/// interview answer holding a NUL, a private-use code point or any other
+/// non-printable — so the formatter is now `sk_kernel::python_repr`, whose
+/// `str.isprintable()` table is generated from the pinned CPython 3.11.15
+/// interpreter and shared with the Op reader. There is no second `repr`
+/// authority in Doctrine; see `tests/python_repr_oracle.rs` for the Source-first
+/// control matrix.
 fn python_string_repr(text: &str) -> String {
+    sk_kernel::python_repr(text)
+}
+
+/// The previous local renderer, kept only as the differential control's
+/// reference point (it must never be called by production code).
+#[cfg(test)]
+fn legacy_python_string_repr(text: &str) -> String {
     let quote = if text.contains('\'') && !text.contains('"') {
         '"'
     } else {
@@ -1622,6 +1644,24 @@ mod tests {
             Value::Number(1.into()),
         ]);
         assert_eq!(python_str(&sequence), "['Zig', 1]");
+    }
+
+    #[test]
+    fn string_repr_uses_the_canonical_kernel_formatter() {
+        // The previous local approximation emitted every non-printable code point
+        // raw and only escaped quote/backslash/`\n`/`\r`/`\t`; the canonical
+        // formatter escapes exactly like the pinned interpreter. The full
+        // Source-first matrix lives in `tests/python_repr_oracle.rs`.
+        assert_eq!(python_string_repr("a\u{0}b"), "'a\\x00b'");
+        assert_eq!(python_string_repr("a\u{7f}b"), "'a\\x7fb'");
+        assert_eq!(python_string_repr("a\u{e000}b"), "'a\\ue000b'");
+        assert_eq!(python_string_repr("a\u{1f600}b"), "'a\u{1f600}b'");
+        assert_eq!(python_string_repr("a'b"), "\"a'b\"");
+        assert_eq!(python_string_repr("a\\b"), "'a\\\\b'");
+        assert_ne!(
+            python_string_repr("a\u{0}b"),
+            legacy_python_string_repr("a\u{0}b")
+        );
     }
 
     #[test]

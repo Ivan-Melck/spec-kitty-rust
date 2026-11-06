@@ -33,6 +33,22 @@ The 3x target is an acceptance target, not a claimed result. Baseline and measur
 6. Benchmark equivalent completed behavior, investigate bottlenecks, optimize with regression tests, and remeasure. Keep correctness evidence attached to speed claims.
 7. **If any completion gate remains unsatisfied, return to step 1 without treating the intermediate publication or agent-turn boundary as a final delivery.** Async subagent completion resumes this coordinator; do not create a shell polling loop or an unrequested fleet of top-level threads.
 
+## Current execution priority (operator-confirmed 2026-11-05)
+
+Run a continuous dependency-aware implementation loop using parallel
+`tokenfactory/deepseek-v4.1-flash-1017` agents for disjoint gruntwork. Prioritize
+real functional coverage in idiomatic Rust, with scoped compile and functional
+smoke checks while implementing. Perform deep differential/boundary/platform/
+workflow/performance campaigns after coverage is broader; do not let exhaustive
+primitive probing monopolize implementation. Read actual pinned Source first;
+reuse canonical authorities and preserve authored data/error phases. Deferred
+verification is explicit debt, not equivalence, readiness or performance approval.
+
+The coordinator integrates completed lanes and fills freed slots with new
+independent implementation slices. No polling of running agents, blanket shared
+formatting, success stubs, production Python, invented evidence or automatic
+mainline merge. All completion gates above still apply to final acceptance.
+
 ## Current tranche
 
 Foundation: eight crates, 455 tests at the last verified commit; not complete. Next work: exhaustive inventory and completion check, reproducible Python/Rust benchmark harness, shared transactional kernel primitives, canonical status replay, persistent runtime/decision execution, governance execution, then initialization/install, Git/lane ownership, lifecycle gates and the remaining command surface. Task completion reports must enumerate remaining gaps rather than quietly reducing this scope.

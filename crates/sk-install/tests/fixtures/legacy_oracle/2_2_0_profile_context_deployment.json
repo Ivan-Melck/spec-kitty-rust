@@ -1,0 +1,24 @@
+{
+  "case": "2_2_0_profile_context_deployment",
+  "meta": {
+    "can_apply": [
+      true,
+      ""
+    ],
+    "changes": [
+      "Removed retired .claude/commands/spec-kitty.profile-context.md"
+    ],
+    "detect": true,
+    "error": null,
+    "success": true,
+    "warnings": []
+  },
+  "tree": {
+    ".claude/": "DIR",
+    ".claude/commands/": "DIR",
+    ".claude/commands/spec-kitty.user.md": "49cf24c707d61fd324680bc9e7c5b08ab77c7dc9b9d229397b7844085379095f",
+    ".kittify/": "DIR",
+    ".kittify/config.yaml": "8651825cb7451bc86266533190d6b1672500d8e23825eebf8bba0b4de89b732c",
+    ".kittify/metadata.yaml": "b971bb8541fce2b073582d78ca9c0aa3a1c5f78b928075c1c6d2f0cc52356a35"
+  }
+}

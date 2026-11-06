@@ -1430,7 +1430,14 @@ impl LanesStore {
             }
         })?;
         bytes.push(b'\n');
-        sk_kernel::atomic_write(&path, &bytes)?;
+        if sk_kernel::atomic_write(&path, &bytes)? {
+            sk_kernel::source_writer::notify_written(&path, &bytes).map_err(|source| {
+                WorkspaceError::WriteObserver {
+                    path: path.clone(),
+                    source: Box::new(source),
+                }
+            })?;
+        }
         Ok(Some(updated))
     }
 
@@ -1445,7 +1452,14 @@ impl LanesStore {
             }
         })?;
         bytes.push(b'\n');
-        sk_kernel::atomic_write(&path, &bytes)?;
+        if sk_kernel::atomic_write(&path, &bytes)? {
+            sk_kernel::source_writer::notify_written(&path, &bytes).map_err(|source| {
+                WorkspaceError::WriteObserver {
+                    path: path.clone(),
+                    source: Box::new(source),
+                }
+            })?;
+        }
         Ok(path)
     }
 }
@@ -1620,6 +1634,209 @@ fn python_json_string(value: &str) -> String {
     }
     out.push('"');
     out
+}
+
+// ---------------------------------------------------------------------------
+// Ownership glob re-validation
+// ---------------------------------------------------------------------------
+
+/// The outcome of validating `owned_files` entries against the repository.
+///
+/// Mirrors `specify_cli.ownership.validation.GlobValidationResult`: hard errors
+/// (a literal path matching nothing) are separated from soft warnings (a glob
+/// pattern matching nothing, which may be in-flight work) and informational
+/// notes (`create_intent` suppression), so a caller routes them independently.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[must_use = "a zero-match literal owned_files entry is a refusal, not advisory"]
+pub struct GlobValidationResult {
+    /// Literal-path entries that matched zero files. These are hard errors.
+    pub errors: Vec<String>,
+    /// Glob-pattern entries that matched zero files. Soft warnings.
+    pub warnings: Vec<String>,
+    /// Notes for suppressed `create_intent` entries.
+    pub info: Vec<String>,
+}
+
+impl GlobValidationResult {
+    /// Whether no hard error was produced.
+    pub fn passed(&self) -> bool {
+        self.errors.is_empty()
+    }
+}
+
+/// Is `pattern` a glob rather than a literal path?
+///
+/// Exactly the reference's test: a pattern carrying any of `*`, `?`, `[`, or
+/// `{` is a glob; everything else is a literal path that must exist.
+pub fn is_glob_pattern(pattern: &str) -> bool {
+    pattern.contains(['*', '?', '[', '{'])
+}
+
+/// Re-validate every `owned_files` entry against the repository.
+///
+/// This is the check the reference runs inside its lane-compute core
+/// (`lanes.compute_and_persist.compute_and_write_lanes` →
+/// `ownership.validation.validate_glob_matches`) before `lanes.json` is
+/// written, so a work package that claims a file which does not exist is
+/// refused instead of published into a manifest lane allocation would later
+/// trust:
+///
+/// * **literal path + zero matches** → a hard error. A path listed in that work
+///   package's `create_intent` is suppressed into an informational note instead,
+///   because the file is *planned* new work;
+/// * **glob pattern + zero matches** → a soft warning (in-flight work).
+///
+/// `create_intent` is the caller's already-parsed WP frontmatter field; this
+/// function performs no YAML, JSON, or Git work of its own.
+pub fn validate_glob_matches(
+    work_packages: &BTreeMap<WpId, WpPlan>,
+    repo_root: &Path,
+    create_intent: &BTreeMap<WpId, Vec<String>>,
+) -> GlobValidationResult {
+    let mut result = GlobValidationResult::default();
+    let empty: Vec<String> = Vec::new();
+    for (wp_id, plan) in work_packages {
+        let intended = create_intent.get(wp_id).unwrap_or(&empty);
+        for pattern in &plan.owned_files {
+            if any_path_matches(repo_root, pattern) {
+                continue;
+            }
+            if is_glob_pattern(pattern) {
+                result.warnings.push(format!(
+                    "{wp_id}: owned_files glob '{pattern}' matches zero files in the repository"
+                ));
+            } else if intended.iter().any(|path| path == pattern) {
+                result.info.push(format!(
+                    "{wp_id}: owned_files path '{pattern}' has no match — suppressed by create_intent (planned-new-file)."
+                ));
+            } else {
+                result.errors.push(format!(
+                    "{wp_id}: owned_files path '{pattern}' is a literal file path that matches zero files in the repository. If this file will be created during implementation, declare it in the WP frontmatter:\n  create_intent:\n    - {pattern}"
+                ));
+            }
+        }
+    }
+    result
+}
+
+/// Does any path under `root` match the relative `pattern`?
+///
+/// Pattern-driven descent (the same shape as `pathlib.Path.glob`): only
+/// directories a segment actually names are read, so a `src/**/x` pattern costs
+/// the `src` subtree rather than the whole repository. `**` matches zero or
+/// more directory segments.
+fn any_path_matches(root: &Path, pattern: &str) -> bool {
+    let segments: Vec<&str> = pattern
+        .split('/')
+        .filter(|segment| !segment.is_empty() && *segment != ".")
+        .collect();
+    if segments.is_empty() {
+        return false;
+    }
+    descend(root, &segments)
+}
+
+fn descend(directory: &Path, segments: &[&str]) -> bool {
+    let Some((segment, rest)) = segments.split_first() else {
+        return directory.exists();
+    };
+    if *segment == "**" {
+        if descend(directory, rest) {
+            return true;
+        }
+        let Ok(entries) = std::fs::read_dir(directory) else {
+            return false;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() && descend(&path, segments) {
+                return true;
+            }
+        }
+        return false;
+    }
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        if !segment_matches_pattern(segment, &name) {
+            continue;
+        }
+        let path = entry.path();
+        if rest.is_empty() {
+            if path.exists() {
+                return true;
+            }
+        } else if path.is_dir() && descend(&path, rest) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Does one path segment match one pattern segment (`*`, `?`, `[abc]`, `[a-z]`)?
+///
+/// `*` and `?` never cross a `/` because segments are matched separately, which
+/// is `pathlib`'s behaviour. A malformed bracket expression is treated as the
+/// literal characters it contains, matching `fnmatch`'s fallback.
+fn segment_matches_pattern(pattern: &str, value: &str) -> bool {
+    fn walk(pattern: &[char], value: &[char]) -> bool {
+        let Some((head, rest)) = pattern.split_first() else {
+            return value.is_empty();
+        };
+        match head {
+            '*' => (0..=value.len()).any(|skip| walk(rest, &value[skip..])),
+            '?' => !value.is_empty() && walk(rest, &value[1..]),
+            '[' => {
+                let Some((matched_len, class)) = bracket_class(&pattern[1..]) else {
+                    return !value.is_empty() && *head == value[0] && walk(rest, &value[1..]);
+                };
+                let Some(candidate) = value.first() else {
+                    return false;
+                };
+                class(*candidate) && walk(&pattern[1 + matched_len..], &value[1..])
+            }
+            literal => !value.is_empty() && *literal == value[0] && walk(rest, &value[1..]),
+        }
+    }
+    walk(
+        &pattern.chars().collect::<Vec<_>>(),
+        &value.chars().collect::<Vec<_>>(),
+    )
+}
+
+/// Parse `[...]` (without the opening bracket): the character count consumed and
+/// a membership predicate. `None` when the class is unterminated.
+type CharClass = Box<dyn Fn(char) -> bool>;
+
+fn bracket_class(rest: &[char]) -> Option<(usize, CharClass)> {
+    let close = rest.iter().position(|character| *character == ']')?;
+    let body = &rest[..close];
+    let (negated, body) = match body.first() {
+        Some('!') | Some('^') => (true, &body[1..]),
+        _ => (false, body),
+    };
+    let mut ranges: Vec<(char, char)> = Vec::new();
+    let mut index = 0;
+    while index < body.len() {
+        if index + 2 < body.len() && body[index + 1] == '-' {
+            ranges.push((body[index], body[index + 2]));
+            index += 3;
+        } else {
+            ranges.push((body[index], body[index]));
+            index += 1;
+        }
+    }
+    let class: CharClass = Box::new(move |candidate: char| {
+        let inside = ranges
+            .iter()
+            .any(|(low, high)| *low <= candidate && candidate <= *high);
+        inside != negated
+    });
+    Some((close + 1, class))
 }
 
 #[cfg(test)]
@@ -1845,5 +2062,100 @@ mod tests {
         input.dependencies.insert(wp("WP02"), vec![wp("WP01")]);
         let error = compute_lanes(&input).unwrap_err();
         assert!(matches!(error, WorkspaceError::LaneDependencyCycle { .. }));
+    }
+
+    /// A fresh repository-shaped directory tree for the glob checks.
+    fn repo_with(files: &[&str]) -> tempfile::TempDir {
+        let temp = tempfile::tempdir().expect("temp");
+        for file in files {
+            let path = temp.path().join(file);
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).expect("create parent");
+            }
+            std::fs::write(&path, "fixture\n").expect("write fixture");
+        }
+        temp
+    }
+
+    #[test]
+    fn a_literal_owned_files_path_matching_nothing_is_an_error() {
+        let repo = repo_with(&["src/alpha.rs"]);
+        let mut packages = BTreeMap::new();
+        packages.insert(
+            wp("WP02"),
+            WpPlan::code(wp("WP02"), ["src/alpha.rs", "src/missing.rs"]),
+        );
+        let result = validate_glob_matches(&packages, repo.path(), &BTreeMap::new());
+        assert!(!result.passed());
+        assert_eq!(result.errors.len(), 1, "{result:?}");
+        let row = &result.errors[0];
+        assert!(
+            row.starts_with("WP02: owned_files path 'src/missing.rs'"),
+            "{row}"
+        );
+        assert!(
+            row.contains("is a literal file path that matches zero files in the repository."),
+            "{row}"
+        );
+        assert!(
+            row.ends_with("  create_intent:\n    - src/missing.rs"),
+            "Source's remedy paragraph: {row:?}"
+        );
+        assert!(result.warnings.is_empty());
+        assert!(result.info.is_empty());
+    }
+
+    #[test]
+    fn a_glob_pattern_matching_nothing_is_only_a_warning() {
+        let repo = repo_with(&["src/alpha.rs"]);
+        let mut packages = BTreeMap::new();
+        packages.insert(wp("WP01"), WpPlan::code(wp("WP01"), ["src/**/*.rs"]));
+        packages.insert(wp("WP02"), WpPlan::code(wp("WP02"), ["docs/**"]));
+        let result = validate_glob_matches(&packages, repo.path(), &BTreeMap::new());
+        assert!(result.passed(), "{result:?}");
+        assert_eq!(
+            result.warnings,
+            vec![
+                "WP02: owned_files glob 'docs/**' matches zero files in the repository".to_owned()
+            ]
+        );
+    }
+
+    #[test]
+    fn create_intent_suppresses_the_zero_match_refusal() {
+        let repo = repo_with(&["src/alpha.rs"]);
+        let mut packages = BTreeMap::new();
+        packages.insert(wp("WP01"), WpPlan::code(wp("WP01"), ["src/brand_new.rs"]));
+        let mut intent = BTreeMap::new();
+        intent.insert(wp("WP01"), vec!["src/brand_new.rs".to_owned()]);
+        let result = validate_glob_matches(&packages, repo.path(), &intent);
+        assert!(result.passed(), "{result:?}");
+        assert!(result.errors.is_empty());
+        assert_eq!(
+            result.info,
+            vec![
+                "WP01: owned_files path 'src/brand_new.rs' has no match — suppressed by create_intent (planned-new-file).".to_owned()
+            ]
+        );
+    }
+
+    #[test]
+    fn the_pattern_matcher_handle_recursive_and_segment_shapes() {
+        let repo = repo_with(&["src/a/deep/mod.rs", "src/b/top.rs", "docs/guide.md"]);
+        let root = repo.path();
+        assert!(any_path_matches(root, "src/a/deep/mod.rs"), "literal");
+        assert!(any_path_matches(root, "src/*/top.rs"), "single star");
+        assert!(any_path_matches(root, "src/**/mod.rs"), "recursive");
+        assert!(any_path_matches(root, "docs/*.md"), "extension glob");
+        assert!(any_path_matches(root, "src/[bc]/top.rs"), "bracket class");
+        // `*` is one segment: it cannot stand in for `a/deep`.
+        assert!(
+            !any_path_matches(root, "src/*/mod.rs"),
+            "star does not cross /"
+        );
+        assert!(!any_path_matches(root, "missing/**"), "absent prefix");
+        assert!(is_glob_pattern("src/*.rs"));
+        assert!(is_glob_pattern("{a,b}"));
+        assert!(!is_glob_pattern("src/alpha.rs"));
     }
 }

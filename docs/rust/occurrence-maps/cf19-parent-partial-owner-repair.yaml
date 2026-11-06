@@ -1,0 +1,50 @@
+# Parent PRE-EDIT actual-state review after malformed CF19 completion.
+# .vlTmT6 actual compile red, .mRtcQ4 APIs, actual Source/model readers read.
+# Quoted DSML edit is NOT executed or reconstructed. No host Mission/Op.
+target:
+  term: "CF19 actual partial owner compilation and canonical reuse"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Pass actual repo_root to existing built_in_search; replace private repr/dangling copies with existing canonical functions. Expose existing dangling validator pub(crate), no duplicate policy/model.
+  import_paths:
+    action: manual_review
+    notes: Same-item imports of Kernel repr and existing Doctrine validator only, no dependency or root facade changes.
+  filesystem_paths:
+    action: manual_review
+    notes: >-
+      No files moved; Source/packs/pins/goldens/data/lock roots unchanged.
+      Supplemental BEFORE-fix review after .mMJ50u: get_bundle_schema_version's
+      argument is already charter_dir, while CHARTER_YAML is repo-relative;
+      correct doubled read path to charter_dir/charter.yaml, same Source filename.
+  serialized_keys:
+    action: do_not_change
+    notes: No status payload wiring or schema change; partial new models are not certified.
+  cli_commands:
+    action: do_not_change
+    notes: Existing status still CF12 implementation, no additional completed route claim.
+  user_facing_strings:
+    action: manual_review
+    notes: Canonical diagnostics/repr replace clones; remove false faithful/nothing-else-differs claims from partial bundle reader docs. Source bool/arbitrary-int/error propagation gaps remain genuine defects, not authorized exceptions.
+  tests_fixtures:
+    action: manual_review
+    notes: Source provenance validator requires source_section key; keep it null when testing empty-source after-validator. Fix premise not assertion. Retain real new owner smoke and explicit Native-only limits.
+  logs_telemetry:
+    action: do_not_change
+    notes: Actual report remains provisional, no final reconstruction/parity/performance/global counts.
+exceptions:
+  - path: crates/sk-doctrine/src/org_status.rs
+    action: manual_review
+    reason: Actual argument compile fix, remove copied repr and dangling diagnostic implementation.
+  - path: crates/sk-doctrine/src/validate.rs
+    action: manual_review
+    reason: Existing owner function pub(crate) visibility only.
+  - path: crates/sk-charter/src/provenance/sidecar.rs
+    action: manual_review
+    reason: Correct native test fixture to exercise intended Source after-validator with required nullable key present.
+  - path: crates/sk-charter/src/bundle_compat.rs
+    action: manual_review
+    reason: Correct partial inspection docs and actual doubled charter-dir read path after retained unit red; no claim of full Source reader compatibility.
+status:
+  accepted: false
+  phase: parent pre-edit actual partial repair, no recovered final report

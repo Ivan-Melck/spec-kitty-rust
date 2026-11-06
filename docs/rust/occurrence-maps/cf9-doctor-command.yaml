@@ -1,0 +1,100 @@
+# CF9 ADDITIVE lane classification; no active host Mission/Op or approval.
+# Scope: the new `spec-kitty doctor` adapter (`crates/sk-cli/src/compat/doctor*`),
+# the new read-only diagnosis owner (`crates/sk-workspace/src/doctor*`) and
+# `crates/sk-cli/tests/cf9_doctor_command.rs`. No pre-existing identifier is
+# renamed, removed or deprecated, so `target.operation` is omitted (additive).
+target:
+  term: "new CF9 doctor identifiers (DoctorArgs/DoctorCommand, sk_workspace::doctor::*)"
+  operation: null
+  notes: >-
+    Purely additive: declaration-only stubs were replaced by real read-only
+    implementations. No existing API, JSON key, command, message or path is
+    renamed. Refused subcommands stay unreachable as successes (named codes).
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      NEW public symbols only: `sk_workspace::doctor::{identity,topology,
+      mission_type,state_roots,workspaces,meta}` and
+      `sk_cli::compat::doctor::{DoctorArgs,DoctorCommand,run,parse,facts,render}`.
+      Reused canonical authorities in place of private clones: `sk-mission`
+      mission identity validation is NOT re-implemented (the audit reports the
+      STORED value), `sk-workspace::lanes::LanesStore` reads `lanes.json`,
+      `sk-status::migration_backfill::mission_is_terminal` answers completion,
+      `sk-git` answers index/worktree/ignore/git-dir questions, `sk-doctrine`
+      answers activation, `sk-mission::resolve_mission_definition` answers
+      mission-type resolution. No existing symbol's meaning changed.
+  import_paths:
+    action: manual_review
+    notes: >-
+      New module edges only inside existing dependencies: sk-workspace keeps its
+      declared deps (no manifest change); sk-cli uses sk-workspace/sk-doctrine/
+      sk-charter/sk-mission/sk-git/sk-kernel it already depends on. No new
+      external package, no lockfile change.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      All inspected paths are the reference spellings: `kitty-specs/<slug>/`,
+      `meta.json`, `lanes.json`, `.kittify/config.yaml`,
+      `.kittify/charter/activation.yaml`, `.worktrees/`, `.git/`, the 62
+      registered state-surface patterns. Nothing is created, renamed or adopted.
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      New payloads reproduce the reference `doctor` JSON shapes (`summary`,
+      `missions`, `duplicate_prefixes`, `ambiguous_selectors`,
+      `fail_on_triggered`, `residue_remedies`, `roots`, `surfaces`,
+      `warnings`, `healthy`, `husks`, `registration_error`, `worktrees_dir`) with
+      the same finding codes (`SINGLE_BRANCH_CODE_LANES_UNMIGRATED`,
+      `LANES_MANIFEST_UNREADABLE`, `GIT_INDEX_UNREADABLE`). Existing keys
+      elsewhere unchanged; unknown refusals add `error_code`/`coverage` only.
+  cli_commands:
+    action: manual_review
+    notes: >-
+      Adds the `doctor` group's argument surface only. Root enum/dispatch and the
+      capability matrix remain parent-owned and are requested as an exact patch;
+      until then the adapter is not reachable from the binary. Implemented
+      leaves: identity, topology, mission-type, state-roots, workspaces (report).
+      Mutating arms (`--fix`, `--repair`, `--close-stale`) are refused with
+      exit 2, never a silent no-op.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      Identity residue remedies, `SINGLE_BRANCH_CODE_LANES_UNMIGRATED` /
+      `LANES_MANIFEST_UNREADABLE` remedies, the `not in a project` refusal,
+      `Mission not found: '<handle>'` and the bare-`doctor` "no diagnostic ran"
+      text follow the reference. The human report LAYOUT (plain text, no Rich) is
+      deliberately not byte-pinned; rows/findings/remedies are.
+  tests_fixtures:
+    action: do_not_change
+    notes: >-
+      New `crates/sk-cli/tests/cf9_doctor_command.rs` and module-local
+      `#[cfg(test)]` fixtures only, all fresh `tempfile` roots (one real
+      `git init` fixture). No existing test or fixture edited, none weakened.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log key, event, metric or telemetry rename. Diagnostics print to
+      stdout/stderr only; nothing writes to a ledger.
+exceptions:
+  - path: crates/sk-workspace/src/doctor/state_roots.rs
+    action: manual_review
+    reason: >-
+      Diagnostic projection of the reference state contract (62 surfaces, six
+      fields each) generated from the pinned source module and asserted for
+      uniqueness/root coverage. The reference's format/owner/retention/cleanup
+      fields are NOT reproduced; consolidation with the future canonical native
+      state-contract owner is required before that owner lands.
+  - path: crates/sk-cli/src/compat/doctor/facts.rs
+    action: manual_review
+    reason: >-
+      Composes canonical authorities (activation ledger, project config, layered
+      mission-type definition roots) instead of adding a second activation or
+      roster reader. `compat/runtime.rs` holds similar private composition for
+      the runtime slot; consolidation is requested, not duplicated silently.
+  - path: docs/rust/occurrence-maps/cf9-doctor-command.yaml
+    action: do_not_change
+    reason: This file records the additive classification; it is not an approval.
+status:
+  reviewed_by: "CF9 implementer pre-edit classification (not independent approval)"
+  accepted: false

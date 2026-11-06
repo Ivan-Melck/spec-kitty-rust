@@ -36,6 +36,16 @@ pub enum MissionError {
         source: io::Error,
     },
 
+    /// An installed observer failed after this writer published its bytes.
+    #[error("write observer failed after publishing {path}: {source}")]
+    WriteObserver {
+        /// Actual destination whose publication preceded the failure.
+        path: PathBuf,
+        /// Original callback cause/class, never converted to fabricated I/O.
+        #[source]
+        source: Box<sk_kernel::source_writer::WriteObserverError>,
+    },
+
     /// A kernel primitive rejected a path or read.
     #[error("kernel rejected {path}: {source}")]
     Kernel {
@@ -195,6 +205,11 @@ pub enum MissionError {
 }
 
 impl MissionError {
+    /// Whether this error confirms the writer published before its observer failed.
+    pub const fn published_before_error(&self) -> bool {
+        matches!(self, Self::WriteObserver { .. })
+    }
+
     /// Build an [`MissionError::Io`] with the failing action and path.
     pub(crate) fn io(action: &'static str, path: impl Into<PathBuf>, source: io::Error) -> Self {
         Self::Io {

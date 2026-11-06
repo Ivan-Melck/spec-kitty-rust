@@ -1,0 +1,40 @@
+target:
+  term: Source present activation key skips absent-key preservation service and logging
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Native activate_direct preservation demand follows Source _preservation_ids guard; canonical YamlDocument non-null predicate, no write engine clone.
+  import_paths:
+    action: do_not_change
+    notes: Existing writer document and identity/stem/effective-set owners only.
+  filesystem_paths:
+    action: manual_review
+    notes: Existing write-target snapshot opened before optional preservation, no extra read or transaction implementation; existing temp fixtures only.
+  serialized_keys:
+    action: do_not_change
+    notes: Same JSON contract and authored list authority, explicit non-null including empty list skips service.
+  cli_commands:
+    action: manual_review
+    notes: charter activate present-list branch must not emit unknown-token LOGGER warnings Source does not emit; no flags/root changes.
+  user_facing_strings:
+    action: manual_review
+    notes: Remove spurious native-only stderr from extra service demand, not by suppressing legitimate logger transport.
+  tests_fixtures:
+    action: manual_review
+    notes: Reclassify producer native-only CLI ten-warning expectation as actual defect; Source executable present-key guard and actual evidence, current API red before fix.
+  logs_telemetry:
+    action: manual_review
+    notes: API warning-byte pairing remains valid bounded evidence; CLI extra lines are not functionality parity. Native startup/cache healthy result remains explicitly unaccepted separate carrier gap.
+exceptions:
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: Preserve Source present-list no-demand behavior and only previous-stem inputs without cloning writer policy.
+  - path: crates/sk-doctrine/src/yaml.rs
+    action: manual_review
+    reason: Factor existing canonical missing/null predicate for demand guard; no parser/writer semantic change.
+  - path: crates/sk-cli/tests/cf82_activation_warning_cli.rs
+    action: manual_review
+    reason: Correct actual Source-silent present-list command expectation; keep actual binary JSON and landed-list assertions.
+status:
+  accepted: false
+  phase: prospective parent present-key Source demand correction

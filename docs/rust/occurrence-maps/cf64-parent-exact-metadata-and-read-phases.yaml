@@ -1,0 +1,46 @@
+target:
+  term: Exact provenance mission metadata and Source record construction phases
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Existing provenance owner uses Kernel J1/str exact values, typed decode/type/native failures, and metadata-before-id-before-clock Source order.
+  import_paths:
+    action: manual_review
+    notes: Borrow existing Kernel JSON/UTF8 authorities; no serde JSON parser clone.
+  filesystem_paths:
+    action: manual_review
+    notes: Same lexical route; Source exists before ordinary read, not is_file absence. No CLI wiring before actual sync/freshness policy exists.
+  serialized_keys:
+    action: manual_review
+    notes: Existing mission_id becomes exact Python str(value), including null/numbers/bools/containers/surrogates; no new wire field.
+  cli_commands:
+    action: do_not_change
+    notes: Requested direct render-reader wiring rejected because Source render is plain UTF8 and ingestion occurs conditionally at sync.
+  user_facing_strings:
+    action: manual_review
+    notes: Preserve actual caught JSON syntax versus escaping Unicode/value/type/native failures, no healthy null substitution.
+  tests_fixtures:
+    action: manual_review
+    notes: New Source-first metadata controls and correction of old non-string metadata omission expectation, data unchanged.
+  logs_telemetry:
+    action: manual_review
+    notes: No record on escaped pre-mint errors; successful exact records keep Source schema.
+exceptions:
+  - path: crates/sk-doctrine/src/loader.rs
+    action: manual_review
+    reason: Prospective exists-before-read Source policy, directory is not healthy absence.
+  - path: crates/sk-doctrine/tests/cf64_parent_loader_phases.rs
+    action: manual_review
+    reason: Prospective directory-versus-absence consumer control, new file.
+  - path: crates/sk-kernel/src/encoding_provenance.rs
+    action: manual_review
+    reason: Existing record/getter/metadata read owner, exact carrier and one canonical J1 parser.
+  - path: crates/sk-kernel/tests/cf64_parent_metadata_phases.rs
+    action: manual_review
+    reason: Prospective Source-derived data and escape controls before fix.
+  - path: crates/sk-kernel/tests/cf64_encoding_provenance.rs
+    action: manual_review
+    reason: Existing journal API test updated to exact Result and Source non-string coercion.
+status:
+  accepted: false
+  phase: parent prospective Source metadata and phase correction

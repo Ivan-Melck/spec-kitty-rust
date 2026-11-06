@@ -1,0 +1,172 @@
+# PRE-EDIT occurrence classification for CF17 (canonical full decision fold +
+# actual fork diagnosis).
+#
+# SEQUENCING DISCLOSURE (read this first). The bootstrap requires this map to be
+# authored BEFORE any edit. It was authored AFTER this lane's own files were
+# written (canonical `decision_fold.rs` / `decision_fork.rs`, the `doctor`
+# alias, `doctor/decisions.rs`, `lib.rs` module declarations,
+# `decision_model::validate_entry_document`, and the CLI `facts.rs` /
+# `compat/doctor.rs` wiring) and BEFORE any multi-site/shared/foreign edit. That
+# is a real protocol slip, recorded as such in the CF17 report; it is NOT
+# retroactively presented as a pre-edit map. The classification below is still a
+# real, schema-validated classification of every occurrence class this lane
+# touches, and the inventory was measured at map-authoring time.
+#
+# WHY THIS LANE IS ADDITIVE (and why no broad rename happens):
+#
+#  * The canonical fold is NEW (`sk_workspace::decision_fold`). The previous
+#    doctor-scoped implementation is RETIRED in place: the public path
+#    `sk_workspace::doctor::decision_fold` is KEPT as a re-export alias, so no
+#    caller has to change.
+#  * The fork diagnosis is NEW (`sk_workspace::decision_fork`) and is consumed
+#    by the existing `doctor decisions` leaf; the CLI command name, flags and
+#    exit codes are untouched.
+#  * `audit_decisions` KEEPS its exact name, arity and payload. A new sibling
+#    `audit_decisions_with_fork` plus `DecisionsReport` carry the fork facts, so
+#    the pre-existing `repo_root=None` report shape (and the CF14 tests that
+#    assert it) keep working.
+#  * `unevaluated_findings` is NOT renamed or removed from the audit type; it
+#    simply is not emitted by the fork-report payload, where real facts replace
+#    it. The disclosure key remains for the no-fork-report call shape.
+#  * `summary_json` surrogate-key preservation (the authorized semantic
+#    exception) is untouched by this lane.
+#
+# Pre-edit inventory measured with `grep -rF/-rFo --include=*.rs --exclude-dir=target`
+# over `crates/` (evidence label `occurrence-inventory`):
+#   doctor::decision_fold                    2 files /  2 hits
+#   decision_fold                            7 files / 10 hits
+#   fold_status                              3 files /  5 hits
+#   fold_events                              3 files / 18 hits
+#   unevaluated_findings                     2 files /  8 hits
+#   audit_decisions                          4 files / 13 hits
+#   DecisionSurfaces                         2 files /  4 hits
+#   DECISION_LOG_FORKED                      3 files /  5 hits
+#   DECISION_LEDGER_ONLY_ON_COORDINATION     3 files /  5 hits
+#   is_allowed_terminal_reopen               3 files /  9 hits
+#   DecisionsForkReport                      4 files / 12 hits
+target:
+  term: "doctor::decision_fold"
+  replacement: "decision_fold"
+  operation: rename
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      The fold's IMPLEMENTATION moves to `sk_workspace::decision_fold`; the
+      doctor path stays as a same-item re-export alias, so `fold_status`,
+      `fold_events`, `FoldError`, `DECISION_OPENED_EVENT` and
+      `DECISION_RESOLVED_EVENT` keep their names and signatures. New public
+      items: `FoldedDecision`, `is_allowed_terminal_reopen`, `python_str`,
+      `validate_entry_document` (an entry point to the EXISTING index
+      validator, not a second model), and the `decision_fork` types
+      (`DecisionsForkReport`, `StreamForkFinding`, `LedgerHomeFinding`,
+      `SurfaceLog`, `StreamState`, `LedgerState`, `ForkSurface`,
+      `SurfaceSource`, `ForkError`). `audit_decisions` is unchanged; the sibling
+      `audit_decisions_with_fork` and `DecisionsReport` are additive.
+  import_paths:
+    action: rename
+    notes: >-
+      The only import-path rewrite is inside this lane's own files
+      (`crate::doctor::decision_fold::{...}` -> `crate::decision_fold::{...}` in
+      `doctor/decisions.rs`; `crate::decision_fold` keeps its old names), plus
+      `pub use crate::decision_fold::{...}` in `doctor/decision_fold.rs`. No
+      crate dependency, manifest or lock change: `sk-cli` already depends on
+      `sk-workspace`, and `sk-workspace` gains no dependency.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No path is moved or created on disk by the product code. New source files
+      are `crates/sk-workspace/src/{decision_fold,decision_fork}.rs`, test files
+      `crates/sk-cli/tests/cf17_decision_fork_doctor.rs` +
+      `crates/sk-workspace/tests/cf17_decision_fold_fork.rs`, and this map; all
+      fixtures are fresh `mktemp` tempdirs with their own `git init`. Source-only
+      paths (`status.events.jsonl`, `decisions.events.jsonl`,
+      `decisions/index.json`, `decisions/DM-*.md`, `kitty-specs/...`) keep their
+      exact names because they are the wire/on-disk contract.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      `doctor decisions --json` keeps every existing key (`mission_slug`,
+      `clean`, `log_decision_ids`, `index_decision_ids`, `missing_from_index`,
+      `orphaned_in_index`, `repaired`, `lossy_attribution`, `malformed_folds`,
+      `status_mismatch`, `remedy`, `findings`, `ledger_copied`) and ADDS
+      Source's `forked`, `streams`, `ledger`, `reconcile_steps` — new keys, not
+      renamed ones. Nested fork keys use Source's own names (`source`, `ref`,
+      `path`, `event_count`, `state`, `entries_only_on_coordination`,
+      `dm_files_only_on_coordination`, `decisions_only_on_primary`,
+      `decisions_only_on_coordination`, `decisions_on_both`). The ledger document
+      (`version`/`mission_id`/`entries`) and every `IndexEntry` field are
+      untouched, including the authorized `summary_json` surrogate-key
+      preservation. A lone-surrogate decision id is a typed refusal
+      (`DECISION_FORK_IDENTITY_UNRENDERABLE`), never an escaped fake id.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command, subcommand, flag, alias, default or exit code changes.
+      `doctor decisions` still always exits 0 in the read-only path; `--repair`
+      still refuses with `UNSUPPORTED_DOCTOR_DECISIONS_REPAIR` before any read,
+      lock or write. The refusal's detail lines and the module doc's leaf table
+      now say the fork report IS implemented (user-facing text only).
+  user_facing_strings:
+    action: rename_if_user_visible
+    notes: >-
+      The `--repair` refusal no longer claims the two-surface fork report is
+      missing ("(missing: `specify_cli.decisions.fork` owner)" is gone); it now
+      lists the fork report as implemented and names only the mutating halves
+      (index rebuild, coordination-ledger copy) as missing. New human output is
+      Source's fork wording, copied verbatim in substance: one `forked
+      (primary=N event(s), coordination=N event(s))` line per forked stream, the
+      `only on the coordination branch (N entr(ies), N DM file(s))` ledger line,
+      and the never-executed `reconcile:` steps (including the C-003
+      "never auto-merged" sentence and the `--repair` pointer). No diagnostic
+      code string is renamed.
+  tests_fixtures:
+    action: rename
+    notes: >-
+      New tests only: canonical fold/fork unit tests inside the new modules,
+      `cf17_*` Workspace/CLI integration tests (fresh tempdir + `git init`
+      fixtures, real coordination branch/worktree, materialized vs
+      unmaterialized, readonly). Existing tests are not weakened: CF14's
+      `audit_decisions` 3-arg call and its `unevaluated_findings` assertion keep
+      passing against the unchanged audit type; `cf9_doctor_command` and
+      `cf789_parent_routes` must keep passing unchanged (parent route/capability
+      rows untouched).
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No metric, log key or event name changes. The only new diagnostic is the
+      typed error code `DECISION_FORK_IDENTITY_UNRENDERABLE`; `DECISION_LOG_FORKED`,
+      `DECISION_LEDGER_ONLY_ON_COORDINATION`, `DECISION_EVENTS_UNREADABLE` and
+      `DECISION_INDEX_UNREADABLE` keep their exact spellings. No event is
+      emitted, and no health/readiness label is invented.
+exceptions:
+  - path: crates/sk-workspace/src/doctor/decision_fold.rs
+    action: do_not_change
+    reason: >-
+      Compatibility alias only. It must contain no fold logic: the file is a
+      `pub use crate::decision_fold::{...}` re-export so there is exactly ONE
+      fold in the tree. Any future edit that adds interpretation here recreates
+      the split-brain the Source contract forbids.
+  - path: crates/sk-workspace/src/doctor/decisions.rs
+    action: manual_review
+    reason: >-
+      Owned reconciliation module. The audit's public name/arity/payload stay
+      compatible; the fork-widened orphan rule and the fork payload live behind
+      the new sibling entry points (`audit_decisions_with_fork`,
+      `DecisionsReport`). Reviewers must check that `missing_from_index` still
+      uses the single-surface log while `orphaned_in_index` uses the union —
+      Source's exact split.
+  - path: crates/sk-cli/src/compat/doctor.rs
+    action: manual_review
+    reason: >-
+      Dispatch/serialization only. The five pre-existing implemented leaves and
+      eleven refusals keep their behaviour; the `decisions` arm now passes the
+      resolved fork report and prints Source's fork lines. No new leaf, route or
+      capability row is added.
+  - path: crates/sk-cli/src/compat/doctor/facts.rs
+    action: manual_review
+    reason: >-
+      Decision-surface composition only: `DecisionSurfaces` gains the fork
+      report resolved through the canonical `MissionWorkspace` probe and
+      placement authorities. No second path resolver and no Mission-lock or
+      Invocation dependency is introduced.

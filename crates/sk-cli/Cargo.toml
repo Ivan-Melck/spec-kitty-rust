@@ -27,6 +27,7 @@ sk-doctrine = { path = "../sk-doctrine" }
 sk-git = { path = "../sk-git" }
 sk-glossary = { path = "../sk-glossary" }
 sk-install = { path = "../sk-install" }
+sk-invocation = { path = "../sk-invocation" }
 sk-kernel = { path = "../sk-kernel" }
 sk-mission = { path = "../sk-mission" }
 sk-run-store = { path = "../sk-run-store" }

@@ -1,0 +1,37 @@
+target:
+  term: "Direct numeric less-or-equal must not use container NaN identity"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Existing single numeric comparator handles direct <=; reuse same exact big-int/float comparison, no new comparator/equality/hash model.
+  import_paths:
+    action: do_not_change
+    notes: Existing Kernel facade only.
+  filesystem_paths:
+    action: do_not_change
+    notes: No filesystem or fold state writes.
+  serialized_keys:
+    action: do_not_change
+    notes: Preserve exact numbers/NaN provenance and keys.
+  cli_commands:
+    action: do_not_change
+    notes: No doctor routes registration or counts.
+  user_facing_strings:
+    action: do_not_change
+    notes: Existing TypeError messages retained.
+  tests_fixtures:
+    action: manual_review
+    notes: Actual CPython direct scalar NaN <= NaN false versus list-contained shared NaN true; focused before-fix primitive control plus existing source-valued consumer tests.
+  logs_telemetry:
+    action: do_not_change
+    notes: All attempts retained, no aggregate/performance/parity claim.
+exceptions:
+  - path: crates/sk-kernel/src/python_json/order.rs
+    action: manual_review
+    reason: Direct <= numeric branch delegates to existing compare_numeric; no key-equality change.
+  - path: crates/sk-kernel/tests/cf54_parent_numeric_order.rs
+    action: manual_review
+    reason: New focused scalar versus container-identity regression.
+status:
+  accepted: false
+  phase: parent pre-edit NaN relational correction

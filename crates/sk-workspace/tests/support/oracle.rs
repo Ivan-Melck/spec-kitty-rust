@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Fail-closed, lock-exact development-oracle selection (never production code).
 //!
 //! Required comparison tests must never turn an unavailable reference into a
@@ -44,13 +45,26 @@ pub fn python() -> PathBuf {
 }
 
 /// Run a Python snippet against the pinned source tree and return trimmed stdout.
+///
+/// The child runs in a fresh temporary working directory with its own `HOME`,
+/// every `XDG_*` root and `TMPDIR`, so no probe reads or writes operator state.
 pub fn run(script: &str, args: &[&str]) -> String {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let sandbox = tempfile::tempdir().expect("oracle sandbox");
+    for directory in ["home", "cache", "config", "data", "state", "tmp", "cwd"] {
+        std::fs::create_dir_all(sandbox.path().join(directory)).expect("sandbox root");
+    }
     let output = Command::new(python())
         .arg("-c")
         .arg(script)
         .args(args)
-        .current_dir(&root)
+        .current_dir(sandbox.path().join("cwd"))
+        .env("HOME", sandbox.path().join("home"))
+        .env("XDG_CACHE_HOME", sandbox.path().join("cache"))
+        .env("XDG_CONFIG_HOME", sandbox.path().join("config"))
+        .env("XDG_DATA_HOME", sandbox.path().join("data"))
+        .env("XDG_STATE_HOME", sandbox.path().join("state"))
+        .env("TMPDIR", sandbox.path().join("tmp"))
         .env("PYTHONPATH", root.join("src"))
         .env("SPEC_KITTY_PACKS_ROOT", root.join("packs"))
         .env("PYTHONDONTWRITEBYTECODE", "1")
@@ -64,4 +78,11 @@ pub fn run(script: &str, args: &[&str]) -> String {
         String::from_utf8_lossy(&output.stderr)
     );
     String::from_utf8_lossy(&output.stdout).trim().to_owned()
+}
+
+/// Decode the JSON document an oracle snippet printed.
+pub fn run_json(script: &str, args: &[&str]) -> serde_json::Value {
+    let text = run(script, args);
+    serde_json::from_str(&text)
+        .unwrap_or_else(|error| panic!("oracle output was not JSON ({error}): {text}"))
 }

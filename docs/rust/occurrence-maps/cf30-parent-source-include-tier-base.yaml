@@ -1,0 +1,67 @@
+# Parent PRE-EDIT actual Source _project_root_candidates.py + template renderer
+# read to EOF/behavioral regions and actual Native callers inspected. Originals
+# .bIUXm6/.SFmrY5; census .0FBwOS. No extra compatibility exception authorized.
+target:
+  term: "Source template include project-layer base versus explicit-root resolver"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Add one canonical Source project-layer directory helper below Doctrine and Source include facade; share existing resolver/reader/renderer. Preserve explicit-real-root six-tier API as distinct Native/data capability, no policy copy.
+  import_paths:
+    action: manual_review
+    notes: Existing module imports use Source facade at compatibility callers; same-item project-layer helper reexport. No dependency/manifest/root-error changes.
+  filesystem_paths:
+    action: manual_review
+    notes: Source candidate project_pack then src/charter/offering directory presence is authoritative. Do not change Source paths/pins; fixture project-tier content moves under actual selected project-layer base so old output assertions retain Source-valid premises. Ordinary project overrides must be ignored by Source include but still selected by explicit-root API.
+  serialized_keys:
+    action: do_not_change
+    notes: Keep include envelopes/tier spellings/text/errors and template identifiers. No evidence keys, readiness or fake fallback IDs.
+  cli_commands:
+    action: do_not_change
+    notes: Same template selector/flags. Only caller's selected base corrected; no Source improvement waiver.
+  user_facing_strings:
+    action: manual_review
+    notes: Correct doc-only 'adjudication' and documented-root claims; Source cause wins. Narrow now-implemented template gap while retaining catalog consumer/error/encoding/byte debts.
+  tests_fixtures:
+    action: manual_review
+    notes: Existing tier output/read-only/independent-bundle/nudge/refusal assertions kept by realistic nested-layer fixtures, not weakened. Add ordinary-root override ignored vs explicit-root winner and empty-directory/legacy-fallback precedence controls.
+  logs_telemetry:
+    action: do_not_change
+    notes: Retain producer nonisolated probe, Source observations and wrong-premise positives. No paired conformance/performance/global accounting/release promotion.
+exceptions:
+  - path: crates/sk-charter/src/pack.rs
+    action: manual_review
+    reason: Canonical project-layer directory presence helper only; contained/Source PackRoots policies unchanged.
+  - path: crates/sk-charter/src/lib.rs
+    action: manual_review
+    reason: Same-item helper reexport only, existing template/preset declarations intact.
+  - path: crates/sk-charter/src/template_catalog.rs
+    action: manual_review
+    reason: Add Source facade over same explicit-root resolver/renderer, factor shared body, correct known-divergence docs; no discovery/tier policy clone.
+  - path: crates/sk-doctrine/src/context_include.rs
+    action: manual_review
+    reason: Template branch calls Source facade only; parent parser/JSON/ambiguity and future non-template owners unchanged.
+  - path: crates/sk-cli/src/compat/charter/context_include.rs
+    action: manual_review
+    reason: Template fastpath calls Source facade, still skips unrelated bundle/profile creation.
+  - path: crates/sk-cli/tests/cf30_template_include_cli.rs
+    action: manual_review
+    reason: Correct tier fixture locations under real selected layer while preserving output/refusal/nudge assertions; add Source base controls.
+  - path: crates/sk-doctrine/tests/cf30_template_include.rs
+    action: manual_review
+    reason: Same reference-compatible fixture base correction with old tier/text assertions retained.
+  - path: crates/sk-doctrine/tests/cf26_context_include.rs
+    action: manual_review
+    reason: Template fixture path only; all model-projection and parent ambiguity assertions unchanged.
+  - path: crates/sk-cli/tests/cf26_context_include_cli.rs
+    action: manual_review
+    reason: Template fixture path only, text/JSON and errors unchanged.
+  - path: crates/sk-cli/tests/cf30_parent_source_base.rs
+    action: manual_review
+    reason: New real binary ordinary override ignored/control, Source layer and legacy fallback precedence, explicit-root capability preserved.
+  - path: crates/sk-cli/src/compat/capabilities.rs
+    action: manual_review
+    reason: Only completed template include gap wording; catalog consumer/encoding/error/deep proof remain partial, no project override Source improvement claim.
+status:
+  accepted: false
+  phase: parent pre-edit Source caller-base correction

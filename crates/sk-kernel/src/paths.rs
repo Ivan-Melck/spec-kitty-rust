@@ -14,15 +14,273 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
+use crate::codepoint::PythonString;
+use crate::python_os_encoding::{OsDecodeError, OsEncodingContext};
+
 use crate::KernelError;
-use crate::fs_resolve::{map_resolve_failure, resolve_non_strict};
+pub use crate::fs_resolve::ResolveIoPolicy;
+use crate::fs_resolve::{
+    map_resolve_failure, resolve_non_strict, resolve_non_strict_with_io_policy,
+};
 use crate::pack_tiers::BUILT_IN;
 
+/// Replace backslash separators without trimming or filesystem resolution.
+///
+/// This is Source `to_posix(str)` over ASCII-compatible path units: `u32`
+/// preserves exact Python code points, while `u8` permits classification of
+/// native UTF-8-compatible filesystem bytes without a lossy text conversion.
+/// It neither invents identities nor decodes a filesystem encoding.
+pub fn to_posix_units<T: Copy + PartialEq + From<u8>>(path: &[T]) -> Vec<T> {
+    path.iter()
+        .map(|unit| {
+            if *unit == T::from(b'\\') {
+                T::from(b'/')
+            } else {
+                *unit
+            }
+        })
+        .collect()
+}
+
+/// Pure POSIX pathlib construction spelling over native bytes: discard empty
+/// and dot components, keep parents lexical, and preserve exactly two leading
+/// slashes. This is NOT resolve/absolute/parent normalization and performs no IO.
+/// Filename decoding remains the ONE filesystem codec's responsibility.
+#[cfg(unix)]
+pub fn source_posix_path_spelling(path: &Path) -> PathBuf {
+    use std::os::unix::ffi::OsStrExt;
+    let raw = path.as_os_str().as_bytes();
+    let mut spelled = if raw.starts_with(b"//") && !raw.starts_with(b"///") {
+        PathBuf::from("//")
+    } else if path.has_root() {
+        PathBuf::from("/")
+    } else {
+        PathBuf::new()
+    };
+    for component in path.components() {
+        match component {
+            Component::RootDir | Component::CurDir => {}
+            other => spelled.push(other.as_os_str()),
+        }
+    }
+    if spelled.as_os_str().is_empty() {
+        spelled.push(".");
+    }
+    spelled
+}
+
+/// CPython `Path.exists()`'s ignored stat failures, using this platform's
+/// errno constants. A Rust NUL-path `InvalidInput` with no OS errno corresponds
+/// to Python's separately caught `ValueError`, NOT to `OSError(EINVAL)`.
+pub fn source_exists_ignores(error: &std::io::Error) -> bool {
+    if error.raw_os_error().is_none() {
+        return error.kind() == std::io::ErrorKind::InvalidInput;
+    }
+    source_ignores_os_error(error)
+}
+
+/// The ONE pathlib `_ignore_error` OSError policy. Path stat helpers separately
+/// absorb ValueError (Rust's no-errno NUL InvalidInput); directory entry probes
+/// catch only the actual OSError cases here.
+pub fn source_ignores_os_error(error: &std::io::Error) -> bool {
+    let Some(raw) = error.raw_os_error() else {
+        return false;
+    };
+    #[cfg(unix)]
+    {
+        use rustix::io::Errno;
+        [Errno::NOENT, Errno::NOTDIR, Errno::BADF, Errno::LOOP]
+            .iter()
+            .any(|errno| raw == errno.raw_os_error())
+    }
+    #[cfg(windows)]
+    {
+        matches!(
+            error.kind(),
+            std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+        ) || matches!(raw, 21 | 123)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = raw;
+        matches!(
+            error.kind(),
+            std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+        )
+    }
+}
+
+/// Source `Path.exists()`: follow symlinks, ignore only the interpreter's
+/// absent/error cases, and propagate every other stat failure before reading.
+pub fn source_path_exists(path: &Path) -> std::io::Result<bool> {
+    match fs::metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if source_exists_ignores(&error) => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
+/// Source `Path.is_dir()`: follow symlinks, absorb only `_ignore_error` errno
+/// cases and ValueError, and propagate other OSErrors such as EACCES.
+pub fn source_path_is_dir(path: &Path) -> std::io::Result<bool> {
+    source_path_stat_matches(path, fs::Metadata::is_dir)
+}
+
+/// Source `Path.is_file`, sharing the stat/error policy with `Path.is_dir`.
+pub fn source_path_is_file(path: &Path) -> std::io::Result<bool> {
+    source_path_stat_matches(path, fs::Metadata::is_file)
+}
+
+fn source_path_stat_matches(
+    path: &Path,
+    predicate: fn(&fs::Metadata) -> bool,
+) -> std::io::Result<bool> {
+    match fs::metadata(path) {
+        Ok(metadata) => Ok(predicate(&metadata)),
+        Err(error) if source_exists_ignores(&error) => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
+/// Source `PurePath.name` over Python path text: POSIX construction drops empty
+/// and `.` components, keeps `..` lexical, and yields `""` for an anchor-only
+/// path. No filesystem access and no encoding bridge.
+#[must_use]
+pub fn source_pure_path_name(text: &PythonString) -> PythonString {
+    let codepoints = text.codepoints();
+    let mut name: Option<&[u32]> = None;
+    let mut start = 0usize;
+    for index in 0..=codepoints.len() {
+        let at_separator = index == codepoints.len() || codepoints[index] == u32::from('/');
+        if !at_separator {
+            continue;
+        }
+        let component = &codepoints[start..index];
+        start = index + 1;
+        if component.is_empty() || (component.len() == 1 && component[0] == u32::from('.')) {
+            continue;
+        }
+        name = Some(component);
+    }
+    match name {
+        Some(component) => {
+            PythonString::from_codepoints(component).expect("substring of a validated PythonString")
+        }
+        None => PythonString::default(),
+    }
+}
+
+/// Source `PurePath.stem` for one already-constructed final name: remove the
+/// last suffix only, never the first dot, and keep a leading-dot or
+/// trailing-dot name whole.
+#[must_use]
+pub fn source_pure_path_stem_from_name(name: &PythonString) -> PythonString {
+    let codepoints = name.codepoints();
+    let Some(index) = codepoints.iter().rposition(|&code| code == u32::from('.')) else {
+        return name.clone();
+    };
+    if index > 0 && index + 1 < codepoints.len() {
+        PythonString::from_codepoints(&codepoints[..index])
+            .expect("substring of a validated PythonString")
+    } else {
+        name.clone()
+    }
+}
+
+/// Source `Path(local_path).stem` over Python path text.
+#[must_use]
+pub fn source_pure_path_stem(text: &PythonString) -> PythonString {
+    source_pure_path_stem_from_name(&source_pure_path_name(text))
+}
+
+/// Source `path.name.split('.', 1)[0]` over one decoded final name.
+#[must_use]
+pub fn source_name_before_first_dot(name: &PythonString) -> PythonString {
+    let codepoints = name.codepoints();
+    match codepoints.iter().position(|&code| code == u32::from('.')) {
+        Some(index) => PythonString::from_codepoints(&codepoints[..index])
+            .expect("substring of a validated PythonString"),
+        None => name.clone(),
+    }
+}
+
+/// Source `PurePath` comparison key: the tuple of decoded path components.
+///
+/// `sorted(Path)` compares these component tuples, not the slash-joined text,
+/// so `a/x.yaml` sorts before `a.yaml`. Native bytes go through the ONE
+/// captured filesystem codec, so raw non-UTF8 names and surrogate units
+/// survive; nothing here resolves, canonicalises or re-encodes the path.
+///
+/// # Errors
+///
+/// [`OsDecodeError`] when the captured context cannot decode a component.
+pub fn source_path_component_key(
+    path: &Path,
+    codec: &OsEncodingContext,
+) -> Result<Vec<PythonString>, OsDecodeError> {
+    let double_root = has_double_leading_root(path);
+    let mut key = Vec::new();
+    for component in path.components() {
+        match component {
+            Component::RootDir => {
+                key.push(PythonString::from_scalars(if double_root {
+                    "//"
+                } else {
+                    "/"
+                }));
+            }
+            Component::CurDir => {}
+            other => key.push(codec.decode_os_str(other.as_os_str())?),
+        }
+    }
+    Ok(key)
+}
+
+/// Source `str(Path)`: pathlib construction spelling, then the captured
+/// filesystem codec. No resolution, absolute conversion or symlink chase.
+///
+/// # Errors
+///
+/// [`OsDecodeError`] when the captured context cannot decode the path.
+pub fn source_path_text(
+    path: &Path,
+    codec: &OsEncodingContext,
+) -> Result<PythonString, OsDecodeError> {
+    codec.decode_path(path)
+}
+
+#[cfg(unix)]
+fn has_double_leading_root(path: &Path) -> bool {
+    use std::os::unix::ffi::OsStrExt;
+    let raw = path.as_os_str().as_bytes();
+    raw.starts_with(b"//") && !raw.starts_with(b"///")
+}
+
+#[cfg(not(unix))]
+fn has_double_leading_root(_path: &Path) -> bool {
+    false
+}
+
 /// Resolve an absolute, symlink-aware path even when its trailing components
-/// do not exist, matching `Path.resolve(strict=False)` in the reference.
-/// Resolution failures remain typed; callers must not substitute another path.
+/// do not exist, with the original missing-tail-only IO policy.
+/// Other metadata failures remain typed; callers must not substitute another path.
+/// The walker retains its native 40-symlink operational ceiling.
 pub fn resolve_path_non_strict(path: &Path) -> Result<PathBuf, KernelError> {
     resolve_non_strict(path).map_err(|failure| map_resolve_failure(path, failure))
+}
+
+/// Resolve through the same non-strict walker with an explicit metadata IO policy.
+///
+/// `IgnoreMetadataErrors` retains successfully expanded prefixes and continues
+/// after lstat failures, rather than reverting the whole path. Readlink and CWD
+/// failures still propagate. The native 40-symlink ceiling is unchanged; this is
+/// not a claim of unbounded Python recursion/chain acceptance.
+pub fn resolve_path_non_strict_with_io_policy(
+    path: &Path,
+    policy: ResolveIoPolicy,
+) -> Result<PathBuf, KernelError> {
+    resolve_non_strict_with_io_policy(path, policy)
+        .map_err(|failure| map_resolve_failure(path, failure))
 }
 
 /// Environment variable naming the user-global `.kittify` home (all platforms).
@@ -639,6 +897,72 @@ mod tests {
         let anchor = temp.path().join("src").join("pkg").join("module.py");
         fs::create_dir_all(anchor.parent().unwrap()).unwrap();
         assert!(resolve_installed_sibling(&anchor, None, Path::new("never/matches")).is_err());
+    }
+
+    #[test]
+    fn pure_path_name_and_stem_are_the_reference_spellings() {
+        let name = |text: &str| source_pure_path_name(&PythonString::from_scalars(text));
+        let stem = |text: &str| source_pure_path_stem(&PythonString::from_scalars(text));
+        let scalar = |value: PythonString| value.to_scalar_string().unwrap();
+        assert_eq!(scalar(name("")), "");
+        assert_eq!(scalar(name(".")), "");
+        assert_eq!(scalar(name("/")), "");
+        assert_eq!(scalar(name("dir/")), "dir");
+        assert_eq!(scalar(name("a//b.yaml")), "b.yaml");
+        assert_eq!(scalar(name("a/..")), "..");
+        assert_eq!(scalar(stem("a.tar.gz")), "a.tar");
+        assert_eq!(scalar(stem("a.")), "a.");
+        assert_eq!(scalar(stem(".a")), ".a");
+        assert_eq!(scalar(stem(".hidden.yaml")), ".hidden");
+        assert_eq!(scalar(stem("dotted..yaml")), "dotted.");
+        assert_eq!(scalar(stem("x.y.z.yaml")), "x.y.z");
+        assert_eq!(scalar(stem("directives/dup.yaml/")), "dup");
+        assert_eq!(
+            scalar(source_name_before_first_dot(&PythonString::from_scalars(
+                ".hidden"
+            ))),
+            ""
+        );
+        assert_eq!(
+            scalar(source_name_before_first_dot(&PythonString::from_scalars(
+                "x.y.z"
+            ))),
+            "x"
+        );
+    }
+
+    #[test]
+    fn component_order_is_the_path_tuple_order() {
+        let codec = OsEncodingContext::from_lookup(|key| {
+            (key == "PYTHONUTF8").then(|| OsString::from("1"))
+        });
+        let key = |path: &str| {
+            source_path_component_key(Path::new(path), &codec)
+                .unwrap()
+                .iter()
+                .map(|part| part.to_scalar_string().unwrap())
+                .collect::<Vec<String>>()
+        };
+        assert_eq!(key("/a/x.yaml"), vec!["/", "a", "x.yaml"]);
+        assert!(key("a/x.yaml") < key("a.yaml"));
+        assert!(key("a/x.yaml") < key("a-b.yaml"));
+        assert!(key("./a") == key("a"));
+    }
+
+    #[test]
+    fn path_text_keeps_the_construction_spelling() {
+        let codec = OsEncodingContext::from_lookup(|key| {
+            (key == "PYTHONUTF8").then(|| OsString::from("1"))
+        });
+        let text = |path: &str| {
+            source_path_text(Path::new(path), &codec)
+                .unwrap()
+                .to_scalar_string()
+                .unwrap()
+        };
+        assert_eq!(text("a/./b//c"), "a/b/c");
+        assert_eq!(text(""), ".");
+        assert_eq!(text("/a/../b"), "/a/../b");
     }
 
     #[test]

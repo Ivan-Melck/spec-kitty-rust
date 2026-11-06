@@ -146,8 +146,8 @@ pub fn matrix() -> Value {
                 "state": "partial",
                 "mutates": true,
                 "surface": "upstream",
-                "evidence": "sk-mission tasks.md dependency parse, frontmatter patch with preserved user content",
-                "gaps": ["requirement-mapping gates", "planning commit and lanes.json refresh", "status lifecycle events"]
+                "evidence": "dependency/occurrence/glob gates, PRIMARY prompt scan, established COORD status placement, captured planning tip, per-seed status publication and branch-ref validate-only reads; completed planning writes remain on failure",
+                "gaps": ["published/E2 status publication and ambiguous read-probe refusals", "warning-and-skip and validation order", "target branch checkout, ErrorLogged and source wire fields", "indeterminate commit/recovery and independent Source/workflow verification"]
             },
             {
                 "name": "tasks",
@@ -222,6 +222,48 @@ pub fn matrix() -> Value {
                 "gaps": []
             },
             {
+                "name": "upgrade",
+                "state": "partial",
+                "mutates": true,
+                "surface": "upstream",
+                "evidence": "canonical sequential main and inherited-scope worktree execution; six charter callbacks and shared previews reachable through registry",
+                "gaps": ["four rescue callbacks withheld", "exact parser subclass/ledger-note/error-wire fidelity", "remaining preview and machine planner contract differences", "cutover/model/provider/owned-checkout boundaries and independent Source workflows"]
+            },
+            {
+                "name": "migrate backfill-runtime-state",
+                "state": "partial",
+                "mutates": true,
+                "surface": "upstream",
+                "evidence": "real selector-bound or best-effort corpus cutover, dry-run, group flags, seed/verify/flip and owned seed-root forwarding; scoped native smoke",
+                "gaps": ["owned birth-cutover production caller", "selector/error output channel and exact cause fidelity", "cross-process owned lock proof and independent Source/COORD workflow verification"]
+            },
+            {
+                "name": "accept",
+                "state": "partial",
+                "mutates": true,
+                "surface": "upstream",
+                "evidence": "Source collector/policy and real matrix/record pipeline, non-WP frozen-runtime/declared-artifact facts and activated sparse mission providers; read-only diagnose",
+                "gaps": ["owned-file evidence and attest flags", "non-WP coordination presence and lazy WP reads", "sparse roster inheritance/action projection and provider coverage", "normalize-encoding/checklists/allow-fail", "independent isolated Source differential and recovery/error coverage"]
+            },
+            {
+                "name": "charter",
+                "state": "partial",
+                "mutates": true,
+                "surface": "upstream",
+                "evidence": "exact merged/profile include payload reaches Kernel-JSON CLI; canonical skill repository shared with installer, layer-aware list availability/floors, templates, activation and preset publication/restamp; scoped functional receipts",
+                "gaps": ["resynthesize refused; other activation/migration restamp consumers pending", "status org/governance/provenance/evidence and bundle compatibility", "directive prevalidation abort phase, raw org downstream coercing readers/typed-fold and namespace timing, strict deny-floor and explicit-empty activation fidelity", "action/bootstrap declaring-file scalar delivery, exact skill/list interfaces, non-string model keys and stdout codecs", "context budgeting/field-provenance consumption, Source error/wire/ordering, constructor/depth/platform/concurrency proof"]
+            },
+            {
+                "name": "doctor",
+                "state": "partial",
+                "mutates": true,
+                "surface": "upstream",
+                "evidence": "thirteen reachable leaves including registry diagnostics, decision reconciliation/fork, stale-Op sweep and read-only command/skill/session probes; scoped functional smoke",
+                "implemented_leaves": super::doctor::IMPLEMENTED_LEAVES,
+                "refused_leaves": super::doctor::REFUSED_LEAVES,
+                "gaps": ["decision repair, lifecycle-owner promotion and event-prefix classifier sharing; coordination collector composed but root route held for committed-event admission and input/error fidelity", "tool-surface repairs and remaining six diagnostic leaves refused", "plugin-bundle probes, profile/pack catalogs, canonical-render collisions and legacy agent configuration", "session JSON parsing, repeated-read/race semantics and escaping-error/traceback wire; registry advisory sweep/error wire", "Op SaaS propagation, error text and spine race semantics", "meta size/integer/pattern/roster bounds", "human/wire output and independent Source/platform/race verification"]
+            },
+            {
                 "name": "native",
                 "state": "implemented",
                 "mutates": false,
@@ -232,19 +274,9 @@ pub fn matrix() -> Value {
         ],
         "unsupported": [
             {
-                "name": "upgrade",
-                "reason": "sk-install owns the upgrade/migration pipeline; its public upgrade API is not complete yet",
-                "blocker": "sk-install upgrade tranche"
-            },
-            {
                 "name": "agent decision open/resolve/defer/cancel",
                 "reason": "decision ledger service is not implemented in Rust yet",
                 "blocker": "decision-service tranche"
-            },
-            {
-                "name": "accept",
-                "reason": "acceptance gates and matrix evaluation are not implemented in Rust yet",
-                "blocker": "acceptance tranche"
             },
             {
                 "name": "consolidate",
@@ -257,26 +289,16 @@ pub fn matrix() -> Value {
                 "blocker": "review tranche"
             },
             {
-                "name": "charter activation/synthesis",
-                "reason": "native governance transactions exist in sk-doctrine, but the charter command family is not wired",
-                "blocker": "charter CLI and full synthesis/offering integration"
-            },
-            {
-                "name": "doctor groups",
-                "reason": "diagnostic families are not ported yet",
-                "blocker": "doctor tranche"
-            },
-            {
                 "name": "tracker/service/orchestrator-api",
                 "reason": "external service boundaries are not ported yet",
                 "blocker": "external-contract tranche"
             }
         ],
         "known_gaps": {
-            "git_commits": "No compatibility route commits to Git in this slice; payloads disclose committed=false and omit commit hashes rather than inventing them.",
-            "org_packs": "The org-pack tier of template resolution is not wired; project overrides, global tiers, and the built-in pack are.",
+            "git_commits": "Commit-capable routes use canonical sk-git; route-specific commit, recovery and physical-publication fidelity remains under review.",
+            "org_packs": "Canonical explicit-root templates resolve org tiers; Source template includes preserve their project-layer base. Other template consumers and DRG catalog projection remain incomplete.",
             "human_interviews": "Interactive discovery interviews are agent-driven upstream; this CLI never prompts on stdin.",
-            "byte_parity": "JSON is emitted as compact UTF-8. Python's json.dumps defaults escape non-ASCII; parsed values and key sets match."
+            "byte_parity": "Canonical exact codecs exist in Kernel; route-specific wire/error/ordering fidelity is not globally approved by functional smoke tests."
         }
     })
 }

@@ -20,6 +20,8 @@
 //! `skills/_user_input_block.py`, `skills/skill_frontmatter.py`,
 //! `template/asset_generator.py`, `agent_upgrade_prompt.py`.
 
+pub mod shim;
+
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -107,6 +109,26 @@ pub struct ResolvedTemplate {
     pub source_hash: String,
 }
 
+/// How a [`TemplateSource`] answers `process_spdd_blocks`'s `active` flag.
+///
+/// The reference decides the flag at the *caller*: the template-materialisation
+/// seams pass the project root and `apply_spdd_blocks_for_project` asks the
+/// canonical SPDD selector. Source's omitted-project helper answers inactive;
+/// callers matching it must explicitly select false. Native's separate pure
+/// rendering capability keeps content without consulting activation. These
+/// contracts must not be collapsed into one hardcoded boolean.
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum SpddGate {
+    /// A pure/template-only caller: keep the rendering capability (block content
+    /// stays, only the marker lines are stripped).
+    Capability,
+    /// An explicit caller decision (a render survey or a test).
+    Explicit(bool),
+    /// A project caller: resolved per marker-bearing template through
+    /// [`sk_doctrine::is_spdd_reasons_active`].
+    Project(PathBuf),
+}
+
 /// Where command templates are resolved from.
 ///
 /// The canonical built-in layout is `<pack>/missions/mission-steps/<mission>/<command>/prompt.md`;
@@ -117,12 +139,8 @@ pub struct ResolvedTemplate {
 pub struct TemplateSource {
     missions_root: PathBuf,
     mission_type: String,
-    /// Whether the SPDD/REASONS charter pack is active for the project.
-    ///
-    /// `true` (the default) keeps block content and strips only the marker
-    /// lines; `false` removes the block entirely, producing the pre-feature
-    /// template bytes.
-    spdd_active: bool,
+    /// Which SPDD/REASONS block visibility applies to a marker-bearing template.
+    spdd: SpddGate,
 }
 
 impl TemplateSource {
@@ -131,9 +149,11 @@ impl TemplateSource {
         Self {
             missions_root: missions_root.into(),
             mission_type: "software-dev".to_string(),
-            // Upstream treats an unconfigured project as active: block content
-            // stays, only the marker comment lines are stripped.
-            spdd_active: true,
+            // A pure/template-only source is not bound to a project, so there is
+            // no activation source to read; the rendering capability keeps the
+            // block content and strips only the marker lines. Project flows bind
+            // this source with [`TemplateSource::for_project`].
+            spdd: SpddGate::Capability,
         }
     }
 
@@ -149,9 +169,52 @@ impl TemplateSource {
     }
 
     /// Mark the SPDD/REASONS charter pack active for this render.
+    ///
+    /// An explicit decision always wins over a project binding, so a caller that
+    /// also called [`TemplateSource::for_project`] keeps the value it asked for.
     pub fn with_spdd_active(mut self, active: bool) -> Self {
-        self.spdd_active = active;
+        self.spdd = SpddGate::Explicit(active);
         self
+    }
+
+    /// Bind this source to the project whose canonical activation decides the
+    /// SPDD/REASONS block visibility (`apply_spdd_blocks_for_project(text, repo_root)`).
+    ///
+    /// The project is consulted **per marker-bearing template**, exactly like the
+    /// reference, and only when the template actually carries a block marker
+    /// (the reference's fast path reads no activation for a marker-free
+    /// template). An explicit [`TemplateSource::with_spdd_active`] value is kept.
+    #[must_use]
+    pub fn for_project(mut self, project_root: impl Into<PathBuf>) -> Self {
+        if !matches!(self.spdd, SpddGate::Explicit(_)) {
+            self.spdd = SpddGate::Project(project_root.into());
+        }
+        self
+    }
+
+    /// The project whose activation this source consults, when bound.
+    pub fn project_root(&self) -> Option<&Path> {
+        match &self.spdd {
+            SpddGate::Project(root) => Some(root.as_path()),
+            SpddGate::Capability | SpddGate::Explicit(_) => None,
+        }
+    }
+
+    /// Apply the SPDD/REASONS block renderer to `text` for this source's gate.
+    ///
+    /// A marker-free template short-circuits before any activation read, which is
+    /// the reference's `apply_spdd_blocks_for_project` fast path.
+    fn render_spdd(&self, text: &str) -> Result<String, InstallError> {
+        if !text.contains(REASONS_BLOCK_START) && !text.contains(REASONS_BLOCK_END) {
+            return Ok(text.to_string());
+        }
+        let active = match &self.spdd {
+            SpddGate::Capability => true,
+            SpddGate::Explicit(active) => *active,
+            SpddGate::Project(root) => sk_doctrine::is_spdd_reasons_active(root)
+                .map_err(|error| InstallError::SpddActivation(Box::new(error)))?,
+        };
+        process_spdd_blocks(text, active)
     }
 
     /// The missions root this source reads from.
@@ -255,7 +318,7 @@ impl TemplateSource {
                             std::io::Error::new(std::io::ErrorKind::InvalidData, error),
                         )
                     })?);
-                    let text = process_spdd_blocks(&text, self.spdd_active)?;
+                    let text = self.render_spdd(&text)?;
                     let source_hash = crate::manifest::content_hash(text.as_bytes());
                     return Ok(ResolvedTemplate {
                         path: candidate.clone(),
@@ -482,7 +545,17 @@ pub fn render_command_file(
         ),
     })?;
     let template = source.resolve(command)?;
-    let bytes = render_command_template(&template.text, agent.key, surface, version)?.into_bytes();
+    // The pinned renderer annotates glossary references on the *body* it renders
+    // from a template file (`render_template_text(..., template_path=...)`), which
+    // is why the path is threaded through here and not inferred from the project.
+    let bytes = render_command_template_with_source(
+        &template.text,
+        agent.key,
+        surface,
+        version,
+        Some(&template.path),
+    )?
+    .into_bytes();
     Ok(RenderedAsset {
         path: command_file_rel_path(surface, command),
         bytes,
@@ -506,10 +579,31 @@ pub fn render_command_template(
     surface: &CommandSurface,
     version: &str,
 ) -> Result<String, InstallError> {
+    render_command_template_with_source(template_text, agent_key, surface, version, None)
+}
+
+/// Render a command-file template whose source path is known.
+///
+/// `template_path` is used for one thing: resolving the repository whose
+/// glossary seeds annotate the rendered body. The pinned renderer walks
+/// `template_path.parents()` for the nearest directory holding `.kittify/` (and
+/// only falls back to the current directory's parents when no path is given),
+/// so the answer follows the *template* — a packaged template inside a checkout
+/// annotates with that checkout's glossary, not with the project being upgraded.
+pub fn render_command_template_with_source(
+    template_text: &str,
+    agent_key: &str,
+    surface: &CommandSurface,
+    version: &str,
+    template_path: Option<&Path>,
+) -> Result<String, InstallError> {
     let text = normalize_newlines(template_text);
     let (frontmatter, stripped) = split_frontmatter(&text);
     let substituted = substitute(stripped, agent_key, surface.argument_placeholder);
-    let mut body = prepend_agent_upgrade_check(&substituted);
+    // Upstream order: substitute → rewrite paths → annotate glossary → prepend the
+    // agent upgrade check → assemble frontmatter/marker/body.
+    let annotated = annotate_glossary_refs(&substituted, template_path);
+    let mut body = prepend_agent_upgrade_check(&annotated);
     let description = frontmatter_description(frontmatter.as_deref().unwrap_or_default())
         .unwrap_or_else(|| format!("Spec Kitty {agent_key} command"));
     let version_marker = format!("<!-- spec-kitty-command-version: {version} -->\n");
@@ -549,6 +643,219 @@ pub fn render_command_template(
         }
     }
     Ok(output)
+}
+
+// ---------------------------------------------------------------- glossary
+
+/// A repository's glossary seed fingerprint: the root plus one content hash per
+/// scope (`None` for an absent seed).
+type SeedFingerprint = Vec<Option<String>>;
+
+/// One term surface and its glossary URN, in the order the store first saw it.
+type TermSurfaces = Vec<(String, String)>;
+
+/// The process-wide memo of term-surface maps, keyed on the seed fingerprint.
+///
+/// A single upgrade renders hundreds of templates against the same seeds
+/// (upstream #5526 memoises the same way); an edited seed changes the key, so a
+/// stale map is never served.
+fn term_surface_memo()
+-> &'static std::sync::Mutex<std::collections::BTreeMap<SeedFingerprint, TermSurfaces>> {
+    static MEMO: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::BTreeMap<SeedFingerprint, TermSurfaces>>,
+    > = std::sync::OnceLock::new();
+    MEMO.get_or_init(|| std::sync::Mutex::new(std::collections::BTreeMap::new()))
+}
+
+/// The repository whose glossary seeds annotate a template
+/// (`_annotate_glossary_refs_from_store`): the nearest ancestor of
+/// `template_path` holding `.kittify/`, else the current directory's ancestors.
+pub fn glossary_repo_root(template_path: Option<&Path>) -> Option<PathBuf> {
+    let candidates: Vec<PathBuf> = match template_path {
+        Some(path) => path.ancestors().skip(1).map(Path::to_path_buf).collect(),
+        None => std::env::current_dir()
+            .ok()?
+            .ancestors()
+            .skip(1)
+            .map(Path::to_path_buf)
+            .collect(),
+    };
+    candidates
+        .into_iter()
+        .find(|candidate| candidate.join(".kittify").is_dir())
+}
+
+/// The seed fingerprint: the repository plus each scope's content hash
+/// (`_glossary_seed_fingerprint`). A missing seed contributes `None`.
+fn glossary_seed_fingerprint(repo_root: &Path) -> SeedFingerprint {
+    let mut fingerprint = vec![Some(repo_root.display().to_string())];
+    for scope in sk_glossary::SCOPE_RESOLUTION_ORDER {
+        let path = sk_glossary::seed_path(scope, repo_root);
+        fingerprint.push(
+            std::fs::read(&path)
+                .ok()
+                .map(|bytes| crate::manifest::content_hash(&bytes)),
+        );
+    }
+    fingerprint
+}
+
+/// The lower-case surface → glossary URN map for `repo_root`
+/// (`_glossary_term_surfaces`), in the order the store first saw each surface.
+fn glossary_term_surfaces(repo_root: &Path) -> TermSurfaces {
+    let fingerprint = glossary_seed_fingerprint(repo_root);
+    if let Ok(memo) = term_surface_memo().lock()
+        && let Some(cached) = memo.get(&fingerprint)
+    {
+        return cached.clone();
+    }
+    // The one glossary authority: `Glossary::load` walks the same four scopes in
+    // precedence order, so first-seen order matches the store's per-scope maps.
+    let Ok(glossary) = sk_glossary::Glossary::load(repo_root) else {
+        return Vec::new();
+    };
+    let mut surfaces: TermSurfaces = Vec::new();
+    for sense in glossary.iter() {
+        let surface = sense.surface().as_str().to_string();
+        if surfaces.iter().any(|(existing, _)| existing == &surface) {
+            continue;
+        }
+        let term_id = format!("glossary:{}", surface.replace(' ', "-"));
+        surfaces.push((surface, term_id));
+    }
+    if let Ok(mut memo) = term_surface_memo().lock() {
+        memo.insert(fingerprint, surfaces.clone());
+    }
+    surfaces
+}
+
+/// Annotate known glossary surfaces with invisible `<!-- glossary:<term-id> -->`
+/// comments (`_annotate_glossary_refs`).
+///
+/// Behaviour reproduced from the pin: the surfaces are applied longest-first
+/// (stable for equal lengths), each one annotating **one** occurrence — the
+/// first `\b`-delimited, case-insensitive match in the *current* content, so a
+/// later, shorter surface can match inside a comment an earlier one inserted.
+/// Every failure degrades to the unmodified content, exactly like the caller
+/// that wraps this in `try/except`.
+pub fn annotate_glossary_refs(content: &str, template_path: Option<&Path>) -> String {
+    let Some(repo_root) = glossary_repo_root(template_path) else {
+        return content.to_string();
+    };
+    let surfaces = glossary_term_surfaces(&repo_root);
+    if surfaces.is_empty() {
+        return content.to_string();
+    }
+    let mut ordered: TermSurfaces = surfaces;
+    // `sort_by` is stable, so equal-length surfaces keep the store's order.
+    ordered.sort_by_key(|(surface, _)| std::cmp::Reverse(surface.chars().count()));
+    let mut annotated = content.to_string();
+    let mut prepared = PreparedContent::new(&annotated);
+    for (surface, term_id) in ordered {
+        let pattern: Vec<char> = surface.chars().map(fold_char).collect();
+        if pattern.is_empty() {
+            continue;
+        }
+        let Some(updated) = annotate_first_match(&annotated, &prepared, &pattern, &term_id) else {
+            continue;
+        };
+        annotated = updated;
+        // Only a successful annotation changed the bytes (and therefore the
+        // char/byte offsets), so only then is the folded view rebuilt: every
+        // later surface matches against the NEW content, exactly like the
+        // reference's per-surface `re.subn`.
+        prepared = PreparedContent::new(&annotated);
+    }
+    annotated
+}
+
+/// Literal equivalence under the pinned Python Unicode regex IGNORECASE mode.
+/// This is distinct from contextual lowercase and full casefolding.
+fn fold_char(character: char) -> char {
+    let key = sk_kernel::python_text::regex_ignore_case_key(character as u32);
+    char::from_u32(key).expect("a scalar regex literal has a scalar equivalence key")
+}
+
+/// One folded view of a body: the original chars, their case-equivalence keys and
+/// each char's byte offset.
+///
+/// The reference runs one `re.subn` per glossary surface over the same body, and
+/// only a match mutates it. Folding once per (still unchanged) body keeps that
+/// per-surface scan while avoiding the same whole-body fold once per surface.
+struct PreparedContent {
+    haystack: Vec<char>,
+    folded: Vec<char>,
+    offsets: Vec<usize>,
+}
+
+impl PreparedContent {
+    fn new(content: &str) -> Self {
+        let haystack: Vec<char> = content.chars().collect();
+        let folded: Vec<char> = haystack
+            .iter()
+            .map(|character| fold_char(*character))
+            .collect();
+        let mut offsets = Vec::with_capacity(haystack.len() + 1);
+        let mut offset = 0usize;
+        for character in &haystack {
+            offsets.push(offset);
+            offset += character.len_utf8();
+        }
+        offsets.push(offset);
+        Self {
+            haystack,
+            folded,
+            offsets,
+        }
+    }
+}
+
+/// Replace the first case-insensitive, `\b`-delimited occurrence of `pattern`
+/// with itself plus `<!-- glossary:<term_id> -->`.
+///
+/// `None` means "no match": the content is untouched and the caller may keep
+/// reusing `prepared`.
+fn annotate_first_match(
+    content: &str,
+    prepared: &PreparedContent,
+    pattern: &[char],
+    term_id: &str,
+) -> Option<String> {
+    let haystack = &prepared.haystack;
+    let offsets = &prepared.offsets;
+    let is_word_at = |index: usize| -> bool {
+        haystack
+            .get(index)
+            .is_some_and(|character| sk_kernel::python_text::is_word(*character as u32))
+    };
+    for start in 0..haystack.len() {
+        let end = start + pattern.len();
+        if end > haystack.len() {
+            break;
+        }
+        if prepared.folded[start..end] != *pattern {
+            continue;
+        }
+        // A boundary is XOR of the ORIGINAL neighboring word memberships,
+        // not a requirement that the surface's first/last units be word units.
+        // Punctuated surfaces can match on the other side of a word boundary.
+        let starts_boundary = (start > 0 && is_word_at(start - 1)) != is_word_at(start);
+        let ends_boundary = is_word_at(end - 1) != is_word_at(end);
+        if !(starts_boundary && ends_boundary) {
+            continue;
+        }
+        let insert_at = offsets[end];
+        let mut annotated = String::with_capacity(content.len() + term_id.len() + 18);
+        annotated.push_str(&content[..insert_at]);
+        // Source writes `<!-- glossary:{_tid} -->` where `_tid` already carries
+        // the `glossary:` URN prefix, i.e. `<!-- glossary:glossary:<term> -->`.
+        annotated.push_str("<!-- glossary:");
+        annotated.push_str(term_id);
+        annotated.push_str(" -->");
+        annotated.push_str(&content[insert_at..]);
+        return Some(annotated);
+    }
+    None
 }
 
 /// Render a prompt-backed command into an Agent Skills `SKILL.md` document.
@@ -1025,5 +1332,98 @@ mod tests {
         assert_eq!(yaml_scalar("plain text"), "plain text");
         assert_eq!(yaml_scalar("has: colon"), "\"has: colon\"");
         assert_eq!(yaml_scalar("true"), "\"true\"");
+    }
+
+    // ------------------------------------------------------------ glossary
+
+    /// A repository with `<scope>.yaml` seeds written by `seed`.
+    fn glossary_repo(seed: &str) -> tempfile::TempDir {
+        let directory = tempfile::tempdir().expect("temp");
+        std::fs::create_dir_all(directory.path().join(".kittify/glossaries")).expect("glossaries");
+        std::fs::write(
+            directory
+                .path()
+                .join(".kittify/glossaries/spec_kitty_core.yaml"),
+            seed,
+        )
+        .expect("seed");
+        std::fs::create_dir_all(
+            directory
+                .path()
+                .join("packs/mission-steps/software-dev/specify"),
+        )
+        .expect("template dir");
+        directory
+    }
+
+    const SEED: &str = "terms:\n  - surface: mission\n    definition: A unit of work.\n    confidence: 0.9\n    status: active\n  - surface: mission slug\n    definition: The slug.\n    confidence: 0.9\n    status: active\n";
+
+    #[test]
+    fn glossary_annotation_matches_first_word_delimited_occurrence_only() {
+        let directory = glossary_repo(SEED);
+        let template = directory
+            .path()
+            .join("packs/mission-steps/software-dev/specify/prompt.md");
+        // "missionary" is not a match (`\b`), "Mission" is (case-insensitive),
+        // and the *first* match is annotated once.
+        let content = "a missionary and a Mission and another mission\n";
+        let annotated = annotate_glossary_refs(content, Some(&template));
+        assert_eq!(
+            annotated,
+            "a missionary and a Mission<!-- glossary:glossary:mission --> and another mission\n"
+        );
+    }
+
+    #[test]
+    fn glossary_annotation_applies_longer_surfaces_first_and_can_chain() {
+        let directory = glossary_repo(SEED);
+        let template = directory
+            .path()
+            .join("packs/mission-steps/software-dev/specify/prompt.md");
+        // Longest first: "mission slug" is annotated before "mission", and the
+        // shorter surface then matches inside the freshly inserted comment —
+        // exactly the pinned renderer's output shape.
+        let annotated = annotate_glossary_refs("the mission slug here\n", Some(&template));
+        assert_eq!(
+            annotated,
+            "the mission<!-- glossary:glossary:mission --> slug<!-- glossary:glossary:mission-slug --> here\n"
+        );
+    }
+
+    #[test]
+    fn glossary_annotation_degrades_without_a_repository() {
+        // A template whose ancestry holds no `.kittify/` is not annotated: the
+        // resolution is the template's ancestors, never "the project being
+        // upgraded". (`None` legitimately falls back to the current directory's
+        // ancestors — the pinned `template_path is None` branch — which here is
+        // this checkout, so that case is not asserted to be empty.)
+        let directory = tempfile::tempdir().expect("temp");
+        let template = directory.path().join("no-kittify/prompt.md");
+        let content = "a mission\n";
+        assert_eq!(glossary_repo_root(Some(&template)), None);
+        assert_eq!(annotate_glossary_refs(content, Some(&template)), content);
+    }
+
+    #[test]
+    fn glossary_annotation_refreshes_when_a_seed_changes() {
+        let directory = glossary_repo(SEED);
+        let template = directory
+            .path()
+            .join("packs/mission-steps/software-dev/specify/prompt.md");
+        let first = annotate_glossary_refs("a mission\n", Some(&template));
+        assert!(first.contains("glossary:mission"));
+        // A seed edit changes the fingerprint, so the memo is not served.
+        std::fs::write(
+            directory.path().join(".kittify/glossaries/spec_kitty_core.yaml"),
+            "terms:\n  - surface: charter\n    definition: The charter.\n    confidence: 0.9\n    status: active\n",
+        )
+        .expect("rewrite seed");
+        let second = annotate_glossary_refs("a mission\n", Some(&template));
+        assert_eq!(
+            second, "a mission\n",
+            "the removed term no longer annotates"
+        );
+        let third = annotate_glossary_refs("the charter\n", Some(&template));
+        assert_eq!(third, "the charter<!-- glossary:glossary:charter -->\n");
     }
 }

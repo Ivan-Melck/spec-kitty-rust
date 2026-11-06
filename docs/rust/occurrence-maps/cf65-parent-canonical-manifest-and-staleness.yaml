@@ -1,0 +1,52 @@
+target:
+  term: Canonical bundle inventory and exact Source staleness metadata
+categories:
+  code_symbols:
+    action: manual_review
+    notes: One sk-charter canonical manifest inventory and existing Kernel YAML graph/typed-value authority, no private serde parser.
+  import_paths:
+    action: manual_review
+    notes: Narrow manifest exports; same canonical reader and hash reused.
+  filesystem_paths:
+    action: manual_review
+    notes: Ruamel path byte policy before canonical graph decoding, not forced UTF8 metadata. Same Source exists/read phases.
+  serialized_keys:
+    action: manual_review
+    notes: Existing stored_hash triple preserves exact Source values instead of non-string-to-None; no new command envelope field.
+  cli_commands:
+    action: do_not_change
+    notes: JSON two-build and warning delivery remain required pending a real phased composition; no fabricated extra append.
+  user_facing_strings:
+    action: manual_review
+    notes: Falsy metadata uses Source empty stored hash, truthy nonmapping fails, native parser/depth limits remain qualified.
+  tests_fixtures:
+    action: manual_review
+    notes: New Source-derived falsy/root/BOM/surrogate controls before fix; exact staleness API assertions and prospective independently pinned Source-root assertions in both pairs.
+  logs_telemetry:
+    action: manual_review
+    notes: Preserve Source warnings/failure phases; no approximation accepted as semantic exception.
+exceptions:
+  - path: crates/sk-cli/tests/cf65_context_sync_consumer.rs
+    action: manual_review
+    reason: Prospective independent Source-root assertion, no actual command payload change.
+  - path: crates/sk-cli/tests/cf65_support/mod.rs
+    action: manual_review
+    reason: Independent pinned root supplied to both actual children.
+  - path: crates/sk-charter/src/bundle_manifest.rs
+    action: manual_review
+    reason: New sole canonical manifest data inventory, not a claim of full Pydantic schema validation.
+  - path: crates/sk-charter/src/lib.rs
+    action: manual_review
+    reason: Narrow module and same-item exports only, shared formatting check-only.
+  - path: crates/sk-doctrine/src/charter_sync.rs
+    action: manual_review
+    reason: Delete inventory clone, use canonical YAML/graph truth/field projection, retain exact triple.
+  - path: crates/sk-doctrine/tests/cf65_parent_staleness.rs
+    action: manual_review
+    reason: Prospective focused Source-derived controls, new file.
+  - path: crates/sk-doctrine/tests/cf65_charter_sync.rs
+    action: manual_review
+    reason: Existing staleness triple assertion adapts to exact value carrier without data changes.
+status:
+  accepted: false
+  phase: parent prospective manifest and metadata authority correction

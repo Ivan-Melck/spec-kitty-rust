@@ -410,6 +410,7 @@ fn apply_inner(
             changed: !changes.is_empty(),
             changes,
             warnings,
+            ..crate::upgrade::MigrationOutcome::default()
         })
     } else {
         Err(InstallError::UpgradeRefused {

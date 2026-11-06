@@ -51,15 +51,21 @@
 
 mod artifacts;
 mod create;
+pub mod definition;
 mod error;
+pub mod expected_artifacts;
 mod frontmatter;
 mod graph;
 mod identity;
+mod issue_matrix;
 mod meta;
+pub mod migration_rescue;
 mod mission;
+pub mod path_conventions;
 mod paths;
 mod readiness;
 mod record;
+mod review;
 mod tasks;
 mod template;
 mod topology;
@@ -77,12 +83,38 @@ pub use create::{
     MissionIdentity, MissionRetention, MissionWriteObserver, PlannedFile, PlannedFileKind,
     PlannedFileMode, PriorMissionActivity,
 };
+pub use definition::{
+    CheckoutProviders, CoreSchemaYaml, DefinitionError, DefinitionOrigin, DefinitionProviders,
+    DialectFidelity, MissionArtifacts, MissionCommand, MissionDefinition, MissionDomain,
+    MissionMcpTools, MissionTaskMetadata, MissionTaskType, MissionValidation, MissionWorkflow,
+    OrderedMap, ProjectOnlyProviders, PyYamlSafe, RegisteredMissionType, ResolutionTier,
+    ResolvedMissionDefinition, RuamelSafe, SafeDocumentDecoder, SourceValue, WorkflowPhase,
+    available_missions, load_mission_definition, recorded_mission_type, require_source_faithful,
+    resolve_mission_definition, resolve_mission_definition_for_mission_dir,
+};
 pub use error::MissionError;
 pub use frontmatter::{Frontmatter, FrontmatterError, split_frontmatter};
 pub use graph::WorkPackageGraph;
 pub use identity::{MID8_LENGTH, MISSION_ID_LENGTH, MissionId, MissionIdError};
-pub use meta::{DEFAULT_META_BYTE_LIMIT, META_FILE_NAME, SPECS_DIR_NAME};
+pub use issue_matrix::{
+    GatingClass, ISSUE_MATRIX_PLACEHOLDER_VERDICT, ISSUE_MATRIX_VERDICTS, IssueReference,
+    OWN_REPO_SLUG, Occurrence, classify_occurrence, classify_occurrences,
+    detect_issue_references_text, discover_issue_references, gating_issue_numbers,
+    validate_issue_matrix_json, validate_issue_matrix_json_text,
+};
+pub use meta::{
+    ACCEPTANCE_HISTORY_CAP, DEFAULT_META_BYTE_LIMIT, META_FILE_NAME, SPECS_DIR_NAME,
+    record_acceptance, record_baseline_merge_commit, record_baseline_merge_commit_clear,
+    record_consolidation_metadata, record_mission_number, record_pr_merge_baseline,
+    stamp_accept_commit,
+};
 pub use mission::{Mission, list_missions, select_mission};
+pub use path_conventions::{
+    ContractsWaiver, MissionPathFacts, PathConventionError, PathConventionEvaluation,
+    PathValidationInputs, PathValidationResult, ProjectPathConventions, build_warnings,
+    evaluate_path_conventions, load_project_path_conventions, mission_path_facts,
+    read_contracts_waiver_from_meta, validate_mission_paths,
+};
 pub use paths::{
     CHECKLISTS_DIR_NAME, MissionPathError, MissionPaths, PLAN_FILE_NAME, RESEARCH_DIR_NAME,
     SPEC_FILE_NAME, STATUS_EVENTS_FILE_NAME, TASKS_DIR_NAME, TASKS_FILE_NAME, TASKS_README_NAME,
@@ -92,6 +124,12 @@ pub use readiness::{
     dependency_readiness, readiness_for_dependencies, ready_work_packages,
 };
 pub use record::{MissionRecord, list_mission_records, load_mission_record, select_mission_record};
+pub use review::{
+    BLE001_REMEDIATION, Ble001Finding, DeadCodeEvidence, GateRecord, MODE_MISMATCH_BODY,
+    MissionReviewError, MissionReviewMode, MissionReviewReport, ReviewFinding, ReviewInputs,
+    audit_ble001_line, collect_ble001_findings, diagnostic, is_test_only_path, resolve_mode,
+    review_mission, validate_issue_matrix, validate_issue_matrix_text,
+};
 pub use tasks::{
     DEFAULT_TASKS_MD_BYTE_LIMIT, DependencyApplyReceipt, DependencyFinalizePlan, DependencyUpdate,
     TasksAuthoringError, TasksOutline, TasksSection, parse_dependencies_from_tasks_md,

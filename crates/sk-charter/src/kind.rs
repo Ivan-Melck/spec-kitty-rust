@@ -105,6 +105,26 @@ impl ArtifactKind {
         }
     }
 
+    /// The pinned Source `ArtifactKind` enum member identity used by Python repr.
+    /// This is type metadata, distinct from YAML values and operator tokens.
+    pub const fn python_member_name(self) -> &'static str {
+        match self {
+            Self::Directive => "DIRECTIVE",
+            Self::Tactic => "TACTIC",
+            Self::Styleguide => "STYLEGUIDE",
+            Self::Toolguide => "TOOLGUIDE",
+            Self::Paradigm => "PARADIGM",
+            Self::Procedure => "PROCEDURE",
+            Self::AgentProfile => "AGENT_PROFILE",
+            Self::MissionStepContract => "MISSION_STEP_CONTRACT",
+            Self::Template => "TEMPLATE",
+            Self::Asset => "ASSET",
+            Self::GlossaryPack => "GLOSSARY_PACK",
+            Self::AntiPattern => "ANTI_PATTERN",
+            Self::Skill => "SKILL",
+        }
+    }
+
     /// The hyphenated operator token used by CLI surfaces.
     pub const fn operator_token(self) -> &'static str {
         match self {

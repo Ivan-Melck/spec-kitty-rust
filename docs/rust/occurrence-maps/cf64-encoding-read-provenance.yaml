@@ -1,0 +1,142 @@
+# CF64 occurrence classification — Source encoding-read provenance lifecycle and
+# Doctrine read composition.
+#
+# PRE-EDIT classification: written before the first production edit of this lane
+# (after the Source/Native reads and Source probes recorded in the evidence root
+# `/tmp/sk-cf64-evidence`). All eight standard categories are classified; KEEP
+# entries name the borrowed owners this lane does not change.
+target:
+  term: "a Native text read with no encoding-provenance lifecycle (the reference writes .kittify/encoding-provenance/global.jsonl on every successful charter-chokepoint read)"
+  replacement: "one Kernel encoding-provenance model/lifecycle (record, mission/global routing, append through the canonical locked event-log writer) plus an explicit file-read adapter that composes it, and a Doctrine document reader that reads through that adapter"
+  # No `operation:` key: this lane is ADDITIVE. No existing public symbol is
+  # renamed, removed or deprecated; the pure codec functions are untouched.
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      ADDED: `sk_kernel::encoding_provenance` (module) with
+      `EncodingProvenanceRecord`, `ReadEncodingFacts`, `EncodingProvenanceJournal`,
+      `EncodingProvenanceError`, `EncodingProvenanceWarning`, `EventIdSource` +
+      `SystemEventIds`, `EncodingProvenanceEventIdError`, and the path constants
+      `GLOBAL_LOG_RELATIVE` / `MISSION_LOG_FILENAME` / `SPECS_DIR_NAME` / `ACTOR`;
+      `sk_kernel::text_decode::{read_text_with_provenance, ProvenancedText,
+      ProvenanceReadError}` (explicit file-read/provenance adapters);
+      `sk_doctrine::loader::{load_document_text, load_charter_document,
+      load_graph_with_provenance}`.
+      KEEP unchanged: every pure codec in `text_decode.rs`
+      (`detect_bom`, `decode_unambiguous`, `normalize_newlines`, `Bom`), the
+      `python_json` render/`PythonJsonValue` authority, `PythonString`,
+      `python_utf8`, `clock`, `event_log_append`
+      (`append_event_log_lines`/`event_log_lock`), `read_source_bytes`,
+      `python_repr`, `text_decode`'s strict UTF-16/UTF-32 validators, and the
+      whole `sk-doctrine` graph/schema/model/merge surface.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No manifest, dependency edge, pin, lockfile or module-path rename. The new
+      Kernel module is declared with one line in the existing `lib.rs` module
+      block (the same shape CF33 used for `text_decode`); `sk-doctrine` continues
+      to depend only on `sk-kernel` + `sk-charter`. No new crate dependency,
+      including the workspace `ulid` crate, is added by this lane.
+  filesystem_paths:
+    action: manual_review
+    notes: >-
+      The lane introduces the reference's own runtime paths
+      (`.kittify/encoding-provenance/global.jsonl`,
+      `kitty-specs/<mission>/.encoding-provenance.jsonl`) as literal constants.
+      No authored pack, pin, golden, Source file, catalogue entry or checked-in
+      fixture path changes. Every test fixture is a fresh `mktemp` tree.
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      The provenance row is the reference's `EncodingProvenanceRecord`:
+      `actor, at, bypass_used, confidence, event_id, file_path, mission_id,
+      normalization_applied, source_encoding` — `json.dumps(record,
+      sort_keys=True)` key order, `", "`/`": "` separators, `ensure_ascii=True`.
+      Rendered through the existing `PythonJsonValue::render_python_with`
+      authority; no second encoder. No other serialized document, status event or
+      CLI payload key changes.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command, subcommand, flag or alias is added or changed. The CLI is not
+      edited by this lane; the parent owns any consumer wiring and stdout
+      composition.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      ADDED strings are the reference's own: the caught-write warning body
+      `Failed to write encoding provenance to <path>` and the fail-closed
+      ambiguity message naming `CHARTER_ENCODING_AMBIGUOUS`. No existing message,
+      heading, indentation or artifact text changes.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      ADDED only: `crates/sk-kernel/tests/cf64_encoding_provenance.rs` (journal,
+      routing, mission-id, append/no-dedup, caught-write and pure-codec
+      non-regression controls) and
+      `crates/sk-doctrine/tests/cf64_encoding_provenance_reads.rs` (paired
+      Source/Native children reading a real Doctrine document through the
+      chokepoint in fresh `mktemp` git trees). KEEP with no edit: cf33 Kernel
+      decoder tests, cf61/cf50/cf38/cf43 Doctrine suites, `governance_oracle`,
+      `baseline_fixtures`, `cf8_context_render` and all CF57–CF63 surfaces.
+  logs_telemetry:
+    action: manual_review
+    notes: >-
+      The lane's own telemetry IS the provenance log. No event, metric,
+      readiness, approval, acceptance or performance status is written. The
+      record's `actor` is the reference's `spec-kitty charter` label; the
+      caught-failure path emits one warning value instead of a Python log line.
+exceptions:
+  - path: crates/sk-kernel/src/encoding_provenance.rs
+    action: manual_review
+    reason: >-
+      NEW module: the one Source encoding-read provenance model, path routing,
+      mission-id resolution, record mint and append policy. Reuses the existing
+      clock, JSON, path, string and locked event-log writer authorities; no
+      new writer, codec or lock.
+  - path: crates/sk-kernel/src/text_decode.rs
+    action: manual_review
+    reason: >-
+      Explicit file-read/provenance adapter seams only
+      (`read_text_with_provenance`, `ProvenancedText`, `ProvenanceReadError`).
+      The pure codec functions (`detect_bom`/`decode_unambiguous`/
+      `normalize_newlines`) keep their exact current bodies and signatures.
+  - path: crates/sk-kernel/src/lib.rs
+    action: manual_review
+    reason: >-
+      One module declaration line (`pub mod encoding_provenance;`) in the
+      existing module block. No root re-export, dispatch table or catalogue
+      change.
+  - path: crates/sk-doctrine/src/loader.rs
+    action: manual_review
+    reason: >-
+      Read-provenance composition: the reference's charter-document read (its
+      only provenance-writing chokepoint) is composed over the Kernel adapter,
+      and the same seam backs a graph-document reader. `load_graph`,
+      `load_graph_or_dir`, `load_graph_str`, `has_graph_files` and
+      `merge_layers` keep their bodies and error phases (the reference's DRG
+      loader writes no provenance — Source-probed).
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: >-
+      Same-item re-exports of the new loader entry points in the existing
+      `loader` block; precise additive hunks, no shared-root reformatting.
+  - path: crates/sk-kernel/tests/cf64_encoding_provenance.rs
+    action: manual_review
+    reason: >-
+      NEW Kernel test file; fresh exclusive fixtures, no shared test edited.
+  - path: crates/sk-doctrine/tests/cf64_encoding_provenance_reads.rs
+    action: manual_review
+    reason: >-
+      NEW Doctrine test file; paired Source/Native children in fresh `mktemp`
+      git trees, all environment roots asserted inside both children.
+  - path: /tmp/sk-cf64-source-read-provenance-report.md
+    action: do_not_change
+    reason: >-
+      Task report (provisional preserved externally before any probe); not a
+      repository artifact.
+  - path: docs/rust/occurrence-maps/cf64-encoding-read-provenance.yaml
+    action: do_not_change
+    reason: >-
+      This classification map itself; additive.

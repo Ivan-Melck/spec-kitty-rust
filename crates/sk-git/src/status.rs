@@ -19,14 +19,46 @@ pub enum UntrackedMode {
     Normal,
     /// List every file inside a new directory individually.
     All,
+    /// Pass no `--untracked-files` flag at all, so the repository's own
+    /// `status.showUntrackedFiles` setting decides.
+    ///
+    /// This is the Source-shaped observation: the reference's
+    /// `git status --short` (and `kernel.git.status_entries(..., untracked=None)`)
+    /// omits the flag entirely, so a repository that configures
+    /// `status.showUntrackedFiles=no` reports no untracked entries while
+    /// `=all` reports every file. The explicit [`Self::No`], [`Self::Normal`]
+    /// and [`Self::All`] modes keep their meaning and still override the
+    /// configuration, exactly as the same flag does on the command line.
+    Config,
 }
 
 impl UntrackedMode {
-    pub(crate) fn as_git_arg(self) -> &'static str {
+    /// The `--untracked-files` argument for this mode; `None` for [`Self::Config`].
+    pub(crate) fn as_git_arg(self) -> Option<&'static str> {
         match self {
-            Self::No => "--untracked-files=no",
-            Self::Normal => "--untracked-files=normal",
-            Self::All => "--untracked-files=all",
+            Self::No => Some("--untracked-files=no"),
+            Self::Normal => Some("--untracked-files=normal"),
+            Self::All => Some("--untracked-files=all"),
+            Self::Config => None,
+        }
+    }
+}
+
+impl StatusOptions {
+    /// The Source-shaped status options: untracked files follow the
+    /// repository's `status.showUntrackedFiles`, ignored entries omitted.
+    ///
+    /// Equivalent to Source's `git status --short` /
+    /// `status_entries(untracked=None)`, as used by its coordination doctor.
+    /// The Source helper's own default remains `untracked="normal"`.
+    /// Pass these to
+    /// [`GitRepository::status_with`](crate::GitRepository::status_with); the
+    /// status owner, parser and error contract are the same ones the explicit
+    /// modes use.
+    pub const fn source_defaults() -> Self {
+        Self {
+            untracked: UntrackedMode::Config,
+            ignored: false,
         }
     }
 }
@@ -146,8 +178,15 @@ pub(crate) fn status_at(
         "status",
         "--porcelain=v1",
         "-z",
-        options.untracked.as_git_arg(),
     ];
+    // `UntrackedMode::Config` omits the flag so git's own
+    // `status.showUntrackedFiles` configuration decides, as Source's
+    // `git status --short` does. Native still keeps `--no-optional-locks` and
+    // `core.fsmonitor=false`, so this read never refreshes the index or runs a
+    // repository-configured fsmonitor hook.
+    if let Some(flag) = options.untracked.as_git_arg() {
+        args.push(flag);
+    }
     if options.ignored {
         args.push("--ignored");
     }

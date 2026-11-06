@@ -34,6 +34,15 @@ use crate::agent::{AgentSurface, SkillClass, agent_surface};
 use crate::error::InstallError;
 use crate::plan::now_utc_iso;
 
+pub mod pack_skill;
+
+pub use pack_skill::{
+    InForceSkills, PackSkill, PackSkillRepository, PackTier, PreparedSkill, SkillExpansion,
+    SkillForm, SkillInvocation, SkillParameter, explicit_activated_skills, pack_skills,
+    pack_skills_matter, render_pack_skill, resolve_project_skill_catalog,
+    resolve_project_skill_catalog_with, shipped_catalog,
+};
+
 /// Project-relative path of the managed-skills manifest.
 pub const SKILLS_MANIFEST_REL: &str = ".kittify/skills-manifest.json";
 
@@ -64,6 +73,33 @@ pub struct CanonicalSkill {
     pub name: String,
     /// Every file, `SKILL.md` first then sorted references/scripts/assets.
     pub files: Vec<SkillFile>,
+    /// `builtin` for the shipped doctrine skills, `pack` for a charter-pack
+    /// skill rendered into the staged root (ADR 2026-09-27-1). Pack skills are
+    /// project-root only: they never feed a user-global asset batch.
+    pub origin: String,
+    /// Pack source reference (pack origin only), project-relative when inside
+    /// the project and absolute otherwise.
+    pub source_ref: String,
+    /// Pack skill input hash (pack origin only).
+    pub source_hash: String,
+}
+
+impl CanonicalSkill {
+    /// A shipped (built-in) skill with no pack provenance.
+    pub fn shipped(name: String, files: Vec<SkillFile>) -> Self {
+        Self {
+            name,
+            files,
+            origin: ORIGIN_BUILTIN.to_string(),
+            source_ref: String::new(),
+            source_hash: String::new(),
+        }
+    }
+
+    /// Whether this skill came from a charter pack.
+    pub fn is_pack(&self) -> bool {
+        self.origin == ORIGIN_PACK
+    }
 }
 
 /// A discovered skills catalog rooted at an explicit directory.
@@ -135,7 +171,7 @@ impl SkillCatalog {
             // (`SKILL.md`, then `assets/`, `references/`, `scripts/`), which is
             // also the order its manifest records.
             files.sort_by(|left, right| left.relative.cmp(&right.relative));
-            skills.push(CanonicalSkill { name, files });
+            skills.push(CanonicalSkill::shipped(name, files));
         }
         Ok(Self {
             root: root.to_path_buf(),
@@ -143,9 +179,46 @@ impl SkillCatalog {
         })
     }
 
+    /// A catalog with no skills, rooted at `root` (a project with no shipped tree).
+    pub fn empty(root: impl Into<PathBuf>) -> Self {
+        Self {
+            root: root.into(),
+            skills: Vec::new(),
+        }
+    }
+
+    /// Append one skill, keeping the catalog sorted by name.
+    ///
+    /// Additive: the staged pack skills are appended through this seam so the
+    /// installer and every read surface see one catalog, never a second one.
+    pub fn push_skill(&mut self, skill: CanonicalSkill) {
+        self.skills.retain(|existing| existing.name != skill.name);
+        self.skills.push(skill);
+        self.skills
+            .sort_by(|left, right| left.name.cmp(&right.name));
+    }
+
     /// The catalog root.
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// A catalog narrowed to the skills `predicate` accepts, in the same order.
+    ///
+    /// Additive selection helper: the source tree, hashes and install rules are
+    /// unchanged, so a migration that owns a name subset (the `spk-` pack)
+    /// installs exactly that subset through the one canonical catalog instead of
+    /// a second discovery path.
+    pub fn filtered(&self, predicate: impl Fn(&CanonicalSkill) -> bool) -> Self {
+        Self {
+            root: self.root.clone(),
+            skills: self
+                .skills
+                .iter()
+                .filter(|skill| predicate(skill))
+                .cloned()
+                .collect(),
+        }
     }
 
     /// Every skill, sorted by name.
@@ -214,6 +287,26 @@ fn collect_skill_files(
         });
     }
     Ok(())
+}
+
+/// Delivery mode for a project skill file that is a link into the user-global
+/// canonical skill root (upstream `DELIVERY_SYMLINK`).
+pub const DELIVERY_SYMLINK: &str = "symlink";
+
+/// Delivery mode for an ordinary project copy (upstream `DELIVERY_COPY`).
+pub const DELIVERY_COPY: &str = "copy";
+
+/// The user-global canonical skill root for `agent_key`.
+///
+/// Mirrors `specify_cli.skills.paths.get_primary_global_skill_root`: the
+/// project-relative primary skill root (`.claude/skills`, `.agents/skills`, …)
+/// mirrored beneath the user's home directory. `None` for wrapper-only agents
+/// and for an unresolvable home directory (the caller then treats a project
+/// link as unverifiable rather than guessing).
+pub fn global_skill_root(agent_key: &str) -> Option<std::path::PathBuf> {
+    let root = agent_surface(agent_key).ok()?.skill.primary_root()?;
+    let home = sk_kernel::paths::home_directory().ok()?;
+    Some(home.join(root.trim_matches('/')))
 }
 
 /// One managed skill file, in the upstream wire shape.
@@ -287,6 +380,52 @@ impl ManagedFileEntry {
             source_ref: String::new(),
             source_hash: String::new(),
         }
+    }
+
+    /// Build an entry for a *retained* user-global symlink.
+    ///
+    /// Upstream records `delivery_mode: symlink` for a project skill file that
+    /// is (or was adopted as) a link into the user-global canonical root; the
+    /// content hash is the linked canonical file's digest.
+    pub fn symlinked(
+        skill_name: &str,
+        source_file: &str,
+        installed_path: &str,
+        installation_class: &str,
+        agent_key: &str,
+        content_hash: &str,
+        installed_at: &str,
+    ) -> Self {
+        Self {
+            delivery_mode: DELIVERY_SYMLINK.to_string(),
+            ..Self::copied(
+                skill_name,
+                source_file,
+                installed_path,
+                installation_class,
+                agent_key,
+                content_hash,
+                installed_at,
+            )
+        }
+    }
+
+    /// Whether this entry records a link into the user-global root.
+    pub fn is_symlink_delivery(&self) -> bool {
+        self.delivery_mode == DELIVERY_SYMLINK
+    }
+
+    /// Attach pack provenance (the pack source reference and input hash).
+    pub fn with_pack_provenance(
+        mut self,
+        origin: &str,
+        source_ref: &str,
+        source_hash: &str,
+    ) -> Self {
+        self.origin = origin.to_string();
+        self.source_ref = source_ref.to_string();
+        self.source_hash = source_hash.to_string();
+        self
     }
 }
 
@@ -414,7 +553,7 @@ impl ManagedSkillManifest {
                             detail: error.to_string(),
                         }
                     })?;
-                managed_skill_destination(project_root, &entry.installed_path)?;
+                managed_entry_destination(project_root, &entry)?;
                 if !matches!(entry.delivery_mode.as_str(), "copy" | "symlink") {
                     return Err(InstallError::SkillsManifestInvalid {
                         path: path.clone(),
@@ -473,7 +612,7 @@ impl ManagedSkillManifest {
     pub fn save(&self, project_root: &Path) -> Result<bool, InstallError> {
         let path = managed_skill_destination(project_root, SKILLS_MANIFEST_REL)?;
         for entry in &self.entries {
-            managed_skill_destination(project_root, &entry.installed_path)?;
+            managed_entry_destination(project_root, entry)?;
         }
         let previous = Self::load_strict(project_root)?;
         let mut desired = self.clone();
@@ -848,7 +987,7 @@ pub fn install_skills_for_agents(
                         &mut manifest,
                         &mut report,
                         key,
-                        &skill.name,
+                        skill,
                         &installed_path,
                         &class,
                         file,
@@ -872,7 +1011,7 @@ pub fn install_skills_for_agents(
                         &mut manifest,
                         &mut report,
                         key,
-                        &skill.name,
+                        skill,
                         &installed_path,
                         &class,
                         file,
@@ -882,6 +1021,13 @@ pub fn install_skills_for_agents(
                 }
             }
         }
+        retire_pack_skills(
+            project_root,
+            &mut manifest,
+            &mut report,
+            catalog,
+            agent_keys,
+        )?;
         Ok(())
     })();
     manifest.updated_at = now;
@@ -900,19 +1046,128 @@ pub fn install_skills_for_agents(
     Ok(report)
 }
 
+/// Retire pack-origin files that the resolved catalog no longer contains.
+///
+/// A pack skill that left the pack (or whose activation was removed) must not
+/// survive as an installed copy: the catalog is the inventory authority, and a
+/// manifest entry left behind would keep an obsolete skill in every agent root
+/// (Source #5193). A file whose bytes still match its recorded hash is removed
+/// with its (now empty) skill directory; a locally edited file is preserved and
+/// reported so the operator can consent to losing the edit, exactly like every
+/// other managed file this writer refuses to overwrite.
+fn retire_pack_skills(
+    project_root: &Path,
+    manifest: &mut ManagedSkillManifest,
+    report: &mut SkillInstallReport,
+    catalog: &SkillCatalog,
+    agent_keys: &[String],
+) -> Result<(), InstallError> {
+    let wanted: BTreeSet<(String, String)> = catalog
+        .skills()
+        .iter()
+        .flat_map(|skill| {
+            skill
+                .files
+                .iter()
+                .map(move |file| (skill.name.clone(), file.relative.clone()))
+        })
+        .collect();
+    let stale: Vec<ManagedFileEntry> = manifest
+        .entries
+        .iter()
+        .filter(|entry| {
+            entry.origin == ORIGIN_PACK
+                && agent_keys.iter().any(|key| key == &entry.agent_key)
+                && !wanted.contains(&(entry.skill_name.clone(), entry.source_file.clone()))
+        })
+        .cloned()
+        .collect();
+    if stale.is_empty() {
+        return Ok(());
+    }
+    let mut retired_directories: BTreeSet<PathBuf> = BTreeSet::new();
+    let mut retained: BTreeSet<String> = BTreeSet::new();
+    for entry in &stale {
+        let destination = match managed_skill_destination(project_root, &entry.installed_path) {
+            Ok(destination) => destination,
+            Err(error) => {
+                report.warnings.push(format!(
+                    "Preserved unverifiable pack skill {}: {error}",
+                    entry.installed_path
+                ));
+                report.preserved.push(entry.installed_path.clone());
+                retained.insert(entry.installed_path.clone());
+                continue;
+            }
+        };
+        match std::fs::symlink_metadata(&destination) {
+            Ok(metadata) if metadata.file_type().is_file() => {
+                let bytes = std::fs::read(&destination)
+                    .map_err(|error| InstallError::io("read", &destination, error))?;
+                let hash = format!("sha256:{:x}", Sha256::digest(&bytes));
+                if hash != entry.content_hash {
+                    report.warnings.push(format!(
+                        "Preserved a locally modified pack skill {} for {}: it differs from the \
+                         installed bytes, so retiring it needs explicit consent; delete it by hand \
+                         once you no longer need the edit",
+                        entry.installed_path, entry.agent_key
+                    ));
+                    report.preserved.push(entry.installed_path.clone());
+                    retained.insert(entry.installed_path.clone());
+                    continue;
+                }
+                std::fs::remove_file(&destination)
+                    .map_err(|error| InstallError::io("remove", &destination, error))?;
+                if let Some(parent) = destination.parent() {
+                    retired_directories.insert(parent.to_path_buf());
+                }
+            }
+            Ok(_) => {
+                // A link or a directory is not this writer's file: leave it.
+                report.preserved.push(entry.installed_path.clone());
+                retained.insert(entry.installed_path.clone());
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(source) => return Err(InstallError::io("inspect", &destination, source)),
+        }
+    }
+    // Remove skill directories that the retirement emptied, deepest first.
+    let mut directories: Vec<PathBuf> = retired_directories.into_iter().collect();
+    directories.sort_by_key(|directory| std::cmp::Reverse(directory.components().count()));
+    for directory in directories {
+        if std::fs::read_dir(&directory).is_ok_and(|mut entries| entries.next().is_none()) {
+            let _ = std::fs::remove_dir(&directory);
+        }
+    }
+    manifest.entries.retain(|entry| {
+        !stale.iter().any(|item| {
+            item.installed_path == entry.installed_path && item.agent_key == entry.agent_key
+        }) || retained.contains(&entry.installed_path)
+    });
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 fn install_managed_file(
     project_root: &Path,
     manifest: &mut ManagedSkillManifest,
     report: &mut SkillInstallReport,
     key: &str,
-    skill_name: &str,
+    skill: &CanonicalSkill,
     installed_path: &str,
     class: &str,
     file: &SkillFile,
     now: &str,
     repair_drift: bool,
 ) -> Result<(), InstallError> {
+    let skill_name = skill.name.as_str();
+    // A shipped skill is also written to the user-global canonical root, which
+    // is what makes a retained `symlink` delivery verifiable and what a new
+    // install links against (Source's global asset batch). A pack skill is
+    // project-root only and never reaches a user-global root.
+    if !skill.is_pack() {
+        install_global_canonical(report, key, skill, file, installed_path)?;
+    }
     // The installed path is catalog-derived, but the destination is still an
     // untrusted path under the project root: resolve it with the same
     // traversal/symlink-escape boundary the manifest-owned restores use, so a
@@ -960,7 +1215,37 @@ fn install_managed_file(
             }
         }
         Ok(metadata) if metadata.file_type().is_symlink() => {
-            return Err(InstallError::SkillCollision { path: destination });
+            // Upstream keeps a project link into the user-global canonical
+            // root: `_project_skill_file` returns `preserved` for any symlink
+            // whose content identity it did not itself write, and
+            // `_managed_link` recognises the verified case. A link is never a
+            // collision here (that would refuse a supported 3.0.3 layout), and
+            // it is never silently replaced with a copy.
+            let verified = manifest
+                .find(installed_path)
+                .filter(|entry| entry.agent_key == key)
+                .is_some_and(|entry| {
+                    entry.is_symlink_delivery()
+                        && link_matches_global_root(
+                            &destination,
+                            &entry.skill_name,
+                            &entry.source_file,
+                            key,
+                        )
+                        && std::fs::read(&destination).is_ok_and(|bytes| {
+                            format!("sha256:{:x}", Sha256::digest(&bytes)) == entry.content_hash
+                        })
+                });
+            if verified {
+                report.adopted.push(installed_path.to_string());
+                return Ok(());
+            }
+            report.preserved.push(installed_path.to_string());
+            report.warnings.push(format!(
+                "Preserved unverified skill link {installed_path} for {key}: its target is not the \
+                 canonical user-global skill file; no ownership was taken"
+            ));
+            return Ok(());
         }
         Ok(_) => return Err(InstallError::SkillCollision { path: destination }),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -979,10 +1264,107 @@ fn install_managed_file(
         key,
         &expected_hash,
         now,
-    );
+    )
+    .with_pack_provenance(&skill.origin, &skill.source_ref, &skill.source_hash);
     manifest.add_entry(entry.clone());
     report.entries.push(entry);
     Ok(())
+}
+
+/// Write one shipped skill file into its user-global canonical root.
+///
+/// The global root mirrors the project skill root beneath the user's home
+/// (Source's `global_assets` batch). Identical bytes are adopted; a file with
+/// different bytes that this writer does not own is preserved and reported, and
+/// an unreadable or absent home leaves the project install untouched.
+fn install_global_canonical(
+    report: &mut SkillInstallReport,
+    key: &str,
+    skill: &CanonicalSkill,
+    file: &SkillFile,
+    installed_path: &str,
+) -> Result<(), InstallError> {
+    let Some(global_root) = global_skill_root(key) else {
+        return Ok(());
+    };
+    let destination = global_root.join(&skill.name).join(&file.relative);
+    let source = std::fs::read(&file.source)
+        .map_err(|error| InstallError::io("read", &file.source, error))?;
+    match std::fs::symlink_metadata(&destination) {
+        Ok(metadata) if metadata.file_type().is_file() => {
+            let existing = std::fs::read(&destination)
+                .map_err(|error| InstallError::io("read", &destination, error))?;
+            if existing == source {
+                return Ok(());
+            }
+            report.preserved.push(installed_path.to_string());
+            report.warnings.push(format!(
+                "Preserved a user-global skill file that differs from the shipped \
+                 {installed_path} for {key}: {}. The project copy was installed; the global \
+                 canonical file is user-owned and was not overwritten",
+                destination.display()
+            ));
+            return Ok(());
+        }
+        Ok(_) => {
+            report.preserved.push(installed_path.to_string());
+            report.warnings.push(format!(
+                "Preserved a non-file user-global skill path for {key}: {}",
+                destination.display()
+            ));
+            return Ok(());
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(source) => return Err(InstallError::io("inspect", &destination, source)),
+    }
+    if let Some(parent) = destination.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|error| InstallError::io("create directory", parent, error))?;
+    }
+    sk_kernel::atomic_write(&destination, &source)
+        .map_err(|error| InstallError::io("write", &destination, std::io::Error::other(error)))?;
+    Ok(())
+}
+
+/// Whether `destination` is a link to `global_skill_root(agent_key)/skill/file`.
+///
+/// Mirrors `installer._managed_link`: the *literal* link target is resolved
+/// lexically against the link's parent (no filesystem canonicalization, so a
+/// dangling link is still classified by its authored target) and compared with
+/// the global canonical file path.
+fn link_matches_global_root(
+    destination: &Path,
+    skill_name: &str,
+    source_file: &str,
+    agent_key: &str,
+) -> bool {
+    let Ok(target) = std::fs::read_link(destination) else {
+        return false;
+    };
+    let Some(global_root) = global_skill_root(agent_key) else {
+        return false;
+    };
+    let parent = destination.parent().unwrap_or_else(|| Path::new("."));
+    let literal = lexical_normalize(&parent.join(target));
+    literal == lexical_normalize(&global_root.join(skill_name).join(source_file))
+}
+
+/// Lexically normalize `.`/`..` components the way `os.path.normpath` does.
+fn lexical_normalize(path: &Path) -> std::path::PathBuf {
+    use std::path::Component;
+    let mut out = std::path::PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !out.pop() {
+                    out.push("..");
+                }
+            }
+            other => out.push(other.as_os_str()),
+        }
+    }
+    out
 }
 
 /// Restore absent native/shared skill files for `agent_keys` (additive only).
@@ -1115,6 +1497,42 @@ fn managed_skill_destination(project_root: &Path, relative: &str) -> Result<Path
         .map_err(|error| invalid(error.to_string()))?;
     sk_kernel::resolve_within(project_root, Path::new(relative))
         .map_err(|error| invalid(error.to_string()))
+}
+
+/// Resolve one manifest entry's `installed_path`, accepting the one supported
+/// symlink shape: an entry whose `delivery_mode` is `symlink` and whose link
+/// target is that agent's user-global canonical skill file.
+///
+/// Source keeps such entries in `skills-manifest.json` (`_valid_skill_entry` +
+/// `_managed_link`) even though the link resolves outside the project. Every
+/// other escaping path is still refused.
+fn managed_entry_destination(
+    project_root: &Path,
+    entry: &ManagedFileEntry,
+) -> Result<PathBuf, InstallError> {
+    crate::manifest::validate_relative_posix(&entry.installed_path, "managed skill destination")
+        .map_err(|error| InstallError::SkillsManifestInvalid {
+            path: project_root.join(SKILLS_MANIFEST_REL),
+            detail: error.to_string(),
+        })?;
+    let destination = project_root.join(&entry.installed_path);
+    // A manifest entry records the mode a file was *written* with; the node on
+    // disk may since have become the 3.0.3 user-global link (Source's
+    // `_valid_skill_entry`/`_managed_link` accept that pair). Only the literal
+    // target decides safety here: the agent's global skill root is allowed,
+    // any other escape is refused by `resolve_within` below.
+    if std::fs::symlink_metadata(&destination)
+        .is_ok_and(|metadata| metadata.file_type().is_symlink())
+        && let Some(global_root) = global_skill_root(&entry.agent_key)
+        && let Ok(target) = std::fs::read_link(&destination)
+    {
+        let parent = destination.parent().unwrap_or_else(|| Path::new("."));
+        let literal = lexical_normalize(&parent.join(target));
+        if literal.starts_with(lexical_normalize(&global_root)) {
+            return Ok(destination);
+        }
+    }
+    managed_skill_destination(project_root, &entry.installed_path)
 }
 
 fn write_bytes(destination: &Path, bytes: &[u8]) -> Result<(), InstallError> {

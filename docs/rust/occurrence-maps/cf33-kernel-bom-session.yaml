@@ -1,0 +1,234 @@
+# CF33 — PRE-edit occurrence classification (Kernel provable BOM decode + session phases)
+#
+# Lane: NEW CF33 functional work. ONE Kernel equivalent of
+# `src/kernel/text_decode.py` (`decode_unambiguous`/`detect_bom`, plus the
+# separate `normalize_newlines`) and a correction of the session-presence
+# probes' decode/read *phases* so a Source-valid UTF-16/32 BOM settings file is
+# present and a Source-escaping read/decode failure is not converted into an
+# invented `unsafe`/`missing` health finding.
+#
+# This map is written BEFORE any code edit and is the standard-8 classification
+# the lane's PRE-edit gate consumes. Counts come from the wrapped pre-edit
+# inventory (`030-pre-edit-occurrence-inventory.8xiYDC.log`) against the pinned
+# Source `9aed3a8012cb5eb22c0128b14d525039f95fea7a`.
+#
+# What `target.term` names: the literal whose *treatment* changes in this lane.
+# The session read-only probe currently decodes orientation bytes with
+# `sk_kernel::python_utf8::decode_utf8_sig` (UTF-8 / UTF-8-BOM only) and decodes
+# `.claude/settings.json` the same way. The Source provider instead uses strict
+# UTF-8 text mode for orientation (`read_text(encoding="utf-8")`) and
+# `kernel.text_decode.decode_unambiguous` for settings. So this lane
+# **deprecates the UTF-8-only decode step at those two session call sites** and
+# replaces it with the Kernel provable decoder; `decode_utf8_sig` itself is NOT
+# removed for its other callers (sk-workspace, Kernel's own codec tests).
+#
+# Not a rename mission: no CLI command, flag, wire key, state token or finding
+# code is renamed. The two `do_not_change` categories are surfaces this lane
+# leaves byte-identical; everything the diff edits is `manual_review` or
+# `tests_fixtures`, so the review-time diff check flags review rows instead of
+# pretending forbidden surfaces changed or silently whitelisting them.
+
+target:
+  term: "sk_kernel::python_utf8::decode_utf8_sig (session read-only probe decode)"
+  operation: deprecate
+  replacement: "sk_kernel::text_decode::decode_unambiguous / python_utf8::decode_utf8"
+
+categories:
+  code_symbols:
+    action: manual_review
+    note: >-
+      Additive Kernel module plus one exact `pub mod text_decode;` declaration; the
+      existing `OrientationSectionState::Undecodable` variant becomes a carrier of the
+      CPython decode error, `ClaudeSettingsShape` read failures are separated from
+      decode failures, `probe()` becomes fallible and `audit_tool_surfaces` gains a
+      local typed failure. No symbol is deleted for another consumer.
+  import_paths:
+    action: manual_review
+    note: >-
+      `pub mod text_decode` is declared once in the Kernel lib.rs; session.rs imports
+      `sk_kernel::text_decode` and `sk_kernel::read_source_bytes`; the diagnostics
+      module imports the new local failure type. No path attribute, no re-export
+      wrapper, no second decoder module.
+  filesystem_paths:
+    action: manual_review
+    note: >-
+      No new path literal: the probe keeps using the one writer roster's
+      `.claude/CLAUDE.md`, `AGENTS.md`, … and the existing `CLAUDE_SETTINGS_REL`.
+      Only the *read policy* on those paths changes to Source's own
+      (`read_text` / `read_bytes` follow the path, unbounded).
+  serialized_keys:
+    action: do_not_change
+    note: >-
+      The released `doctor tool-surfaces` JSON, the state vocabulary
+      (present/missing/stale/unsafe/not_applicable), the finding codes and the
+      summary counters are untouched. Source-valid UTF-16/32-BOM settings now
+      *reach* the existing `present` state; the escape path emits no document at
+      all, exactly like the reference raising out of the command.
+  cli_commands:
+    action: do_not_change
+    note: >-
+      `doctor tool-surfaces --kind context_file|rule|hook`, `--tool`, `--json` and
+      the `--fix` refusal keep their tokens, exit contract and wording. The escape
+      reuses the command's existing non-zero (exit 1) domain-error path; no flag,
+      code or capability registration is added.
+  user_facing_strings:
+    action: manual_review
+    note: >-
+      Existing finding sentences are unchanged. The one new operator-visible text is
+      the propagated failure line for a session decode/read escape (Source emits a
+      Python traceback there; this lane emits the same CPython/OS message plus the
+      path, and the traceback/wire difference is recorded as debt).
+  tests_fixtures:
+    action: manual_review
+    note: >-
+      New `cf33_*` Kernel/Install/CLI test targets on fresh tempfile fixtures. One
+      CF28 assertion whose premise CF33 corrects (a non-UTF-8 context file reported
+      as `unsafe`) is retargeted to the escaping failure it really is; it is not
+      deleted or weakened to green.
+  logs_telemetry:
+    action: do_not_change
+    note: >-
+      No log, metric or install-warning format change. The audit still runs no
+      writer, creates nothing and locks nothing.
+
+status:
+  lane: cf33-kernel-bom-session
+  change_kind: protocol_correction_additive
+  source_baseline: "9aed3a8012cb5eb22c0128b14d525039f95fea7a"
+  pre_edit_inventory_receipt: "030-pre-edit-occurrence-inventory.8xiYDC.log"
+  source_cause_receipts:
+    - "018-oracle-verify.uaDLic.log"
+    - "020-source-probe-rerun.XWz4D8.log"
+    - "022-source-probe-complete.jfMSF5.log"
+    - "024-source-cli-probe.kvRQae.log"
+  owned_paths:
+    - crates/sk-kernel/src/text_decode.rs
+    - crates/sk-kernel/src/lib.rs
+    - crates/sk-kernel/tests/cf33_text_decode.rs
+    - crates/sk-install/src/session.rs
+    - crates/sk-install/src/tool_surface_diagnostics.rs
+    - crates/sk-install/src/tool_surface_diagnostics/session_presence.rs
+    - crates/sk-install/tests/cf33_session_decode_phases.rs
+    - crates/sk-cli/src/compat/doctor/tool_surfaces.rs
+    - crates/sk-cli/tests/cf33_session_failure_cli.rs
+    - docs/rust/occurrence-maps/cf33-kernel-bom-session.yaml
+  declared_non_edits:
+    - crates/sk-install/src/lib.rs
+    - crates/sk-install/src/error.rs
+    - crates/sk-kernel/src/error.rs
+    - crates/sk-kernel/src/python_utf8.rs
+    - crates/sk-install/src/render.rs
+    - crates/sk-workspace/src/acceptance_source.rs
+    - crates/sk-cli/src/compat/support.rs
+    - crates/sk-cli/src/compat/doctor.rs
+    - crates/sk-cli/tests/cf23_tool_surface_diagnostics.rs
+    - Cargo.toml
+    - Cargo.lock
+  category_rows:
+    code_symbols:
+      - occurrence: "decode_utf8_sig"
+        sites: 2 in crates/sk-install/src/session.rs (lines 896, 968); 2 elsewhere (sk-workspace, kernel test) KEPT
+        posture: >-
+          CHANGE the two session probe sites; the orientation probe moves to strict
+          `python_utf8::decode_utf8` (Source `read_text(encoding="utf-8")`, BOM kept as
+          U+FEFF) and the settings probe moves to `text_decode::decode_unambiguous`.
+          Other callers are untouched.
+      - occurrence: "decode_unambiguous / detect_bom / normalize_newlines"
+        sites: 0 in crates before this lane
+        posture: NEW in crates/sk-kernel/src/text_decode.rs, verified absent in the pre-edit inventory.
+      - occurrence: "OrientationSectionState::Undecodable"
+        sites: 2 (session.rs definition + session_presence.rs match)
+        posture: >-
+          becomes `Undecodable(PythonUtf8DecodeError)`; the probe arm turns it into the
+          escaping typed failure instead of an `unsafe` finding.
+      - occurrence: "ClaudeSettingsShape::Unreadable / NotObject"
+        sites: session.rs producer + session_presence.rs match
+        posture: >-
+          `Unreadable` now means a Source-escaping read error (incl. a non-regular
+          destination); it is no longer collapsed into `missing`. Invalid JSON stays
+          `InvalidJson`/`NotObject` -> missing, as the reference's `_load` returns `{}`.
+      - occurrence: "PRESENCE_READ_LIMIT"
+        sites: 1 definition + 2 uses in session.rs
+        posture: >-
+          the two read-only uses are replaced by Source's own read policy
+          (`read_source_bytes`); the constant and the writer path's 4 MiB bound stay
+          (documented as the writer's bound, not the audit's).
+      - occurrence: "audit_tool_surfaces"
+        sites: 1 definition; 10 call sites in the diagnostics module, 6 in cf23, 4 in cf28, 1 in the CLI adapter
+        posture: >-
+          return type becomes `Result<SurfaceReport, ToolSurfaceAuditFailure>`; every
+          `.expect()` caller compiles unchanged, the CLI adapter gains the one mapping
+          block. No caller is deleted.
+      - occurrence: "probe (private)"
+        sites: 1 definition + 1 call in tool_surface_diagnostics.rs
+        posture: becomes fallible for the three session kinds; non-session kinds keep infallible behaviour.
+      - occurrence: "ToolSurfaceAuditFailure / SessionSurfaceFailure / SessionSurfacePhase"
+        sites: 0
+        posture: NEW local typed carrier in crates/sk-install/src/tool_surface_diagnostics.rs (no InstallError/CompatError/KernelError edit).
+    import_paths:
+      - occurrence: "sk_kernel::python_utf8"
+        sites: 1 existing session.rs import site
+        posture: KEEP `python_utf8` (strict decoder) and ADD `sk_kernel::text_decode`.
+      - occurrence: "sk_kernel::read_bounded"
+        sites: 2 session.rs read-only uses
+        posture: replaced by `sk_kernel::read_source_bytes` (already a Kernel public capability).
+      - occurrence: "tool_surface_diagnostics::SessionSurfaceFailure"
+        sites: 0
+        posture: imported by the new submodule through the existing `super::{...}` list only.
+    filesystem_paths:
+      - occurrence: ".claude/settings.json (CLAUDE_SETTINGS_REL)"
+        sites: existing constant
+        posture: unchanged literal; the probe now follows the path like `Path.read_bytes()`.
+      - occurrence: ".claude/CLAUDE.md, AGENTS.md, GEMINI.md, LLXPRT.md, .github/copilot-instructions.md, rules/steering files"
+        sites: existing writer roster
+        posture: unchanged literals; only the read/decode phase changes.
+    serialized_keys:
+      - occurrence: "state: present|missing|stale|unsafe|not_applicable"
+        sites: existing STATE_* constants
+        posture: KEEP verbatim.
+      - occurrence: "code: context-file-missing|session-presence-incomplete|session-presence-undecodable|stale-generated-surface|research-gap-surface"
+        sites: existing constants
+        posture: >-
+          KEEP verbatim. `session-presence-undecodable` remains reachable only for the
+          Claude hook surface (the reference catches `SettingsNotDecodableError` there);
+          orientation decode failures no longer produce it.
+      - occurrence: "summary.* / surfaces[].*"
+        sites: SurfaceReport/SurfaceStatus::to_json
+        posture: KEEP; no key added or removed.
+    cli_commands:
+      - occurrence: "spec-kitty doctor tool-surfaces"
+        sites: cfr. crates/sk-cli/src/compat/doctor/tool_surfaces.rs
+        posture: KEEP tokens and exit contract; add only the failure mapping (exit 1, no report).
+    user_facing_strings:
+      - occurrence: "undecodable: re-save <path> as UTF-8"
+        sites: 1 (hook only after this lane)
+        posture: KEEP verbatim for the hook surface.
+      - occurrence: "Always-on context file missing … / Session-presence … missing … / Orientation version stale …"
+        sites: existing
+        posture: KEEP verbatim.
+      - occurrence: "session surface failure line"
+        sites: 0
+        posture: NEW operator text built from the CPython decode message or the OS error, plus the inspected path.
+    tests_fixtures:
+      - occurrence: "cf33_text_decode.rs"
+        sites: 0
+        posture: NEW Kernel target; the Source-observed decode table from `022-source-probe-complete.jfMSF5.log`.
+      - occurrence: "cf33_session_decode_phases.rs"
+        sites: 0
+        posture: NEW Install target; UTF-8/UTF-8-BOM/UTF-16LE-BE/UTF-32LE-BE settings, cp1252 unsafe, escape phases, read-only footprint.
+      - occurrence: "cf33_session_failure_cli.rs"
+        sites: 0
+        posture: NEW CLI target; escape exit 1 with the propagated message, positive UTF-16/32 present report.
+      - occurrence: "an_undecodable_settings_file_is_unsafe_and_never_healthy"
+        sites: 1 (crates/sk-install/tests/cf28_session_presence_probes.rs)
+        posture: >-
+          PARTIAL retarget: the cp1252 settings half stays exactly as asserted; the
+          non-UTF-8 context-file half asserted CF28's disclosed divergence (`unsafe`)
+          and is corrected to the Source-escaping failure. Not deleted, not weakened.
+    logs_telemetry:
+      - occurrence: "Failed to write orientation for <tool>: …"
+        sites: existing apply_session_presence warnings
+        posture: KEEP; the audit emits no install warning.
+      - occurrence: "audit must not run a session projection writer"
+        sites: 1 read-only test
+        posture: KEEP and re-asserted for the new decode/read phases.

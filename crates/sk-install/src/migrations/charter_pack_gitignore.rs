@@ -163,6 +163,7 @@ pub fn apply(project_root: &Path) -> Result<MigrationOutcome, InstallError> {
                 warnings: vec![format!(
                     "{GITIGNORE} could not be read safely ({error}); add {CHARTER_PACK_YAML_ALLOW_RULE} by hand if needed"
                 )],
+                ..crate::upgrade::MigrationOutcome::default()
             });
         }
     };
@@ -191,5 +192,6 @@ pub fn apply(project_root: &Path) -> Result<MigrationOutcome, InstallError> {
             "Added {CHARTER_PACK_YAML_ALLOW_RULE} to {GITIGNORE}"
         )],
         warnings,
+        ..crate::upgrade::MigrationOutcome::default()
     })
 }

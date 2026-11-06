@@ -176,13 +176,13 @@ pub enum OperationMarkerState {
 /// move another branch, and the commit this call created is published on the
 /// ref the plan pinned.
 #[derive(Debug, Clone)]
-struct PublicationMark {
+pub(crate) struct PublicationMark {
     reference: String,
     boundary: ReflogBoundary,
 }
 
 #[derive(Debug, Clone)]
-enum ReflogBoundary {
+pub(crate) enum ReflogBoundary {
     /// The pinned reference had no reflog entries before the invocation, so
     /// every entry observed afterwards was appended during it.
     Empty,
@@ -732,7 +732,7 @@ impl GitRepository {
 
     /// Capture bounded history so a duplicate newest record cannot move the
     /// boundary. A capped read is not an exact count and cannot bind fallback.
-    fn publication_mark_for(&self, reference: &str) -> PublicationMark {
+    pub(crate) fn publication_mark_for(&self, reference: &str) -> PublicationMark {
         let boundary = match self.reflog_records(reference, REFLOG_BOUND_ENTRIES) {
             Ok(records) if records.is_empty() => ReflogBoundary::Empty,
             Ok(records) if records.len() < REFLOG_BOUND_ENTRIES => {
@@ -776,7 +776,7 @@ impl GitRepository {
     /// considered. Its exact unchanged suffix and count must fit in the bounded
     /// read; rewritten or saturated history cannot bind a candidate. The parent
     /// check remains necessary, not creation proof on its own.
-    fn reflog_conclusion_candidate(
+    pub(crate) fn reflog_conclusion_candidate(
         &self,
         expected_parents: &[Oid],
         mark: &PublicationMark,
@@ -868,7 +868,8 @@ impl GitRepository {
     }
 
     /// The parent ids of one commit, read from real object data.
-    fn commit_parents(&self, commit: &Oid) -> Result<Vec<Oid>, GitError> {
+    /// Every parent of `commit`, first parent first.
+    pub fn commit_parents(&self, commit: &Oid) -> Result<Vec<Oid>, GitError> {
         let args = ["rev-list", "--parents", "-n", "1", commit.as_str()];
         let output = self.process().run(&args)?;
         if !output.status.success() {
@@ -886,7 +887,11 @@ impl GitRepository {
     }
 
     /// Whether one commit's parent set is exactly `expected` (order-insensitive).
-    fn commit_parents_match(&self, commit: &Oid, expected: &[Oid]) -> Result<bool, GitError> {
+    pub(crate) fn commit_parents_match(
+        &self,
+        commit: &Oid,
+        expected: &[Oid],
+    ) -> Result<bool, GitError> {
         let parents = self.commit_parents(commit)?;
         Ok(parents.len() == expected.len()
             && parents.iter().all(|parent| expected.contains(parent)))

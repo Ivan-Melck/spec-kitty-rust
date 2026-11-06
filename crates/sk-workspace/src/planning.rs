@@ -22,7 +22,7 @@
 //! # Authority
 //!
 //! Every mutation here takes the crate's one lock protocol
-//! ([`crate::coord::CoordLocks`]: kernel checkout-claim **then** canonical
+//! (`crate::coord::CoordLocks`: kernel checkout-claim **then** canonical
 //! Mission lock) and journals a [`CoordRecordKind::Commit`] /
 //! [`CoordRecordKind::Integration`] intent *before* touching a ref. Before this,
 //! the planning commit and every integration mutated refs with no claim lock, no
@@ -75,6 +75,9 @@
 //! legitimate large event log is read whole instead of being refused.
 
 use std::path::{Path, PathBuf};
+
+/// Compatibility path to the one crate-root write-ledger module.
+pub use crate::write_ledger;
 
 use serde_json::Value;
 use sk_git::{

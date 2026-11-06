@@ -12,6 +12,8 @@ chrono.workspace = true
 fs2.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_yaml_ng.workspace = true
+yaml-edit = { version = "=0.3.6", default-features = false }
 sha2.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true

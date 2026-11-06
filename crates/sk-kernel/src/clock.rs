@@ -35,6 +35,20 @@ pub const UTC_SECOND_TIMESTAMP_FORMAT: &str = "%Y-%m-%dT%H:%M:%SZ";
 /// Compact UTC stamp format (no separators).
 pub const COMPACT_STAMP_FORMAT: &str = "%Y%m%dT%H%M%SZ";
 
+/// Pydantic model-JSON presentation of an already validated canonical datetime.
+///
+/// This is a presentation adapter, NOT a datetime parser: the owning model/YAML
+/// constructor already produced Python ISO text (civil fields, six-digit
+/// nonzero microseconds, optional offset). JSON uses `T` and `Z` for UTC;
+/// Python's own isoformat/sort-key spelling remains a separate contract.
+pub fn model_json_datetime_text(canonical_iso: &str) -> String {
+    let text = canonical_iso.replacen(' ', "T", 1);
+    match text.strip_suffix("+00:00") {
+        Some(civil) => format!("{civil}Z"),
+        None => text,
+    }
+}
+
 /// The injectable wall-clock seam.
 ///
 /// Every default method derives from [`Clock::now`], so freezing one clock

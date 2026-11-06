@@ -14,6 +14,8 @@ serde_yaml_ng.workspace = true
 thiserror.workspace = true
 ulid.workspace = true
 sk-kernel = { path = "../sk-kernel" }
+sk-git = { path = "../sk-git" }
+yaml-edit = { version = "=0.3.6", default-features = false }
 sk-status = { path = "../sk-status" }
 
 [dev-dependencies]

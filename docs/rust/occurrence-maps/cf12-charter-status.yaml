@@ -1,0 +1,118 @@
+# CF12 occurrence classification — real `charter status` operation.
+#
+# PRE-EDIT classification (written before the edits it describes). This lane is
+# additive except for ONE removed constant and ONE added public struct field, so
+# `operation: remove` / `operation: rename` are deliberately not applied to the
+# whole change; per-entry operations are recorded below.
+#
+# Pre-edit occurrence counts (grep over `crates/ docs/`, recorded before editing):
+#   CHARTER_STATUS_UNSUPPORTED   3  (const decl; `--json` payload; text line)  -> REMOVE
+#   status_command               2  (definition; dispatch arm in `run`)         -> KEEP (moved to submodule)
+#   StatusArgs                   1  in this module (+ unrelated `MarkStatusArgs`
+#                                   occurrences in `compat/tasks.rs`, untouched) -> KEEP, additive field
+#   charter status payload keys  n/a (new surface; no prior writer)
+#
+# No `sed`, no bulk rewrite, no path-module hack, no second authority. Only the
+# three literal occurrences above are touched; nothing else in the workspace
+# spells them (verified by the pre-edit grep recorded in the evidence root).
+
+target:
+  term: "`charter status` unsupported placeholder (CHARTER_STATUS_UNSUPPORTED refusal)"
+  replacement: "real read-only Source-grounded charter status payload on canonical Native owners"
+
+categories:
+  code_symbols:
+    operation: remove
+    action: manual_review
+    notes: >-
+      REMOVE `CHARTER_STATUS_UNSUPPORTED` (3 literal sites, all in
+      `crates/sk-cli/src/compat/charter.rs`): the constant, its `--json`
+      payload key and its text-mode error line. The stub never read or wrote
+      anything and claimed no state, so nothing depends on it. KEEP every other
+      public symbol: `CharterCommand` (unchanged variant set), `run` (unchanged
+      signature `fn(CharterCommand) -> Result<u8, CompatError>`), and
+      `StatusArgs` (one ADDITIVE `--provenance` field mirroring the reference
+      flag; no field renamed, no visibility changed). New private module
+      `compat::charter::status` carries the collectors and renderers; it is not
+      re-exported, so the public charter surface is unchanged apart from the
+      added flag.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No new crate, manifest, lockfile, feature or dependency edge. The
+      collectors consume already-delivered owners: `sk-charter`
+      (`load_project_config`, `hash_content`, `compute_bundle_content_hash`,
+      `synthesis::SynthesisManifest`), `sk-doctrine` (`YamlDocument`,
+      `load_activation_ledger`, `resolve_deny`, `org_requirable_kinds`,
+      `read_org_required_provenance`, `IdentityIndex::from_project`),
+      `sk-kernel` (`content_digest::sha256_hex`, `clock::{from_epoch,
+      format_stamp}`) and `compat::{support, rich_table}`.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      Read-only. The only paths touched are the reference's own:
+      `.kittify/config.yaml` (the `charter:` pointer), `.kittify/charter/
+      {charter.yaml,charter.md,metadata.yaml,activation.yaml,synthesis-manifest
+      .yaml,provenance/,generated/}`, and `.kittify/charter-packs/{graph.yaml,
+      <kind dirs>,PROVENANCE.md}`. Nothing is created, written, compiled,
+      synthesized or repaired. New tests use fresh `tempfile` fixtures.
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      The `charter status --json` contract is the reference payload
+      (`contracts/charter-status-json.md`): `result`, `charter_sync`,
+      `synthesis`, `org_layer`, `governance_references`, `freshness`,
+      `activation`, with the reference sub-keys and state vocabularies
+      (`fresh|stale|missing|built_in_only|invalid`,
+      `promoted|ready_for_validation|needs_attention|not_started`,
+      `missing|partial|valid|invalid`). No key is renamed or dropped; sections
+      whose collector is not yet ported fill the reference's OWN degradation
+      channel (`org_layer.errors`, `governance_references.available=false` +
+      `warnings`, `synthesis.evidence.warnings`) instead of inventing a new
+      health key. serde_json's sorted key order stays the workspace-wide
+      property (reference insertion order is a known divergence, disclosed).
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No root CLI enum, dispatch, capability matrix or help surface is edited.
+      `charter status` gains the reference `--provenance` flag and keeps
+      `--json`; no existing flag is renamed or removed.
+  user_facing_strings:
+    operation: remove
+    action: manual_review
+    notes: >-
+      REMOVE the placeholder string "native `charter status` is pending ...".
+      ADD reference-shaped text: `Charter sync`, `Status: SYNCED|STALE`,
+      `Last sync:`, `Expected hash:`/`Current hash:`, `Library docs:`,
+      `Extracted files:`, `Synthesis`, `Generation state:`,
+      `Generated inputs:`, `Manifest:`, `Evidence:`, `Provenance:`,
+      `Organisation Layer`, `Freshness` and the reference remediation commands.
+      Every degraded line names the missing Native owner explicitly; no line
+      claims healthy/synced/ready for an unconsulted section.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New `cf12_*` tests only (`crates/sk-cli/tests/cf12_charter_status.rs`).
+      They pin: fresh fixture states, absent charter/state, genuinely stale and
+      invalid states, read-only custom-data preservation, and the coded refusal
+      phases. No existing test (including `cf8_*`) is weakened, skipped or
+      deleted.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric or event key. Nothing is emitted for a missing feature
+      beyond the user-visible degradation lines; no success label is written
+      for an unported collector.
+
+exceptions:
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: >-
+      Removes the stub constant, adds the `--provenance` arg and delegates
+      `status_command` to the new submodule. The three REMOVE sites are the
+      complete pre-edit occurrence set for `CHARTER_STATUS_UNSUPPORTED`.
+  - path: crates/sk-cli/src/compat/charter/status.rs
+    action: manual_review
+    reason: >-
+      New private submodule: the collectors/renderers. Replaces no owner and
+      mutates nothing; it composes existing authorities only.

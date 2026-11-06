@@ -1,0 +1,149 @@
+# PRE-EDIT occurrence classification for CF15 (real finalize-tasks orchestration).
+#
+# This lane is ADDITIVE in behaviour and REPLACING in payload keys:
+#
+#  * it adds private orchestration inside the owned
+#    `crates/sk-cli/src/compat/mission.rs` (`finalize_tasks` keeps its exact
+#    public name, arity and return type — the parent-owned `compat/mod.rs`
+#    callers are untouched);
+#  * it adds new Native implementations of Source behaviours that had no
+#    previous Native occurrence at all (`bootstrap_canonical_state`,
+#    `is_execution_wedged`, `FinalizeWriteLedger`-style owned-byte restore at
+#    the finalize call site, the occurrence-map finalize gate);
+#  * it REPLACES the ad-hoc native payload keys of `finalize_tasks`
+#    (`updated_wps`, `updated_files`, `committed`, `spec_kitty_version`) with
+#    the pinned Source payload keys (`result`, `updated_wp_count`,
+#    `modified_wps`, `unchanged_wps`, `preserved_wps`, `would_modify`,
+#    `would_preserve`, `unchanged`, `dependencies`, `bootstrap`, plus the
+#    `_mission_identity_payload` keys `mission_slug`/`mission_number`/
+#    `mission_type`). That is a user-visible serialized-key rename/removal and
+#    is recorded as such below.
+#
+# Pre-edit inventory (crates + docs/rust + pinned Source `src/`,
+# `__pycache__`/`target` excluded; counts from evidence label
+# `occurrence-inventory`, which also counted Source — the Rust-only counts are
+# quoted where they differ):
+#   finalize_tasks                     74 hits / 22 files (Rust: 3 files)
+#   finalize-tasks                    407 hits / 141 files
+#   DependencyFinalizePlan             26 hits / 7 files (all Rust)
+#   bootstrap_canonical_state           29 hits / 11 files (Rust: 0)
+#   BootstrapResult                     30 hits / 9 files  (Rust: 1 unrelated
+#                                        private type alias in coord.rs:2558)
+#   lanes.json                        535 hits / 144 files
+#   LanesStore                          53 hits / 22 files
+#   compute_lanes                       53 hits / 13 files
+#   is_execution_wedged                 13 hits / 5 files  (Rust: 0)
+#   planning_commit_sha                161 hits / 39 files
+#   updated_wps                         11 hits / 5 files  (Rust: mission.rs,
+#                                        sk-mission tasks.rs, 3 test files)
+#   modified_wps                          6 hits / 4 files (Rust: 0)
+#   occurrence_map                     100 hits / 31 files
+#   change_mode                         59 hits / 14 files
+#   emit_status_transition             135 hits / 43 files
+#   restore_mission_write_scope         27 hits / 6 files
+#   begin_write_ledger                   18 hits / 6 files
+#   capture_branch_tip                   24 hits / 9 files (Rust: 0)
+#   read_branch_tip                    112 hits / 26 files
+target:
+  term: "finalize-tasks as dependency-frontmatter patching only"
+  replacement: "the real Source finalize-tasks pipeline: occurrence-map gate, pre-write dependency gates, gated frontmatter writes, lanes.json planning write, canonical status bootstrap, owned-byte rollback"
+categories:
+  code_symbols:
+    operation: rename
+    action: manual_review
+    notes: >-
+      New private `compat/mission.rs` items: `FinalizePhase`, `FinalizeFailure`,
+      `BootstrapResult`, `finalize_tasks` (unchanged signature), `run_finalize_tasks`,
+      `merge_identity`, `map_plan_error`, `validate_occurrence_map_gate`,
+      `read_occurrence_map`, `check_pre30_layout`, `apply_finalize_side_effects`,
+      `apply_finalize_writes`, `finalize_lanes`, `gather_wp_ownership`,
+      `capture_branch_tip`, `execution_has_begun`, `is_execution_wedged`,
+      `bootstrap_canonical_state`, `initialized_wp_ids`. No existing Rust public
+      symbol is renamed or removed.
+  import_paths:
+    action: manual_review
+    notes: >-
+      New `use` items only, all crate-internal or already-public APIs:
+      sk_mission::{DependencyFinalizePlan, WorkPackage, WpId, MissionSlug,
+      MissionTopology, paths::TASKS_FILE_NAME}; sk_status::{mutation_emit::{ActorValue,
+      TransitionRequest, emit_status_transition}, replay::parse_diary,
+      snapshot::read_raw_events}; sk_workspace::{LanesStore, LanePlannerInput,
+      WpPlan, compute_lanes, begin_write_ledger, notify_published,
+      snapshot_mission_write_scope, restore_mission_write_scope_locked,
+      LanesManifest}; sk_runtime::evaluate_occurrence_gate; sk_git branch-tip
+      read. NO new crate dependency, no manifest/lock edit: sk-cli already
+      depends on every one of those crates.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No path moves or new on-disk artifacts. The pipeline reads
+      `kitty-specs/<slug>/tasks.md`, `tasks/WP*.md`, `meta.json`,
+      `occurrence_map.yaml` and writes only `tasks/WP*.md` (existing
+      `dependencies` value), `lanes.json` (canonical LanesStore writer) and the
+      canonical status log/snapshot. Test fixtures are fresh `mktemp` dirs with
+      their own `git init`; no repository ref, index or shared fixture is touched.
+  serialized_keys:
+    operation: rename
+    action: rename_if_user_visible
+    notes: >-
+      `finalize_tasks`'s machine payload is re-keyed to the pinned Source shape.
+      REMOVED keys: `updated_wps` (renamed to `modified_wps`),
+      `updated_files` (Source has no such key; the per-file list is not part of
+      the reference payload) and `spec_kitty_version` (never part of Source's
+      `_output_result` envelope — `json_envelope` is a plain `json.dumps`).
+      KEPT key: `committed` stays `false` in both arms. It is not a Source field;
+      it is the native honesty statement that this route never commits, and
+      `crates/sk-cli/tests/compat.rs:598` reads it, so removing it would have
+      required editing a file outside this lane. It is never `true`.
+      ADDED keys: `updated_wp_count`, `modified_wps`,
+      `bootstrap` (+ nested `total_wps`, `already_initialized`, `newly_seeded`,
+      `skipped`, `wp_details`), `would_modify`, `would_preserve`, `unchanged`,
+      `mission_number`, `mission_type`. No other module emits these keys, and no
+      test in the crate asserted the removed ones (verified by the
+      `test-inventory` probe and the `regress-compat` runs).
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No command name, flag, alias, default or exit code changes. `tasks` and
+      `agent mission finalize-tasks` keep their parent-owned registration; the
+      `--validate-only` / `--json` semantics stay. The route is now the real
+      pipeline instead of a payload-only plan.
+  user_facing_strings:
+    action: rename_if_user_visible
+    notes: >-
+      The human success line becomes Source's
+      `✓ Updated N WP files with dependencies (bootstrap: S seeded, E existing)`.
+      The gate/coverage/conflict/wedge messages are Source's exact wording
+      (`Bulk edit occurrence-map gate blocked finalize-tasks.`, `tasks.md work
+      package coverage is incomplete. finalize-tasks could not match all WP files
+      to parsed sections, so dependency lanes would be unreliable.`, the
+      `Cannot finalize mission {slug!r}: execution has begun ...` wedge text, the
+      pre-3.0 layout text). The old native `could not finalize tasks: ...`
+      prefix survives only as the wrapper for non-Source-mapped plan errors.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New `crates/sk-cli/tests/cf15_finalize_tasks.rs` (fresh tempdir + `git init`
+      fixtures only). No existing test is weakened, re-expected or deleted.
+      `crates/sk-mission/tests/tasks_authoring.rs` keeps asserting the Rust
+      accessor names (`updated_wps`), which are unchanged.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No log, metric or event key added or renamed. Status events are written by
+      the canonical `emit_status_transition` writer with Source's actor
+      (`{role: system, tool: finalize-tasks, profile: null, model: null}`) and
+      `reason: "canonical bootstrap"`; nothing is hand-authored.
+exceptions:
+  - path: crates/sk-cli/src/compat/mission.rs
+    action: manual_review
+    reason: >-
+      Owned finalization portion only. `create`, `specify`, `plan` and
+      `branch_context` are untouched; the module's public `finalize_tasks`
+      signature is unchanged so the parent-owned `compat/mod.rs` routes and
+      `capabilities.rs` row keep working without edits.
+  - path: crates/sk-cli/tests/cf15_finalize_tasks.rs
+    action: manual_review
+    reason: >-
+      New Native composition smoke tests. Native-only: they are NOT Source
+      isolation/pairing proof and no oracle is executed by them.

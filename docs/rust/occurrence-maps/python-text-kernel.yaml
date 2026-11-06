@@ -1,0 +1,50 @@
+# Coordinator pre-edit classification: share existing exact Python lower/word facts.
+# No active Mission metadata or runtime Bulk Edit Gate pass is fabricated.
+target:
+  term: crates/sk-invocation/src/router_unicode_data.rs
+  replacement: crates/sk-kernel/src/python_text_data.rs
+  operation: rename
+categories:
+  code_symbols: {action: manual_review}
+  import_paths: {action: manual_review}
+  filesystem_paths: {action: manual_review}
+  serialized_keys: {action: do_not_change}
+  cli_commands: {action: do_not_change}
+  user_facing_strings: {action: do_not_change}
+  tests_fixtures: {action: manual_review}
+  logs_telemetry: {action: do_not_change}
+moves:
+  - from: [crates/sk-invocation/src/router_unicode_data.rs]
+    to: crates/sk-kernel/src/python_text_data.rs
+    reason: One byte-identical CPython3.11.15/UCD14 lower/word/context fact authority serves Doctrine custom roles and Invocation routing without a dependency cycle.
+exceptions:
+  - path: crates/sk-invocation/src/router_unicode.rs
+    action: manual_review
+    reason: Keep old private callable names and unchanged unit/oracle tests through exact Kernel re-exports; move existing lower/split algorithms, no new Unicode engine.
+  - path: crates/sk-kernel/src/python_text.rs
+    action: manual_review
+    reason: New canonical module receives existing algorithms and exposes real shared production lower/word/split functions, not a test-only API.
+  - path: crates/sk-kernel/src/lib.rs
+    action: manual_review
+    reason: Declare shared Python text primitives and private facts.
+  - path: crates/sk-invocation/src/lib.rs
+    action: manual_review
+    reason: Remove only moved private facts declaration; existing router exports remain.
+  - path: crates/sk-doctrine/src/profile.rs
+    action: manual_review
+    reason: Consume exact canonical lower for Source-valid half-open roles instead of Rust Unicode; no ASCII-only validity gate.
+  - path: scripts/rust/generate_router_unicode.py
+    action: manual_review
+    reason: Output/doc destination follows byte-identical fact move; all pins/numeric values/digests/validation/no-overwrite controls unchanged.
+  - path: scripts/rust/tests/test_generate_router_unicode.py
+    action: manual_review
+    reason: Only necessary destination bindings may change, never expected numeric data or assertions.
+  - path: crates/sk-invocation/src/router_oracle_tests.rs
+    action: do_not_change
+    reason: Existing exhaustive public oracle must pass unchanged through the private alias.
+  - path: docs/rust/reviews/**
+    action: manual_review
+    reason: Current bindings supersede moved paths only; retain all immutable historical subjects/hashes.
+  - path: crates/sk-invocation/ROUTER-REPORT.md
+    action: do_not_change
+    reason: Immutable historical delivery snapshot.

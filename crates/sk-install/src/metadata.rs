@@ -267,9 +267,15 @@ impl ProjectMetadata {
         {
             return Ok(false);
         }
-        sk_kernel::atomic_write(&path, final_text.as_bytes()).map_err(|error| {
-            InstallError::io("write metadata", &path, std::io::Error::other(error))
-        })?;
+        // Source `kernel.atomic.atomic_write` (see `metadata_refusal` callers).
+        sk_kernel::source_writer::write_source(
+            sk_kernel::source_writer::WriterOperation::atomic(),
+            &path,
+            sk_kernel::source_writer::SourcePayload::Text(&final_text),
+            None,
+        )
+        .map(|_receipt| ())
+        .map_err(|error| InstallError::io("write metadata", &path, std::io::Error::other(error)))?;
         Ok(true)
     }
 }
@@ -378,8 +384,15 @@ pub fn stamp_schema_metadata(kittify_dir: &Path) -> Result<bool, InstallError> {
     if !changed {
         return Ok(false);
     }
-    sk_kernel::atomic_write(&path, current.as_bytes())
-        .map_err(|error| InstallError::io("write metadata", &path, std::io::Error::other(error)))?;
+    // Source `kernel.atomic.atomic_write` for the schema/capability stamp.
+    sk_kernel::source_writer::write_source(
+        sk_kernel::source_writer::WriterOperation::atomic(),
+        &path,
+        sk_kernel::source_writer::SourcePayload::Text(&current),
+        None,
+    )
+    .map(|_receipt| ())
+    .map_err(|error| InstallError::io("write metadata", &path, std::io::Error::other(error)))?;
     Ok(true)
 }
 
@@ -390,6 +403,313 @@ pub fn canonical_schema_capabilities() -> Mapping {
         mapping.insert(Value::from(capability), Value::from(enabled));
     }
     mapping
+}
+
+/// The keys a failed upgrade restores (Source `_STAMP_KEYS`).
+pub const STAMP_KEYS: [&str; 4] = [
+    "version",
+    "last_upgraded_at",
+    "schema_version",
+    "schema_capabilities",
+];
+
+/// The capability map a schema stamp writes, given whatever the file holds now.
+///
+/// Source `canonical_schema_capabilities`: an operator-owned map is never touched; a
+/// legacy list becomes `{name: true}` completed with the canonical names; an absent or
+/// malformed value becomes the canonical map. The stamp is additive in intent but this
+/// is the ONE place that decides what "already correct" means.
+pub fn capabilities_for_stamp(existing: Option<&Value>) -> Mapping {
+    match existing {
+        Some(Value::Mapping(mapping)) => mapping.clone(),
+        Some(Value::Sequence(names)) => {
+            let mut merged = canonical_schema_capabilities();
+            for name in names {
+                // Source `{str(name): True for name in existing}`.
+                let key = match name {
+                    Value::String(text) => Some(text.clone()),
+                    Value::Bool(flag) => Some(flag.to_string()),
+                    Value::Number(number) => Some(number.to_string()),
+                    Value::Null => Some("None".to_string()),
+                    Value::Mapping(_) | Value::Sequence(_) | Value::Tagged(_) => None,
+                };
+                if let Some(key) = key {
+                    merged.insert(Value::from(key), Value::from(true));
+                }
+            }
+            merged
+        }
+        _ => canonical_schema_capabilities(),
+    }
+}
+
+/// Stamp `spec_kitty.schema_version` and the canonical capability map (upgrade success).
+///
+/// Source `MigrationRunner._stamp_schema_version`: the value is written unconditionally (a
+/// legacy `schema_version: 2` is advanced), the capability map follows
+/// [`capabilities_for_stamp`] (an operator-owned map is never touched, a legacy list is
+/// completed with the canonical names, an absent/malformed value becomes the canonical
+/// map), and a stamp that changes nothing writes nothing (#1871).
+///
+/// The common path edits the parsed document in place, so authored comments, quoting and
+/// key order survive; only the two shapes Source replaces structurally (a non-mapping
+/// `spec_kitty`, or a non-mapping `schema_capabilities` such as the legacy list) take the
+/// whole-document write Source itself performs. A missing or unreadable `metadata.yaml` is
+/// a `false` no-op, exactly as Source logs and returns.
+pub fn stamp_schema_version(kittify_dir: &Path, schema_version: i64) -> Result<bool, InstallError> {
+    let path = kittify_dir.join("metadata.yaml");
+    let text = match std::fs::read(&path) {
+        Ok(raw) => String::from_utf8(raw).map_err(|error| InstallError::MetadataInvalid {
+            path: path.clone(),
+            detail: error.to_string(),
+        })?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(source) => return Err(InstallError::io("read", &path, source)),
+    };
+    let Ok(mapping) = parse_mapping(&path, &text) else {
+        return Ok(false);
+    };
+    let block = match mapping.get(Value::from("spec_kitty")) {
+        None => None,
+        Some(Value::Mapping(block)) => Some(block.clone()),
+        Some(_) => return render_stamp(&path, &mapping, schema_version),
+    };
+    let capabilities = block
+        .as_ref()
+        .and_then(|block| block.get(Value::from("schema_capabilities")))
+        .cloned();
+    if capabilities
+        .as_ref()
+        .is_some_and(|value| !value.is_mapping())
+    {
+        return render_stamp(&path, &mapping, schema_version);
+    }
+    let mut current = text;
+    let mut changed = false;
+    let outcome = YamlEditor::new(path.clone(), current.clone())
+        .upsert_scalars(
+            "spec_kitty",
+            &[("schema_version".to_string(), Scalar::Int(schema_version))],
+            InsertPosition::Top,
+        )
+        .map_err(metadata_refusal(&path))?;
+    current = outcome.text;
+    changed |= outcome.changed;
+    if capabilities.is_none() {
+        let outcome = YamlEditor::new(path.clone(), current.clone())
+            .insert_mapping(
+                "spec_kitty",
+                &MappingEntry {
+                    key: "schema_capabilities".to_string(),
+                    children: CURRENT_SCHEMA_CAPABILITIES
+                        .iter()
+                        .map(|(capability, enabled)| {
+                            ((*capability).to_string(), Scalar::Bool(*enabled))
+                        })
+                        .collect(),
+                },
+                InsertPosition::Bottom,
+            )
+            .map_err(metadata_refusal(&path))?;
+        current = outcome.text;
+        changed |= outcome.changed;
+    }
+    if !changed {
+        return Ok(false);
+    }
+    sk_kernel::atomic_write(&path, current.as_bytes())
+        .map_err(|error| InstallError::io("write metadata", &path, std::io::Error::other(error)))?;
+    Ok(true)
+}
+
+/// The whole-document stamp write, used only for the shapes Source replaces structurally.
+fn render_stamp(path: &Path, mapping: &Mapping, schema_version: i64) -> Result<bool, InstallError> {
+    let existing = mapping.get(Value::from("spec_kitty"));
+    let mut stamped = existing
+        .and_then(Value::as_mapping)
+        .cloned()
+        .unwrap_or_default();
+    let capabilities = capabilities_for_stamp(stamped.get(Value::from("schema_capabilities")));
+    stamped.insert(Value::from("schema_version"), Value::from(schema_version));
+    stamped.insert(
+        Value::from("schema_capabilities"),
+        Value::Mapping(capabilities),
+    );
+    if Some(&Value::Mapping(stamped.clone())) == existing {
+        return Ok(false);
+    }
+    let mut data = mapping.clone();
+    data.insert(Value::from("spec_kitty"), Value::Mapping(stamped));
+    let rendered = render_document(&data);
+    sk_kernel::atomic_write(path, rendered.as_bytes())
+        .map_err(|error| InstallError::io("write metadata", path, std::io::Error::other(error)))?;
+    Ok(true)
+}
+
+/// Render a metadata document the way Source's `yaml.dump(..., sort_keys=False)` does:
+/// the auto-generated header, then the mapping in its own key order.
+fn render_document(mapping: &Mapping) -> String {
+    let body = serde_yaml_ng::to_string(mapping).unwrap_or_default();
+    format!("{METADATA_HEADER}{body}")
+}
+
+/// The pre-run `metadata.yaml` version stamp, restored by a failed upgrade.
+///
+/// Source `VersionStamp` (#3334 / #4275 / #5229): the trio
+/// `spec_kitty.{version,last_upgraded_at,schema_version}` plus the
+/// `schema_capabilities` map the schema stamp writes are the one restore authority, so a
+/// failed run never advances — or erases — the schema the project actually satisfies. The
+/// applied-migrations list is deliberately not restored: it records what ran, so a re-run
+/// still skips it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VersionStamp {
+    /// The whole file as captured (`None` when it did not exist or could not be read).
+    raw: Option<Vec<u8>>,
+}
+
+impl VersionStamp {
+    /// Snapshot `kittify_dir/metadata.yaml` (an unreadable file is captured as absent).
+    pub fn capture(kittify_dir: &Path) -> Self {
+        Self {
+            raw: std::fs::read(kittify_dir.join("metadata.yaml")).ok(),
+        }
+    }
+
+    /// The captured `spec_kitty.version`, when the capture parsed.
+    pub fn version(&self) -> Option<String> {
+        let data = self.mapping()?;
+        data.get(Value::from("spec_kitty"))
+            .and_then(Value::as_mapping)
+            .and_then(|block| block.get(Value::from("version")))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    }
+
+    /// Put the captured stamp back; `true` when the file was rewritten.
+    ///
+    /// When nothing but the stamp changed since capture the original bytes are written
+    /// back, so the file is byte-identical to its pre-run state. Otherwise (a migration
+    /// recorded something in between) only the stamp keys are patched into the current
+    /// document. A file that did not exist before is left as the run wrote it; an
+    /// unparseable capture or current file is left alone.
+    pub fn restore(&self, kittify_dir: &Path) -> Result<bool, InstallError> {
+        let Some(raw) = &self.raw else {
+            return Ok(false);
+        };
+        let path = kittify_dir.join("metadata.yaml");
+        let current_raw = std::fs::read(&path).ok();
+        if current_raw.as_deref() == Some(raw.as_slice()) {
+            return Ok(false);
+        }
+        let Some(before) = self.mapping() else {
+            return Ok(false);
+        };
+        let Some(current) = current_raw
+            .as_ref()
+            .and_then(|bytes| String::from_utf8(bytes.clone()).ok())
+            .and_then(|text| parse_mapping(&path, &text).ok())
+        else {
+            return Ok(false);
+        };
+        if without_stamp_keys(&before) == without_stamp_keys(&current) {
+            sk_kernel::atomic_write(&path, raw).map_err(|error| {
+                InstallError::io("restore metadata", &path, std::io::Error::other(error))
+            })?;
+            return Ok(true);
+        }
+        Self::patch_stamp(&path, &before, current)
+    }
+
+    fn mapping(&self) -> Option<Mapping> {
+        let text = String::from_utf8(self.raw.clone()?).ok()?;
+        parse_mapping(Path::new("metadata.yaml"), &text).ok()
+    }
+
+    fn patch_stamp(
+        path: &Path,
+        before: &Mapping,
+        mut current: Mapping,
+    ) -> Result<bool, InstallError> {
+        let empty = Mapping::new();
+        let old = before
+            .get(Value::from("spec_kitty"))
+            .and_then(Value::as_mapping)
+            .unwrap_or(&empty);
+        let mut block = current
+            .get(Value::from("spec_kitty"))
+            .and_then(Value::as_mapping)
+            .cloned()
+            .unwrap_or_default();
+        let mut changed = false;
+        for key in STAMP_KEYS {
+            match old.get(Value::from(key)) {
+                Some(value) => {
+                    changed |= block.get(Value::from(key)) != Some(value);
+                    block.insert(Value::from(key), value.clone());
+                }
+                None => {
+                    changed |= block.remove(Value::from(key)).is_some();
+                }
+            }
+        }
+        if !changed {
+            return Ok(false);
+        }
+        current.insert(Value::from("spec_kitty"), Value::Mapping(block));
+        let rendered = render_document(&current);
+        sk_kernel::atomic_write(path, rendered.as_bytes()).map_err(|error| {
+            InstallError::io("restore metadata", path, std::io::Error::other(error))
+        })?;
+        Ok(true)
+    }
+}
+
+/// The document minus the stamp keys and the `environment` block a stamp write reformats.
+///
+/// Source `_without_version_trio`: what is left (the rest of `spec_kitty`, applied
+/// migrations, foreign keys) is what a restore must preserve rather than overwrite. An
+/// empty `migrations.applied` list is the same record of nothing as an absent one.
+fn without_stamp_keys(data: &Mapping) -> Mapping {
+    let mut rest = Mapping::new();
+    for (key, value) in data {
+        let Some(name) = key.as_str() else {
+            rest.insert(key.clone(), value.clone());
+            continue;
+        };
+        match name {
+            "spec_kitty" | "environment" => continue,
+            "migrations" => {
+                let applied = value
+                    .as_mapping()
+                    .and_then(|migrations| migrations.get(Value::from("applied")))
+                    .is_some_and(|applied| match applied {
+                        Value::Sequence(records) => !records.is_empty(),
+                        Value::Null => false,
+                        _ => true,
+                    });
+                if applied {
+                    rest.insert(key.clone(), value.clone());
+                }
+            }
+            _ => {
+                rest.insert(key.clone(), value.clone());
+            }
+        }
+    }
+    if let Some(block) = data
+        .get(Value::from("spec_kitty"))
+        .and_then(Value::as_mapping)
+    {
+        let mut kept = Mapping::new();
+        for (key, value) in block {
+            if key.as_str().is_some_and(|name| STAMP_KEYS.contains(&name)) {
+                continue;
+            }
+            kept.insert(key.clone(), value.clone());
+        }
+        rest.insert(Value::from("spec_kitty"), Value::Mapping(kept));
+    }
+    rest
 }
 
 #[cfg(test)]

@@ -1,0 +1,95 @@
+# CF50 ADDITIVE lane classification; no active host Mission/Op or approval.
+# Scope: `crates/sk-doctrine/src/context.rs` (action/bootstrap artifact payload,
+# merged-record body, exact JSON payload, coercing org-required seed reader),
+# `crates/sk-doctrine/src/context_render.rs` (GENERAL action-section composition
+# only: the duplicate finite body formatter is deleted), the exact `context`
+# re-exports in `crates/sk-doctrine/src/lib.rs`, `crates/sk-cli/src/compat/charter.rs`
+# NON-INCLUDE `context_command`/`context_payload` blocks, and the NEW test binaries
+# `crates/sk-doctrine/tests/cf50_exact_action_delivery.rs` +
+# `crates/sk-cli/tests/cf50_action_context_cli.rs`.
+#
+# Nothing is renamed, removed or deprecated at the public-symbol level, so
+# `target.operation` is omitted (additive). Two PRIVATE items are deleted because
+# they were duplicate authorities: `context::artifact_document` (reopened the
+# declaring file with a second YAML parse + the finite body adapter) and
+# `context_render::inline_body_lines` (a second inline-body formatter beside
+# `include_body_lines_exact`). `ArtifactEntry.body` changes TYPE
+# (`serde_json::Value` -> the canonical exact `PythonJsonValue`) so the merged
+# record's model dump is carried losslessly; the entry KEY set is unchanged.
+target:
+  term: "CF50 exact merged action/bootstrap delivery (one payload/formatter/model graph)"
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      NEW private owner `ActionRecords` (lazy `IncludeAccess`, per-(kind,id) memo)
+      and `artifact_record_payload`; NEW public `CharterContext::to_json_exact`;
+      `CharterContext::to_json` becomes the documented finite adapter.
+      DELETED duplicate authorities: `artifact_document`, `inline_body_lines`.
+      TYPE CHANGE: `ArtifactEntry.body` from `Option<serde_json::Value>` to
+      `Option<PythonJsonValue>`; `ArtifactEntry` keeps `PartialEq` and loses the
+      `Eq` derive (a float-bearing exact value has no `Eq`). Existing public
+      function names/signatures (`build_action_context`, `render_bootstrap`,
+      `render_compact`, `context_payload`) are unchanged.
+    exceptions:
+      - file: crates/sk-doctrine/src/offering.rs
+        action: do_not_change
+        reason: "Borrowed owner (`MergedArtifact::exact_root`, `CanonicalOfferingService::artifact`); CF50 consumes it and edits nothing."
+      - file: crates/sk-doctrine/src/context_include.rs
+        action: do_not_change
+        reason: "CF52/CF43 include serving; its `include_body_lines_exact` formatter is borrowed, not edited."
+  import_paths:
+    action: manual_review
+    notes: >-
+      Adds `use crate::offering::include_access::IncludeAccess`, `MergedArtifact`,
+      `sk_kernel::PythonString`, `sk_kernel::python_json::PythonJsonValue` (and the
+      render options) to `context.rs`. No module path is renamed and no re-export
+      changes meaning; `lib.rs` gains only same-item re-exports of the new API.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No on-disk path authority changes. The action payload stops re-reading a
+      declaring artifact file at all (the layered repository already read it), so
+      the same files are read through the canonical authority instead.
+  serialized_keys:
+    action: manual_review
+    notes: >-
+      The `charter context --json` contract keys are unchanged
+      (`context_schema_version`, `action`, `mode`, `directives`, `tactics`,
+      `styleguides`, `toolguides`, `procedures`, `all_directives`,
+      `directives_source`, `diagnostics`, `references`, `project_charter`,
+      `org_charter`, `governance_references`) and so is the per-entry key set
+      (`id`, `source`, `title`, `summary`, `references`, `delivery`, `body`). The
+      `body` VALUE now comes from the merged record's canonical model dump, so its
+      nested key set is the model schema's, never a new hand-written one.
+    exceptions:
+      - file: crates/sk-doctrine/src/context.rs
+        action: manual_review
+        reason: "`body` values change from a reopened declaring file's finite projection to the merged model dump (the intended fix)."
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      `spec-kitty charter context` flags (`--action`, `--include`, `--json`,
+      `--profile`, `--mission-type`, `--include-all`, `--mark-loaded`,
+      `--no-mark-loaded`, `--mission`, `--owned-checkout`) and exit codes are
+      unchanged; the `--include` fast path is untouched.
+  user_facing_strings:
+    action: do_not_change
+    notes: >-
+      No operator-facing message, warning or prompt text changes in this lane. A
+      new internal end-to-end test file may assert existing text.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      NEW test binaries only. One existing assertion in
+      `crates/sk-doctrine/tests/cf8_context_render.rs` asserts the Native-only
+      inline body lines in the BOOTSTRAP text; the reference bootstrap render emits
+      `<id>: <title> — <summary>` and no body, so that assertion is corrected to the
+      Source shape (see `context_render.rs`'s own unit coverage).
+    exceptions:
+      - file: crates/sk-doctrine/tests/cf8_context_render.rs
+        action: manual_review
+        reason: "One assertion pinned a Native-only deviation; the paired Source probe (source-bootstrap-probe-2) is the authority."
+  logs_telemetry:
+    action: do_not_change
+    notes: "No log line, telemetry field or diagnostic code changes."

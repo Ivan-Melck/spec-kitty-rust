@@ -20,6 +20,16 @@ use crate::KernelError;
 /// treated as a loop even if it is technically acyclic.
 const MAX_SYMLINKS: usize = 40;
 
+/// How the single non-strict walker handles component metadata failures.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ResolveIoPolicy {
+    /// Preserve the existing inspection contract: only missing tails are lexical.
+    MissingTail,
+    /// Continue component-by-component after any lstat error, as pathlib does.
+    /// Successfully expanded symlink prefixes and later `..` traversal survive.
+    IgnoreMetadataErrors,
+}
+
 #[derive(Debug)]
 pub(crate) enum ResolveFailure {
     Io(io::Error),
@@ -79,15 +89,26 @@ fn owned_components(path: &Path) -> Vec<OwnedComponent> {
 /// still expanded (the link node exists even when its target does not), which
 /// is what makes containment fail closed.
 pub(crate) fn resolve_non_strict(path: &Path) -> Result<PathBuf, ResolveFailure> {
+    resolve_non_strict_with_io_policy(path, ResolveIoPolicy::MissingTail)
+}
+
+pub(crate) fn resolve_non_strict_with_io_policy(
+    path: &Path,
+    io_policy: ResolveIoPolicy,
+) -> Result<PathBuf, ResolveFailure> {
     let absolute = if path.is_absolute() {
         path.to_path_buf()
     } else {
         env::current_dir()?.join(path)
     };
-    resolve_absolute(&absolute, MAX_SYMLINKS)
+    resolve_absolute(&absolute, MAX_SYMLINKS, io_policy)
 }
 
-fn resolve_absolute(path: &Path, budget: usize) -> Result<PathBuf, ResolveFailure> {
+fn resolve_absolute(
+    path: &Path,
+    budget: usize,
+    io_policy: ResolveIoPolicy,
+) -> Result<PathBuf, ResolveFailure> {
     if budget == 0 {
         return Err(ResolveFailure::Loop);
     }
@@ -126,9 +147,13 @@ fn resolve_absolute(path: &Path, budget: usize) -> Result<PathBuf, ResolveFailur
                         for remaining in &components[index + 1..] {
                             next.push(remaining.as_os_str());
                         }
-                        return resolve_absolute(&next, budget - 1);
+                        return resolve_absolute(&next, budget - 1, io_policy);
                     }
                     Ok(_) => {
+                        resolved.push(name);
+                        index += 1;
+                    }
+                    Err(_) if io_policy == ResolveIoPolicy::IgnoreMetadataErrors => {
                         resolved.push(name);
                         index += 1;
                     }

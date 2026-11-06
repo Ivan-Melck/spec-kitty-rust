@@ -1,0 +1,34 @@
+target:
+  term: Independently materialized CF79 actual warning business children with identical relative inputs and startup codec guards
+categories:
+  code_symbols:
+    action: manual_review
+    notes: Sandbox and actual business child guard seams only; no product change or invented business red.
+  import_paths:
+    action: manual_review
+    notes: Existing Kernel stream policy for Native startup assertion only, no duplicate encoder.
+  filesystem_paths:
+    action: manual_review
+    notes: Separate fresh Source and Native trees per codec including HOME seven XDG CWD TMP; identical relative business arguments for byte comparable warning paths.
+  serialized_keys:
+    action: do_not_change
+    notes: Same bounded receipt data; no exception class or complete diagnostic proof.
+  cli_commands:
+    action: do_not_change
+    notes: No root changes.
+  user_facing_strings:
+    action: do_not_change
+    notes: Same actual physical warning byte comparisons and literals, relative input parameterization not output rewriting.
+  tests_fixtures:
+    action: manual_review
+    notes: Remove shared reset fixture as pair evidence; each actual child verifies independent absolute roots and actual startup codec before reads.
+  logs_telemetry:
+    action: manual_review
+    notes: Producer shared fixture and absent actual startup guards remain historical limitations, prospective correction does not backdate qualification.
+exceptions:
+  - path: crates/sk-doctrine/tests/cf79_activation_reporting.rs
+    action: manual_review
+    reason: Prospective actual business isolation and codec assertions, not product behavior correction.
+status:
+  accepted: false
+  phase: prospective CF79 parent evidence correction

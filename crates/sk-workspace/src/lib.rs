@@ -64,24 +64,58 @@
 
 #![deny(missing_docs)]
 
+pub mod acceptance_execution;
+pub mod acceptance_source;
 pub mod allocation;
 pub mod artifact;
+pub mod coherence;
+pub mod consolidation;
 pub mod coord;
 pub mod coordination;
+pub mod coordination_divergence;
+pub mod coordination_health;
+pub mod coordination_sparse;
+pub mod decision_fold;
+pub mod decision_fork;
+pub mod decision_model;
+pub mod decision_store;
+pub mod doctor;
 pub mod error;
 pub mod journal;
 pub mod lanes;
 pub mod lifecycle;
+pub mod lifecycle_protocol;
+pub mod merge_drivers;
 pub mod naming;
 pub mod owned;
 pub mod planning;
 pub mod policy;
 pub mod protection;
+pub mod retrospective;
+pub mod retrospective_policy;
 pub mod surface;
 pub mod topology;
 pub mod workspace;
+pub mod write_ledger;
 
+pub use acceptance_source::{
+    AcceptanceCollectionOptions, CLARIFICATION_ARTIFACTS, FALLBACK_OPTIONAL_ARTIFACTS, MatrixInput,
+    REQUIRED_ARTIFACTS, collect_source_acceptance_facts, collect_source_acceptance_facts_with,
+};
+pub use consolidation::{
+    ConsolidationError, ConsolidationReport, ConsolidationRequest, LaneLanding, MergeStrategy,
+    TeardownAction, abort_consolidation, consolidate_mission, consolidation_checkout,
+    consolidation_slug, load_merge_config, resolve_effective_strategy,
+};
 pub use error::WorkspaceError;
+pub use write_ledger::{
+    BakeUndoOutcome, MetaBakeCapture, ObservationSource, WriteLedger, WriteLedgerError,
+    WriteLedgerSession, WriteNotification, WriteScopeRestore, WriteScopeSnapshot,
+    active_write_ledger, append_status_rows_observed, bake_mission_number, begin_write_ledger,
+    materialize_status_snapshot_observed, notify_published, restore_mission_write_scope,
+    restore_mission_write_scope_locked, snapshot_mission_write_scope, undo_meta_bake,
+    with_write_ledger,
+};
 
 pub use coord::{
     COORD_JOURNAL_DIRECTORY, COORD_SEED_TRAILER, COORD_TRANSACTION_LOCK_TIMEOUT,
@@ -123,6 +157,12 @@ pub use coordination::{
     PUBLISHED_WRITE_SHORT_CIRCUIT_KINDS, coordination_write_surface,
     is_published_write_short_circuit_kind,
 };
+pub use coordination_divergence::{
+    DivergenceRange, DivergenceSide, ExpectedCoordinationDivergenceOutcome,
+    ExpectedCoordinationDivergenceRequest, ExpectedDivergenceCause,
+    classify_expected_coordination_divergence, is_coord_only_path,
+    is_expected_coordination_divergence,
+};
 pub use journal::{AllocationJournal, AllocationRecord, JournalPhase};
 pub use lanes::{
     CollapseEvent, CollapseReport, CollapseRule, ExecutionLane, LANES_FILE_NAME,
@@ -133,6 +173,12 @@ pub use lifecycle::{
     LifecycleEvidence, LifecyclePhase, Probe, baseline_merge_commit_from_meta,
     baseline_merge_commit_from_mission, derive_lifecycle_phase, probe_target_ref,
     terminal_completion,
+};
+pub use merge_drivers::{
+    ACCEPTANCE_HISTORY_FIELD, ACCEPTANCE_PROVENANCE_FIELDS, DriverOutcome, FLATTEN_COUPLED_KEYS,
+    MERGE_DRIVERS, MERGE_FIELDS, MergeDriverError, MergeDriverInputs, MergeDriverSpec,
+    VCS_LOCK_META_FIELDS, driver_spec, driver_spec_for_path, glob_matches,
+    merge_driver_attribute_lines, run_driver, run_driver_paths,
 };
 pub use naming::{
     MissionIdentity, PLANNING_LANE_ID, code_lane_branch_name, coord_branch_name, coord_dir_name,

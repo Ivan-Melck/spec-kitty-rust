@@ -53,6 +53,63 @@ impl SymbolicHeadObservation {
     }
 }
 
+/// A revision operand the reference would accept, validated for argv safety.
+///
+/// The typed [`StartPoint`] is deliberately narrow: `HEAD`, a full object id, or
+/// a *fully-qualified* `refs/...` name. Source call sites also read committed
+/// content at a short branch name, a tag name or a remote-tracking spelling
+/// (`blob_at(repo, "origin/main", path)`), which `StartPoint` cannot express
+/// without coercing every shape into a local branch. `SourceRevision` is that
+/// missing seam: a Source-valid single revision Git itself resolves.
+///
+/// Validation is only argv safety — non-empty, no leading `-` (so the operand
+/// can never be read as an option), and no control byte (including NUL). Every
+/// other decision (does it resolve? is it a branch, tag, remote ref, tree-ish?)
+/// stays with Git, exactly as the reference leaves it, and a failure is the
+/// ordinary typed [`GitError`].
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SourceRevision(String);
+
+impl SourceRevision {
+    /// Validate a Source-compatible revision operand.
+    ///
+    /// # Errors
+    ///
+    /// An empty value, a leading `-`, or any control byte (including NUL) is
+    /// refused with [`GitError::InvalidPlan`]; nothing is run.
+    pub fn parse(value: &str) -> Result<Self, GitError> {
+        if value.is_empty() {
+            return Err(GitError::InvalidPlan {
+                detail: "a Source revision must not be empty".to_string(),
+            });
+        }
+        if value.starts_with('-') {
+            return Err(GitError::InvalidPlan {
+                detail: format!(
+                    "Source revision {value:?} starts with `-` and could be read as an option"
+                ),
+            });
+        }
+        if value.bytes().any(|byte| byte < 0x20 || byte == 0x7f) {
+            return Err(GitError::InvalidPlan {
+                detail: "a Source revision must not contain a control byte".to_string(),
+            });
+        }
+        Ok(Self(value.to_string()))
+    }
+
+    /// The revision operand, exactly as the caller supplied it.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for SourceRevision {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
 /// The default bound for one blob read (8 MiB).
 ///
 /// The subprocess seam caps one captured stream at 64 MiB for an explicitly
@@ -185,6 +242,34 @@ impl BlobLookup {
     }
 }
 
+/// One real index entry from the canonical `ls-files --stage -z` reader.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndexEntry {
+    path: GitPath,
+    mode: String,
+    oid: Oid,
+    stage: u8,
+}
+
+impl IndexEntry {
+    /// Exact repository-relative path, preserving non-UTF-8 platform bytes.
+    pub fn path(&self) -> &GitPath {
+        &self.path
+    }
+    /// Raw Git index mode.
+    pub fn mode(&self) -> &str {
+        &self.mode
+    }
+    /// Recorded full object id.
+    pub fn oid(&self) -> &Oid {
+        &self.oid
+    }
+    /// Index stage (`0` normal, `1` base, `2` ours, `3` theirs).
+    pub fn stage(&self) -> u8 {
+        self.stage
+    }
+}
+
 /// One conflict stage of one path after a stopped merge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnmergedStage {
@@ -242,20 +327,49 @@ impl GitRepository {
         revision: &StartPoint,
         path: &GitPath,
     ) -> Result<Option<TreeEntry>, GitError> {
+        self.tree_entry_for(revision.operand(), false, path)
+    }
+
+    /// The tree entry at exactly `path` in a Source-compatible revision.
+    ///
+    /// Like [`GitRepository::tree_entry_at`], but the revision is a
+    /// [`SourceRevision`] (a short branch, tag, remote-tracking name, `HEAD` or
+    /// object id) and the operand is passed after `--end-of-options`, so even a
+    /// revision Git would read as an option stays data. The same
+    /// `ls-tree` reader, exact-path match and absence rule are used.
+    pub fn tree_entry_at_revision(
+        &self,
+        revision: &SourceRevision,
+        path: &GitPath,
+    ) -> Result<Option<TreeEntry>, GitError> {
+        self.tree_entry_for(revision.as_str(), true, path)
+    }
+
+    fn tree_entry_for(
+        &self,
+        revision: &str,
+        end_of_options: bool,
+        path: &GitPath,
+    ) -> Result<Option<TreeEntry>, GitError> {
+        use std::ffi::OsStr;
         if path.is_empty() {
             return Err(GitError::InvalidPlan {
                 detail: "a tree lookup needs a non-empty repository-relative path".to_string(),
             });
         }
-        let output = self.process().checked(&[
-            std::ffi::OsStr::new("--literal-pathspecs"),
-            std::ffi::OsStr::new("ls-tree"),
-            std::ffi::OsStr::new("--full-tree"),
-            std::ffi::OsStr::new("-z"),
-            std::ffi::OsStr::new(revision.operand()),
-            std::ffi::OsStr::new("--"),
-            path.as_os_str(),
-        ])?;
+        let mut args: Vec<&OsStr> = vec![
+            OsStr::new("--literal-pathspecs"),
+            OsStr::new("ls-tree"),
+            OsStr::new("--full-tree"),
+            OsStr::new("-z"),
+        ];
+        if end_of_options {
+            args.push(OsStr::new("--end-of-options"));
+        }
+        args.push(OsStr::new(revision));
+        args.push(OsStr::new("--"));
+        args.push(path.as_os_str());
+        let output = self.process().checked(&args)?;
         for record in output.stdout.split(|byte| *byte == 0) {
             if record.is_empty() {
                 continue;
@@ -293,6 +407,43 @@ impl GitRepository {
         path: &GitPath,
         limit: u64,
     ) -> Result<Option<Vec<u8>>, GitError> {
+        self.read_blob_for(revision.operand(), false, path, limit)
+    }
+
+    /// Read the blob at exactly `path` in a Source-compatible revision, bounded
+    /// by [`DEFAULT_MAX_BLOB_BYTES`].
+    ///
+    /// The Source-shaped sibling of [`GitRepository::read_blob_at`]: the
+    /// revision is a [`SourceRevision`], so a short branch, a tag name or a
+    /// remote-tracking spelling reads the same way Source's
+    /// `kernel.git.blob_at(repo, ref, path)` does. The tree read, exact-path
+    /// match, blob-size preflight and bounded body read are shared with the
+    /// typed-`StartPoint` route; there is no second object reader.
+    pub fn read_blob_at_revision(
+        &self,
+        revision: &SourceRevision,
+        path: &GitPath,
+    ) -> Result<Option<Vec<u8>>, GitError> {
+        self.read_blob_at_revision_bounded(revision, path, DEFAULT_MAX_BLOB_BYTES)
+    }
+
+    /// [`GitRepository::read_blob_at_revision`] with an explicit byte bound.
+    pub fn read_blob_at_revision_bounded(
+        &self,
+        revision: &SourceRevision,
+        path: &GitPath,
+        limit: u64,
+    ) -> Result<Option<Vec<u8>>, GitError> {
+        self.read_blob_for(revision.as_str(), true, path, limit)
+    }
+
+    fn read_blob_for(
+        &self,
+        revision: &str,
+        end_of_options: bool,
+        path: &GitPath,
+        limit: u64,
+    ) -> Result<Option<Vec<u8>>, GitError> {
         if limit > MAX_BLOB_BYTES {
             return Err(GitError::InvalidPlan {
                 detail: format!(
@@ -300,7 +451,7 @@ impl GitRepository {
                 ),
             });
         }
-        let Some(entry) = self.tree_entry_at(revision, path)? else {
+        let Some(entry) = self.tree_entry_for(revision, end_of_options, path)? else {
             return Ok(None);
         };
         if !entry.kind.is_blob() {
@@ -512,6 +663,30 @@ impl GitRepository {
         revision: &StartPoint,
         prefix: Option<&GitPath>,
     ) -> Result<Vec<GitPath>, GitError> {
+        self.tree_paths_for(revision.operand(), false, prefix)
+    }
+
+    /// Every path in a Source-compatible revision, optionally restricted to one
+    /// literal prefix.
+    ///
+    /// The Source-shaped sibling of [`GitRepository::tree_paths_at`], sharing
+    /// the same `ls-tree -r --name-only -z` reader. Source call sites pass a
+    /// short coordination branch name here, which a [`StartPoint`] cannot
+    /// express without local-branch coercion.
+    pub fn tree_paths_at_revision(
+        &self,
+        revision: &SourceRevision,
+        prefix: Option<&GitPath>,
+    ) -> Result<Vec<GitPath>, GitError> {
+        self.tree_paths_for(revision.as_str(), true, prefix)
+    }
+
+    fn tree_paths_for(
+        &self,
+        revision: &str,
+        end_of_options: bool,
+        prefix: Option<&GitPath>,
+    ) -> Result<Vec<GitPath>, GitError> {
         let mut args: Vec<std::ffi::OsString> = vec![
             "--literal-pathspecs".into(),
             "ls-tree".into(),
@@ -519,8 +694,11 @@ impl GitRepository {
             "--name-only".into(),
             "-z".into(),
             "--full-tree".into(),
-            revision.operand().into(),
         ];
+        if end_of_options {
+            args.push("--end-of-options".into());
+        }
+        args.push(revision.into());
         if let Some(prefix) = prefix
             && !prefix.is_empty()
         {
@@ -569,6 +747,34 @@ impl GitRepository {
         }
     }
 
+    /// Read index entries for literal pathspecs (empty means all paths).
+    ///
+    /// Uses this repository's canonical process, captured index and configured
+    /// timeout. Names are `--full-name` and NUL-delimited; glob magic is data,
+    /// matching Source `index_entries(..., glob=False, tags=False)`.
+    pub fn index_entries(
+        &self,
+        pathspecs: &[&std::ffi::OsStr],
+    ) -> Result<Vec<IndexEntry>, GitError> {
+        use std::ffi::OsStr;
+        let mut args = vec![
+            OsStr::new("--literal-pathspecs"),
+            OsStr::new("ls-files"),
+            OsStr::new("--full-name"),
+            OsStr::new("--stage"),
+            OsStr::new("-z"),
+            OsStr::new("--"),
+        ];
+        args.extend_from_slice(pathspecs);
+        let output = self.process().checked(&args)?;
+        output
+            .stdout
+            .split(|byte| *byte == 0)
+            .filter(|record| !record.is_empty())
+            .map(|record| parse_index_record(record, false))
+            .collect()
+    }
+
     /// Every unmerged index entry, grouped by path.
     ///
     /// Read from `git ls-files -u -z`, so paths with spaces, tabs, newlines or
@@ -581,33 +787,16 @@ impl GitRepository {
             if record.is_empty() {
                 continue;
             }
-            let Some(tab) = record.iter().position(|byte| *byte == b'\t') else {
-                return Err(GitError::InvalidOutput {
-                    detail: format!(
-                        "malformed git ls-files -u record {:?}",
-                        String::from_utf8_lossy(record)
-                    ),
-                });
-            };
-            let header = crate::path::utf8_field(&record[..tab], "unmerged index header")?;
-            let path = GitPath::from_git_bytes(&record[tab + 1..])?;
-            let mut fields = header.split(' ');
-            let mode = fields.next().unwrap_or_default().to_string();
-            let oid = fields.next().unwrap_or_default();
-            let stage = fields.next().unwrap_or_default();
-            if mode.is_empty() || oid.is_empty() || stage.is_empty() {
-                return Err(GitError::InvalidOutput {
-                    detail: format!("malformed unmerged index header {header:?}"),
-                });
-            }
-            let stage_number = stage.parse::<u8>().map_err(|_| GitError::InvalidOutput {
-                detail: format!("unmerged stage {stage:?} is not a number"),
-            })?;
-            grouped.entry(path).or_default().push(UnmergedStage {
-                stage: stage_number,
+            let IndexEntry {
+                path,
                 mode,
-                oid: Oid::parse(oid)?,
-            });
+                oid,
+                stage,
+            } = parse_index_record(record, true)?;
+            grouped
+                .entry(path)
+                .or_default()
+                .push(UnmergedStage { stage, mode, oid });
         }
         Ok(grouped
             .into_iter()
@@ -617,6 +806,47 @@ impl GitRepository {
             })
             .collect())
     }
+}
+
+// One stage-record parser for normal-index inspection and stopped-merge evidence.
+fn parse_index_record(record: &[u8], unmerged: bool) -> Result<IndexEntry, GitError> {
+    let command = if unmerged { "-u" } else { "--stage" };
+    let label = if unmerged {
+        "unmerged index header"
+    } else {
+        "index header"
+    };
+    let Some(tab) = record.iter().position(|byte| *byte == b'\t') else {
+        return Err(GitError::InvalidOutput {
+            detail: format!(
+                "malformed git ls-files {command} record {:?}",
+                String::from_utf8_lossy(record)
+            ),
+        });
+    };
+    let header = crate::path::utf8_field(&record[..tab], label)?;
+    let path = GitPath::from_git_bytes(&record[tab + 1..])?;
+    let mut fields = header.split(' ');
+    let mode = fields.next().unwrap_or_default().to_string();
+    let oid = fields.next().unwrap_or_default();
+    let stage = fields.next().unwrap_or_default();
+    if mode.is_empty() || oid.is_empty() || stage.is_empty() {
+        return Err(GitError::InvalidOutput {
+            detail: format!("malformed {label} {header:?}"),
+        });
+    }
+    let stage_number = stage.parse::<u8>().map_err(|_| GitError::InvalidOutput {
+        detail: format!(
+            "{}stage {stage:?} is not a number",
+            if unmerged { "unmerged " } else { "index " }
+        ),
+    })?;
+    Ok(IndexEntry {
+        path,
+        mode,
+        oid: Oid::parse(oid)?,
+        stage: stage_number,
+    })
 }
 
 fn parse_ls_tree_record(record: &[u8]) -> Result<TreeEntry, GitError> {

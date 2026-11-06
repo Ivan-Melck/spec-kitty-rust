@@ -1,0 +1,335 @@
+{
+ "_provenance": "Recorded by the pinned Source (CPython 3.11.15, .venv-rust-oracle) running the ACTUAL m_4_0_0rc8_project_intent_directive_rename migration and the charter.activation.api rename_legacy_project_intent_directive helper on the fixture trees recorded here. Placeholders: $PROJECT (rename case), $COLLISION, $ABSENT, $WORKSPACE. The recorded manifest_hash is quoted ('000...') because an unquoted all-zero hash parses as YAML int 0, which the Source model refuses as a non-string; that refusal was observed first and is premise, not business, red. Regenerate with /tmp/sk-a5/probe_rename.py through /tmp/sk-a5/source-probe.sh.",
+ "absent": {
+  "after": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "e11cb0f5db1c663b9af1b8a841d7c33dbf29a16de308de0ead55615b3266cb24",
+    "text": "governance:\n  charter:\n    selected_directives:\n    - 001-mission-type-scope-directive\ncatalog:\n  mission: software-dev\n  template_set: software-dev-default\n  references: []\nmetadata:\n  bundle_schema_version: 2\n"
+   }
+  },
+  "can_apply": [
+   true,
+   ""
+  ],
+  "detect": false,
+  "result": {
+   "changes_made": [],
+   "errors": [],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": []
+  }
+ },
+ "collision": {
+  "after": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/directive": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/directive/001-mission-type-scope-directive.directive.yaml": {
+    "kind": "file",
+    "sha256": "4a4ca66967532c2189574ebc221aa9b9f0656405f5e0ecd52a2d5c6262364795",
+    "text": "id: PROJECT_001\n"
+   },
+   ".kittify/charter-packs/directive/001-project-intent-directive.directive.yaml": {
+    "kind": "file",
+    "sha256": "4a4ca66967532c2189574ebc221aa9b9f0656405f5e0ecd52a2d5c6262364795",
+    "text": "id: PROJECT_001\n"
+   },
+   ".kittify/charter-packs/graph.yaml": {
+    "kind": "file",
+    "sha256": "c85b679286674b5317b6fd9896486f1df3ae49f7c4212e6f111489e90abbb7c6",
+    "text": "edges:\n- relation: requires\n  source: directive:PROJECT_001\n  target: mission_type:software-dev\n- relation: requires\n  source: directive:PROJECT_002\n  target: directive:PROJECT_001\nnodes:\n- id: PROJECT_001\n  kind: directive\n  label: Mission Type Directive\n- id: PROJECT_002\n  kind: directive\n  label: Other Directive\n"
+   },
+   ".kittify/charter/activation.yaml": {
+    "kind": "file",
+    "sha256": "591b2519b4574b0d7761b32f7e8fcd19e83515d9ffbfb8839adcf23efdc616dd",
+    "text": "activated_directives:\n- 001-mission-type-scope-directive\ndeactivated_directives:\n- 001-mission-type-scope-directive\n- 999-other-directive\n"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "e11cb0f5db1c663b9af1b8a841d7c33dbf29a16de308de0ead55615b3266cb24",
+    "text": "governance:\n  charter:\n    selected_directives:\n    - 001-mission-type-scope-directive\ncatalog:\n  mission: software-dev\n  template_set: software-dev-default\n  references: []\nmetadata:\n  bundle_schema_version: 2\n"
+   },
+   ".kittify/charter/generated": {
+    "kind": "dir"
+   },
+   ".kittify/charter/generated/directives": {
+    "kind": "dir"
+   },
+   ".kittify/charter/generated/directives/001-mission-type-scope-directive.directive.yaml": {
+    "kind": "file",
+    "sha256": "4a4ca66967532c2189574ebc221aa9b9f0656405f5e0ecd52a2d5c6262364795",
+    "text": "id: PROJECT_001\n"
+   },
+   ".kittify/charter/provenance": {
+    "kind": "dir"
+   },
+   ".kittify/charter/provenance/directive-mission-type-scope-directive.yaml": {
+    "kind": "file",
+    "sha256": "0752d401a31919319671a6be417ee377b7a60976dc55ed8df65d97ff07fa40d5",
+    "text": "adapter_id: builtin-fixture\nadapter_version: 1.0.0\nartifact_content_hash: 0f0f\nartifact_kind: directive\nartifact_slug: mission-type-scope-directive\nartifact_urn: directive:PROJECT_001\ncorpus_snapshot_id: (none)\nevidence_bundle_hash: null\ngenerated_at: '2026-01-01T00:00:00+00:00'\ninputs_hash: 1a1a\nproduced_at: '2026-01-01T00:00:01+00:00'\nschema_version: '2'\nsource_input_ids:\n- 001-mission-type-scope-directive.directive.yaml\nsource_section: 001-mission-type-scope-directive.directive.yaml\nsource_urns:\n- directive:PROJECT_001\nsynthesis_run_id: 01J00000000000000000000000\nsynthesizer_version: 4.0.0rc5\n"
+   },
+   ".kittify/charter/synthesis-manifest.yaml": {
+    "kind": "file",
+    "sha256": "d0402f364c341d30fecc0713e9f6e8460ffed755d5b1d2e8e5f15bf3c468ad30",
+    "text": "adapter_id: builtin-fixture\nadapter_version: 1.0.0\nartifacts:\n- content_hash: 0f0f\n  kind: directive\n  path: .kittify/charter-packs/directive/001-mission-type-scope-directive.directive.yaml\n  provenance_path: .kittify/charter/provenance/directive-mission-type-scope-directive.yaml\n  slug: mission-type-scope-directive\n- content_hash: f0f0\n  kind: directive\n  path: .kittify/charter-packs/directive/002-other-directive.directive.yaml\n  provenance_path: .kittify/charter/provenance/directive-other-directive.yaml\n  slug: other-directive\nbuilt_in_only: false\nbundle_content_hash: sha256:stale\ncreated_at: '2026-01-01T00:00:00+00:00'\nmanifest_hash: '0000000000000000000000000000000000000000000000000000000000000000'\nmission_id: null\nrun_id: 01J00000000000000000000000\nschema_version: '3'\nsynthesizer_version: 4.0.0rc5\n"
+   }
+  },
+  "before": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/directive": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/directive/001-mission-type-scope-directive.directive.yaml": {
+    "kind": "file",
+    "sha256": "4a4ca66967532c2189574ebc221aa9b9f0656405f5e0ecd52a2d5c6262364795",
+    "text": "id: PROJECT_001\n"
+   },
+   ".kittify/charter-packs/directive/001-project-intent-directive.directive.yaml": {
+    "kind": "file",
+    "sha256": "4a4ca66967532c2189574ebc221aa9b9f0656405f5e0ecd52a2d5c6262364795",
+    "text": "id: PROJECT_001\n"
+   },
+   ".kittify/charter-packs/graph.yaml": {
+    "kind": "file",
+    "sha256": "c85b679286674b5317b6fd9896486f1df3ae49f7c4212e6f111489e90abbb7c6",
+    "text": "edges:\n- relation: requires\n  source: directive:PROJECT_001\n  target: mission_type:software-dev\n- relation: requires\n  source: directive:PROJECT_002\n  target: directive:PROJECT_001\nnodes:\n- id: PROJECT_001\n  kind: directive\n  label: Mission Type Directive\n- id: PROJECT_002\n  kind: directive\n  label: Other Directive\n"
+   },
+   ".kittify/charter/activation.yaml": {
+    "kind": "file",
+    "sha256": "591b2519b4574b0d7761b32f7e8fcd19e83515d9ffbfb8839adcf23efdc616dd",
+    "text": "activated_directives:\n- 001-mission-type-scope-directive\ndeactivated_directives:\n- 001-mission-type-scope-directive\n- 999-other-directive\n"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "e11cb0f5db1c663b9af1b8a841d7c33dbf29a16de308de0ead55615b3266cb24",
+    "text": "governance:\n  charter:\n    selected_directives:\n    - 001-mission-type-scope-directive\ncatalog:\n  mission: software-dev\n  template_set: software-dev-default\n  references: []\nmetadata:\n  bundle_schema_version: 2\n"
+   },
+   ".kittify/charter/generated": {
+    "kind": "dir"
+   },
+   ".kittify/charter/generated/directives": {
+    "kind": "dir"
+   },
+   ".kittify/charter/generated/directives/001-mission-type-scope-directive.directive.yaml": {
+    "kind": "file",
+    "sha256": "4a4ca66967532c2189574ebc221aa9b9f0656405f5e0ecd52a2d5c6262364795",
+    "text": "id: PROJECT_001\n"
+   },
+   ".kittify/charter/provenance": {
+    "kind": "dir"
+   },
+   ".kittify/charter/provenance/directive-mission-type-scope-directive.yaml": {
+    "kind": "file",
+    "sha256": "0752d401a31919319671a6be417ee377b7a60976dc55ed8df65d97ff07fa40d5",
+    "text": "adapter_id: builtin-fixture\nadapter_version: 1.0.0\nartifact_content_hash: 0f0f\nartifact_kind: directive\nartifact_slug: mission-type-scope-directive\nartifact_urn: directive:PROJECT_001\ncorpus_snapshot_id: (none)\nevidence_bundle_hash: null\ngenerated_at: '2026-01-01T00:00:00+00:00'\ninputs_hash: 1a1a\nproduced_at: '2026-01-01T00:00:01+00:00'\nschema_version: '2'\nsource_input_ids:\n- 001-mission-type-scope-directive.directive.yaml\nsource_section: 001-mission-type-scope-directive.directive.yaml\nsource_urns:\n- directive:PROJECT_001\nsynthesis_run_id: 01J00000000000000000000000\nsynthesizer_version: 4.0.0rc5\n"
+   },
+   ".kittify/charter/synthesis-manifest.yaml": {
+    "kind": "file",
+    "sha256": "d0402f364c341d30fecc0713e9f6e8460ffed755d5b1d2e8e5f15bf3c468ad30",
+    "text": "adapter_id: builtin-fixture\nadapter_version: 1.0.0\nartifacts:\n- content_hash: 0f0f\n  kind: directive\n  path: .kittify/charter-packs/directive/001-mission-type-scope-directive.directive.yaml\n  provenance_path: .kittify/charter/provenance/directive-mission-type-scope-directive.yaml\n  slug: mission-type-scope-directive\n- content_hash: f0f0\n  kind: directive\n  path: .kittify/charter-packs/directive/002-other-directive.directive.yaml\n  provenance_path: .kittify/charter/provenance/directive-other-directive.yaml\n  slug: other-directive\nbuilt_in_only: false\nbundle_content_hash: sha256:stale\ncreated_at: '2026-01-01T00:00:00+00:00'\nmanifest_hash: '0000000000000000000000000000000000000000000000000000000000000000'\nmission_id: null\nrun_id: 01J00000000000000000000000\nschema_version: '3'\nsynthesizer_version: 4.0.0rc5\n"
+   }
+  },
+  "detect": true,
+  "dry_actions": [],
+  "refused": "Refused to rename the legacy 'mission-type-scope-directive' directive to 'project-intent-directive': .kittify/charter-packs/directive/001-project-intent-directive.directive.yaml already exists, so .kittify/charter-packs/directive/001-mission-type-scope-directive.directive.yaml cannot move onto it. Nothing was changed. Resolve the above and re-run.",
+  "result": {
+   "changes_made": [],
+   "errors": [
+    "Refused to rename the legacy 'mission-type-scope-directive' directive to 'project-intent-directive': .kittify/charter-packs/directive/001-project-intent-directive.directive.yaml already exists, so .kittify/charter-packs/directive/001-mission-type-scope-directive.directive.yaml cannot move onto it. Nothing was changed. Resolve the above and re-run."
+   ],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": false,
+   "warnings": []
+  }
+ },
+ "rename": {
+  "after": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/directive": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/directive/001-project-intent-directive.directive.yaml": {
+    "kind": "file",
+    "sha256": "4a4ca66967532c2189574ebc221aa9b9f0656405f5e0ecd52a2d5c6262364795",
+    "text": "id: PROJECT_001\n"
+   },
+   ".kittify/charter-packs/graph.yaml": {
+    "kind": "file",
+    "sha256": "6d4727ba20cb65ff534868f6cfc1eab50fa286ea8f8b8319c2b0443c9b87dad9",
+    "text": "edges:\n- relation: requires\n  source: directive:PROJECT_002\n  target: directive:PROJECT_001\nnodes:\n- id: PROJECT_001\n  kind: directive\n  label: Project Intent Directive\n- id: PROJECT_002\n  kind: directive\n  label: Other Directive\n"
+   },
+   ".kittify/charter/activation.yaml": {
+    "kind": "file",
+    "sha256": "68438d1e2380dd2111a8d25c0d69b31c8829dbc5a4827b5d97fbd7f7f03f25bc",
+    "text": "activated_directives:\n- 001-project-intent-directive\ndeactivated_directives:\n- 001-project-intent-directive\n- 999-other-directive\n"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "e11cb0f5db1c663b9af1b8a841d7c33dbf29a16de308de0ead55615b3266cb24",
+    "text": "governance:\n  charter:\n    selected_directives:\n    - 001-mission-type-scope-directive\ncatalog:\n  mission: software-dev\n  template_set: software-dev-default\n  references: []\nmetadata:\n  bundle_schema_version: 2\n"
+   },
+   ".kittify/charter/generated": {
+    "kind": "dir"
+   },
+   ".kittify/charter/generated/directives": {
+    "kind": "dir"
+   },
+   ".kittify/charter/generated/directives/001-project-intent-directive.directive.yaml": {
+    "kind": "file",
+    "sha256": "4a4ca66967532c2189574ebc221aa9b9f0656405f5e0ecd52a2d5c6262364795",
+    "text": "id: PROJECT_001\n"
+   },
+   ".kittify/charter/provenance": {
+    "kind": "dir"
+   },
+   ".kittify/charter/provenance/directive-project-intent-directive.yaml": {
+    "kind": "file",
+    "sha256": "b112fb6187e96916406feb6d27263ba4d1f4078951f9645f1e4bec76ce9974f9",
+    "text": "adapter_id: builtin-fixture\nadapter_version: 1.0.0\nartifact_content_hash: 0f0f\nartifact_kind: directive\nartifact_slug: project-intent-directive\nartifact_urn: directive:PROJECT_001\ncorpus_snapshot_id: (none)\nevidence_bundle_hash:\ngenerated_at: '2026-01-01T00:00:00+00:00'\ninputs_hash: 1a1a\nproduced_at: '2026-01-01T00:00:01+00:00'\nschema_version: '2'\nsource_input_ids:\n- 001-project-intent-directive.directive.yaml\nsource_section: 001-project-intent-directive.directive.yaml\nsource_urns:\n- directive:PROJECT_001\nsynthesis_run_id: 01J00000000000000000000000\nsynthesizer_version: 4.0.0rc5\n"
+   },
+   ".kittify/charter/synthesis-manifest.yaml": {
+    "kind": "file",
+    "sha256": "daa16b67b6d3a925bd52dd100d49a41e9cbc28777aff9a11164fd4c60e14a294",
+    "text": "adapter_id: builtin-fixture\nadapter_version: 1.0.0\nartifacts:\n- content_hash: 0f0f\n  kind: directive\n  path: \n    .kittify/charter-packs/directive/001-project-intent-directive.directive.yaml\n  provenance_path: \n    .kittify/charter/provenance/directive-project-intent-directive.yaml\n  slug: project-intent-directive\n- content_hash: f0f0\n  kind: directive\n  path: .kittify/charter-packs/directive/002-other-directive.directive.yaml\n  provenance_path: .kittify/charter/provenance/directive-other-directive.yaml\n  slug: other-directive\nbuilt_in_only: false\nbundle_content_hash: \n  sha256:df2877ef9ec4e2862a7dd42e6946bbe03ba1b26625938a5b759c6e8862f096c1\ncreated_at: '2026-01-01T00:00:00+00:00'\nmanifest_hash: 61092290cbcfb8d3a92198d0de129a91d21843660ded18ef8dacbb430639ba21\nmission_id:\nrun_id: 01J00000000000000000000000\nschema_version: '3'\nsynthesizer_version: 4.0.0rc5\n"
+   },
+   ".kittify/runtime": {
+    "kind": "dir"
+   },
+   ".kittify/runtime/locks": {
+    "kind": "dir"
+   },
+   ".kittify/runtime/locks/charter-synthesis.lock": {
+    "kind": "file",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "text": ""
+   }
+  },
+  "before": {
+   ".kittify": {
+    "kind": "dir"
+   },
+   ".kittify/charter": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/directive": {
+    "kind": "dir"
+   },
+   ".kittify/charter-packs/directive/001-mission-type-scope-directive.directive.yaml": {
+    "kind": "file",
+    "sha256": "4a4ca66967532c2189574ebc221aa9b9f0656405f5e0ecd52a2d5c6262364795",
+    "text": "id: PROJECT_001\n"
+   },
+   ".kittify/charter-packs/graph.yaml": {
+    "kind": "file",
+    "sha256": "c85b679286674b5317b6fd9896486f1df3ae49f7c4212e6f111489e90abbb7c6",
+    "text": "edges:\n- relation: requires\n  source: directive:PROJECT_001\n  target: mission_type:software-dev\n- relation: requires\n  source: directive:PROJECT_002\n  target: directive:PROJECT_001\nnodes:\n- id: PROJECT_001\n  kind: directive\n  label: Mission Type Directive\n- id: PROJECT_002\n  kind: directive\n  label: Other Directive\n"
+   },
+   ".kittify/charter/activation.yaml": {
+    "kind": "file",
+    "sha256": "591b2519b4574b0d7761b32f7e8fcd19e83515d9ffbfb8839adcf23efdc616dd",
+    "text": "activated_directives:\n- 001-mission-type-scope-directive\ndeactivated_directives:\n- 001-mission-type-scope-directive\n- 999-other-directive\n"
+   },
+   ".kittify/charter/charter.yaml": {
+    "kind": "file",
+    "sha256": "e11cb0f5db1c663b9af1b8a841d7c33dbf29a16de308de0ead55615b3266cb24",
+    "text": "governance:\n  charter:\n    selected_directives:\n    - 001-mission-type-scope-directive\ncatalog:\n  mission: software-dev\n  template_set: software-dev-default\n  references: []\nmetadata:\n  bundle_schema_version: 2\n"
+   },
+   ".kittify/charter/generated": {
+    "kind": "dir"
+   },
+   ".kittify/charter/generated/directives": {
+    "kind": "dir"
+   },
+   ".kittify/charter/generated/directives/001-mission-type-scope-directive.directive.yaml": {
+    "kind": "file",
+    "sha256": "4a4ca66967532c2189574ebc221aa9b9f0656405f5e0ecd52a2d5c6262364795",
+    "text": "id: PROJECT_001\n"
+   },
+   ".kittify/charter/provenance": {
+    "kind": "dir"
+   },
+   ".kittify/charter/provenance/directive-mission-type-scope-directive.yaml": {
+    "kind": "file",
+    "sha256": "0752d401a31919319671a6be417ee377b7a60976dc55ed8df65d97ff07fa40d5",
+    "text": "adapter_id: builtin-fixture\nadapter_version: 1.0.0\nartifact_content_hash: 0f0f\nartifact_kind: directive\nartifact_slug: mission-type-scope-directive\nartifact_urn: directive:PROJECT_001\ncorpus_snapshot_id: (none)\nevidence_bundle_hash: null\ngenerated_at: '2026-01-01T00:00:00+00:00'\ninputs_hash: 1a1a\nproduced_at: '2026-01-01T00:00:01+00:00'\nschema_version: '2'\nsource_input_ids:\n- 001-mission-type-scope-directive.directive.yaml\nsource_section: 001-mission-type-scope-directive.directive.yaml\nsource_urns:\n- directive:PROJECT_001\nsynthesis_run_id: 01J00000000000000000000000\nsynthesizer_version: 4.0.0rc5\n"
+   },
+   ".kittify/charter/synthesis-manifest.yaml": {
+    "kind": "file",
+    "sha256": "d0402f364c341d30fecc0713e9f6e8460ffed755d5b1d2e8e5f15bf3c468ad30",
+    "text": "adapter_id: builtin-fixture\nadapter_version: 1.0.0\nartifacts:\n- content_hash: 0f0f\n  kind: directive\n  path: .kittify/charter-packs/directive/001-mission-type-scope-directive.directive.yaml\n  provenance_path: .kittify/charter/provenance/directive-mission-type-scope-directive.yaml\n  slug: mission-type-scope-directive\n- content_hash: f0f0\n  kind: directive\n  path: .kittify/charter-packs/directive/002-other-directive.directive.yaml\n  provenance_path: .kittify/charter/provenance/directive-other-directive.yaml\n  slug: other-directive\nbuilt_in_only: false\nbundle_content_hash: sha256:stale\ncreated_at: '2026-01-01T00:00:00+00:00'\nmanifest_hash: '0000000000000000000000000000000000000000000000000000000000000000'\nmission_id: null\nrun_id: 01J00000000000000000000000\nschema_version: '3'\nsynthesizer_version: 4.0.0rc5\n"
+   }
+  },
+  "can_apply": [
+   true,
+   ""
+  ],
+  "detect": true,
+  "detect_after": false,
+  "dry_actions": [
+   "move .kittify/charter-packs/directive/001-mission-type-scope-directive.directive.yaml -> .kittify/charter-packs/directive/001-project-intent-directive.directive.yaml",
+   "move .kittify/charter/generated/directives/001-mission-type-scope-directive.directive.yaml -> .kittify/charter/generated/directives/001-project-intent-directive.directive.yaml",
+   "move and rewrite provenance .kittify/charter/provenance/directive-mission-type-scope-directive.yaml -> .kittify/charter/provenance/directive-project-intent-directive.yaml",
+   "rewrite .kittify/charter/synthesis-manifest.yaml (path/slug/provenance_path, manifest_hash)",
+   "relabel the directive overlay node as 'Project Intent Directive' in .kittify/charter-packs/graph.yaml",
+   "drop the dead 'requires --> mission_type:*' overlay edge in .kittify/charter-packs/graph.yaml",
+   "rewrite 'activated_directives' stem token(s) in .kittify/charter/activation.yaml",
+   "rewrite 'deactivated_directives' stem token(s) in .kittify/charter/activation.yaml"
+  ],
+  "result": {
+   "changes_made": [
+    "move .kittify/charter-packs/directive/001-mission-type-scope-directive.directive.yaml -> .kittify/charter-packs/directive/001-project-intent-directive.directive.yaml",
+    "move .kittify/charter/generated/directives/001-mission-type-scope-directive.directive.yaml -> .kittify/charter/generated/directives/001-project-intent-directive.directive.yaml",
+    "move and rewrite provenance .kittify/charter/provenance/directive-mission-type-scope-directive.yaml -> .kittify/charter/provenance/directive-project-intent-directive.yaml",
+    "rewrite .kittify/charter/synthesis-manifest.yaml (path/slug/provenance_path, manifest_hash)",
+    "relabel the directive overlay node as 'Project Intent Directive' in .kittify/charter-packs/graph.yaml",
+    "drop the dead 'requires --> mission_type:*' overlay edge in .kittify/charter-packs/graph.yaml",
+    "rewrite 'activated_directives' stem token(s) in .kittify/charter/activation.yaml",
+    "rewrite 'deactivated_directives' stem token(s) in .kittify/charter/activation.yaml"
+   ],
+   "errors": [],
+   "manual_review_required": false,
+   "preserved_paths": [],
+   "success": true,
+   "warnings": []
+  },
+  "second_run_pending": false
+ }
+}

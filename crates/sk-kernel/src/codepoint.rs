@@ -145,6 +145,18 @@ impl PythonString {
         self.0.is_empty()
     }
 
+    /// CPython `str.upper()` over the exact code units.
+    ///
+    /// Delegates to the one shared text authority
+    /// ([`crate::python_text::upper_codepoints`]) so no second case table exists.
+    /// Full 1:N mappings expand, and surrogate units are preserved verbatim
+    /// (the pinned interpreter maps every one of them to itself).
+    #[must_use]
+    pub fn upper(&self) -> Self {
+        Self::from_units(crate::python_text::upper_codepoints(&self.0))
+            .expect("uppercase mappings of valid code points stay valid code points")
+    }
+
     /// CPython `repr()` through the one canonical formatter.
     ///
     /// Shared with the Op writer path, so an `available` list or a diagnostic

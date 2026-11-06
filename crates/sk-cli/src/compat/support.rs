@@ -84,10 +84,18 @@ impl CompatError {
 
     /// A non-zero exit that still prints a full result envelope.
     pub fn result_envelope(value: Value, message: impl Into<String>) -> Self {
+        Self::envelope_with_exit(1, value, message)
+    }
+
+    /// A complete command-specific error envelope with its actual process exit.
+    ///
+    /// Some Source commands use the same document for domain errors (1) and
+    /// configuration/usage errors (2). The envelope must not decide the exit.
+    pub fn envelope_with_exit(exit: u8, value: Value, message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
             code: None,
-            exit: 1,
+            exit,
             extra: Map::new(),
             envelope: Some(value),
         }

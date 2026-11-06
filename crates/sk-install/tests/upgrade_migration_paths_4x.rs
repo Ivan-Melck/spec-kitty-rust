@@ -255,21 +255,32 @@ fn a_realistic_rc8_ledger_still_refuses_every_unimplemented_id_before_mutation()
     seed_all_except(root, "4.0.0rc7", &unseeded);
     let ledger_before = MigrationLedger::new(root).records(false).unwrap().len();
 
-    let error = run_upgrade(&UpgradeRequest::new(root, "4.0.0rc8")).expect_err("unsupported");
-    assert_eq!(error.code(), "migration_not_implemented");
-    let message = error.to_string();
-    for id in [
-        "4.0.0rc8_backfill_migration_ledger",
-        "4.0.0rc8_project_intent_directive_rename",
-        "4.0.0rc8_activation_ledger",
-        "4.0.0rc8_promote_interview_selections",
-        "4.0.0rc8_command_skill_hyphen_names",
-        "4.0.0rc8_retire_antigravity_workflows",
-    ] {
-        assert!(message.contains(id), "{message}");
+    let registered: std::collections::BTreeSet<_> = sk_install::native_migrations()
+        .map(|migration| migration.id)
+        .collect();
+    let missing: Vec<_> = rc8
+        .iter()
+        .filter(|id| !registered.contains(id.as_str()))
+        .collect();
+    let plan = plan_upgrade(&UpgradeRequest::new(root, "4.0.0rc8")).expect("plan");
+    assert_eq!(plan.is_blocked(), !missing.is_empty());
+    if !missing.is_empty() {
+        let error =
+            run_upgrade(&UpgradeRequest::new(root, "4.0.0rc8")).expect_err("incomplete selection");
+        assert_eq!(error.code(), "migration_not_implemented");
+        let message = error.to_string();
+        for id in missing {
+            assert!(message.contains(id), "{message}");
+        }
+        // The pre-write refusal names only missing capabilities: even a
+        // registered migration is NOT applied until the entire plan can run.
+        for id in rc8.iter().filter(|id| registered.contains(id.as_str())) {
+            assert!(
+                !message.contains(id),
+                "implemented {id} in refusal: {message}"
+            );
+        }
     }
-    assert!(!message.contains("4.0.0rc8_narrow_agent_gitignore"));
-    assert!(!message.contains("4.0.0rc8_retire_stale_mission_template_forks"));
     assert_eq!(
         MigrationLedger::new(root).records(false).unwrap().len(),
         ledger_before

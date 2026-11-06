@@ -1,0 +1,208 @@
+# Occurrence classification for CF27 — the two registry `doctor` diagnostics.
+#
+# Chronology, stated exactly rather than backdated: this map was authored after
+# this lane's NEW files existed (all additive — nothing pre-existing was renamed,
+# removed or re-implemented) and BEFORE the parent's root-dispatch / coverage-array
+# wiring. The occurrence inventory below was taken from the live tree at that point
+# (receipt `/tmp/cf27-regdiag-evidence/r86/occurrence-inventory.4UReIu.log` and
+# `/tmp/cf27-regdiag-evidence/r87/registries-spelling.ZsUcFX.log`). It is a lane
+# classification record, NOT a post-hoc approval and NOT host Mission metadata: no
+# Mission/Op exists for this rewrite and none is invented here.
+#
+# `operation` is deliberately omitted: no existing Rust symbol, serialized key,
+# filesystem path or CLI flag is renamed or removed. `shim-registry` and `contracts`
+# keep their exact names, options and documented exit classes; only the parent's
+# dispatch arm changes, from "named refusal" to "real read-only audit".
+#
+# Inventory (Rust-only, per the two receipts above):
+#
+#   registry_diagnostics, RegistryDiagnosticsError, SHIM_REGISTRY_REL,
+#   CONTRACT_REGISTRY_REL, read_project_version, is_file_line_anchor,
+#   FORBIDDEN_POSITIONAL_FIELDS, CanonicalImport, ShimEntry, ShimStatus,
+#   ShimStatusEntry, ShimRegistryReport, ContractAnchor, ContractRetirement,
+#   ContractConsumers, ContractVerification, ContractRecord,
+#   ContractRegistryReport, classify, IMPLEMENTED_LEAVES_ADDED
+#       -> ONLY this lane's two new source modules, its adapter, and its two tests
+#   registries (spelling)
+#       -> ALSO prose in sk-kernel/source_writer.rs:88 and sk-runtime/src/lib.rs:62
+#          (two unrelated English plural uses) — a shared SPELLING, never a shared
+#          symbol; the module is `compat::doctor::registries` and is not re-exported
+#          anywhere.
+#   SHIM_REGISTRY_RELABEL/`shim_registry_rel` -> does not exist (checked: 0 hits)
+
+target:
+  term: "`spec-kitty doctor shim-registry` and `doctor contracts` are named refusals in `crates/sk-cli/src/compat/doctor.rs` (`UNSUPPORTED_DOCTOR_SHIM_REGISTRY`, `UNSUPPORTED_DOCTOR_CONTRACTS`)"
+  replacement: "the actual pinned-Source read-only diagnostics: the shim-registry schema read + status classification against `pyproject.toml`'s version (pending/overdue/grandfathered/removed, exits 0/1/2), and the Contract Registry structural gate with its advisory/enforcing counts and the DIR-041 positional-anchor ban (exit 0 or 2)"
+
+categories:
+  code_symbols:
+    action: manual_review
+    additivity: additive_only
+    notes: >-
+      New public surface is confined to ONE new Install module tree
+      (`sk-install/src/registry_diagnostics.rs` plus `registry_diagnostics/{shim,contract}.rs`)
+      and ONE new CLI adapter file. The only granted root changes are the single
+      `pub mod registry_diagnostics;` declaration in `sk-install/src/lib.rs` and the
+      single `pub mod registries;` declaration in `sk-cli/src/compat/doctor.rs`.
+      There is no crate-root re-export, no flat-root alias, no `#[path]` workaround
+      and no second command tree; every new name is module-qualified. No existing
+      symbol is renamed, removed or re-typed, and the canonical owners
+      (`compat::registry`-equivalent rules, `crate::version::Version`,
+      `python_yaml`, `python_text`, `python_repr`) are read, not cloned.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      Reuses existing edges only: `sk-install -> sk-kernel` (canonical YAML graph,
+      Python string/regex primitives), `sk-install -> toml_edit` (already a
+      dependency, used elsewhere for `pyproject.toml`), and the existing
+      `sk-cli -> sk-install`/`sk-kernel` edges. No new dependency, no
+      manifest/lock/SBOM edit, no version bump, no `packs/`, pin, golden or Source
+      change.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      The diagnostics resolve and read existing paths only:
+      `docs/migrations/shim-registry.yaml`, `docs/contracts/contract-registry.yaml`,
+      `pyproject.toml`, and `src/<legacy_path>.py` / `src/<legacy_path>/__init__.py`
+      existence probes. Nothing is created, renamed, rewritten or deleted, and the
+      registry's own advisory absence-sweep over `consumers.scan_roots` is not run.
+  serialized_keys:
+    action: manual_review
+    additivity: additive_only
+    notes: >-
+      New JSON keys reproduce the pinned Source documents exactly and rename no
+      existing key: `doctor shim-registry` emits `project_version`,
+      `registry_path`, `entries[]{legacy_path,canonical_import,removal_target_release,
+      grandfathered,tracker_issue,status,shim_exists}`, `has_overdue`, `exit_code`;
+      `doctor contracts` emits `registry_path`, `record_count`, `advisory_count`,
+      `enforcing_count`, `records[]{id,kind,status,owner,replaced_by,enforcement,
+      scan_roots}`, `exit_code`. Status/kind/enforcement values are Source's wire
+      strings verbatim (`pending`/`overdue`/`grandfathered`/`removed`,
+      `fallback_name`/`retired_literal`, `active`/`deprecated`/`retired`,
+      `advisory`/`enforcing`). Disclosed limitation: this workspace's `serde_json`
+      has no `preserve_order`, so key ORDER is alphabetical, not Source's
+      declaration order; the key set and every value are asserted.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      `shim-registry` and `contracts`, and their single option `--json`, keep their
+      exact spelling and clap shape; the parent's `DoctorCommand` variants need no
+      change. Exit classes are the pinned Source's (shim-registry 0/1, both 2 on
+      configuration or schema failure). No flag is added or removed, and no
+      mutating flag exists on either leaf, so nothing can be half-implemented.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      New human output is informational and not byte-pinned to Source's Rich
+      rendering (disclosed, as in earlier lanes): the same rows, summary counts and
+      overdue remediation block (`Option A`/`Option B`) are carried. Source-verbatim
+      strings where Source fixes the text: the schema prefixes (`Registry schema
+      error:`, `Contract registry schema error:`), `Configuration error:`, every
+      collected validation message (verified against the pinned oracle for 20
+      cases — see the lane report), the not-found lines (`Shim registry not found
+      at …`, `Contract registry not found at …`, `pyproject.toml not found at …`),
+      `missing key '<k>' in pyproject.toml`, the empty-registry lines, and
+      `all records are well-formed.`. The human table's box drawing/colour is not
+      reproduced.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      KEEP every existing test; none is weakened, skipped or re-baselined. New
+      `cf27_*` tests use fresh `tempfile` fixtures and the real public API, plus the
+      real seeded artifacts in this checkout. The parent's own `compat/doctor.rs`
+      inline tests that assert the two refusals WILL need adjusting once the arms
+      are wired; that edit belongs to the parent and is named in the dispatch
+      request. No fabricated ids, timestamps, hashes or readiness values appear in
+      fixtures; the read-only proof carries a positive control so it cannot pass
+      vacuously.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No logging or telemetry schema is touched. Findings are reported through the
+      report/exit-code surface only, never through invented log keys.
+
+exceptions:
+  - path: crates/sk-cli/src/compat/doctor.rs
+    action: manual_review
+    reason: >-
+      NOT owned by this lane. Exactly one granted line: `pub mod registries;` (plus
+      its one-line doc comment). The parent owns the two dispatch arms, the
+      `REFUSED_LEAVES` -> `IMPLEMENTED_LEAVES` move, the refusal-arm removal, the
+      module-doc table row, the capability gap text and the inline refusal tests.
+  - path: crates/sk-cli/src/compat/capabilities.rs
+    action: manual_review
+    reason: >-
+      Parent-owned coverage arrays and gap text (they read `compat::doctor`'s leaf
+      lists, so this lane needs no edit there); the doctor `gaps` wording must be
+      refreshed by the parent when the arms land.
+  - path: crates/sk-install/src/lib.rs
+    action: manual_review
+    reason: >-
+      Exactly one granted line: `pub mod registry_diagnostics;`. No `pub use`, no
+      crate-doc table row, no other module line touched.
+  - path: crates/sk-install/src/registry_diagnostics.rs
+    action: manual_review
+    reason: >-
+      NEW lane-owned module root (this map's subject): shared error type, path
+      resolvers, `pyproject.toml` version read, and the Python-regex/anchoring
+      predicates. Public surface is module-qualified and unexported from the crate
+      root so a later consolidation cannot silently split the registry vocabulary.
+  - path: crates/sk-install/src/registry_diagnostics/shim.rs
+    action: manual_review
+    reason: >-
+      NEW lane-owned submodule (shim registry model, validation, classification,
+      JSON document).
+  - path: crates/sk-install/src/registry_diagnostics/contract.rs
+    action: manual_review
+    reason: >-
+      NEW lane-owned submodule (contract registry model, structural + DIR-041
+      validation, JSON document).
+  - path: crates/sk-cli/src/compat/doctor/registries.rs
+    action: manual_review
+    reason: >-
+      NEW lane-owned adapter: two runners (+ explicit-root variants for tests),
+      Source's error prefixes, human rendering, exit contract. It owns no dispatch.
+  - path: crates/sk-install/tests/cf27_registry_diagnostics.rs
+    action: manual_review
+    reason: NEW lane-owned test target (41 tests).
+  - path: crates/sk-cli/tests/cf27_registry_commands.rs
+    action: manual_review
+    reason: NEW lane-owned test target (7 tests).
+  - path: docs/rust/occurrence-maps/cf27-registry-diagnostics.yaml
+    action: manual_review
+    reason: >-
+      This classification file; a NEW uniquely-named lane map, not a rewrite of
+      another lane's map and not a posthoc replacement for one.
+
+status:
+  accepted: false
+  phase: lane classification (authored after this lane's additive files, before parent wiring)
+  host_mission_or_op: none (rewrite lane; not a host governance record)
+  # `status` permits free-form keys in the occurrence-map schema; the lane's own
+  # structural/admissibility record lives here rather than in an extra top-level
+  # block (which the schema forbids: `additionalProperties: false`).
+  validation:
+    categories_present: 8
+    every_category_has_explicit_action: true
+    actions_used: [manual_review, do_not_change]
+    operation: "omitted (additive: no rename, no removal of an existing identifier or wire key)"
+    schema_check: >-
+      Every emitted serialized key, status/enforcement/kind token, exit class and
+      source-verbatim message above was read from the pinned Source
+      (`src/specify_cli/compat/registry.py`, `src/specify_cli/compat/doctor.py`,
+      `src/specify_cli/contracts/registry.py`, `src/specify_cli/contracts/anchoring.py`,
+      `src/specify_cli/cli/commands/doctor.py`) and confirmed against the live
+      oracle for 20 fixture cases; nothing was guessed.
+    removals_check: >-
+      No existing identifier, wire key, path or CLI flag is removed. The two
+      parent-owned refusal arms and their codes are left in place for the parent
+      to remove as part of wiring; this lane does not delete them.
+    admissibility:
+      no_fabricated_mission_metadata: true
+      no_dependency_or_manifest_change: true
+      no_source_pin_or_golden_change: true
+      no_child_agents_or_commits: true
+      foreign_files_left_untouched: >-
+        compat/doctor.rs (beyond the one granted declaration), capabilities.rs,
+        root CLI/errors, sk-doctrine/sk-charter/sk-mission owners,
+        manifests/locks/SBOM, packs/pins/source/goldens, docs accounting.

@@ -1,4 +1,8 @@
 //! Fail-closed, lock-exact development oracle selection (never production code).
+//!
+//! Included by several integration-test binaries; not every binary uses every
+//! helper, so the module allows dead code rather than forcing a per-test shim.
+#![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

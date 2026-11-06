@@ -3,7 +3,7 @@
 
 Development only: nothing in the Rust product imports this script, and the
 product never runs Python. The generated table in
-``crates/sk-invocation/src/router_unicode_data.rs`` is derived from the pinned
+``crates/sk-kernel/src/python_text_data.rs`` is derived from the pinned
 development interpreter after ``scripts/rust/verify_oracle.py`` proved that
 interpreter is the lock-exact one.
 
@@ -43,6 +43,15 @@ skipped every non-cased code point in the after-scan, and one that treated the
 end of the after-scan as "final" without running the before-clause. The composed
 oracle cases pin both clauses.
 
+Two generated files, one authority: ``python_text_data.rs`` (word/lower/cased/
+case-ignorable, used by the router and the text primitives) and
+``python_text_upper_data.rs`` (the complete ``str.upper()`` mapping, used by
+``python_text::upper_codepoints`` and the exact directive-id normaliser). Both
+are produced by this one script from the same verified interpreter. The
+``str.upper()`` table exists because the reference's directive-id normaliser
+upper-cases a slug (``str.upper()`` is per-code-point with full expansions) and
+Rust's own ``char::to_uppercase`` uses a newer Unicode version.
+
 Usage (from the repository root, with the pinned oracle):
 
     .venv-rust-oracle/bin/python scripts/rust/generate_router_unicode.py
@@ -74,7 +83,8 @@ EXPECTED_IMPLEMENTATION = "cpython"
 EXPECTED_UNIDATA = "14.0.0"
 EXPECTED_REQUIREMENTS = 53
 LAST_CODE_POINT = 0x110000
-OUTPUT = Path("crates/sk-invocation/src/router_unicode_data.rs")
+OUTPUT = Path("crates/sk-kernel/src/python_text_data.rs")
+UPPER_OUTPUT = Path("crates/sk-kernel/src/python_text_upper_data.rs")
 
 WORD_RE = re.compile(r"\w")
 CAPITAL_SIGMA = "\u03a3"
@@ -126,6 +136,30 @@ def lower_facts() -> tuple[list[tuple[int, int]], list[tuple[int, list[int]]], i
     return singles, expansions, identity
 
 
+def upper_facts() -> tuple[list[tuple[int, int]], list[tuple[int, list[int]]], int]:
+    """Every ``str.upper()`` mapping of the pinned interpreter, identity included.
+
+    ``str.upper()`` is per-code-point: unlike ``str.lower()`` it has no
+    contextual rule, so a full scan can classify every code point exactly. The
+    surrogate range is scanned too, because a Python ``str`` may hold surrogate
+    units; the pinned interpreter maps every one of them to itself.
+    """
+    singles: list[tuple[int, int]] = []
+    expansions: list[tuple[int, list[int]]] = []
+    identity = 0
+    for code in range(LAST_CODE_POINT):
+        mapped = [ord(character) for character in chr(code).upper()]
+        if mapped == [code]:
+            identity += 1
+        elif len(mapped) == 1:
+            singles.append((code, mapped[0]))
+        else:
+            expansions.append((code, mapped))
+    if identity + len(singles) + len(expansions) != LAST_CODE_POINT:
+        raise SystemExit("refusing to generate: upper mappings do not cover Unicode")
+    return singles, expansions, identity
+
+
 def context_facts() -> tuple[list[tuple[int, int]], list[tuple[int, int]], int]:
     """Classify every code point for the interpreter's ``Final_Sigma`` scans."""
     cased: list[int] = []
@@ -174,8 +208,10 @@ def range_digest(name: str, ranges: list[tuple[int, int]]) -> str:
     return hashlib.sha256(text.encode("ascii")).hexdigest()
 
 
-def lower_digest(singles: list[tuple[int, int]], expansions: list[tuple[int, list[int]]]) -> str:
-    parts = ["lower:singles"]
+def mapping_digest(
+    name: str, singles: list[tuple[int, int]], expansions: list[tuple[int, list[int]]]
+) -> str:
+    parts = [f"{name}:singles"]
     parts.extend(f"{code:06x}>{mapped:06x}" for code, mapped in singles)
     parts.append("expansions")
     parts.extend(
@@ -387,7 +423,7 @@ mod tests {{
     /// Recorded digest of [`WORD_RANGES`] (`word:` + `<start>-<end>` hex pairs).
     const WORD_DIGEST: &str = "{range_digest("word", word)}";
     /// Recorded digest of [`LOWER_SINGLES`] and [`LOWER_EXPANSIONS`].
-    const LOWER_DIGEST: &str = "{lower_digest(singles, expansions)}";
+    const LOWER_DIGEST: &str = "{mapping_digest("lower", singles, expansions)}";
     /// Recorded digest of [`CASED_RANGES`].
     const CASED_DIGEST: &str = "{range_digest("cased", cased)}";
     /// Recorded digest of [`CASE_IGNORABLE_RANGES`].
@@ -501,6 +537,167 @@ mod tests {{
 '''
 
 
+def render_upper(
+    singles: list[tuple[int, int]],
+    expansions: list[tuple[int, list[int]]],
+    *,
+    version: str,
+    identity: int,
+) -> str:
+    if identity + len(singles) + len(expansions) != LAST_CODE_POINT:
+        raise SystemExit("refusing to generate: upper coverage is inconsistent")
+
+    def rows(ranges: list[tuple[int, int]]) -> str:
+        return "\n".join(f"    (0x{start:04x}, 0x{end:04x})," for start, end in ranges)
+
+    expansion_rows = [
+        "(0x{code:04x}, &[{mapped}])".format(
+            code=code, mapped=", ".join(f"0x{item:04x}" for item in mapped)
+        )
+        for code, mapped in expansions
+    ]
+    if not expansion_rows:
+        expansion_table = "&[];"
+    elif len(expansion_rows) == 1:
+        expansion_table = "&[" + expansion_rows[0] + "];"
+    else:
+        expansion_table = "&[\n" + "\n".join(
+            "    " + row + "," for row in expansion_rows
+        ) + "\n];"
+    return f'''//! Verified CPython 3.11.15 / Unicode {version} `str.upper()` facts.
+//!
+//! Generated by `scripts/rust/generate_router_unicode.py` from the pinned
+//! development oracle (CPython 3.11.15, 53 locked runtime requirements,
+//! `unicodedata.unidata_version` {version}) after `scripts/rust/verify_oracle.py`
+//! proved the lock-exact interpreter. Do not edit by hand; regenerate with:
+//!
+//! ```text
+//! .venv-rust-oracle/bin/python scripts/rust/generate_router_unicode.py
+//! ```
+//!
+//! `str.upper()` is per-code-point with full case mappings, so this table is a
+//! complete partition of `U+0000..=U+10FFFF`: {len(singles)} single-code-point
+//! mappings, {len(expansions)} multi-code-point expansions and {identity}
+//! identity code points. Every surrogate unit (`U+D800..=U+DFFF`) is identity in
+//! the pinned interpreter, and the data keeps that rather than guessing. This is
+//! the interpreter's own table, NOT Rust's newer-Unicode `char::to_uppercase`
+//! (which assigns capitals the pinned Unicode {version} does not have, for
+//! example `U+0264`).
+//!
+//! Development data only: the product never invokes Python at runtime. The
+//! mapping values are derived from CPython; the full PSF reference licence is
+//! retained at `docs/rust/dependencies/cpython-3.11.15-reference-LICENSE.txt`.
+
+/// Number of single-code-point `str.upper()` mappings.
+pub(crate) const UPPER_SINGLE_COUNT: usize = {len(singles)};
+/// Sorted `code point -> upper code point` mappings (identity mappings omitted).
+pub(crate) const UPPER_SINGLES: &[(u32, u32)] = &[
+{rows([(code, mapped) for code, mapped in singles])}
+];
+/// Number of multi-code-point `str.upper()` expansions.
+pub(crate) const UPPER_EXPANSION_COUNT: usize = {len(expansions)};
+/// Sorted `code point -> upper code point sequence` expansions.
+pub(crate) const UPPER_EXPANSIONS: &[(u32, &[u32])] = {expansion_table}
+
+/// The single-code-point `str.upper()` mapping, when it is not identity.
+pub(crate) fn upper_single(code: u32) -> Option<u32> {{
+    debug_assert_eq!(UPPER_SINGLES.len(), UPPER_SINGLE_COUNT);
+    UPPER_SINGLES
+        .binary_search_by(|&(from, _)| from.cmp(&code))
+        .ok()
+        .map(|index| UPPER_SINGLES[index].1)
+}}
+
+/// The multi-code-point `str.upper()` expansion, when there is one.
+pub(crate) fn upper_expansion(code: u32) -> Option<&'static [u32]> {{
+    debug_assert_eq!(UPPER_EXPANSIONS.len(), UPPER_EXPANSION_COUNT);
+    UPPER_EXPANSIONS
+        .binary_search_by(|&(from, _)| from.cmp(&code))
+        .ok()
+        .map(|index| UPPER_EXPANSIONS[index].1)
+}}
+
+#[cfg(test)]
+mod tests {{
+    use super::*;
+    use sk_kernel::content_digest::sha256_hex;
+
+    /// Recorded digest of [`UPPER_SINGLES`] and [`UPPER_EXPANSIONS`].
+    const UPPER_DIGEST: &str = "{mapping_digest("upper", singles, expansions)}";
+    /// Code points whose `str.upper()` output is exactly the input.
+    const IDENTITY_COUNT: usize = {identity};
+
+    #[test]
+    fn tables_cover_every_code_point_exactly_once() {{
+        assert_eq!(UPPER_SINGLES.len(), UPPER_SINGLE_COUNT);
+        assert_eq!(UPPER_EXPANSIONS.len(), UPPER_EXPANSION_COUNT);
+        assert_eq!(
+            IDENTITY_COUNT + UPPER_SINGLE_COUNT + UPPER_EXPANSION_COUNT,
+            0x110000,
+            "every code point has exactly one upper mapping"
+        );
+        for window in UPPER_SINGLES.windows(2) {{
+            assert!(window[0].0 < window[1].0, "upper singles are sorted");
+        }}
+        for &(from, mapped) in UPPER_EXPANSIONS {{
+            assert!(mapped.len() >= 2, "{{from:#06x}} is an expansion");
+            assert!(
+                mapped.iter().all(|&item| item < 0x110000),
+                "{{from:#06x}} stays inside Unicode"
+            );
+            assert!(
+                mapped.as_ref() != [from],
+                "{{from:#06x}} is not an identity mapping"
+            );
+        }}
+        for window in UPPER_EXPANSIONS.windows(2) {{
+            assert!(window[0].0 < window[1].0, "upper expansions are sorted");
+        }}
+    }}
+
+    #[test]
+    fn recorded_digest_matches_the_tables() {{
+        let mut parts = vec![String::from("upper:singles")];
+        for (from, to) in UPPER_SINGLES {{
+            parts.push(format!("{{from:06x}}>{{to:06x}}"));
+        }}
+        parts.push(String::from("expansions"));
+        parts.extend(UPPER_EXPANSIONS.iter().map(|(from, mapped)| {{
+            let items: Vec<String> = mapped.iter().map(|item| format!("{{item:06x}}")).collect();
+            format!("{{from:06x}}>{{}}", items.join(","))
+        }}));
+        assert_eq!(sha256_hex(parts.join(" ").as_bytes()), UPPER_DIGEST);
+    }}
+
+    #[test]
+    fn pinned_upper_facts_match_cpython() {{
+        assert_eq!(upper_single(0x61), Some(0x41));
+        assert_eq!(upper_single(0x41), None, "upper case stays put");
+        assert_eq!(upper_single(0x3c0), Some(0x3a0));
+        assert_eq!(upper_single(0x131), Some(0x49), "dotless i");
+        assert_eq!(upper_single(0x130), None, "dotted I is identity");
+        assert_eq!(
+            upper_single(0x264),
+            None,
+            "U+0264 has no uppercase in the pinned Unicode version"
+        );
+        assert_eq!(
+            upper_single(0x19b),
+            None,
+            "U+019B has no uppercase in the pinned Unicode version"
+        );
+        assert_eq!(upper_expansion(0xdf), Some(&[0x53, 0x53][..]), "sharp s");
+        assert_eq!(
+            upper_expansion(0xfb01),
+            Some(&[0x46, 0x49][..]),
+            "fi ligature"
+        );
+        assert!(upper_single(0xd800).is_none() && upper_expansion(0xd800).is_none());
+    }}
+}}
+'''
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -524,45 +721,63 @@ def main() -> int:
     verify(root)
     word = word_ranges()
     singles, expansions, identity = lower_facts()
+    upper_singles, upper_expansions, upper_identity = upper_facts()
     cased, ignorable, neither = context_facts()
     for name, ranges in (("word", word), ("cased", cased), ("ignorable", ignorable)):
         verify_ranges(name, ranges)
     verify_mapping("lower", singles)
-    for code, mapped in expansions:
-        if any(item >= LAST_CODE_POINT for item in mapped) or mapped == [code]:
-            raise SystemExit(f"refusing to generate: expansion {code:#x} looks wrong")
-    if any(len(mapped) < 2 for _, mapped in expansions):
-        raise SystemExit("refusing to generate: an expansion is not multi-code-point")
-    text = render(
-        word,
-        singles,
-        expansions,
-        cased,
-        ignorable,
-        version=unicodedata.unidata_version,
-        identity=identity,
-        neither=neither,
-    )
-    target = root / OUTPUT
-    existing = target.read_text(encoding="utf-8") if target.is_file() else None
-    if args.check:
+    verify_mapping("upper", upper_singles)
+    for name, table in (("lower", expansions), ("upper", upper_expansions)):
+        for code, mapped in table:
+            if any(item >= LAST_CODE_POINT for item in mapped) or mapped == [code]:
+                raise SystemExit(f"refusing to generate: {name} expansion {code:#x} looks wrong")
+        if any(len(mapped) < 2 for _, mapped in table):
+            raise SystemExit(f"refusing to generate: a {name} expansion is not multi-code-point")
+    version = unicodedata.unidata_version
+    outputs = [
+        (
+            OUTPUT,
+            render(
+                word,
+                singles,
+                expansions,
+                cased,
+                ignorable,
+                version=version,
+                identity=identity,
+                neither=neither,
+            ),
+            f"{len(word)} word ranges, {len(singles)} lower singles, {len(expansions)} expansions",
+        ),
+        (
+            UPPER_OUTPUT,
+            render_upper(
+                upper_singles,
+                upper_expansions,
+                version=version,
+                identity=upper_identity,
+            ),
+            f"{len(upper_singles)} upper singles, {len(upper_expansions)} expansions",
+        ),
+    ]
+    for output, text, summary in outputs:
+        target = root / output
+        existing = target.read_text(encoding="utf-8") if target.is_file() else None
+        if args.check:
+            if existing != text:
+                raise SystemExit(f"refusing: {output} differs from a fresh verified generation")
+            print(f"{output}: up to date ({summary})")
+            continue
+        if existing is not None and existing != text and not args.force:
+            raise SystemExit(
+                f"refusing to overwrite {output}: it differs from a fresh verified "
+                "generation (pass --force to replace it)"
+            )
         if existing != text:
-            raise SystemExit(f"refusing: {OUTPUT} differs from a fresh verified generation")
-        print(
-            f"{OUTPUT}: up to date ({len(word)} word ranges, "
-            f"{len(singles)} lower singles, {len(expansions)} expansions)"
-        )
-        return 0
-    if existing is not None and existing != text and not args.force:
-        raise SystemExit(
-            f"refusing to overwrite {OUTPUT}: it differs from a fresh verified "
-            "generation (pass --force to replace it)"
-        )
-    target.write_text(text, encoding="utf-8")
-    print(
-        f"{OUTPUT}: wrote {len(word)} word ranges, {len(singles)} lower singles, "
-        f"{len(expansions)} expansions"
-    )
+            target.write_text(text, encoding="utf-8")
+            print(f"{output}: wrote {summary}")
+        else:
+            print(f"{output}: unchanged ({summary})")
     return 0
 
 

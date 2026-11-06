@@ -122,6 +122,43 @@ impl ActivationState {
         self.admits(NodeKind::AgentProfile.as_str(), profile_id)
     }
 
+    /// Whether an exact (code-point) profile id survives the gate.
+    /// The ledger and the DRG are `String`-keyed, so an id holding a lone
+    /// surrogate can never appear in an allow/deny set. That is not a refusal:
+    /// the three-state contract still decides, exactly as the reference's own
+    /// set membership does — an unconfigured (or `None`) allow set admits every
+    /// id, and a configured set cannot contain an id no ledger string can spell,
+    /// so the id is not admitted. Deny is spelled through the same string space,
+    /// so a non-scalar id is never denied by a wildcard-less deny set.
+    pub fn admits_profile_exact(&self, profile_id: &sk_kernel::PythonString) -> bool {
+        match profile_id.to_scalar_string() {
+            Ok(scalar) => self.admits_profile(&scalar),
+            Err(_) => {
+                let kind_gated = self
+                    .activated_kinds
+                    .as_ref()
+                    .is_some_and(|kinds| !kinds.contains(ArtifactKind::AgentProfile.plural()));
+                !kind_gated
+                    && matches!(
+                        self.allow.get(&ArtifactKind::AgentProfile),
+                        None | Some(None)
+                    )
+            }
+        }
+    }
+
+    /// Whether the `activated_agent_profiles` allow set is configured.
+    ///
+    /// `false` is the three-state *absent* case (every profile admitted), which
+    /// the catalogue reports so a caller can tell "no gate configured" from
+    /// "gate configured and empty" (an explicit `[]` admits nothing).
+    pub fn agent_profiles_allow_configured(&self) -> bool {
+        !matches!(
+            self.allow.get(&ArtifactKind::AgentProfile),
+            None | Some(None)
+        )
+    }
+
     /// An artifact node's deactivated/spelled deny set.
     pub fn deny_for(&self, kind: ArtifactKind) -> Option<&DenySet> {
         self.deny.get(&kind)
@@ -137,6 +174,29 @@ impl ActivationState {
             .flat_map(|deny| deny.urns.iter().cloned())
             .collect()
     }
+}
+
+/// Build the activation state a project's catalogue gate uses.
+///
+/// This is the same composition the native governance-context build performs
+/// (identity index over the three pack layers, the activation ledger, then the
+/// org **required floor**), exposed once so the invocation catalogue and the
+/// context build cannot drift. The floor is a real input: an org-required
+/// profile stays admitted even when a stale deny names it.
+pub fn project_activation_state(
+    repo_root: &std::path::Path,
+    built_in_root: &std::path::Path,
+    org_roots: &[std::path::PathBuf],
+    project_root: Option<&std::path::Path>,
+) -> Result<ActivationState, DoctrineError> {
+    let identity = IdentityIndex::from_roots(built_in_root, org_roots, project_root);
+    // No eager `scan_all`: the index scans a kind the first time this composition
+    // asks for it, exactly as the reference's lazy per-kind table does. Reading
+    // every kind up front was never required for correctness, and it would read
+    // (and abort on) kinds no activation token in force actually names.
+    let ledger = crate::ledger::load_activation_ledger(repo_root)?;
+    let floor = crate::org_charter::required_floor(repo_root, &identity)?.into_map();
+    ActivationState::from_ledger(&ledger, &identity, &floor)
 }
 
 /// Return a copy of `graph` limited to activated artifacts, keeping an edge only

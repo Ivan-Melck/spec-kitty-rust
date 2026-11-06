@@ -1,0 +1,113 @@
+# CF70 PRE-EDIT occurrence classification (DIRECTIVE_035).
+# Additive target: a NEW Source reference-pointer selector/index/render pipeline
+# replaces the existing Native local_path/is_file projection. No rename or
+# removal operation, so `target.operation` is omitted (additive work).
+# Authored BEFORE any code edit. The enforcing schema rejects extra root keys,
+# so the map carries only `target`/`categories`/`exceptions`.
+target:
+  term: "Native local_path/is_file reference-pointer projection"
+  replacement: "Source action-filter -> kind rotation/round-robin -> offering index/cache/lookup -> exact pointer render"
+
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      Additive: NEW `reference_pointers` selector/index/cache module, NEW Kernel
+      Source rglob primitive and pure Path name/stem/component-sort helpers.
+      Existing owners keep their names and authority: `ReferenceEntry` stays the
+      ONE authored catalogue (count unchanged), `denied_by_kind` stays the ONE
+      deny composition, `ReferenceDoc` stays the ONE pointer model but now
+      carries `ReferenceEntry` plus prepared exact path text instead of dropped
+      scalar copies. The renderer's private `.take(12)` cap is removed because
+      the cap belongs to the selector (default 12). No second catalogue,
+      formatter, parser, codec or roster is introduced.
+  import_paths:
+    action: manual_review
+    notes: >-
+      New module exports only: `sk_kernel::source_glob`, new `paths` helpers,
+      `sk_doctrine::reference_pointers`. Existing `sk_doctrine` /
+      `sk_kernel` / `sk_cli` import paths keep their meaning; no crate,
+      dependency, feature or target is added.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No Source, packs, pins, goldens, manifest, Cargo.lock, target-dir or
+      worktree path changes. Fixtures are fresh mktemp trees only.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      CLI envelope keys/order are unchanged; `references_count` stays the
+      deny-admitted authored catalogue length on the bootstrap rail (and 0 on
+      the other rails), never the selected-pointer count.
+  cli_commands:
+    action: do_not_change
+    notes: No command, subcommand, flag, help text or routing change.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      The bootstrap `Reference Docs:` line becomes the Source shape
+      `  - {id}: {title} ({path})` unconditionally (Source has no
+      empty-title special case), and the missing fallback text is unchanged.
+      Pointers are the entries that OPEN on disk, ordered by the Source
+      action filter/distribution, capped at the selector's default 12.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New focused tests: Kernel glob/path helpers, Doctrine filter/rotation/
+      index/cache/lookup/selection with typed causes, and an actual Source/
+      Native child pair over a fresh offering tree (yaml directory, dangling
+      link, child-directory symlink, root alias, cache freeze). Existing
+      `ReferenceDoc` constructions in `cf8_context_render.rs` are mechanically
+      converted to the ReferenceEntry-based model.
+  logs_telemetry:
+    action: do_not_change
+    notes: No logger, event-log, warning or telemetry key changes.
+
+exceptions:
+  - path: crates/sk-kernel/src/source_glob.rs
+    action: manual_review
+    reason: >-
+      NEW Kernel Source `Path.rglob('*.yaml')` primitive; pathlib semantics
+      adapted under retained PSF custody, no private duplicate collector.
+  - path: crates/sk-kernel/src/paths.rs
+    action: manual_review
+    reason: >-
+      Same-item pure Path name/stem/component-sort and exact path-text helpers
+      beside the existing Source POSIX spelling; no resolver change.
+  - path: crates/sk-kernel/src/lib.rs
+    action: manual_review
+    reason: Same-item module/export wiring for the new primitive and helpers.
+  - path: crates/sk-doctrine/src/reference_pointers.rs
+    action: manual_review
+    reason: >-
+      NEW Doctrine selector/index/cache owner; reuses ReferenceEntry,
+      ArtifactKind, PythonString and the captured codec.
+  - path: crates/sk-doctrine/src/lib.rs
+    action: manual_review
+    reason: Same-item module/export wiring for the new selector.
+  - path: crates/sk-doctrine/src/context_render.rs
+    action: manual_review
+    reason: >-
+      Pointer model/preparation/exact formatter branch only; one formatter,
+      selector-owned cap, no duplicate authored schema.
+  - path: crates/sk-cli/src/compat/charter.rs
+    action: manual_review
+    reason: >-
+      Existing `reference_docs` body/callsite only: one selector call with the
+      normalized action, canonical built-in offering root and captured codec;
+      rails/count/state/mark/read order unchanged.
+  - path: crates/sk-doctrine/tests/cf8_context_render.rs
+    action: manual_review
+    reason: Mechanical fixture conversion to the ReferenceEntry-based pointer model.
+  - path: crates/sk-doctrine/tests/cf8_charter_workflow.rs
+    action: do_not_change
+    reason: Passes the empty reference slice; type change is transparent.
+  - path: crates/sk-cli/tests/cf68_context_text_rails.rs
+    action: do_not_change
+    reason: Rail/count/state assertions stay valid; no pointer-line assertion there.
+  - path: crates/sk-cli/tests/cf70_reference_pointers.rs
+    action: manual_review
+    reason: NEW actual Source/Native child pair for the pointer pipeline.
+  - path: crates/sk-cli/tests/cf65_support/mod.rs
+    action: do_not_change
+    reason: Reused test-only isolation protocol unchanged.

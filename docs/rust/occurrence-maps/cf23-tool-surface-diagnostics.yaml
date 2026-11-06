@@ -1,0 +1,213 @@
+# Occurrence classification for CF23 — the three tool-surface `doctor` leaves.
+#
+# Chronology, stated exactly rather than backdated: this map was authored after
+# this lane's two NEW files existed (they are additive; nothing pre-existing was
+# renamed or removed) and BEFORE the parent's root-dispatch / coverage-array
+# wiring. The pre-existing occurrence inventory below was taken from the current
+# tree at that point (receipts in the CF23 evidence root
+# `/tmp/sk-ev-cf23-toolsurface`: `cf23-pre-edit-occurrence-inventory2.mDT9dB.log`,
+# `cf23-pre-edit-occurrence-inventory3.woPwvz.log`). It is a lane
+# classification record, NOT a post-hoc approval and NOT host Mission metadata:
+# no Mission/Op exists for this rewrite and none is invented here.
+#
+# `operation` is deliberately omitted: no existing Rust symbol, serialized key,
+# filesystem path or CLI flag is renamed or removed. The three refused leaves
+# keep their exact names, options and exit codes; only their bodies change from
+# "named refusal" to "real read-only audit" when the parent wires them.
+#
+# Inventory (Rust-only, per `cf23-pre-edit-occurrence-inventory3`):
+#
+#   SurfaceKind, SurfaceFinding, SurfaceReport, SurfaceAuditRequest,
+#   audit_tool_surfaces, audit_skills, audit_command_files, configured_tools,
+#   SkillsAudit, CommandFileIssue            -> ONLY the two new lane files
+#   configured_tool_keys, user_global_command_dir, command_skill_tree,
+#   CommandSkillTree, SlashCommandGap, PackSkillFinding, ToolFolderFinding,
+#   RESEARCH_GAP_SURFACE, command_file_name  -> ONLY the new Install module
+#   KIND_TOKENS                              -> ALSO sk-charter/{kind,lib}.rs,
+#                                               sk-doctrine/effective_set.rs,
+#                                               compat/charter.rs, sk-charter/tests
+#                                               (a shared SPELLING in unrelated
+#                                               modules; module-qualified, never
+#                                               re-exported at any crate root)
+#   UNSUPPORTED_DOCTOR_COMMAND_FILES         -> 1 site (compat/doctor.rs:604)
+#   UNSUPPORTED_DOCTOR_SKILLS                -> 1 site (compat/doctor.rs:612)
+#   UNSUPPORTED_DOCTOR_TOOL_SURFACES         -> 1 site (compat/doctor.rs:617)
+#   UNSUPPORTED_DOCTOR_SKILLS_FIX (new)      -> 1 site (new adapter file)
+#   UNSUPPORTED_DOCTOR_TOOL_SURFACES_FIX(new)-> 1 site (new adapter file)
+
+target:
+  term: "`spec-kitty doctor command-files`, `doctor skills` and `doctor tool-surfaces` are named refusals in `crates/sk-cli/src/compat/doctor.rs`, and `crates/sk-cli/src/compat/doctor/tool_surfaces.rs` is a documentation-only namespace with zero functionality"
+  replacement: "the actual pinned-Source read-only audits: command-file marker/shape issues, command-skill manifest drift/gap/stale/orphan/legacy/collision plus slash-command and pack/tool-folder findings, and the registry-driven surface report with `--kind`/`--tool` filters, Source's finding codes, JSON documents and exit codes"
+
+categories:
+  code_symbols:
+    action: manual_review
+    additivity: additive_only
+    notes: >-
+      New public surface is confined to ONE new Install module
+      (`sk-install/src/tool_surface_diagnostics.rs`) plus ONE previously
+      documentation-only CLI adapter file. The only granted root change is
+      `pub mod tool_surface_diagnostics;` in `sk-install/src/lib.rs`; there is no
+      crate-root re-export, no flat-root alias, no `#[path]` workaround and no
+      second command tree. Every new name is module-qualified. `KIND_TOKENS` is a
+      shared spelling with `sk-charter`/`sk-doctrine` modules; it is NOT a shared
+      symbol (different module path, different type) and is deliberately not
+      re-exported. No existing symbol is renamed, removed or re-typed; the
+      canonical owners (`agent`, `manifest`, `skills`, `render`, `profiles`,
+      `vibe`, `init`) are read only, not cloned.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      Reuses the existing `sk-install -> sk-kernel` edge (`read_bounded`,
+      `resolve_within`, `paths::home_directory`, `COMPAT_CORE_VERSION`) and the
+      existing `sk-cli -> sk-install` edge. No new crate dependency, no
+      manifest/lock/SBOM edit, no dependency version change, no `packs/`, pin,
+      golden or Source change.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      The audit resolves and reads existing paths only:
+      `.agents/skills/spec-kitty-<command>/SKILL.md` (canonical) and the retired
+      `spec-kitty.<command>/SKILL.md` (legacy, read/retire), the governed
+      user-global command directories (`~/.claude/commands`, `~/.github/prompts`,
+      opencode/llxprt platform roots), `.kittify/command-skills-manifest.json`,
+      `.kittify/skills-manifest.json`, `.kittify/agent_profiles_manifest.json`,
+      `.vibe/config.toml`, `.kittify/config.yaml`. Nothing is created, renamed,
+      rewritten or deleted: `--fix` is refused before any write.
+  serialized_keys:
+    action: manual_review
+    additivity: additive_only
+    notes: >-
+      New JSON keys reproduce the pinned Source documents exactly, in Source's
+      declaration order, and none of them renames an existing key:
+      `doctor tool-surfaces`: `ok`, `schema_version`, `project_root`,
+      `configured_tools`, `summary{surfaces,present,missing,drifted,warnings,errors}`,
+      `surfaces[]{id,tool,kind,provider,path,state,source_kind,manifest,repair_command}`,
+      `findings[]{code,severity,message,tool_key,surface_id,path,repair_command,docs_ref,details}`;
+      `doctor skills`: the frozen envelope (configured_agents, manifest_agents,
+      entries, canonical_commands, drift, gaps, orphans, stale, unsafe, legacy,
+      collisions, uninstalled_agents, vibe_config_missing, repaired_agents,
+      repaired_paths, pruned, repaired_vibe_config, repair_errors, ok,
+      slash_commands, pack_skills, tool_folders); `doctor command-files`: the raw
+      row array with agent/command/file/issue/severity. Finding codes, states and
+      severities are the Source string constants verbatim (kebab-case wire
+      values), not new spelling.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      `command-files`, `skills`, `tool-surfaces` and their options
+      (`--json`, `--fix`, `--kind`, `--tool`) keep their exact spelling,
+      position and clap shape; the parent's `DoctorCommand` variants are
+      unchanged. Exit classes are the pinned Source's, including the odd
+      `command-files` not-in-project exit 1. No flag is added or removed.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      New human output is informational and not byte-pinned to Source's Rich
+      rendering (disclosed, as in earlier lanes): the same rows, findings and
+      remedies are carried. Source-verbatim strings where Source fixes the text:
+      the not-in-project message ("Not in a spec-kitty project"), the
+      `unknown_kind` message with its sorted known-kind list, the finding
+      messages ("User-global slash command missing: …", "Command skill drifted
+      from manifest hash: …", "Managed charter skill drifted from manifest
+      hash: …", "Native-config glue missing for …", "Legacy dotted command skill
+      (renamed to spec-kitty-<command>): …", "Spec Kitty-looking command skill is
+      not owned by the manifest: …", "Command skill path is unsafe or escapes the
+      project root: …", the `no_tool_folder` remedy sentence) and the
+      `no stated agent list` summary is NOT emitted (see the legacy-config gap in
+      the module docs). Two NEW refusal messages name the reserved-for-parent
+      codes `UNSUPPORTED_DOCTOR_SKILLS_FIX` /
+      `UNSUPPORTED_DOCTOR_TOOL_SURFACES_FIX`; they carry an explicit coverage
+      list rather than implying the features exist. The `--fix` remedy line that
+      Source prints is replaced by a line naming that refusal, so no operator is
+      told to run a mode this build refuses.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      KEEP every existing test; none is weakened, skipped or re-baselined. New
+      `cf23_*` tests use fresh `tempfile` fixtures and the real public API and
+      canonical manifests; the Inspect module's unit tests additionally pin the
+      version-marker head scan, the tree classification, the filters, the
+      research-gap-not-health rule, the charter-skill drift hash, the Vibe glue
+      probe and the read-only footprint. The parent's own
+      `compat/doctor.rs` inline tests and `cf9`/`cf14`-style leaf tests that
+      assert the three refusals WILL go red once the parent wires the arms; that
+      edit belongs to the parent and is named in the dispatch request. No
+      fabricated ids, timestamps, hashes or readiness values appear in fixtures.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No logging or telemetry schema is touched. Diagnostics are reported through
+      the report/finding/exit-code surface only, never through invented log keys.
+
+exceptions:
+  - path: crates/sk-cli/src/compat/doctor.rs
+    action: manual_review
+    reason: >-
+      NOT owned by this lane. The parent adds three dispatch arms, moves the
+      three leaves from `REFUSED_LEAVES` to `IMPLEMENTED_LEAVES`, drops the three
+      refusal arms from `refuse()`, refreshes the module-doc table row and the
+      capability gap text, and adjusts the inline tests that assert the old
+      refusals. This lane only supplies the adapter and the exact patch text.
+  - path: crates/sk-cli/src/compat/capabilities.rs
+    action: manual_review
+    reason: >-
+      Parent-owned coverage arrays (`implemented_leaves` / `refused_leaves` are
+      read from `compat::doctor`, so this file needs no edit, but the doctor
+      `gaps` text must be refreshed by the parent).
+  - path: crates/sk-install/src/lib.rs
+    action: manual_review
+    reason: >-
+      Exactly one granted line: `pub mod tool_surface_diagnostics;`. No
+      `pub use`, no other module line, no doc-table row added by this lane.
+  - path: crates/sk-install/src/tool_surface_diagnostics.rs
+    action: manual_review
+    reason: >-
+      NEW lane-owned module (this map's subject). Public surface is deliberately
+      module-qualified and unexported from the crate root, so a later canonical
+      consolidation cannot silently split the tool-surface vocabulary.
+  - path: crates/sk-cli/src/compat/doctor/tool_surfaces.rs
+    action: manual_review
+    reason: >-
+      The parent's documentation-only allocation, replaced by the real adapter.
+      Zero prior functionality existed, so nothing was removed.
+  - path: docs/rust/occurrence-maps/cf23-tool-surface-diagnostics.yaml
+    action: manual_review
+    reason: >-
+      This classification file; a NEW uniquely-named lane map, not a rewrite of
+      another lane's map and not a posthoc replacement for one.
+
+structural_validation:
+  categories_present: 8
+  every_category_has_explicit_action: true
+  actions_used: [manual_review, do_not_change]
+  operation: "omitted (additive: no rename, no removal of an existing identifier or wire key)"
+  schema_check: >-
+    Every serialized key, finding code, state, severity, kind token and exit
+    class above was read from the pinned Source files
+    (`src/specify_cli/tool_surface/{status,findings,enums,service,plan}.py`,
+    `providers/{slash_commands,command_skills,managed_skills,native_config}.py`,
+    `cli/commands/_command_surface_doctor.py`,
+    `runtime/doctor.check_command_file_health`,
+    `skills/{command_installer,manifest_store,command_skill_names,_agent_roster}.py`)
+    and from the existing Native owners; nothing was guessed. Kind tokens match
+    Source's registration table exactly, including which kinds also accept the
+    underscore wire spelling.
+  removals_check: >-
+    No existing identifier, wire key, path or CLI flag is removed. The three
+    parent-owned refusal arms and their codes are left in place for the parent to
+    remove as part of wiring; this lane does not delete them.
+  admissibility:
+    no_fabricated_mission_metadata: true
+    no_dependency_or_manifest_change: true
+    no_source_pin_or_golden_change: true
+    no_child_agents_or_commits: true
+    foreign_files_left_untouched: >-
+      compat/doctor.rs, compat/doctor/{facts,render}.rs, capabilities.rs,
+      root CLI/errors, sk-charter/sk-doctrine KIND_TOKENS owners,
+      manifests/locks/SBOM, packs/pins/source/goldens, docs accounting.
+
+status:
+  accepted: false
+  phase: lane classification (authored after this lane's additive files, before parent wiring)
+  host_mission_or_op: none (rewrite lane; not a host governance record)

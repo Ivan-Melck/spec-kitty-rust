@@ -665,5 +665,6 @@ pub fn apply(project_root: &Path) -> Result<MigrationOutcome, InstallError> {
         changed,
         changes,
         warnings,
+        ..crate::upgrade::MigrationOutcome::default()
     })
 }

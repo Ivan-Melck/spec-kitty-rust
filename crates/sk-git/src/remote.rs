@@ -13,14 +13,21 @@
 //! (or `core.sshCommand`) is preserved, never silently replaced. Each contact
 //! is bounded by the [`GitOptions::timeout`](crate::GitOptions) of the handle.
 //!
-//! **Not implemented here (honest gap):** upstream fetches the listed tips into
-//! `refs/remotes/<remote>/<branch>` before comparing. This adapter does not
-//! fetch, so a freshness comparison requires the remote tip object to already
-//! exist locally; otherwise the verdict is
-//! [`FreshnessState::CompareFailed`] with that explanation.
+//! **Two freshness APIs, two contracts.**
+//!
+//! * [`GitRepository::check_branch_freshness`] is the READ-ONLY query: it never
+//!   fetches, so a remote tip absent locally is
+//!   [`FreshnessState::CompareFailed`] rather than a fabricated comparison.
+//! * [`GitRepository::refresh_branches`] is the SOURCE-EXECUTION path: it is the
+//!   Rust projection of `specify_cli/git/origin_freshness.py`'s own contact —
+//!   one bounded `ls-remote` per remote, then ONE bounded `fetch` of the listed
+//!   tips into `refs/remotes/<remote>/<branch>`, then the comparison against
+//!   that tracking ref. Source's evidence gates use THIS one; the read-only
+//!   query is not a waiver for it.
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;
+use std::time::Duration;
 
 use crate::error::GitError;
 use crate::oid::Oid;
@@ -254,6 +261,8 @@ pub struct FreshnessVerdict {
     local_tip: Option<Oid>,
     remote_tip: Option<Oid>,
     detail: Option<String>,
+    /// Seconds the contact was given when it timed out (`unreachable` only).
+    timeout_seconds: Option<f64>,
 }
 
 impl FreshnessVerdict {
@@ -297,6 +306,11 @@ impl FreshnessVerdict {
     pub fn detail(&self) -> Option<&str> {
         self.detail.as_deref()
     }
+
+    /// The bound the contact was given when it timed out (`unreachable` only).
+    pub fn timeout_seconds(&self) -> Option<f64> {
+        self.timeout_seconds
+    }
 }
 
 /// Commits unique to each side of a local/remote comparison.
@@ -315,7 +329,79 @@ impl AheadBehind {
     }
 }
 
+/// The bound Source gives one `ls-remote` (`kernel.git.remote.LS_REMOTE_TIMEOUT`).
+pub const SOURCE_LS_REMOTE_TIMEOUT: Duration = Duration::from_secs(5);
+/// The bound Source gives one branch `fetch` (`kernel.git.remote.FETCH_TIMEOUT`).
+pub const SOURCE_FETCH_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// One branch's freshness after an actual Source-style refresh.
+///
+/// The verdict is the Source-shaped fact; `tracking_tip` and `fetched` are the
+/// OBSERVATIONS the refresh made to reach it, so a caller (or a test) can bind
+/// the tracking ref and whether this call transferred the branch instead of
+/// trusting a verdict alone.
+#[derive(Debug, Clone)]
+pub struct RefreshedFreshness {
+    verdict: FreshnessVerdict,
+    tracking_tip: Option<Oid>,
+    fetched: bool,
+}
+
+impl RefreshedFreshness {
+    /// The freshness verdict.
+    pub fn verdict(&self) -> &FreshnessVerdict {
+        &self.verdict
+    }
+
+    /// `refs/remotes/<remote>/<branch>` as it stands AFTER the refresh.
+    pub fn tracking_tip(&self) -> Option<&Oid> {
+        self.tracking_tip.as_ref()
+    }
+
+    /// Whether this call transferred this branch (its tracking ref was not
+    /// already at the tip the remote listed).
+    pub fn fetched(&self) -> bool {
+        self.fetched
+    }
+}
+
 impl GitRepository {
+    /// The URL git reports for one configured remote (`git remote get-url <name>`).
+    ///
+    /// This is the canonical LOCAL remote-URL read, and it is deliberately
+    /// `remote get-url`, not `config --get remote.<name>.url`:
+    ///
+    /// * `get-url` applies the repository's `url.<base>.insteadOf` rewrites, so the
+    ///   caller sees the URL git would actually use (a config read would not);
+    /// * `get-url` returns the FIRST configured URL when the remote carries
+    ///   several, which is the single value a `.strip()`-and-compare caller sees;
+    /// * nothing here contacts the network — no `ls-remote`, no fetch.
+    ///
+    /// It reproduces the reference's former-checkout proof read
+    /// (`subprocess.run(["git", "remote", "get-url", "origin"], timeout=2,
+    /// check=True, capture_output=True, text=True).stdout.strip()`). The bound is
+    /// the repository's [`GitOptions::timeout`], so a caller that needs the
+    /// reference's 2 s contact opens the repository with that timeout.
+    ///
+    /// `Ok(None)` means git answered "No such remote" — a typed absence, since
+    /// the reference's `check=True` turns exactly that case into its caught
+    /// exception. Every other failure is an error, so a broken repository or a
+    /// failed invocation is never read as a missing remote.
+    pub fn remote_url(&self, remote: &RemoteName) -> Result<Option<String>, GitError> {
+        let args = ["remote", "get-url", remote.as_str()];
+        let output = self.process().run(&args)?;
+        if output.status.success() {
+            let text = crate::path::utf8_field(&output.stdout, "remote url")?;
+            // The reference `.strip()`s the captured stdout.
+            return Ok(Some(text.trim().to_owned()));
+        }
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if output.status.code() == Some(2) && stderr.contains("No such remote") {
+            return Ok(None);
+        }
+        Err(self.process().failed(&args, &output))
+    }
+
     /// Names of the configured remotes, in `git remote` order.
     ///
     /// A failing `git remote` is an error, not "no remotes". A remote name this
@@ -368,10 +454,22 @@ impl GitRepository {
     /// [`GitError::RemoteUnreachable`]. A successful contact that omits a
     /// requested branch is a clean absence, readable through
     /// [`RemoteHeads::is_absent`].
+    ///
+    /// This is the GRAMMAR; the bound is the handle's own. The Source execution
+    /// path calls the bounded form with Source's own 5 s `ls-remote` bound.
     pub fn probe_remote_heads(
         &self,
         remote: &RemoteName,
         branches: &[BranchName],
+    ) -> Result<RemoteHeads, GitError> {
+        self.probe_remote_heads_bounded(remote, branches, self.options().timeout)
+    }
+
+    fn probe_remote_heads_bounded(
+        &self,
+        remote: &RemoteName,
+        branches: &[BranchName],
+        timeout: Duration,
     ) -> Result<RemoteHeads, GitError> {
         if branches.is_empty() {
             return Ok(RemoteHeads {
@@ -394,14 +492,15 @@ impl GitRepository {
         }
 
         let ssh_command = self.non_interactive_ssh_command()?;
-        let output = match self.process().run_remote(&args, ssh_command) {
+        let output = match self
+            .process()
+            .run_remote_bounded(&args, ssh_command, timeout)
+        {
             Ok(output) => output,
-            Err(GitError::Timeout {
-                timeout, ref args, ..
-            }) => {
+            Err(GitError::Timeout { timeout, .. }) => {
                 return Err(GitError::RemoteUnreachable {
                     remote: remote.as_str().to_string(),
-                    detail: format!("timed out after {timeout:?}: git {}", args.join(" ")),
+                    detail: unreachable_detail(remote, b"", true),
                     timed_out: true,
                     timeout: Some(timeout),
                 });
@@ -409,14 +508,9 @@ impl GitRepository {
             Err(error) => return Err(error),
         };
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
             return Err(GitError::RemoteUnreachable {
                 remote: remote.as_str().to_string(),
-                detail: if stderr.is_empty() {
-                    "git ls-remote failed without a diagnostic".to_string()
-                } else {
-                    stderr
-                },
+                detail: unreachable_detail(remote, &output.stderr, false),
                 timed_out: false,
                 timeout: None,
             });
@@ -505,12 +599,10 @@ impl GitRepository {
         ];
         let output = match self.process().run_remote(&args, ssh_command) {
             Ok(output) => output,
-            Err(GitError::Timeout {
-                timeout, ref args, ..
-            }) => {
+            Err(GitError::Timeout { timeout, .. }) => {
                 return Err(GitError::RemoteUnreachable {
                     remote: remote.as_str().to_string(),
-                    detail: format!("timed out after {timeout:?}: git {}", args.join(" ")),
+                    detail: unreachable_detail(remote, b"", true),
                     timed_out: true,
                     timeout: Some(timeout),
                 });
@@ -518,14 +610,9 @@ impl GitRepository {
             Err(error) => return Err(error),
         };
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
             return Err(GitError::RemoteUnreachable {
                 remote: remote.as_str().to_string(),
-                detail: if stderr.is_empty() {
-                    "git ls-remote failed without a diagnostic".to_string()
-                } else {
-                    stderr
-                },
+                detail: unreachable_detail(remote, &output.stderr, false),
                 timed_out: false,
                 timeout: None,
             });
@@ -625,12 +712,18 @@ impl GitRepository {
                             .join(", "),
                     )
                 },
+                timeout_seconds: None,
             });
         };
 
         let heads = match self.probe_remote_heads(&remote, std::slice::from_ref(branch)) {
             Ok(heads) => heads,
-            Err(GitError::RemoteUnreachable { detail, .. }) => {
+            Err(GitError::RemoteUnreachable {
+                detail,
+                timed_out,
+                timeout,
+                ..
+            }) => {
                 return Ok(FreshnessVerdict {
                     branch: branch.clone(),
                     remote: Some(remote),
@@ -640,6 +733,8 @@ impl GitRepository {
                     local_tip,
                     remote_tip: None,
                     detail: Some(detail),
+                    timeout_seconds: timed_out
+                        .then(|| timeout.map_or(0.0, |bound| bound.as_secs_f64())),
                 });
             }
             Err(error) => return Err(error),
@@ -665,6 +760,7 @@ impl GitRepository {
                 local_tip,
                 remote_tip: None,
                 detail: vanished,
+                timeout_seconds: None,
             });
         };
 
@@ -678,6 +774,7 @@ impl GitRepository {
                 local_tip: None,
                 remote_tip: Some(remote_tip),
                 detail: None,
+                timeout_seconds: None,
             });
         };
 
@@ -694,6 +791,7 @@ impl GitRepository {
                     "the remote tip is not present locally; sk-git performs no fetch, so the two tips cannot be compared"
                         .to_string(),
                 ),
+                timeout_seconds: None,
             });
         }
 
@@ -718,12 +816,312 @@ impl GitRepository {
             local_tip: Some(local_tip),
             remote_tip: Some(remote_tip),
             detail: None,
+            timeout_seconds: None,
         })
     }
 
     /// Count commits unique to each side of `local...other`.
     pub fn divergence(&self, local: &RefName, other: &RefName) -> Result<AheadBehind, GitError> {
         self.divergence_operands(local.as_str(), other.as_str())
+    }
+
+    /// Source-execution freshness: contact, FETCH, then compare — the API every
+    /// Source evidence gate actually runs.
+    ///
+    /// This is `specify_cli/git/origin_freshness.py`'s `check_branches` /
+    /// `_check_probes` / `_check_remote` on top of the one remote/ref authority:
+    ///
+    /// 1. resolve the remote each branch's configuration names (local reads);
+    /// 2. ONE bounded `ls-remote --heads <remote> <refs...>` per remote
+    ///    ([`SOURCE_LS_REMOTE_TIMEOUT`]);
+    /// 3. ONE bounded `fetch --no-tags --no-recurse-submodules --no-auto-gc
+    ///    --refmap= <remote> +refs/heads/<b>:refs/remotes/<remote>/<b> ...` for
+    ///    the listed branches whose tracking ref is not already at that tip
+    ///    ([`SOURCE_FETCH_TIMEOUT`]) — it never writes `refs/heads`;
+    /// 4. compare each local branch with its tracking ref (`rev-list
+    ///    --left-right --count`), so a local object that is genuinely absent is
+    ///    never read as up to date.
+    ///
+    /// A failed contact is [`FreshnessState::Unreachable`] with the bound that
+    /// expired, never "the branch is absent". `refs/heads` is untouched; only
+    /// `refs/remotes/<remote>/*` and git's own `FETCH_HEAD` move — this is what
+    /// makes a Source-valid comparison possible, and it is why this is a
+    /// separate API from the read-only query.
+    pub fn refresh_branches(
+        &self,
+        branches: &[BranchName],
+    ) -> Result<Vec<RefreshedFreshness>, GitError> {
+        let remotes = self.configured_remotes()?;
+        let mut slots: Vec<Option<RefreshedFreshness>> =
+            (0..branches.len()).map(|_| None).collect();
+        let mut by_remote: Vec<(RemoteName, Vec<usize>)> = Vec::new();
+        for (index, branch) in branches.iter().enumerate() {
+            match self.resolve_remote(branch)? {
+                Some(remote) => match by_remote.iter_mut().find(|(name, _)| name == &remote) {
+                    Some((_, indexes)) => indexes.push(index),
+                    None => by_remote.push((remote, vec![index])),
+                },
+                None => {
+                    let state = if remotes.is_empty() {
+                        FreshnessState::NoRemote
+                    } else {
+                        FreshnessState::RemoteAmbiguous
+                    };
+                    let detail = if remotes.is_empty() {
+                        self.removed_remote_detail()?
+                    } else {
+                        Some(
+                            remotes
+                                .iter()
+                                .map(RemoteName::as_str)
+                                .collect::<Vec<_>>()
+                                .join(", "),
+                        )
+                    };
+                    slots[index] = Some(RefreshedFreshness {
+                        verdict: FreshnessVerdict {
+                            branch: branch.clone(),
+                            remote: None,
+                            state,
+                            behind: 0,
+                            ahead: 0,
+                            local_tip: None,
+                            remote_tip: None,
+                            detail,
+                            timeout_seconds: None,
+                        },
+                        tracking_tip: None,
+                        fetched: false,
+                    });
+                }
+            }
+        }
+        for (remote, indexes) in by_remote {
+            let wanted: Vec<BranchName> = indexes
+                .iter()
+                .map(|&index| branches[index].clone())
+                .collect();
+            let refreshed = self.refresh_remote(&remote, &wanted)?;
+            for (slot, value) in indexes.into_iter().zip(refreshed) {
+                slots[slot] = Some(value);
+            }
+        }
+        Ok(slots
+            .into_iter()
+            .map(|slot| slot.expect("every requested branch has one verdict"))
+            .collect())
+    }
+
+    /// The Source removed-remote note: this clone still holds remote-tracking
+    /// refs although no remote is configured.
+    fn removed_remote_detail(&self) -> Result<Option<String>, GitError> {
+        let listed = self.process().run(&[
+            "for-each-ref",
+            "--count=1",
+            "--format=%(refname)",
+            "refs/remotes/",
+        ])?;
+        if !listed.status.success() || listed.stdout.iter().all(u8::is_ascii_whitespace) {
+            return Ok(None);
+        }
+        Ok(Some(
+            "This clone has remote-tracking refs but no remote is configured (the remote was \
+             removed?), so nothing was checked against origin: a teammate's newer status \
+             evidence or lane work would not be seen"
+                .to_string(),
+        ))
+    }
+
+    /// Whether `refs/remotes/<remote>/<branch>` already holds exactly `tip`.
+    ///
+    /// Source's `_tracking_ref_is_at`: a local read; any doubt is `false`, so the
+    /// branch is fetched (never skipped on a guess).
+    fn tracking_ref_is_at(
+        &self,
+        remote: &RemoteName,
+        branch: &BranchName,
+        tip: &Oid,
+    ) -> Result<bool, GitError> {
+        let reference = RefName::remote_tracking(remote, branch);
+        let peel = format!("{}^{{commit}}", reference.as_str());
+        let output = self
+            .process()
+            .allowing(&["rev-parse", "--verify", "--quiet", peel.as_str()], &[1])?;
+        Ok(output.status.success()
+            && crate::path::strip_line_feed(&output.stdout) == tip.as_str().as_bytes())
+    }
+
+    /// One remote's contact and comparison, for the Source execution path.
+    fn refresh_remote(
+        &self,
+        remote: &RemoteName,
+        branches: &[BranchName],
+    ) -> Result<Vec<RefreshedFreshness>, GitError> {
+        let heads =
+            match self.probe_remote_heads_bounded(remote, branches, SOURCE_LS_REMOTE_TIMEOUT) {
+                Ok(heads) => heads,
+                Err(GitError::RemoteUnreachable {
+                    detail,
+                    timed_out,
+                    timeout,
+                    ..
+                }) => {
+                    let seconds =
+                        timed_out.then(|| timeout.map_or(0.0, |bound| bound.as_secs_f64()));
+                    return Ok(branches
+                        .iter()
+                        .map(|branch| RefreshedFreshness {
+                            verdict: FreshnessVerdict {
+                                branch: branch.clone(),
+                                remote: Some(remote.clone()),
+                                state: FreshnessState::Unreachable,
+                                behind: 0,
+                                ahead: 0,
+                                local_tip: None,
+                                remote_tip: None,
+                                detail: Some(detail.clone()),
+                                timeout_seconds: seconds,
+                            },
+                            tracking_tip: None,
+                            fetched: false,
+                        })
+                        .collect());
+                }
+                Err(error) => return Err(error),
+            };
+
+        let mut transfer: Vec<BranchName> = Vec::new();
+        for branch in branches {
+            let Some(tip) = heads.get(branch) else {
+                continue;
+            };
+            if !self.tracking_ref_is_at(remote, branch, tip)? {
+                transfer.push(branch.clone());
+            }
+        }
+        if !transfer.is_empty() {
+            let mut args: Vec<String> = vec![
+                "fetch".to_string(),
+                "--no-tags".to_string(),
+                "--no-recurse-submodules".to_string(),
+                "--no-auto-gc".to_string(),
+                "--refmap=".to_string(),
+                remote.as_str().to_string(),
+            ];
+            for branch in &transfer {
+                args.push(format!(
+                    "+refs/heads/{0}:{1}",
+                    branch.as_str(),
+                    RefName::remote_tracking(remote, branch).as_str()
+                ));
+            }
+            let ssh_command = self.non_interactive_ssh_command()?;
+            match self
+                .process()
+                .run_remote_bounded(&args, ssh_command, SOURCE_FETCH_TIMEOUT)
+            {
+                Ok(output) if output.status.success() => {}
+                Ok(output) => {
+                    let detail = unreachable_detail(remote, &output.stderr, false);
+                    return Ok(unreachable_all(remote, branches, detail, None));
+                }
+                Err(GitError::Timeout { timeout, .. }) => {
+                    return Ok(unreachable_all(
+                        remote,
+                        branches,
+                        unreachable_detail(remote, b"", true),
+                        Some(timeout.as_secs_f64()),
+                    ));
+                }
+                Err(error) => return Err(error),
+            }
+        }
+
+        let mut results = Vec::with_capacity(branches.len());
+        for branch in branches {
+            let tracking = RefName::remote_tracking(remote, branch);
+            let tracking_tip = self.read_ref(&tracking)?;
+            let fetched = transfer.iter().any(|candidate| candidate == branch);
+            let Some(remote_tip) = heads.get(branch).cloned() else {
+                let detail = if tracking_tip.is_some() {
+                    Some(format!(
+                        "{remote}/{branch} was seen here before, but {remote} no longer lists {branch}: it may have been deleted on {remote}"
+                    ))
+                } else {
+                    None
+                };
+                results.push(RefreshedFreshness {
+                    verdict: FreshnessVerdict {
+                        branch: branch.clone(),
+                        remote: Some(remote.clone()),
+                        state: FreshnessState::RemoteMissing,
+                        behind: 0,
+                        ahead: 0,
+                        local_tip: None,
+                        remote_tip: None,
+                        detail,
+                        timeout_seconds: None,
+                    },
+                    tracking_tip,
+                    fetched,
+                });
+                continue;
+            };
+            if self.read_branch_tip(branch)?.is_none() {
+                results.push(RefreshedFreshness {
+                    verdict: FreshnessVerdict {
+                        branch: branch.clone(),
+                        remote: Some(remote.clone()),
+                        state: FreshnessState::LocalMissing,
+                        behind: 0,
+                        ahead: 0,
+                        local_tip: None,
+                        remote_tip: Some(remote_tip),
+                        detail: None,
+                        timeout_seconds: None,
+                    },
+                    tracking_tip,
+                    fetched,
+                });
+                continue;
+            }
+            let comparison = self.divergence(&branch.as_ref_name(), &tracking);
+            let (state, behind, ahead, detail) = match comparison {
+                Ok(counts) => {
+                    let state = if counts.behind > 0 {
+                        if counts.ahead > 0 {
+                            FreshnessState::Diverged
+                        } else {
+                            FreshnessState::Behind
+                        }
+                    } else if counts.ahead > 0 {
+                        FreshnessState::Ahead
+                    } else {
+                        FreshnessState::UpToDate
+                    };
+                    (state, counts.behind, counts.ahead, None)
+                }
+                // Fail closed, exactly as Source: a comparison git cannot make is
+                // never read as up to date.
+                Err(error) => (FreshnessState::CompareFailed, 0, 0, Some(error.to_string())),
+            };
+            results.push(RefreshedFreshness {
+                verdict: FreshnessVerdict {
+                    branch: branch.clone(),
+                    remote: Some(remote.clone()),
+                    state,
+                    behind,
+                    ahead,
+                    local_tip: None,
+                    remote_tip: Some(remote_tip),
+                    detail,
+                    timeout_seconds: None,
+                },
+                tracking_tip,
+                fetched,
+            });
+        }
+        Ok(results)
     }
 
     /// Count commits unique to each side of a local ref and an object id.
@@ -798,6 +1196,53 @@ impl GitRepository {
         }
         Ok(Some(OsString::from(command)))
     }
+}
+
+/// Every branch of one remote marked unreachable by the SAME failed contact.
+fn unreachable_all(
+    remote: &RemoteName,
+    branches: &[BranchName],
+    detail: String,
+    timeout_seconds: Option<f64>,
+) -> Vec<RefreshedFreshness> {
+    branches
+        .iter()
+        .map(|branch| RefreshedFreshness {
+            verdict: FreshnessVerdict {
+                branch: branch.clone(),
+                remote: Some(remote.clone()),
+                state: FreshnessState::Unreachable,
+                behind: 0,
+                ahead: 0,
+                local_tip: None,
+                remote_tip: None,
+                detail: Some(detail.clone()),
+                timeout_seconds,
+            },
+            tracking_tip: None,
+            fetched: false,
+        })
+        .collect()
+}
+
+/// Source `RemoteUnreachable.__str__`'s detail: `remote <name> unreachable: <first stderr line>`.
+///
+/// `kernel.git.remote.RemoteUnreachable` takes the FIRST stderr line (or
+/// `timed out` when the bound expired, or `no error output` when git was
+/// silent) — never the whole multi-line diagnostic. The operator text and the
+/// freshness `detail` both carry exactly that string, so the same rule applies
+/// to every remote contact here.
+fn unreachable_detail(remote: &RemoteName, stderr: &[u8], timed_out: bool) -> String {
+    let stderr = String::from_utf8_lossy(stderr);
+    let stderr = stderr.trim();
+    let detail = if !stderr.is_empty() {
+        stderr.lines().next().unwrap_or_default().trim().to_owned()
+    } else if timed_out {
+        "timed out".to_owned()
+    } else {
+        "no error output".to_owned()
+    };
+    format!("remote {remote} unreachable: {detail}")
 }
 
 fn is_ssh_like(command: &str) -> bool {
