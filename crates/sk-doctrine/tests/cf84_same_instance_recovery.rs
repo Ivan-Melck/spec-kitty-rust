@@ -111,6 +111,7 @@ fn identity_same_instance_retries_after_the_abort_is_repaired() {
     let abort = index
         .try_declared_id(ArtifactKind::Tactic, "b")
         .expect_err("the reference's scan aborts on the queried kind");
+    let abort = abort.abort().expect("a Source constructor abort");
     assert_eq!(abort.python, "ValueError");
     assert!(
         abort.message.contains("month must be in 1..12"),

@@ -160,7 +160,7 @@ pub use effective_set::{
 };
 pub use error::{DoctrineError, RETIRED_GOVERNANCE_RUNBOOK};
 pub use graph::{DrgEdge, DrgGraph, DrgNode, NodeKind, Relation, is_valid_urn, split_urn};
-pub use identity::{IdentityIndex, IdentityLayer, IdentityLookup, scan_all};
+pub use identity::{IdentityFailure, IdentityIndex, IdentityLayer, IdentityLookup, scan_all};
 pub use language_scope::{
     BUILD_TOOLS, BuildToolSpec, COMPOUND_PREFIX_GUARD, CONFIG_LANGUAGES_KEY, CONFIG_RELATIVE_PATH,
     INTERVIEW_ANSWERS_RELATIVE_PATH, InferRequest, InferredLanguages, InterviewAnswers, JVM_FAMILY,

@@ -34,12 +34,25 @@ use std::sync::OnceLock;
 
 use sk_charter::ArtifactKind;
 use sk_kernel::PythonString;
+use sk_kernel::python_int::IntDecimalError;
 use sk_kernel::python_utf8::{PythonUtf8DecodeError, decode_utf8};
 use sk_kernel::text_decode::normalize_newlines;
 
 use crate::error::DoctrineError;
-use crate::offering::{ConstructorAbort, SuccessOnce};
+use crate::offering::{ConstructorAbort, GateFailure, NativeOfferingFailure, SuccessOnce};
 use crate::org::{normalize_directive_id, normalize_directive_id_exact};
+
+/// The identity read's failure: the SAME two-arm runtime authority the activation
+/// gate already uses.
+///
+/// Source's `_parse_id` can raise a real Python exception the loader does not
+/// catch (a `ValueError` from the eager `str()` of a large integer, for example),
+/// while an invalid `PYTHONINTMAXSTRDIGITS` kills CPython before any business code
+/// runs and has no Source exception class. One existing authority carries both:
+/// [`GateFailure::Constructor`] is the real Source abort and
+/// [`GateFailure::Native`] is the typed start-up/capability refusal. This is a
+/// same-item alias, NOT a second `IdentityFailure` enum.
+pub type IdentityFailure = GateFailure;
 
 /// The number of artifact kinds: the fixed width of the per-kind table array.
 const KIND_COUNT: usize = ArtifactKind::ALL.len();
@@ -328,11 +341,11 @@ enum FastReadError {
     Decode(PythonUtf8DecodeError),
 }
 
-fn decode_abort(error: PythonUtf8DecodeError) -> ConstructorAbort {
-    ConstructorAbort {
+fn decode_abort(error: PythonUtf8DecodeError) -> IdentityFailure {
+    GateFailure::Constructor(ConstructorAbort {
         python: "UnicodeDecodeError",
         message: error.to_string(),
-    }
+    })
 }
 
 /// The reference `_read_artifact_text`: ordinary `Path.read_text(encoding="utf-8")`.
@@ -347,16 +360,60 @@ fn read_artifact_text(path: &Path) -> Result<String, FastReadError> {
 }
 
 /// The canonical fallback over already-read text (one construction pipeline).
-fn canonical_read(text: &str, kind: ArtifactKind) -> Result<FileRead, ConstructorAbort> {
+///
+/// The eager declared-id render runs only after the document constructed, with
+/// the interpreter's configured decimal ceiling. A `TypeError` raised while the
+/// YAML load constructs a value is one of the exceptions Source's `_parse_id`
+/// catches, so it is the reference's completed no-id read (no stem fallback), not
+/// a blanket-fatal abort.
+fn canonical_read(
+    path: &Path,
+    text: &str,
+    kind: ArtifactKind,
+) -> Result<FileRead, IdentityFailure> {
     match ArtifactDocument::from_text(text) {
-        Ok(document) => Ok(FileRead::Declared(declared_id(&document, kind))),
+        Ok(document) => {
+            let digit_limit = integer_digit_limit(path)?;
+            Ok(FileRead::Declared(declared_id(
+                &document,
+                kind,
+                digit_limit,
+            )?))
+        }
         Err(error) => match error.fatal() {
-            Some((python, message)) => Err(ConstructorAbort {
+            Some(("TypeError", _)) => Ok(FileRead::Skipped),
+            Some((python, message)) => Err(GateFailure::Constructor(ConstructorAbort {
                 python,
                 message: message.to_owned(),
-            }),
+            })),
             None => Ok(FileRead::Skipped),
         },
+    }
+}
+
+/// The interpreter's decimal integer-conversion ceiling for this scan.
+///
+/// CPython refuses to start for an invalid `PYTHONINTMAXSTRDIGITS`, so there is no
+/// Source business exception here: the canonical Kernel policy error is carried as
+/// a typed Native start-up failure, never a fake Source class or an unlimited
+/// fallback.
+fn integer_digit_limit(path: &Path) -> Result<usize, IdentityFailure> {
+    sk_kernel::python_json::environment_integer_digits().map_err(|cause| {
+        GateFailure::Native(NativeOfferingFailure::IntegerTextPolicy {
+            phase: "identity declared-id read",
+            path: path.to_path_buf(),
+            cause: Box::new(cause),
+        })
+    })
+}
+
+/// The Source `ValueError` for an eager `str(int)` above the ceiling.
+fn decimal_conversion_abort(error: IntDecimalError) -> IdentityFailure {
+    match error {
+        IntDecimalError::DigitLimit { .. } => GateFailure::Constructor(ConstructorAbort {
+            python: "ValueError",
+            message: error.to_string(),
+        }),
     }
 }
 
@@ -506,7 +563,7 @@ impl IdentityIndex {
     /// The Python exception the reference's artifact loader does not catch
     /// (see [`crate::offering::value`]) raised while scanning one file of
     /// `kind`.
-    pub(crate) fn try_table(&self, kind: ArtifactKind) -> Result<&KindTable, ConstructorAbort> {
+    pub(crate) fn try_table(&self, kind: ArtifactKind) -> Result<&KindTable, IdentityFailure> {
         // Publish only a completed table. A scan that raises keeps the pass's
         // completed file list and per-file reads and leaves the slot empty, so the
         // next query retries the unread remainder instead of a memoised failure.
@@ -521,11 +578,11 @@ impl IdentityIndex {
     /// # Errors
     ///
     /// The aborting file of `kind`.
-    pub fn try_scan(&self, kind: ArtifactKind) -> Result<(), ConstructorAbort> {
+    pub fn try_scan(&self, kind: ArtifactKind) -> Result<(), IdentityFailure> {
         self.try_table(kind).map(|_| ())
     }
 
-    fn build_table(&self, kind: ArtifactKind) -> Result<KindTable, ConstructorAbort> {
+    fn build_table(&self, kind: ArtifactKind) -> Result<KindTable, IdentityFailure> {
         let mut table = KindTable::default();
         for entry in self.scan(kind)? {
             table
@@ -552,7 +609,7 @@ impl IdentityIndex {
     /// tag) contributes no entry; a file whose construction raises the Python
     /// exception the reference does not catch aborts the scan, which is the
     /// abort this returns rather than a silently smaller table.
-    fn scan(&self, kind: ArtifactKind) -> Result<Vec<Entry>, ConstructorAbort> {
+    fn scan(&self, kind: ArtifactKind) -> Result<Vec<Entry>, IdentityFailure> {
         let mut entries = Vec::new();
         if kind.glob_pattern().is_empty() {
             return Ok(entries);
@@ -613,7 +670,7 @@ impl IdentityIndex {
     /// SAME text (or a true re-read after a read `OSError`). A fast hit is stored
     /// only in the private cache; only the canonical fallback seeds the shared pass,
     /// and an uncaught read/construction abort is never stored.
-    fn file_read(&self, kind: ArtifactKind, path: &Path) -> Result<FileRead, ConstructorAbort> {
+    fn file_read(&self, kind: ArtifactKind, path: &Path) -> Result<FileRead, IdentityFailure> {
         let field = crate::offering::id_field(kind);
         let key = (path.to_path_buf(), field.to_owned());
         if let Some(read) = self.pass.borrow().ids.get(&key).cloned() {
@@ -634,9 +691,9 @@ impl IdentityIndex {
             return Ok(FileRead::Declared(Some(fast)));
         }
         let read = match text {
-            Some(text) => canonical_read(&text, kind)?,
+            Some(text) => canonical_read(path, &text, kind)?,
             None => match read_artifact_text(path) {
-                Ok(text) => canonical_read(&text, kind)?,
+                Ok(text) => canonical_read(path, &text, kind)?,
                 Err(FastReadError::Unreadable) => FileRead::Skipped,
                 Err(FastReadError::Decode(error)) => return Err(decode_abort(error)),
             },
@@ -1179,7 +1236,7 @@ impl IdentityIndex {
         &self,
         kind: ArtifactKind,
         token: &PythonString,
-    ) -> Result<PythonString, ConstructorAbort> {
+    ) -> Result<PythonString, IdentityFailure> {
         self.try_activation_report_exact(kind, token)
             .map(|(resolved, _warning)| resolved)
     }
@@ -1199,7 +1256,7 @@ impl IdentityIndex {
         &self,
         kind: ArtifactKind,
         token: &PythonString,
-    ) -> Result<(PythonString, Option<PythonString>), ConstructorAbort> {
+    ) -> Result<(PythonString, Option<PythonString>), IdentityFailure> {
         self.try_table(kind)?;
         if let Some(declared) = self.declared_id_exact(kind, token) {
             return Ok((declared, None));
@@ -1239,7 +1296,7 @@ impl IdentityIndex {
         &self,
         kind: ArtifactKind,
         token: &PythonString,
-    ) -> Result<Option<PythonString>, ConstructorAbort> {
+    ) -> Result<Option<PythonString>, IdentityFailure> {
         self.try_table(kind)?;
         Ok(self.declared_id_exact(kind, token))
     }
@@ -1253,7 +1310,7 @@ impl IdentityIndex {
         &self,
         kind: ArtifactKind,
         token: &str,
-    ) -> Result<Option<String>, ConstructorAbort> {
+    ) -> Result<Option<String>, IdentityFailure> {
         self.try_table(kind)?;
         Ok(self.declared_id(kind, token))
     }
@@ -1268,7 +1325,7 @@ impl IdentityIndex {
         kind: ArtifactKind,
         stem: &str,
         layer: IdentityLayer,
-    ) -> Result<Option<PythonString>, ConstructorAbort> {
+    ) -> Result<Option<PythonString>, IdentityFailure> {
         self.try_table(kind)?;
         Ok(self.declared_id_in_layer_exact(kind, stem, layer))
     }
@@ -1282,7 +1339,7 @@ impl IdentityIndex {
         &self,
         kind: ArtifactKind,
         token: &PythonString,
-    ) -> Result<Option<PythonString>, ConstructorAbort> {
+    ) -> Result<Option<PythonString>, IdentityFailure> {
         self.try_table(kind)?;
         Ok(self.stem_exact(kind, token))
     }
@@ -1296,7 +1353,7 @@ impl IdentityIndex {
         &self,
         kind: ArtifactKind,
         token: &str,
-    ) -> Result<Option<String>, ConstructorAbort> {
+    ) -> Result<Option<String>, IdentityFailure> {
         self.try_table(kind)?;
         Ok(self.stem(kind, token))
     }
@@ -1310,7 +1367,7 @@ impl IdentityIndex {
         &self,
         kind: ArtifactKind,
         declared_id: &str,
-    ) -> Result<Option<String>, ConstructorAbort> {
+    ) -> Result<Option<String>, IdentityFailure> {
         self.try_table(kind)?;
         Ok(self.stem_for_declared_id(kind, declared_id))
     }
@@ -1320,7 +1377,7 @@ impl IdentityIndex {
     /// # Errors
     ///
     /// The aborting file of `kind`.
-    pub fn try_knows(&self, kind: ArtifactKind, token: &str) -> Result<bool, ConstructorAbort> {
+    pub fn try_knows(&self, kind: ArtifactKind, token: &str) -> Result<bool, IdentityFailure> {
         self.try_table(kind)?;
         Ok(self.knows(kind, token))
     }
@@ -1334,7 +1391,7 @@ impl IdentityIndex {
         &self,
         kind: ArtifactKind,
         token: &PythonString,
-    ) -> Result<bool, ConstructorAbort> {
+    ) -> Result<bool, IdentityFailure> {
         self.try_table(kind)?;
         Ok(self.lookup_existing_exact(kind, token).is_some())
     }
@@ -1348,7 +1405,7 @@ impl IdentityIndex {
         &self,
         kind: ArtifactKind,
         token: &str,
-    ) -> Result<bool, ConstructorAbort> {
+    ) -> Result<bool, IdentityFailure> {
         self.try_table(kind)?;
         Ok(self.has_declared_id(kind, token))
     }
@@ -1362,7 +1419,7 @@ impl IdentityIndex {
         &self,
         kind: ArtifactKind,
         token: &str,
-    ) -> Result<bool, ConstructorAbort> {
+    ) -> Result<bool, IdentityFailure> {
         self.try_table(kind)?;
         Ok(self.names_a_file(kind, token))
     }
@@ -1376,7 +1433,7 @@ impl IdentityIndex {
         &self,
         kind: ArtifactKind,
         token: &str,
-    ) -> Result<Option<IdentityLayer>, ConstructorAbort> {
+    ) -> Result<Option<IdentityLayer>, IdentityFailure> {
         self.try_table(kind)?;
         Ok(self.source_layer(kind, token))
     }
@@ -1390,7 +1447,7 @@ impl IdentityIndex {
         &self,
         kind: ArtifactKind,
         token: &str,
-    ) -> Result<Option<PathBuf>, ConstructorAbort> {
+    ) -> Result<Option<PathBuf>, IdentityFailure> {
         self.try_table(kind)?;
         Ok(self.path_for(kind, token).map(Path::to_path_buf))
     }
@@ -1404,7 +1461,7 @@ impl IdentityIndex {
         &self,
         kind: ArtifactKind,
         token: &str,
-    ) -> Result<Option<String>, ConstructorAbort> {
+    ) -> Result<Option<String>, IdentityFailure> {
         self.try_table(kind)?;
         Ok(self.selection_id(kind, token))
     }
@@ -1419,7 +1476,7 @@ impl IdentityIndex {
         &self,
         kind: ArtifactKind,
         token: &str,
-    ) -> Result<Result<String, DoctrineError>, ConstructorAbort> {
+    ) -> Result<Result<String, DoctrineError>, IdentityFailure> {
         self.try_table(kind)?;
         Ok(self.stored_spelling(kind, token))
     }
@@ -1434,7 +1491,7 @@ impl IdentityIndex {
         kind: ArtifactKind,
         token: &str,
         warnings: &mut Vec<String>,
-    ) -> Result<String, ConstructorAbort> {
+    ) -> Result<String, IdentityFailure> {
         self.try_table(kind)?;
         Ok(self.activation_id(kind, token, warnings))
     }
@@ -1516,12 +1573,22 @@ fn config_stem(path: &Path) -> String {
 /// exact Python `str` `author\ud800`. This reads through the one lossless
 /// transport and construction phase for the same reason: a second YAML reader
 /// could not carry that code point.
-fn declared_id(document: &ArtifactDocument, kind: ArtifactKind) -> Option<PythonString> {
+fn declared_id(
+    document: &ArtifactDocument,
+    kind: ArtifactKind,
+    digit_limit: usize,
+) -> Result<Option<PythonString>, IdentityFailure> {
     let field = crate::offering::id_field(kind);
-    let value = document.root().lookup(field)?;
-    let exact = document.python_str(value);
+    let Some(value) = document.root().lookup(field) else {
+        return Ok(None);
+    };
+    // Source `str(data.get(field, ""))` runs OUTSIDE `_parse_id`'s read/load
+    // `try`, so its `ValueError` escapes the scan and is never cached.
+    let exact = document
+        .try_python_str(value, digit_limit)
+        .map_err(decimal_conversion_abort)?;
     let stripped = python_strip(&exact);
-    (!stripped.is_empty()).then_some(stripped)
+    Ok((!stripped.is_empty()).then_some(stripped))
 }
 
 // The one constructed-YAML read/text authority lives in the offering subtree so

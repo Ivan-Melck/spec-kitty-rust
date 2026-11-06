@@ -191,6 +191,7 @@ fn canonical_completed_read_precedes_the_private_fast_cache_across_an_abort() {
     let abort = index
         .try_declared_id(KIND, "z")
         .expect_err("the reference scan aborts on the uncaught constructor");
+    let abort = abort.abort().expect("a Source constructor abort");
     assert_eq!(abort.python, "ValueError");
 
     // Every completed file is rewritten before the same-instance retry; the aborting file
@@ -273,6 +274,7 @@ fn decode_error_escapes_and_is_not_cached() {
     let abort = index
         .try_declared_id(KIND, "bad")
         .expect_err("the decode failure escapes the read phase");
+    let abort = abort.abort().expect("a Source read abort");
     assert_eq!(abort.python, "UnicodeDecodeError");
     assert!(
         abort
@@ -390,7 +392,11 @@ fn native_business(root: &Path) -> Value {
     let abort = index
         .try_declared_id(KIND, "z")
         .expect_err("the source scan aborts");
-    let class = abort.python.to_owned();
+    let class = abort
+        .abort()
+        .expect("a Source constructor abort")
+        .python
+        .to_owned();
 
     fs::write(folder.join("a.tactic.yaml"), "id: cf85-another\n").unwrap();
     fs::write(

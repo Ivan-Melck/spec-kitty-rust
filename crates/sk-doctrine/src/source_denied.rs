@@ -35,7 +35,7 @@ use std::path::{Path, PathBuf};
 use sk_charter::ArtifactKind;
 
 use crate::error::DoctrineError;
-use crate::identity::IdentityIndex;
+use crate::identity::{IdentityFailure, IdentityIndex};
 use crate::ledger::{
     ActivationReadError, ExactActivationLedger, ExactDenySet, activatable_kinds,
     effective_deny_exact, ledger_may_hold_deny, load_activation_ledger_exact,
@@ -114,11 +114,14 @@ pub fn load_denied(
             floor,
             &identity,
         )
-        .map_err(|abort| ActivationReadError::Aborted {
-            phase: format!("identity scan of {}", kind.plural()),
-            path: repo_root.to_path_buf(),
-            python: abort.python.to_owned(),
-            message: abort.message,
+        .map_err(|failure| match failure {
+            IdentityFailure::Constructor(abort) => ActivationReadError::Aborted {
+                phase: format!("identity scan of {}", kind.plural()),
+                path: repo_root.to_path_buf(),
+                python: abort.python.to_owned(),
+                message: abort.message,
+            },
+            IdentityFailure::Native(native) => ActivationReadError::Native(native),
         })?;
         if !deny.is_empty() {
             denied.push((kind.plural().to_owned(), deny));

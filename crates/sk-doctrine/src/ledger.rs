@@ -22,8 +22,7 @@ use sk_kernel::python_yaml::{self, Dialect};
 
 use crate::activation_reporting;
 use crate::error::DoctrineError;
-use crate::identity::{IdentityIndex, IdentityLookup};
-use crate::offering::ConstructorAbort;
+use crate::identity::{IdentityFailure, IdentityIndex, IdentityLookup};
 use crate::yaml::{PreparedWrite, YamlDocument};
 
 /// The activation ledger, relative to the repository root.
@@ -1528,13 +1527,13 @@ pub trait ExactIdentityLookup {
         &self,
         kind: ArtifactKind,
         token: &PythonString,
-    ) -> Result<Option<PythonString>, ConstructorAbort>;
+    ) -> Result<Option<PythonString>, IdentityFailure>;
     /// Activation stem, exactly, or the kind's scan abort.
     fn try_stem_exact(
         &self,
         kind: ArtifactKind,
         token: &PythonString,
-    ) -> Result<Option<PythonString>, ConstructorAbort>;
+    ) -> Result<Option<PythonString>, IdentityFailure>;
 }
 
 impl ExactIdentityLookup for IdentityIndex {
@@ -1542,7 +1541,7 @@ impl ExactIdentityLookup for IdentityIndex {
         &self,
         kind: ArtifactKind,
         token: &PythonString,
-    ) -> Result<Option<PythonString>, ConstructorAbort> {
+    ) -> Result<Option<PythonString>, IdentityFailure> {
         IdentityIndex::try_declared_id_exact(self, kind, token)
     }
 
@@ -1550,7 +1549,7 @@ impl ExactIdentityLookup for IdentityIndex {
         &self,
         kind: ArtifactKind,
         token: &PythonString,
-    ) -> Result<Option<PythonString>, ConstructorAbort> {
+    ) -> Result<Option<PythonString>, IdentityFailure> {
         IdentityIndex::try_stem_exact(self, kind, token)
     }
 }
@@ -1563,7 +1562,7 @@ impl ExactIdentityLookup for ScalarIdentity<'_> {
         &self,
         kind: ArtifactKind,
         token: &PythonString,
-    ) -> Result<Option<PythonString>, ConstructorAbort> {
+    ) -> Result<Option<PythonString>, IdentityFailure> {
         Ok(token.to_scalar_string().ok().and_then(|token| {
             self.0
                 .declared_id(kind, &token)
@@ -1575,7 +1574,7 @@ impl ExactIdentityLookup for ScalarIdentity<'_> {
         &self,
         kind: ArtifactKind,
         token: &PythonString,
-    ) -> Result<Option<PythonString>, ConstructorAbort> {
+    ) -> Result<Option<PythonString>, IdentityFailure> {
         Ok(token.to_scalar_string().ok().and_then(|token| {
             self.0
                 .stem(kind, &token)
@@ -1607,7 +1606,7 @@ fn spell_exact(
     kind: ArtifactKind,
     token: &PythonString,
     identity: &dyn ExactIdentityLookup,
-) -> Result<ExactDenySet, ConstructorAbort> {
+) -> Result<ExactDenySet, IdentityFailure> {
     match identity.try_declared_id_exact(kind, token)? {
         None => Ok(ExactDenySet {
             stems: BTreeSet::from([token.clone()]),
@@ -1651,7 +1650,7 @@ pub fn resolve_deny_exact(
     kind: ArtifactKind,
     tokens: impl IntoIterator<Item = PythonString>,
     identity: &dyn ExactIdentityLookup,
-) -> Result<ExactDenySet, ConstructorAbort> {
+) -> Result<ExactDenySet, IdentityFailure> {
     let mut set = ExactDenySet::empty();
     for token in tokens {
         set.union(spell_exact(kind, &token, identity)?);
@@ -1669,7 +1668,7 @@ pub fn effective_deny_exact(
     deny: impl IntoIterator<Item = PythonString>,
     required_floor: impl IntoIterator<Item = PythonString>,
     identity: &dyn ExactIdentityLookup,
-) -> Result<ExactDenySet, ConstructorAbort> {
+) -> Result<ExactDenySet, IdentityFailure> {
     let floor = resolve_deny_exact(kind, required_floor, identity)?.spellings();
     let mut set = ExactDenySet::empty();
     for token in deny {

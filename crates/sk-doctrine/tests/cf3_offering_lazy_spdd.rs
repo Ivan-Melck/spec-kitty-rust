@@ -58,13 +58,18 @@ fn construction_reads_nothing_and_an_unused_abort_never_surfaces() {
     let error = index
         .try_declared_id(ArtifactKind::Tactic, "broken")
         .expect_err("the queried kind aborts");
-    assert_eq!(error.python, "KeyError");
+    assert_eq!(
+        error.abort().expect("a Source constructor abort").python,
+        "KeyError"
+    );
     // …and it is memoised, so a second query re-raises the same abort instead of
     // re-reading the tree.
     assert_eq!(
         index
             .try_scan(ArtifactKind::Tactic)
             .expect_err("still an abort")
+            .abort()
+            .expect("a Source constructor abort")
             .python,
         "KeyError"
     );

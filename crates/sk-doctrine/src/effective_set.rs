@@ -59,7 +59,7 @@ use std::path::{Path, PathBuf};
 use sk_charter::{ArtifactKind, CHARTER_KIND_TOKENS, MISSION_TYPE_TOKEN};
 use sk_kernel::PythonString;
 
-use crate::identity::IdentityIndex;
+use crate::identity::{IdentityFailure, IdentityIndex};
 use crate::language_scope::{InferRequest, infer_repo_languages};
 use crate::ledger::EffectiveWhenAbsent;
 use crate::offering::{
@@ -450,6 +450,17 @@ impl std::error::Error for EffectiveSetError {
     }
 }
 
+/// Carry the same two-arm identity failure into this module's existing authority.
+///
+/// A Source abort stays the reference's [`EffectiveSetError::Fatal`]; a Native
+/// start-up policy failure keeps its typed arm and never becomes unresolved health.
+fn identity_effective_error(failure: IdentityFailure) -> EffectiveSetError {
+    match failure {
+        IdentityFailure::Constructor(abort) => EffectiveSetError::Fatal(abort),
+        IdentityFailure::Native(native) => EffectiveSetError::Native(native),
+    }
+}
+
 /// Every valid activation key, sorted (the reference's `sorted(YAML_KEY_MAP.values())`).
 #[must_use]
 pub fn valid_activation_keys() -> Vec<String> {
@@ -700,11 +711,16 @@ impl Offering {
                             // The reference's `_as_stems` runs inside `_resolve_one`'s
                             // `try`, so a scan abort while mapping a declared id leaves
                             // this key unresolved instead of raising from the strict pass.
-                            Err(abort) => {
+                            Err(IdentityFailure::Constructor(abort)) => {
                                 return Ok(unresolved(
                                     entry,
                                     format!("{SCAN_FAILURE_PREFIX}{abort}"),
                                 ));
+                            }
+                            // A Native start-up policy failure has no Source analogue:
+                            // it propagates instead of becoming unresolved health.
+                            Err(IdentityFailure::Native(native)) => {
+                                return Err(EffectiveSetError::Native(native));
                             }
                         };
                         ids.insert(stem);
@@ -753,7 +769,7 @@ impl Offering {
         &self,
         kind: ArtifactKind,
         declared_id: &PythonString,
-    ) -> Result<PythonString, ConstructorAbort> {
+    ) -> Result<PythonString, IdentityFailure> {
         Ok(self
             .identity
             .try_stem_exact(kind, declared_id)?
@@ -886,7 +902,7 @@ impl<'a> Fallback<'a> {
                         let stem = self
                             .identity
                             .try_stem_exact(kind, &declared_id)
-                            .map_err(EffectiveSetError::Fatal)?;
+                            .map_err(identity_effective_error)?;
                         ids.insert(stem.unwrap_or(declared_id));
                     }
                 }

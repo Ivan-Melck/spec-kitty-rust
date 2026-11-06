@@ -1,0 +1,132 @@
+target:
+  term: CF91 identity declared-id eager text conversion phases and caches
+categories:
+  code_symbols:
+    action: manual_review
+    notes: >-
+      PRE census (standard8 KEEP/tests/docs included) at published 3c3cee82337d before
+      any edit, counted with fixed-string whole-word matches: try_table 21 (sk-doctrine/src)
+      / 0 (tests) / 0 (other crates) / 3 (docs/rust); try_scan 3/1/0/1;
+      try_declared_id 4/35/0/1; try_declared_id_exact 7/0/0/0; try_stem 1/0/0/1;
+      try_stem_exact 9/0/0/0; try_knows 1/0/0/1; try_knows_exact 4/0/0/2;
+      try_has_declared_id 1/0/0/1; try_names_a_file 1/0/0/1; try_source_layer 1/0/0/1;
+      try_path_for 1/0/0/1; try_selection_id 1/0/0/1; try_stored_spelling 1/0/0/1;
+      try_activation_id 1/0/0/2; try_activation_id_exact 5/0/0/3;
+      try_activation_report_exact 3/0/0/0; ExactIdentityLookup 7/0/0/0; spell_exact 4;
+      resolve_deny_exact 3; effective_deny_exact 4/0/0/1; map_declared 2/0/0/0;
+      GateFailure 15/6/0/5 plus 3 unrelated kitty-specs string mentions (do_not_change);
+      ConstructorAbort 80/2/0/22; IdentityFailure 0 everywhere (new same-item alias).
+      declared_id( appears 32 times in sk-doctrine/src and 56 in tests (calls and
+      definitions together). KEEP unchanged: IdentityIndex, KindTable, Entry, ScanPass,
+      FileRead, SuccessOnce, GateFailure, ConstructorAbort, NativeOfferingFailure,
+      ArtifactDocument, try_python_str, environment_integer_digits, python_strip,
+      ExactIdentityLookup, spell_exact, resolve_deny_exact, effective_deny_exact.
+      CHANGED: the identity checked queries (`try_table`, `try_scan`, and every `try_*`
+      identity lookup) return the SAME existing two-arm GateFailure item through a
+      same-item `IdentityFailure` alias instead of the ConstructorAbort-only result,
+      because a Native invalid-integer start-up policy has no Source exception class.
+      `declared_id` becomes fallible and reuses one canonical graph str renderer
+      (ArtifactDocument::try_python_str) with the existing
+      python_json::environment_integer_digits() ceiling. No new enum, parser, integer
+      formatter, policy default, env parser, kind roster, cache or serializer.
+  import_paths:
+    action: do_not_change
+    notes: >-
+      No new crate, module, dependency or re-export path. identity.rs imports the
+      existing crate::offering::{GateFailure, NativeOfferingFailure} re-exports; the
+      other edited modules keep their existing imports.
+  filesystem_paths:
+    action: do_not_change
+    notes: >-
+      No new discovery path, glob, root, fixture directory or output rewriting. The new
+      test writes rows under each child's own independent CWD with identical relative
+      paths (project/tactic/...), as CF90 did under builtin/.
+  serialized_keys:
+    action: do_not_change
+    notes: >-
+      No YAML/JSON key, wire field or serialized name changes. The declared-id spelling
+      is rendered text, not a serialized key.
+  cli_commands:
+    action: do_not_change
+    notes: >-
+      No CLI flag, command, envelope, count or registration change.
+  user_facing_strings:
+    action: manual_review
+    notes: >-
+      The new abort message is the MEASURED CPython 3.11.15 int->str text
+      "Exceeds the limit (4300 digits) for integer string conversion; use
+      sys.set_int_max_str_digits() to increase the limit" (and its 640 variant). Class is
+      ValueError. No invented or shared parse wording. A Native invalid
+      PYTHONINTMAXSTRDIGITS stays a typed NativeOfferingFailure::IntegerTextPolicy
+      rendering, never a fake Python class.
+  tests_fixtures:
+    action: manual_review
+    notes: >-
+      New tiny named target crates/sk-doctrine/tests/cf91_identity_text_phase.rs following
+      the cf90_fallible_graph_text pattern: two independent actual children (pinned Source
+      and this test binary), each asserting its own fresh CWD/HOME/all 7 XDG
+      (including DIRS/RUNTIME)/TMPDIR/TMP/TEMP, independent absolute expected
+      Source/PYTHONPATH/packs/module origin/PYTHONHASHSEED, real filesystem/stdout/stderr
+      codecs and the pinned 3.11.15/exact-53 oracle proof before business reads. Rows
+      cover explicit hex int at the 4300 boundary and 4301, nested list int, configured
+      640, unlimited 0, quoted text id, fast plain id with an unrelated huge int, the
+      same-index fail->repair retry, warm caught-skip/fast boundaries, the TypeError
+      caught-as-None phase and the actual ActivationGate allow-filter consumer. Native
+      invalid-policy control is not a pair. The directly affected cf85 target is adapted
+      mechanically; cf3/cf84 assertions are adapted mechanically and NOT run without a
+      fresh receipt.
+  logs_telemetry:
+    action: do_not_change
+    notes: >-
+      No warning, traceback, logging or global-wire parity claim. Only the identity scan
+      abort / Native typed start-up failure is carried; per-file skip warnings stay out
+      of scope.
+exceptions:
+  - path: crates/sk-doctrine/src/identity.rs
+    action: manual_review
+    reason: >-
+      Make the declared-id render fallible at the exact Source eager-str phase and carry
+      the same GateFailure item through the checked identity queries; map the Source-
+      caught TypeError construction phase to the completed no-id read the reference
+      returns. No second error enum or renderer.
+  - path: crates/sk-doctrine/src/ledger.rs
+    action: manual_review
+    reason: >-
+      Mechanical signature propagation of the same GateFailure item through the existing
+      ExactIdentityLookup trait and deny-spelling helpers.
+  - path: crates/sk-doctrine/src/source_denied.rs
+    action: manual_review
+    reason: >-
+      Mechanical mapping: Source Constructor stays ActivationReadError::Aborted; Native
+      stays ActivationReadError::Native.
+  - path: crates/sk-doctrine/src/effective_set.rs
+    action: manual_review
+    reason: >-
+      Mechanical mapping: a Source scan abort stays the reference's unresolved strict
+      pass and Fatal fallback; a Native start-up failure propagates as EffectiveSetError::Native.
+  - path: crates/sk-doctrine/src/offering/gate.rs
+    action: do_not_change
+    reason: >-
+      The existing actual gate consumer; its GateFailure return type is the authority
+      being reused, so no edit is expected there.
+  - path: crates/sk-doctrine/tests/cf91_identity_text_phase.rs
+    action: manual_review
+    reason: >-
+      New tiny named target with the independent Source/Native business children and
+      the actual ActivationGate consumer.
+  - path: crates/sk-doctrine/tests/cf85_source_fast_id.rs
+    action: manual_review
+    reason: >-
+      Directly affected existing target: its checked identity error assertions are
+      adapted mechanically; it is the ONE existing target re-run.
+  - path: crates/sk-doctrine/tests/cf84_same_instance_recovery.rs
+    action: manual_review
+    reason: >-
+      Mechanically affected error-field assertions; adapted without running in this lane.
+  - path: crates/sk-doctrine/tests/cf3_offering_lazy_spdd.rs
+    action: manual_review
+    reason: >-
+      Mechanically affected error-field assertions; adapted without running in this lane.
+status:
+  accepted: false
+  phase: prospective CF91 identity declared-id text phases
